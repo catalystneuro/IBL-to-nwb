@@ -1,0 +1,92 @@
+{
+  "NWBFile": {
+    "session_start_time": "none",
+    "keywords": [],
+    "experiment_description": "none",
+    "session_id": "none",
+    "experimenter": [],
+    "identifier": "none",
+    "institution": "none",
+    "lab": "none",
+    "session_description": "none",
+    "surgery": "none",
+    "pharmacology": "none",
+    "protocol": "none",
+    "related_publications": [],
+    "notes": "none",
+    "virus": "none"
+  },
+  "Subject": {
+    "subject_id": "none",
+    "description": "none",
+    "genotype": "none",
+    "sex": "U",
+    "species": "none",
+    "weight": "none",
+    "date_of_birth": "none"
+  },
+  "Behavior": {
+    "Position": {
+      "name": "Position",
+      "spatial_series": []
+    },
+    "BehavioralEvents": {
+      "name": "BehavioralEvents",
+      "time_series": []
+    }
+  },
+  "Ecephys": {
+    "Devices": [{
+      "name":"ecephys_device_name"
+    }],
+    "ElectricalSeries": [{
+      "name": "ElectricalSeries",
+      "description": "description"
+    }],
+    "ElectrodeGroups": [{
+      "name": "ElectrodeGroups",
+      "description": "description",
+      "location": "location",
+      "device": "device_name",
+      "tag": "default_tag"
+    }]
+  },
+  "Ophys": {
+    "Devices": [{
+      "name":"ophys_device_name"
+    }],
+    "DFOverF": {
+      "name": "DFOverF",
+      "roi_response_series": []
+    },
+    "Fluorescence": {
+      "name": "Fluorescence",
+      "roi_response_series": []
+    },
+    "ImageSegmentation": {
+      "name": "ImageSegmentation",
+      "plane_segmentation": 0.0,
+      "PlaneSegmentations": []
+    },
+    "ImagingPlanes": [{
+      "name": "ImagingPlanes",
+      "description": "description",
+      "location": "location",
+      "device": "device_name",
+      "excitation_lambda": 0.0,
+      "imaging_rate": 0.0,
+      "indicator": "indicator_used",
+      "optical_channels": [{
+        "name": "ElectrodeGroups",
+        "description": "description",
+        "emission_lambda": 0.0,
+        "tag": "default_tag"
+      }]
+    }],
+    "TwoPhotonSeries": [{
+        "name": "TwoPhotonSeries",
+        "description": "description",
+        "imaging_plane": "imaging_plane"
+      }]
+  }
+}
