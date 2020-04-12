@@ -2,6 +2,7 @@
 from oneibl.one import ONE
 from .schema import metafile as nwb_schema
 from .schema import template_metafile as nwb_schema_template
+from .schema import dataset_format_list
 
 class Alyx2NWBSchema:
 
@@ -10,36 +11,46 @@ class Alyx2NWBSchema:
         self.one_kwargs = one_kwargs
         self.schema_template=nwb_schema_template
         self.schema=nwb_schema
+        self.eid_list=eid
         if not one_obj:
             self.one_obj = ONE()
         elif not isinstance(one_obj, ONE):
             raise Exception('one_obj is not of ONE class')
-        self.eid=self._get_eid_list()
+        self.eid_list=self._get_eid_list()
+        self.eid_session_info = self._retrieve_eid_endpoint()
         self.dataset_type_list=self._list_eid_metadata('dataset_type')
         self.users_list = self._list_eid_metadata('users')
         self.subjects_list = self._list_eid_metadata('subjects')
         self.labs_list = self._list_eid_metadata('labs')
-        self.eid_session_info=self._retrieve_eid_endpoint()
+
         self._get_lab_table()
         self._get_subject_table()
 
+
     def _get_eid_list(self):
-        if self.eid:
-            if not isinstance(self.eid, list):
-                self.eid = [self.eid]
+        if self.eid_list:
+            if not isinstance(self.eid_list, list):
+                self.eid_list = [self.eid_list]
         else:
-            self.eid = self._one_obj.search(**self.one_kwargs)
-        return self.eid
+            self.eid_list = self._one_obj.search(**self.one_kwargs)
+        return self.eid_list
+
+    def _get_dataset_details(self):
+        list_type_returned = [None]*len(self.eid_list)
+        for val, e_id in enumerate(self.eid_list):
+            dataset_dict=self.eid_session_info[val]['data_dataset_session_related']
+            list_type_returned[val]=[i['name'] for i in dataset_dict]
+        return list_type_returned
 
     def _list_eid_metadata(self,list_type):
-        list_type_returned=[None]*len(self.eid)
-        for val, e_id in enumerate(self.eid):
+        list_type_returned=[None]*len(self.eid_list)
+        for val, e_id in enumerate(self.eid_list):
             list_type_returned = self.one_obj.list(e_id, list_type)
         return list_type_returned
 
     def _retrieve_eid_endpoint(self):
-        eid_sess_info=[None]*len(self.eid)
-        for val, ceid in enumerate(self.eid):
+        eid_sess_info=[None]*len(self.eid_list)
+        for val, ceid in enumerate(self.eid_list):
             eid_sess_info[val]=self.one_obj.alyx.rest('sessions/'+ceid, 'list')
         return eid_sess_info
 
@@ -50,8 +61,8 @@ class Alyx2NWBSchema:
         self.subject_table= self.one_obj.alyx.rest('subject/'+ self.eid_session_info['subject'],'list')
 
     def _dataset_type_parse(self):
-        dataset_type_list=[None]*len(self.eid)
-        for val, Ceid in enumerate(self.eid):
+        dataset_type_list=[None]*len(self.eid_list)
+        for val, Ceid in enumerate(self.eid_list):
             split_list_objects=[i.split('.')[0] for i in self.dataset_type_list[val]]
             split_list_attributes = [i.split('.')[-1] for i in self.dataset_type_list[val]]
             split_list_objects_dict=dict()
@@ -62,10 +73,14 @@ class Alyx2NWBSchema:
             dataset_type_list[val]=split_list_objects_dict
         return dataset_type_list
 
+    def set_eid_metadata(self):
+        return dict(eid=self.eid_list)
+
     def set_nwbfile_metadata(self):
-        nwbfile_metadata_dict=[dict()]*len(self.eid)
-        for val, Ceid in enumerate(self.eid):
+        nwbfile_metadata_dict=[dict()]*len(self.eid_list)
+        for val, Ceid in enumerate(self.eid_list):
             nwbfile_metadata_dict[val]['session_start_time'] =self.eid_session_info['start_time']
+            nwbfile_metadata_dict[val]['keywords'] = self.eid_session_info['start_time']
             nwbfile_metadata_dict[val]['experiment_description'] =self.eid_session_info['narrative']
             nwbfile_metadata_dict[val]['session_id'] =Ceid
             nwbfile_metadata_dict[val]['experimenter']=','.join(self.eid_session_info['users'])
@@ -80,9 +95,9 @@ class Alyx2NWBSchema:
 
         return nwbfile_metadata_dict
 
-    def get_subject_metadata(self):
-        subject_metadata_dict = [dict()]*len(self.eid)
-        for val, Ceid in enumerate(self.eid):
+    def set_subject_metadata(self):
+        subject_metadata_dict = [dict()]*len(self.eid_list)
+        for val, Ceid in enumerate(self.eid_list):
             subject_metadata_dict[val]['subject_id']=self.subject_table['id']
             subject_metadata_dict[val]['description'] = self.subject_table['description']
             subject_metadata_dict[val]['genotype'] = ','.join(self.subject_table['genotype'])
@@ -93,13 +108,15 @@ class Alyx2NWBSchema:
         return subject_metadata_dict
 
     def get_surgery_metadata(self):#currently not exposed by api
-        surgery_metadata_dict=[dict()]*len(self.eid)
+        surgery_metadata_dict=[dict()]*len(self.eid_list)
         return surgery_metadata_dict
 
     def get_behavior_metadata(self):
         return behavior_metadata_dict
 
     def get_trials_data(self):
+
+        pass
 
     def get_ecephys_metadata(self):
         return ecephys_metadata_dict
