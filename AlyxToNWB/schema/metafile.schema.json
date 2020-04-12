@@ -8,6 +8,14 @@
   "required": ["NWBFile"],
   "additionalProperties": false,
   "properties": {
+    "eid": {
+      "description": "list of supplied experiment ids",
+      "type": "array",
+      "items": {
+        "title": "eid",
+        "type": "string"
+      }
+    },
     "NWBFile": {
       "type": "object",
       "additionalProperties": false,
@@ -96,13 +104,61 @@
                 ],
                 "properties": {
                   "unit": {"type": "string", "default": "m"}
+                }
+              }
+            }
+          }
+        },
+        "PupilTracking": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string", "default": "PupilTracking"},
+            "time_series": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "title": "BehavioralTimeSeries",
+                "allOf": [
+                  {"$ref": "#/definitions/TimeSeries"}
+                ],
+                "properties": {
+                  "unit": {"type": "string", "default": "m"}
                   }
+              }
+            }
+          }
+        },
+        "BehavioralTimeSeries": {
+          "type": "object",
+          "title": "BehavioralTimeSeries",
+          "allOf": [
+            {"$ref": "#/definitions/TimeSeries"}
+          ],
+          "properties": {
+            "unit": {"type": "string", "default": "m"}
+          }
+        },
+        "BehavioralEpochs": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string", "default": "BehavioralEpochs"},
+            "interval_series": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "title": "IntervalSeries",
+                "allOf": [
+                  {"$ref": "#/definitions/TimeSeries"}
+                ],
+                "properties": {
+                  "unit": {"type": "string", "default": "m"}
                 }
               }
             }
           }
         }
-      },
+      }
+    },
     "Ecephys": {
       "type": "object",
       "properties": {
@@ -210,7 +266,7 @@
                     "description": {"type": "string"},
                     "emission_lambda": {"type": "number"},
                     "tag": {"type": "string"}
-                    }
+                  }
                 }
               }
             }
@@ -235,12 +291,18 @@
   "definitions": {
     "TimeSeries": {
       "type": "object",
-      "required": ["name", "description"],
+      "required": ["name", "description", "starting_time", "rate", "data"],
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
         "conversion": {"type": "number", "default": 1.0},
-        "tag": {"type": "string"}
+        "tag": {"type": "string"},
+        "starting_time": {"type": "number", "default": 0.0},
+        "rate": {"type": "number", "default": -1.0},
+        "data": {
+          "type": "string",
+          "description": "ALF Uri of the actual dataset"
+        }
       }
     },
     "Devices": {
