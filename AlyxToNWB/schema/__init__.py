@@ -8,3 +8,6 @@ with open(os.path.join(os.getcwd(), 'template_metafile.schema.json')) as f:
 
 with open(os.path.join(os.getcwd(), 'dataset_format_list.json')) as f:
     dataset_format_list=json.load(f)
+
+with open(os.path.join(os.getcwd(), 'dataset_details_list.json')) as f:
+    dataset_details_list=json.load(f)

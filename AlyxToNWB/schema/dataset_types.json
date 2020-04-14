@@ -1,0 +1,201 @@
+{
+  "kilosort": [
+    "whitening_matrix"
+  ],
+  "trials": [
+    "choice",
+    "contrastLeft",
+    "contrastRight",
+    "feedback_times",
+    "feedbackType",
+    "goCue_times",
+    "goCueTrigger_times",
+    "included",
+    "intervals",
+    "itiDuration",
+    "probabilityLeft",
+    "repNum",
+    "response_times",
+    "rewardVolume",
+    "stimOn_times"
+  ],
+  "passiveValveClicks": [
+    "times"
+  ],
+  "_iblrig_encoderPositions": [
+    "raw"
+  ],
+  "passiveNoise": [
+    "intervals"
+  ],
+  "wheelMoves": [
+    "intervals",
+    "type"
+  ],
+  "passiveWhiteNoise": [
+    "times"
+  ],
+  "_iblrig_syncSquareUpdate": [
+    "raw"
+  ],
+  "sparseNoise": [
+    "times",
+    "xyPos"
+  ],
+  "_iblrig_micData": [
+    "raw"
+  ],
+  "_iblrig_taskData": [
+    "raw"
+  ],
+  "_ibl_lickPiezo": [
+    "raw",
+    "timestamps"
+  ],
+  "_iblrig_taskSettings": [
+    "raw"
+  ],
+  "_iblrig_encoderEvents": [
+    "raw"
+  ],
+  "templates": [
+    "waveforms",
+    "waveformsChannels"
+  ],
+  "_ibl_trials": [
+    "stimOnTrigger_times"
+  ],
+  "extraRewards": [
+    "times"
+  ],
+  "_rigbox_hardwareInfo": [
+    "raw"
+  ],
+  "_iblrig_stimPositionScreen": [
+    "raw"
+  ],
+  "passiveBeeps": [
+    "times"
+  ],
+  "probes": [
+    "description",
+    "trajectory"
+  ],
+  "_ibl_log": [
+    "error",
+    "info"
+  ],
+  "unknown": [
+    "unknown"
+  ],
+  "spikes": [
+    "amps",
+    "clusters",
+    "depths",
+    "samples",
+    "templates",
+    "times"
+  ],
+  "_iblrig_ambientSensorData": [
+    "raw"
+  ],
+  "_phy_spikes_subset": [
+    "channels",
+    "spikes",
+    "waveforms"
+  ],
+  "ephysData": [
+    "ap",
+    "ch",
+    "lf",
+    "meta",
+    "nidq",
+    "sync",
+    "timestamps",
+    "wiring"
+  ],
+  "_iblrig_codeFiles": [
+    "raw"
+  ],
+  "_rigbox_matParameters": [
+    "raw"
+  ],
+  "audioOnsetGoCue": [
+    "times_mic"
+  ],
+  "_iblrig_VideoCodeFiles": [
+    "raw"
+  ],
+  "_rigbox_block": [
+    "raw"
+  ],
+  "_iblrig_Camera": [
+    "raw",
+    "timestamps"
+  ],
+  "_iblqc_ephysTimeRms": [
+    "rms",
+    "timestamps"
+  ],
+  "_rigbox_code": [
+    "raw"
+  ],
+  "_spikeglx_sync": [
+    "channels",
+    "polarities",
+    "times"
+  ],
+  "_iblrig_encoderTrialInfo": [
+    "raw"
+  ],
+  "wheel": [
+    "position",
+    "timestamps",
+    "velocity"
+  ],
+  "camera": [
+    "dlc",
+    "times"
+  ],
+  "_iblmic_audioSpectrogram": [
+    "frequencies",
+    "power",
+    "times_mic"
+  ],
+  "_iblrig_RFMapStim": [
+    "raw"
+  ],
+  "clusters": [
+    "amps",
+    "channels",
+    "depths",
+    "metrics",
+    "peakToTrough",
+    "probes",
+    "uuids",
+    "waveforms",
+    "waveformsChannels"
+  ],
+  "_rigbox_jsonParameters": [
+    "raw"
+  ],
+  "_rigbox_timeLine": [
+    "raw"
+  ],
+  "passiveTrials": [
+    "contrastLeft",
+    "contrastRight",
+    "included",
+    "stimOn_times"
+  ],
+  "channels": [
+    "localCoordinates",
+    "_phy_ids",
+    "probes",
+    "rawInd"
+  ],
+  "_iblqc_ephysSpectralDensity": [
+    "freqs",
+    "power"
+  ]
+}
