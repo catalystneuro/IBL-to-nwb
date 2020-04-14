@@ -131,11 +131,17 @@
         "BehavioralTimeSeries": {
           "type": "object",
           "title": "BehavioralTimeSeries",
-          "allOf": [
-            {"$ref": "#/definitions/TimeSeries"}
-          ],
           "properties": {
-            "unit": {"type": "string", "default": "m"}
+            "unit": {"type": "string", "default": "m"},
+            "TimeSeries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "allOf": [
+                  {"$ref": "#/definitions/TimeSeries"}
+                ]
+              }
+            }
           }
         },
         "BehavioralEpochs": {
