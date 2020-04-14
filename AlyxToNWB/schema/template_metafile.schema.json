@@ -32,7 +32,65 @@
     },
     "BehavioralEvents": {
       "name": "BehavioralEvents",
-      "time_series": []
+      "time_series": [
+        {
+          "name": "lick_times",
+          "data": "bool(lick.times.npy)",
+          "timestamps": "lick.times.npy",
+          "description": "Times of licks in seconds."
+        }
+      ]
+    },
+    "BehavioralEpochs": {
+      "name": "BehavioralEpochs",
+      "interval_series": [
+        {
+          "name": "wheel_moves",
+          "data": "wheelMoves.type.npy",
+          "timestamps": "wheelMoves.intervals.npy",
+          "description": "Detected wheel movements."
+        }
+      ]
+    },
+    "BehaviouralTimesSeries": {
+      "time_series": [
+        {
+          "name": "face_motionEnergy",
+          "data": "face.motionEnergy.npy",
+          "timestamps": "face.timestamps.npy",
+          "description": "Features extracted from the video of the frontal aspect of the subject, including the subject\\'s face and forearms."
+        },
+        {
+          "name": "_ibl_lickPiezo_times",
+          "data": "_ibl_lickPiezo.raw.npy",
+          "timestamps": "_ibl_lickPiezo.timestamps.npy",
+          "description": "Voltage values from a thin-film piezo connected to the lick spout, so that values are proportional to deflection of the spout and licks can be detected as peaks of the signal."
+        },
+        {
+          "name": "wheel_position",
+          "data": "wheel.position.npy",
+          "timestamps": "wheel.timestamps.npy",
+          "description": "The position reading of the rotary encoder attached to the rubber wheel that the mouse pushes left and right with his forelimbs."
+        }
+      ]
+    },
+    "PupilTracking": {
+      "BehaviouralTimesSeries": {
+        "time_series": [
+          {
+            "name": "eye_area",
+            "data": "eye.area.npy",
+            "timestamps": "eye.timestamps.npy",
+            "description": "Features extracted from the video of the right eye."
+          },
+          {
+            "name": "eye_xy_positions",
+            "data": "eye.xyPos.npy",
+            "timestamps": "eye.timestamps.npy",
+            "description": "Features extracted from the video of the frontal aspect of the subject, including the subject\\'s face and forearms."
+          }
+        ]
+      }
     }
   },
   "Ecephys": {
