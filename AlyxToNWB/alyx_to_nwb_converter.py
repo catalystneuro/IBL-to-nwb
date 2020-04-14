@@ -7,11 +7,15 @@ from .schema import dataset_format_list
 class Alyx2NWBConverter(NWBConverter):
 
 
-    def __init__(self, nwbfile=None, nwb_schema=None, saveloc=None):
-        if ~nwb_schema:
-            raise Exception('nwb_schema not provided')
-        elif jsonschema.validate(nwb_schema,IBL_to_NWB.metadata_schema):
-            self.nwb_schema=nwb_schema
+    def __init__(self, nwbfile=None, nwb_schema=None,
+                 schema_obj: Alyx2NWBSchema = None ,
+                 saveloc=None):
+        if ~nwb_schema & ~schema_obj:
+            raise Exception('provide a json schema or a Alyx2NEBSchema object as argument')
+        elif ~nwb_schema:
+                if jsonschema.validate(nwb_schema,IBL_to_NWB.metadata_schema):
+                    self.nwb_schema=nwb_schema
+        elif
 
 
         if ~nwbfile:
@@ -28,6 +32,15 @@ class Alyx2NWBConverter(NWBConverter):
         pass
 
     def add_processing(self):
+        pass
+
+    def create_electrodes_ecephys(self):
+        pass
+
+    def create_electrode_groups(self):
+        pass
+
+    def create_devices(self):
         pass
 
     def create_subject(self):
