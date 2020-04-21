@@ -92,17 +92,20 @@ class Alyx2NWBSchema:
             dataset_type_list[val] = split_list_objects_dict
         return dataset_type_list
 
-    def _unpack_dataset_details(self, dataset_key, dataset_val):
-        outlist = []
-        for i in dataset_key:
-            if i in dataset_val:
-                out1 = [j['name'] for j in dataset_val[i]]
-                out2 = [k['description'] for k in dataset_val[i]]
-            else:
-                out1 = []
-                out2 = []
-            outlist.extend([out1, out2])
-        return outlist
+    def _unpack_dataset_details(self, dataset_details, object_name,custom_attrs=None, match_str=''):
+        cond = lambda x: re.match(match_str, x)
+        datafiles_all = [object_name + '.' + ii['name'] for ii in dataset_details[object_name] if not cond(ii['name'])]
+        datafiles_names_all = [object_name + '_' + ii['name'] for ii in dataset_details[object_name] if not cond(ii['name'])]
+        datafiles_desc_all = [ii['description'] for ii in dataset_details[object_name] if not cond(ii['name'])]
+        if not custom_attrs:
+            datafiles_inc = [i for i in datafiles_all if i in custom_attrs]
+            datafiles_names_inc = [datafiles_names_all[j] for j, i in enumerate(datafiles_all) if i in custom_attrs]
+            datafiles_desc_inc = [datafiles_desc_all[j] for j, i in enumerate(datafiles_all) if i in custom_attrs]
+        else:
+            datafiles_inc = datafiles_all
+            datafiles_names_inc = datafiles_names_all
+            datafiles_desc_inc = datafiles_desc_all      
+        return datafiles_inc, datafiles_names_inc, datafiles_desc_inc
 
     def _initialize_container_dict(self, name):
         return [{name: dict()}]*len(self.eid_list)
@@ -146,7 +149,7 @@ class Alyx2NWBSchema:
         """
         datafiles_all = [object_name + '.' + ii['name'] for ii in dataset_details[object_name] if
                          not re.match('.+time.+|.+interval.+', ii['name'])]
-        datafiles_names_all = [object_name + '_' + ii['name'] for ii in dataset_details['wheel'] if
+        datafiles_names_all = [object_name + '_' + ii['name'] for ii in dataset_details[object_name] if
                                not re.match('.+time.+|.+interval.+', ii['name'])]
         if not custom_attrs:
             datafiles = [i for i in datafiles_all if i in custom_attrs]
@@ -154,11 +157,22 @@ class Alyx2NWBSchema:
         else:
             datafiles = datafiles_all
             datafiles_names = datafiles_names_all
-        datafiles_desc = [ii['description'] for ii in dataset_details['wheel'] if
+        datafiles_desc = [ii['description'] for ii in dataset_details[object_name] if
                           (not re.match('.+time.+|.+interval.+', ii['name'])) & bool(datafiles)]
         datafiles_timedata = [object_name + '.' + ii['name'] for ii in dataset_details['wheel'] if
                               re.match('.+time.+|.+interval.+', ii['name'])]
         timeseries_dict = {ts_name: [None]*len(datafiles)}
+
+        matchstr='.+time.+|.+interval.+'
+        timeattr_name=[i for i in dataset_details[object_name] if re.match(matchstr,i)]
+        datafiles, datafiles_names, datafiles_desc = \
+            self._unpack_dataset_details(dataset_details, object_name, custom_attrs, match_str=matchstr)
+        datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
+            self._unpack_dataset_details(dataset_details, object_name, timeattr_name[0])
+        if not datafiles:
+            datafiles_names=datafiles_time_name
+            datafiles_desc=datafiles_time_desc
+
         for i, j in enumerate(datafiles):
             timeseries_dict[ts_name][i] = {'name': datafiles_names[i],
                                            'description': datafiles_desc[i],
@@ -166,6 +180,37 @@ class Alyx2NWBSchema:
                                            'data': datafiles[i]}
             timeseries_dict[ts_name][i].update(**kwargs)
         return timeseries_dict
+
+    def _get_dynamictable_object(self, dataset_details, object_name, dt_name, default_colnames, custom_attrs=None):
+        """
+                :param dataset_details: self.dataset_details
+                :param object_name: name of hte object_name in the IBL datatype
+                :param dt_name: table key name like 'time_series', can also be 'interval_series' in some cases
+                :param custom_colmns: the custom set of attributes for which to create columns from
+                {'Trials':
+                    [
+                        {
+                          "name": "column1 name",
+                          "data": "column data uri (string)",
+                          "description": "col1 description"
+                        },
+                        {
+                           "name": "column2 name",
+                          "data": "column data uri (string)",
+                          "description": "col2 description"
+                        }
+                    ]
+                }
+                """
+        custom_columns_datafilename, custom_columns_name, custom_columns_description=\
+            self._unpack_dataset_details(dataset_details, object_name, custom_attrs)
+        custom_columns_datafilename[:len(default_colnames)]=default_colnames
+        outdict={dt_name:[dict(name='',description='',data='')]*len(dataset_details[object_name])}
+        for i,j in enumerate(outdict):
+            outdict[dt_name][i]['name']=custom_columns_name[i]
+            outdict[dt_name][i]['description'] =custom_columns_description[i]
+            outdict[dt_name][i]['data'] = custom_columns_datafilename[i]
+        return outdict
 
     def set_eid_metadata(self):
         return dict(eid=self.eid_list)
@@ -232,7 +277,13 @@ class Alyx2NWBSchema:
         return behavior_metadata_dict
 
     def set_trials_data(self):
+        trials_metadata_dict = self._initialize_container_dict('Trials')
         trials_objects = ['trials']
+        current_trial_objects = self._get_current_object_names(trials_objects)
+        for val, Ceid in enumerate(self.eid_list):
+            for k, u in enumerate(current_trial_objects[val]):
+                if 'trial' in u:
+
         pass
 
     def set_stimulus_metadata(self):
