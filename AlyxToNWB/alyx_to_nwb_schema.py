@@ -93,6 +93,15 @@ class Alyx2NWBSchema:
         return dataset_type_list
 
     def _unpack_dataset_details(self, dataset_details, object_name,custom_attrs=None, match_str=''):
+        """
+        helper function to split object and attributes of the IBL datatypes into
+        names: obj_attr; data= obj.attr; desc for each
+        :param dataset_details:
+        :param object_name:
+        :param custom_attrs:
+        :param match_str:
+        :return:
+        """
         cond = lambda x: re.match(match_str, x)
         datafiles_all = [object_name + '.' + ii['name'] for ii in dataset_details[object_name] if not cond(ii['name'])]
         datafiles_names_all = [object_name + '_' + ii['name'] for ii in dataset_details[object_name] if not cond(ii['name'])]
@@ -165,7 +174,19 @@ class Alyx2NWBSchema:
             timeseries_dict[ts_name][i].update(**kwargs)
         return timeseries_dict
 
-    def _get_dynamictable_object(self, dataset_details, object_name, dt_name, default_colnames, custom_attrs=None):
+    def _attrnames_align(self,attrs_list, custom_names):
+        append_set=set(attrs_list).difference(set(custom_names.values()))
+        out_list=[]
+        if custom_names:
+            for i in custom_names.values():
+                idx=[ii for ii,k in enumerate(attrs_list) if k in i][0]
+                out_list.extend([attrs_list[idx]])
+            out_list.extend(list(append_set))
+        else:
+            out_list=attrs_list
+        return out_list
+
+    def _get_dynamictable_object(self, dataset_details, object_name, dt_name, default_colnames_dict=None, custom_attrs=None):
         """
                 :param dataset_details: self.dataset_details
                 :param object_name: name of hte object_name in the IBL datatype
@@ -186,6 +207,11 @@ class Alyx2NWBSchema:
                     ]
                 }
                 """
+        dataset_details[object_name]=self._attrnames_align(dataset_details[object_name],default_colnames_dict)
+        if not default_colnames_dict:
+            default_colnames=[]
+        else:
+            default_colnames=list(default_colnames_dict.keys())
         custom_columns_datafilename, custom_columns_name, custom_columns_description=\
             self._unpack_dataset_details(dataset_details, object_name, custom_attrs)
         custom_columns_datafilename[:len(default_colnames)]=default_colnames
@@ -264,11 +290,14 @@ class Alyx2NWBSchema:
         trials_metadata_dict = self._initialize_container_dict('Trials')
         trials_objects = ['trials']
         current_trial_objects = self._get_current_object_names(trials_objects)
+        trials_table_default_cols=[]
         for val, Ceid in enumerate(self.eid_list):
             for k, u in enumerate(current_trial_objects[val]):
                 if 'trial' in u:
+                    return self._get_dynamictable_object(self.dataset_details[val],'trial','Trial',
+                                                  default_colnames_dict=dict(start_time='intervals',
+                                                                             stop_time='intervals']))
 
-        pass
 
     def set_stimulus_metadata(self):
         stimulus_objects = ['sparseNoise', 'passiveBeeps', 'passiveValveClick', 'passiveVisual', 'passiveWhiteNoise']
