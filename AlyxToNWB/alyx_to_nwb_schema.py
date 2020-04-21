@@ -342,7 +342,25 @@ class Alyx2NWBSchema:
         return device_metadata_dict
 
     def set_units_metadata(self):
-        units_objcts = ['clusters', 'spikes']
+        units_objects = ['clusters', 'spikes']
+        units_metadata_dict = self._initialize_container_dict('Units')
+        current_units_objects = self._get_current_object_names(units_objects)
+        for val, Ceid in enumerate(self.eid_list):
+            temp_dataset_details=\
+                dict(clusters=self.dataset_details[val][current_units_objects[val][0]].extend(
+                    self.dataset_details[val][current_units_objects[val][1]]
+                ))
+            for k, u in enumerate(current_units_objects[val]):
+                if 'clusters' in u:
+                    units_metadata_dict[val] = \
+                        self._get_dynamictable_object(temp_dataset_details,'clusters','Units',
+                                                      default_colnames_dict=dict(electrodes='templateWaveformChans',
+                                                                                 waveform_mean='templateWaveforms'))
+                    units_metadata_dict[val]['Units'].extend(
+                        self._get_dynamictable_array(['spike_times','electrode_groups','sampling_rate'],
+                                                     ['None','None','None'],
+                                                     ['times of spikes in the cluster','electrodes of this cluster,','None']
+                                                     ))
 
     def set_electrodes_metadata(self):
         electrodes_objects = ['probes', 'channels']
