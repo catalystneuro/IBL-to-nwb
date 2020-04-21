@@ -147,22 +147,6 @@ class Alyx2NWBSchema:
         ]
         }
         """
-        datafiles_all = [object_name + '.' + ii['name'] for ii in dataset_details[object_name] if
-                         not re.match('.+time.+|.+interval.+', ii['name'])]
-        datafiles_names_all = [object_name + '_' + ii['name'] for ii in dataset_details[object_name] if
-                               not re.match('.+time.+|.+interval.+', ii['name'])]
-        if not custom_attrs:
-            datafiles = [i for i in datafiles_all if i in custom_attrs]
-            datafiles_names = [datafiles_all[j] for j, i in enumerate(datafiles_all) if i in custom_attrs]
-        else:
-            datafiles = datafiles_all
-            datafiles_names = datafiles_names_all
-        datafiles_desc = [ii['description'] for ii in dataset_details[object_name] if
-                          (not re.match('.+time.+|.+interval.+', ii['name'])) & bool(datafiles)]
-        datafiles_timedata = [object_name + '.' + ii['name'] for ii in dataset_details['wheel'] if
-                              re.match('.+time.+|.+interval.+', ii['name'])]
-        timeseries_dict = {ts_name: [None]*len(datafiles)}
-
         matchstr='.+time.+|.+interval.+'
         timeattr_name=[i for i in dataset_details[object_name] if re.match(matchstr,i)]
         datafiles, datafiles_names, datafiles_desc = \
@@ -172,7 +156,7 @@ class Alyx2NWBSchema:
         if not datafiles:
             datafiles_names=datafiles_time_name
             datafiles_desc=datafiles_time_desc
-
+        timeseries_dict = {ts_name: [None]*len(datafiles)}
         for i, j in enumerate(datafiles):
             timeseries_dict[ts_name][i] = {'name': datafiles_names[i],
                                            'description': datafiles_desc[i],
