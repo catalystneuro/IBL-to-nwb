@@ -326,6 +326,14 @@ class Alyx2NWBSchema:
 
     def set_device_metadata(self):
         device_objects = ['probes']
+        device_metadata_dict = self._initialize_container_dict('Devices')
+        current_device_objects = self._get_current_object_names(device_objects)
+        for val, Ceid in enumerate(self.eid_list):
+            for k, u in enumerate(current_device_objects[val]):
+                if 'probes' in u:
+                    temp=self._unpack_dataset_details(self.dataset_details[val],'probes')
+                    device_metadata_dict[val]['Devices']['name']=temp[0]
+        return device_metadata_dict
 
     def set_units_metadata(self):
         units_objcts = ['clusters', 'spikes']
