@@ -117,7 +117,10 @@ class Alyx2NWBSchema:
         return datafiles_inc, datafiles_names_inc, datafiles_desc_inc
 
     def _initialize_container_dict(self, name):
-        return [{name: dict()}]*len(self.eid_list)
+        if name:
+            return [{name: dict()}]*len(self.eid_list)
+        else:
+            return []*len(self.eid_list)
 
     def _get_current_object_names(self, obj_list):
         out_list = [[None]*len(obj_list)]*len(self.eid_list)
@@ -287,20 +290,39 @@ class Alyx2NWBSchema:
         return behavior_metadata_dict
 
     def set_trials_data(self):
-        trials_metadata_dict = self._initialize_container_dict('Trials')
+        trials_metadata_dict = self._initialize_container_dict()
         trials_objects = ['trials']
         current_trial_objects = self._get_current_object_names(trials_objects)
         trials_table_default_cols=[]
         for val, Ceid in enumerate(self.eid_list):
             for k, u in enumerate(current_trial_objects[val]):
                 if 'trial' in u:
-                    return self._get_dynamictable_object(self.dataset_details[val],'trial','Trial',
+                    trials_metadata_dict[val] = self._get_dynamictable_object(self.dataset_details[val],'trial','Trial',
                                                   default_colnames_dict=dict(start_time='intervals',
                                                                              stop_time='intervals']))
-
+        return trials_metadata_dict
 
     def set_stimulus_metadata(self):
         stimulus_objects = ['sparseNoise', 'passiveBeeps', 'passiveValveClick', 'passiveVisual', 'passiveWhiteNoise']
+        stimulus_metadata_dict = self._initialize_container_dict('Stimulus')
+        current_stimulus_objects = self._get_current_object_names(stimulus_objects)
+        for val, Ceid in enumerate(self.eid_list):
+            for k, u in enumerate(current_stimulus_objects[val]):
+                if 'sparseNoise' in u:
+                    stimulus_metadata_dict[val]['Stimulus'] = \
+                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')
+                if 'passiveBeeps' in u:
+                    stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
+                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                if 'passiveValveClick' in u:
+                    stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
+                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                if 'passiveVisual' in u:
+                    stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
+                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                if 'passiveWhiteNoise' in u:
+                    stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
+                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
 
     def set_device_metadata(self):
         device_objects = ['probes']
