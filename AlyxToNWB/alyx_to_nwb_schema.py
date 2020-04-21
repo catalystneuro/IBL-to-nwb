@@ -189,6 +189,14 @@ class Alyx2NWBSchema:
             out_list=attrs_list
         return out_list
 
+    def _get_dynamictable_array(self,name_list, data_list, desc_list):
+        out_list=[dict(name='',description='',data='')]*len(name_list)
+        for i,j in enumerate(out_list):
+            out_list[i]['name']=name_list[i]
+            out_list[i]['description'] = desc_list[i]
+            out_list[i]['data'] = data_list[i]
+        return out_list
+
     def _get_dynamictable_object(self, dataset_details, object_name, dt_name, default_colnames_dict=None, custom_attrs=None):
         """
                 :param dataset_details: self.dataset_details
@@ -218,11 +226,9 @@ class Alyx2NWBSchema:
         custom_columns_datafilename, custom_columns_name, custom_columns_description=\
             self._unpack_dataset_details(dataset_details, object_name, custom_attrs)
         custom_columns_datafilename[:len(default_colnames)]=default_colnames
-        outdict={dt_name:[dict(name='',description='',data='')]*len(dataset_details[object_name])}
-        for i,j in enumerate(outdict):
-            outdict[dt_name][i]['name']=custom_columns_name[i]
-            outdict[dt_name][i]['description'] =custom_columns_description[i]
-            outdict[dt_name][i]['data'] = custom_columns_datafilename[i]
+        in_list = self._get_dynamictable_array(
+                    custom_columns_name,custom_columns_datafilename,custom_columns_description)
+        outdict=dict(dt_name=in_list)
         return outdict
 
     def set_eid_metadata(self):
@@ -299,7 +305,7 @@ class Alyx2NWBSchema:
                 if 'trial' in u:
                     trials_metadata_dict[val] = self._get_dynamictable_object(self.dataset_details[val],'trial','Trial',
                                                   default_colnames_dict=dict(start_time='intervals',
-                                                                             stop_time='intervals']))
+                                                                             stop_time='intervals'))
         return trials_metadata_dict
 
     def set_stimulus_metadata(self):
