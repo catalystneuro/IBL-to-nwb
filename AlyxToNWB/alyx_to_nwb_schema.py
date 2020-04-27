@@ -73,7 +73,7 @@ class Alyx2NWBSchema:
                     self.subject_table[val][kk] = 'None'
 
     def _dataset_type_parse(self):
-        '''
+        """
         :return: list of dict. Each item as a dict with values as list of dict with keys: name and description
         -<dataset object name>: (eg. spikes, clusters etc)
             -name: objects attribute type (eg. times, intervals etc
@@ -83,28 +83,33 @@ class Alyx2NWBSchema:
              .
              .
              .
-        '''
+        """
         dataset_type_list = [None]*len(self.eid_list)
+        dataset_type_list_simple = [None]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
             dataset_description_list = dict()
             for data_id in dataset_details_list:
                 dataset_description_list[data_id['name']] = data_id['description']
             split_list_objects = [i.split('.')[0] for i in self.dataset_type_list[val]]
-            split_list_attributes = [i.split('.')[-1] for i in self.dataset_type_list[val]]
+            split_list_attributes = [i.split('.')[1] for i in self.dataset_type_list[val]]
             dataset_description = [dataset_description_list[i] for i in self.dataset_type_list[val]]
             # dataset_extension = [u['name'].split('.')[-1] for u in self.eid_session_info[val]['data_dataset_session_related']]
+            split_list_objects_dict_details = dict()
             split_list_objects_dict = dict()
             for obj in set(split_list_objects):
+                split_list_objects_dict_details[obj] = []
                 split_list_objects_dict[obj] = []
             for att_idx, attrs in enumerate(split_list_attributes):
                 append_dict = {'name': attrs,
                                'description': dataset_description[att_idx]}
                 # 'extension': dataset_extension[att_idx] }
-                split_list_objects_dict[split_list_objects[att_idx]].append([append_dict])
-            dataset_type_list[val] = split_list_objects_dict
-        return dataset_type_list
+                split_list_objects_dict_details[split_list_objects[att_idx]].extend([append_dict])
+                split_list_objects_dict[split_list_objects[att_idx]].extend([attrs])
+            dataset_type_list[val] = split_list_objects_dict_details
+            dataset_type_list_simple[val] = split_list_objects_dict
+        return dataset_type_list, dataset_type_list_simple
 
-    def _unpack_dataset_details(self, dataset_details, object_name,custom_attrs=None, match_str=''):
+    def _unpack_dataset_details(self, dataset_details, object_name, custom_attrs=None, match_str=' '):
         """
         helper function to split object and attributes of the IBL datatypes into
         names: obj_attr; data= obj.attr; desc for each
@@ -116,33 +121,41 @@ class Alyx2NWBSchema:
         """
         cond = lambda x: re.match(match_str, x)
         datafiles_all = [object_name + '.' + ii['name'] for ii in dataset_details[object_name] if not cond(ii['name'])]
-        datafiles_names_all = [object_name + '_' + ii['name'] for ii in dataset_details[object_name] if not cond(ii['name'])]
+        datafiles_names_all = [object_name + '_' + ii['name'] for ii in dataset_details[object_name] if
+                               not cond(ii['name'])]
         datafiles_desc_all = [ii['description'] for ii in dataset_details[object_name] if not cond(ii['name'])]
-        if not custom_attrs:
-            datafiles_inc = [i for i in datafiles_all if i in custom_attrs]
-            datafiles_names_inc = [datafiles_names_all[j] for j, i in enumerate(datafiles_all) if i in custom_attrs]
-            datafiles_desc_inc = [datafiles_desc_all[j] for j, i in enumerate(datafiles_all) if i in custom_attrs]
+        if custom_attrs:
+            datafiles_inc = [i for i in datafiles_all if i in object_name + '.' + custom_attrs]
+            datafiles_names_inc = [datafiles_names_all[j] for j, i in enumerate(datafiles_all) if
+                                   i in object_name + '.' + custom_attrs]
+            datafiles_desc_inc = [datafiles_desc_all[j] for j, i in enumerate(datafiles_all) if
+                                  i in object_name + '.' + custom_attrs]
         else:
             datafiles_inc = datafiles_all
             datafiles_names_inc = datafiles_names_all
-            datafiles_desc_inc = datafiles_desc_all      
+            datafiles_desc_inc = datafiles_desc_all
         return datafiles_inc, datafiles_names_inc, datafiles_desc_inc
 
-    def _initialize_container_dict(self, name):
+    def _initialize_container_dict(self, name=None, default_value=dict()):
         if name:
-            return [{name: dict()}]*len(self.eid_list)
+            return [{name: default_value}]*len(self.eid_list)
         else:
-            return []*len(self.eid_list)
+            return [[]]*len(self.eid_list)
+
+    def _get_all_object_names(self):
+        outlist = [[]]*len(self.eid_list)
+        for val, Ceid in enumerate(self.eid_list):
+            outlist[val] = sorted(list(set([i.split('.')[0] for i in self.dataset_type_list[val]])))
+        return outlist
 
     def _get_current_object_names(self, obj_list):
-        out_list = [[None]*len(obj_list)]*len(self.eid_list)
+        out_list = [['']*len(obj_list)]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
-            for i in self.dataset_details[val]:
-                for k in obj_list:
-                    if k in i:
-                        out_list[val][k] = i
-                    else:
-                        out_list[val][k] = ''
+            for j, k in enumerate(obj_list):
+                if k in self._get_all_object_names()[val]:
+                    out_list[val][j] = [i for i in self._get_all_object_names()[val] if k == i][0]
+                else:
+                    out_list[val][j] = ''
         return out_list
 
     def _get_timeseries_object(self, dataset_details, object_name, ts_name, custom_attrs=None, **kwargs):
@@ -171,15 +184,16 @@ class Alyx2NWBSchema:
         ]
         }
         """
-        matchstr='.+time.+|.+interval.+'
-        timeattr_name=[i for i in dataset_details[object_name] if re.match(matchstr,i)]
+        matchstr = r'.*time.*|.*interval.*'
+        timeattr_name = [i['name'] for i in dataset_details[object_name] if re.match(matchstr, i['name'])]
         datafiles, datafiles_names, datafiles_desc = \
             self._unpack_dataset_details(dataset_details, object_name, custom_attrs, match_str=matchstr)
         datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
             self._unpack_dataset_details(dataset_details, object_name, timeattr_name[0])
         if not datafiles:
-            datafiles_names=datafiles_time_name
-            datafiles_desc=datafiles_time_desc
+            datafiles_names = datafiles_time_name
+            datafiles_desc = datafiles_time_desc
+            datafiles = ['None']
         timeseries_dict = {ts_name: [None]*len(datafiles)}
         for i, j in enumerate(datafiles):
             timeseries_dict[ts_name][i] = {'name': datafiles_names[i],
@@ -189,9 +203,10 @@ class Alyx2NWBSchema:
             timeseries_dict[ts_name][i].update(**kwargs)
         return timeseries_dict
 
-    def _attrnames_align(self,attrs_list, custom_names):
-        append_set=set(attrs_list).difference(set(custom_names.values()))
-        out_list=[]
+    def _attrnames_align(self, attrs_dict, custom_names):
+        attrs_list = [i['name'] for i in attrs_dict]
+        out_list = []
+        idx_list = []
         if custom_names:
             for i in custom_names.values():
                 idx=[ii for ii,k in enumerate(attrs_list) if k in i][0]
@@ -201,15 +216,18 @@ class Alyx2NWBSchema:
             out_list=attrs_list
         return out_list
 
-    def _get_dynamictable_array(self,name_list, data_list, desc_list):
-        out_list=[dict(name='',description='',data='')]*len(name_list)
-        for i,j in enumerate(out_list):
-            out_list[i]['name']=name_list[i]
-            out_list[i]['description'] = desc_list[i]
-            out_list[i]['data'] = data_list[i]
+    def _get_dynamictable_array(self, **kwargs):
+        custom_keys = list(kwargs.keys())
+        custom_data = list(kwargs.values())
+        out_list = [None]*len(custom_data[0])
+        for ii, jj in enumerate(custom_data[0]):
+            out_list[ii] = dict()
+            for i, j in enumerate(custom_keys):
+                out_list[ii][j] = custom_data[i][ii]
         return out_list
 
-    def _get_dynamictable_object(self, dataset_details, object_name, dt_name, default_colnames_dict=None, custom_attrs=None):
+    def _get_dynamictable_object(self, dataset_details, object_name, dt_name, default_colnames_dict=None,
+                                 custom_attrs=None):
         """
                 :param dataset_details: self.dataset_details
                 :param object_name: name of hte object_name in the IBL datatype
@@ -230,17 +248,19 @@ class Alyx2NWBSchema:
                     ]
                 }
                 """
-        dataset_details[object_name]=self._attrnames_align(dataset_details[object_name],default_colnames_dict)
+        dataset_details[object_name], _ = self._attrnames_align(dataset_details[object_name], default_colnames_dict)
         if not default_colnames_dict:
-            default_colnames=[]
+            default_colnames = []
         else:
-            default_colnames=list(default_colnames_dict.keys())
-        custom_columns_datafilename, custom_columns_name, custom_columns_description=\
+            default_colnames = list(default_colnames_dict.keys())
+        custom_columns_datafilename, custom_columns_name, custom_columns_description = \
             self._unpack_dataset_details(dataset_details, object_name, custom_attrs)
-        custom_columns_datafilename[:len(default_colnames)]=default_colnames
+        custom_columns_datafilename[:len(default_colnames)] = default_colnames
         in_list = self._get_dynamictable_array(
-                    custom_columns_name,custom_columns_datafilename,custom_columns_description)
-        outdict=dict(dt_name=in_list)
+            name=custom_columns_name,
+            data=custom_columns_datafilename,
+            description=custom_columns_description)
+        outdict = {dt_name: in_list}
         return outdict
 
     def set_eid_metadata(self):
