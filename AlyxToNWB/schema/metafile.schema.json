@@ -292,6 +292,36 @@
           }
         }
       }
+    },
+    "Trials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "data"],
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "data": {
+            "type": "string",
+            "description": "ALF Uri of the actual dataset"
+          }
+        }
+      }
+    },
+    "Intervals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "data"],
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "data": {
+            "type": "string",
+            "description": "ALF Uri of the actual dataset"
+          }
+        }
+      }
     }
   },
   "definitions": {
