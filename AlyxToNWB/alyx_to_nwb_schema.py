@@ -269,13 +269,15 @@ class Alyx2NWBSchema:
         outdict = {dt_name: in_list}
         return outdict
 
-    def set_eid_metadata(self):
-        self.eid_metadata = [dict()]*len(self.eid_list)
+    @property
+    def eid_metadata(self):
+        eid_metadata = [dict()]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
-            self.eid_metadata[val].update(dict(eid=self.eid_list))
-        return self.eid_metadata
+            eid_metadata[val].update(dict(eid=self.eid_list))
+        return eid_metadata
 
-    def set_nwbfile_metadata(self):
+    @property
+    def nwbfile_metadata(self):
         nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
         for val, Ceid in enumerate(self.eid_list):
             nwbfile_metadata_dict[val]['NWBFile']['session_start_time'] = self.eid_session_info[val]['start_time']
@@ -292,10 +294,10 @@ class Alyx2NWBSchema:
             nwbfile_metadata_dict[val]['NWBFile']['notes'] = 'Procedures:' + ','.join(self.eid_session_info[val]['procedures']) \
                                                   + ', Project:' + self.eid_session_info[val]['project']
 
-        self.nwbfile_metadata_dict=nwbfile_metadata_dict
         return nwbfile_metadata_dict
 
-    def set_subject_metadata(self):
+    @property
+    def subject_metadata(self):
         subject_metadata_dict = self._initialize_container_dict('Subject')
         for val, Ceid in enumerate(self.eid_list):
             if self.subject_table[val]:
@@ -306,14 +308,15 @@ class Alyx2NWBSchema:
                 subject_metadata_dict[val]['Subject']['species'] = self.subject_table[val]['species']
                 subject_metadata_dict[val]['Subject']['weight'] = self.subject_table[val]['reference_weight']
                 subject_metadata_dict[val]['Subject']['date_of_birth'] = self.subject_table[val]['birth_date']
-        self.subject_metadata_dict = subject_metadata_dict
         return subject_metadata_dict
 
-    def set_surgery_metadata(self):  # currently not exposed by api
+    @property
+    def surgery_metadata(self):  # currently not exposed by api
         surgery_metadata_dict = [dict()]*len(self.eid_list)
         return surgery_metadata_dict
 
-    def set_behavior_metadata(self):
+    @property
+    def behavior_metadata(self):
         behavior_metadata_dict = self._initialize_container_dict('Behavior')
         behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye']
         current_behavior_objects = self._get_current_object_names(behavior_objects)
@@ -337,10 +340,10 @@ class Alyx2NWBSchema:
                 if 'eye' in self.dataset_details[val].keys():
                     behavior_metadata_dict[val]['Behavior']['PupilTracking'] = \
                         self._get_timeseries_object(self.dataset_details[val], u, 'time_series')
-        self.behavior_metadata_dict = behavior_metadata_dict
         return behavior_metadata_dict
 
-    def set_trials_data(self):
+    @property
+    def trials_metadata(self):
         trials_metadata_dict = self._initialize_container_dict()
         trials_objects = ['trials']
         current_trial_objects = self._get_current_object_names(trials_objects)
@@ -352,10 +355,10 @@ class Alyx2NWBSchema:
                                                                               default_colnames_dict=dict(
                                                                                   start_time='intervals',
                                                                                   stop_time='intervals'))
-        self.trials_metadata_dict = trials_metadata_dict
         return trials_metadata_dict
 
-    def set_stimulus_metadata(self):
+    @property
+    def stimulus_metadata(self):
         stimulus_objects = ['sparseNoise', 'passiveBeeps', 'passiveValveClick', 'passiveVisual', 'passiveWhiteNoise']
         stimulus_metadata_dict = self._initialize_container_dict('Stimulus')
         current_stimulus_objects = self._get_current_object_names(stimulus_objects)
@@ -376,10 +379,10 @@ class Alyx2NWBSchema:
                 if 'passiveWhiteNoise' in u:
                     stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
                         self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
-        self.stimulus_metadata_dict = stimulus_metadata_dict
         return stimulus_metadata_dict
 
-    def set_device_metadata(self):
+    @property
+    def device_metadata(self):
         device_objects = ['probes']
         device_metadata_dict = self._initialize_container_dict('Devices', default_value=[])
         current_device_objects = self._get_current_object_names(device_objects)
@@ -390,10 +393,10 @@ class Alyx2NWBSchema:
                         self._get_dynamictable_array(name=[f'{u}{ii}'],
                                                      description=['NeuroPixels probe'])
                     )
-        self.device_metadata_dict = device_metadata_dict
         return device_metadata_dict
 
-    def set_units_metadata(self):
+    @property
+    def units_metadata(self):
         units_objects = ['clusters', 'spikes']
         units_metadata_dict = self._initialize_container_dict('Units')
         current_units_objects = self._get_current_object_names(units_objects)
@@ -411,23 +414,23 @@ class Alyx2NWBSchema:
                         #                              description=['times of spikes in the cluster',
                         #                                           'electrodes of this cluster,', 'None']
                         #                              ))
-        self.units_metadata_dict = units_metadata_dict
         return units_metadata_dict
 
-    def set_electrodegroup_metadata(self):
+    @property
+    def electrodegroup_metadata(self):
         electrodes_group_metadata_dict = self._initialize_container_dict('ElectrodeGroups', default_value=[])
         for val, Ceid in enumerate(self.eid_list):
             for ii in range(2):
                 electrodes_group_metadata_dict[val]['ElectrodeGroups'].extend(
                     self._get_dynamictable_array(name=[f'Probe{ii}'],
                                                  description=['NeuroPixels device'],
-                                                 device=[self.set_device_metadata()[val]['Devices'][ii]],
+                                                 device=[self.device_metadata[val]['Devices'][ii]],
                                                  location=[''])
                 )
-        self.electrodegroup_metadata_dict = electrodes_group_metadata_dict
         return electrodes_group_metadata_dict
 
-    def set_electrodetable_metadata(self):
+    @property
+    def electrodetable_metadata(self):
         electrodes_objects = ['channels']
         electrodes_table_metadata_dict = self._initialize_container_dict()
         current_electrodes_objects = self._get_current_object_names(electrodes_objects)
@@ -435,23 +438,24 @@ class Alyx2NWBSchema:
             for i in current_electrodes_objects[val]:
                 electrodes_table_metadata_dict[val] = self._get_dynamictable_object(
                     self.dataset_details[val], 'channels', 'ElectrodeTable')
-        self.electrodetable_metadata_dict = electrodes_table_metadata_dict
         return electrodes_table_metadata_dict
 
-    def set_ecephys_metadata(self):
+    @property
+    def ecephys_metadata(self):
         ecephys_objects = ['spikes']
         ecephys_metadata_dict = self._initialize_container_dict('EventDetection')
         current_ecephys_objects = self._get_current_object_names(ecephys_objects)
         for val, Ceid in enumerate(self.eid_list):
             ecephys_metadata_dict[val]['EventDetection'] = \
                 self._get_timeseries_object(self.dataset_details[val], 'spikes', 'SpikeEventSeries')
-        self.ecephys_metadata_dict = ecephys_metadata_dict
         return ecephys_metadata_dict
 
-    def set_ophys_metadata(self):
+    @property
+    def ophys_metadata(self):
         raise NotImplementedError
 
-    def set_scratch_metadata(self):
+    @property
+    def scratch_metadata(self):
         # this can be used to add further details about subject, lab,
         raise NotImplementedError
 
@@ -459,16 +463,16 @@ class Alyx2NWBSchema:
         metafile_dict = [dict()]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
             metafile_dict[val] = {**self.eid_metadata[val],
-                                  **self.nwbfile_metadata_dict[val],
-                                  **self.subject_metadata_dict[val],
-                                  **self.behavior_metadata_dict[val],
-                                  **self.trials_metadata_dict[val],
-                                  **self.stimulus_metadata_dict[val],
-                                  **self.device_metadata_dict[val],
-                                  **self.units_metadata_dict[val],
-                                  **self.electrodegroup_metadata_dict[val],
-                                  **self.electrodetable_metadata_dict[val],
-                                  'Ephys': {**self.ecephys_metadata_dict[val]}}
+                                  **self.nwbfile_metadata[val],
+                                  **self.subject_metadata[val],
+                                  **self.behavior_metadata[val],
+                                  **self.trials_metadata[val],
+                                  **self.stimulus_metadata[val],
+                                  **self.device_metadata[val],
+                                  **self.units_metadata[val],
+                                  **self.electrodegroup_metadata[val],
+                                  **self.electrodetable_metadata[val],
+                                  'Ephys': {**self.ecephys_metadata[val]}}
         self.metafile_dict=metafile_dict
         with open(fileloc,'w') as f:
             json.dump(metafile_dict,f,indent=2)
