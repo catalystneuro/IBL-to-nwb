@@ -387,22 +387,23 @@ class Alyx2NWBSchema:
         units_objects = ['clusters', 'spikes']
         units_metadata_dict = self._initialize_container_dict('Units')
         current_units_objects = self._get_current_object_names(units_objects)
+        temp_dataset = self.dataset_details.copy()
         for val, Ceid in enumerate(self.eid_list):
-            temp_dataset_details=\
-                dict(clusters=self.dataset_details[val][current_units_objects[val][0]].extend(
-                    self.dataset_details[val][current_units_objects[val][1]]
-                ))
+            temp_dataset[val][current_units_objects[val][0]].extend(temp_dataset[val][current_units_objects[val][1]])
+            temp_dataset_details = dict(clusters=temp_dataset[val]['clusters'])
             for k, u in enumerate(current_units_objects[val]):
                 if 'clusters' in u:
                     units_metadata_dict[val] = \
-                        self._get_dynamictable_object(temp_dataset_details,'clusters','Units',
+                        self._get_dynamictable_object(temp_dataset_details, 'clusters', 'Units',
                                                       default_colnames_dict=dict(electrodes='templateWaveformChans',
                                                                                  waveform_mean='templateWaveforms'))
                     units_metadata_dict[val]['Units'].extend(
-                        self._get_dynamictable_array(['spike_times','electrode_groups','sampling_rate'],
-                                                     ['None','None','None'],
-                                                     ['times of spikes in the cluster','electrodes of this cluster,','None']
+                        self._get_dynamictable_array(name=['spike_times', 'electrode_groups', 'sampling_rate'],
+                                                     data=['None', 'None', 'None'],
+                                                     description=['times of spikes in the cluster',
+                                                                  'electrodes of this cluster,', 'None']
                                                      ))
+        return units_metadata_dict
 
     def set_electrodegroup_metadata(self):
         electrodes_metadata_dict = self._initialize_container_dict('ElectrodeGroups', default_value=[])
