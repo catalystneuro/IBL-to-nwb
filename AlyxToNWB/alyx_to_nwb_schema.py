@@ -394,15 +394,13 @@ class Alyx2NWBSchema:
             for k, u in enumerate(current_units_objects[val]):
                 if 'clusters' in u:
                     units_metadata_dict[val] = \
-                        self._get_dynamictable_object(temp_dataset_details, 'clusters', 'Units',
-                                                      default_colnames_dict=dict(electrodes='templateWaveformChans',
-                                                                                 waveform_mean='templateWaveforms'))
-                    units_metadata_dict[val]['Units'].extend(
-                        self._get_dynamictable_array(name=['spike_times', 'electrode_groups', 'sampling_rate'],
-                                                     data=['None', 'None', 'None'],
-                                                     description=['times of spikes in the cluster',
-                                                                  'electrodes of this cluster,', 'None']
-                                                     ))
+                        self._get_dynamictable_object(self.dataset_details[val], 'clusters', 'Units')
+                    # units_metadata_dict[val]['Units'].extend(
+                        # self._get_dynamictable_array(name=['spike_times', 'electrode_groups', 'sampling_rate'],
+                        #                              data=['None', 'None', 'None'],
+                        #                              description=['times of spikes in the cluster',
+                        #                                           'electrodes of this cluster,', 'None']
+                        #                              ))
         return units_metadata_dict
 
     def set_electrodegroup_metadata(self):
