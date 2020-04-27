@@ -404,19 +404,40 @@ class Alyx2NWBSchema:
                                                      ['times of spikes in the cluster','electrodes of this cluster,','None']
                                                      ))
 
-    def set_electrodes_metadata(self):
-        electrodes_objects = ['probes', 'channels']
+    def set_electrodegroup_metadata(self):
+        electrodes_metadata_dict = self._initialize_container_dict('ElectrodeGroups', default_value=[])
+        for val, Ceid in enumerate(self.eid_list):
+            for ii in range(2):
+                electrodes_metadata_dict[val]['ElectrodeGroups'].extend(
+                    self._get_dynamictable_array(name=[f'Probe{ii}'],
+                                                 description=['NeuroPixels device'],
+                                                 device=[self.set_device_metadata()[val]['Devices'][ii]],
+                                                 location=[''])
+                )
+        return electrodes_metadata_dict
+
+    def set_electrodetable_metadata(self):
+        electrodes_objects = ['channels']
+        electrodes_metadata_dict = self._initialize_container_dict()
+        current_electrodes_objects = self._get_current_object_names(electrodes_objects)
+        for val, Ceid in enumerate(self.eid_list):
+            for i in current_electrodes_objects[val]:
+                electrodes_metadata_dict[val] = self._get_dynamictable_object(
+                    self.dataset_details[val], 'channels', 'ElectrodeTable')
+        return electrodes_metadata_dict
 
     def set_ecephys_metadata(self):
+        ecephys_objects = ['spikes']
+        ecephys_metadata_dict = self._initialize_container_dict('EventDetection')
+        current_ecephys_objects = self._get_current_object_names(ecephys_objects)
+        for val, Ceid in enumerate(self.eid_list):
+            ecephys_metadata_dict[val]['EventDetection'] = \
+                self._get_timeseries_object(self.dataset_details[val], 'spikes', 'SpikeEventSeries')
         return ecephys_metadata_dict
 
     def set_ophys_metadata(self):
-        return ophys_metadata_dict
+        raise NotImplementedError
 
     def set_scratch_metadata(self):
         # this can be used to add further details about subject, lab,
-        pass
-
-    def set_device_metadata(self):
-        # currently unavailabl
-        pass
+        raise NotImplementedError
