@@ -2,8 +2,8 @@ import re
 from oneibl.one import ONE
 from .schema import metafile as nwb_schema
 from .schema import template_metafile as nwb_schema_template
-from .schema import dataset_format_list
 from .schema import dataset_details_list
+from .schema import alyx_subject_list
 
 
 class Alyx2NWBSchema:
@@ -13,17 +13,18 @@ class Alyx2NWBSchema:
         self.one_kwargs = one_kwargs
         self.schema_template = nwb_schema_template
         self.schema = nwb_schema
+        self.one_obj = one_obj
         if not one_obj:
             self.one_obj = ONE()
         elif not isinstance(one_obj, ONE):
             raise Exception('one_obj is not of ONE class')
-        self.eid_list = self._get_eid_list()
+        self.eid_list = self._get_eid_list(eid)
         self.eid_session_info = self._retrieve_eid_endpoint()
         self.dataset_type_list = self._list_eid_metadata('dataset_type')
         self.users_list = self._list_eid_metadata('users')
         self.subjects_list = self._list_eid_metadata('subjects')
         self.labs_list = self._list_eid_metadata('labs')
-        self.dataset_details = self._dataset_type_parse()
+        self.dataset_details, self.dataset_simple = self._dataset_type_parse()
         self._get_lab_table()
         self._get_subject_table()
 
@@ -45,20 +46,31 @@ class Alyx2NWBSchema:
     def _list_eid_metadata(self, list_type):
         list_type_returned = [None]*len(self.eid_list)
         for val, e_id in enumerate(self.eid_list):
-            list_type_returned = self.one_obj.list(e_id, list_type)
+            list_type_returned[val] = self.one_obj.list(e_id, list_type)
         return list_type_returned
 
     def _retrieve_eid_endpoint(self):
         eid_sess_info = [None]*len(self.eid_list)
         for val, ceid in enumerate(self.eid_list):
             eid_sess_info[val] = self.one_obj.alyx.rest('sessions/' + ceid, 'list')
+            for i in eid_sess_info[val]:
+                if not eid_sess_info[val][i]:
+                    eid_sess_info[val][i] = 'None'
         return eid_sess_info
 
     def _get_lab_table(self):
         self.lab_table = self.one_obj.alyx.rest('labs', 'list')
 
     def _get_subject_table(self):
-        self.subject_table = self.one_obj.alyx.rest('subject/' + self.eid_session_info['subject'], 'list')
+        self.subject_table = [dict()]*len(self.eid_list)
+        sub_name_list = [i['nickname'] for i in alyx_subject_list]
+        for val, e_id in enumerate(self.eid_list):
+            sub_id = [i for j, i in enumerate(sub_name_list) if i == self.eid_session_info[val]['subject']]
+            if sub_id:
+                self.subject_table[val] = alyx_subject_list[sub_id[0]]
+            else:
+                for kk in alyx_subject_list[0]:
+                    self.subject_table[val][kk] = 'None'
 
     def _dataset_type_parse(self):
         '''
