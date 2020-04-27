@@ -1,4 +1,5 @@
 import re
+import json
 from oneibl.one import ONE
 from .schema import metafile as nwb_schema
 from .schema import template_metafile as nwb_schema_template
@@ -269,38 +270,43 @@ class Alyx2NWBSchema:
         return outdict
 
     def set_eid_metadata(self):
-        return dict(eid=self.eid_list)
+        self.eid_metadata = [dict()]*len(self.eid_list)
+        for val, Ceid in enumerate(self.eid_list):
+            self.eid_metadata[val].update(dict(eid=self.eid_list))
+        return self.eid_metadata
 
     def set_nwbfile_metadata(self):
-        nwbfile_metadata_dict = [dict()]*len(self.eid_list)
+        nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
         for val, Ceid in enumerate(self.eid_list):
-            nwbfile_metadata_dict[val]['session_start_time'] = self.eid_session_info[val]['start_time']
-            nwbfile_metadata_dict[val]['keywords'] = self.eid_session_info[val]['start_time']
-            nwbfile_metadata_dict[val]['experiment_description'] = self.eid_session_info[val]['narrative']
-            nwbfile_metadata_dict[val]['session_id'] = Ceid
-            nwbfile_metadata_dict[val]['experimenter'] = ','.join(self.eid_session_info[val]['users'])
-            nwbfile_metadata_dict[val]['identifier'] = Ceid
-            nwbfile_metadata_dict[val]['institution'] = \
+            nwbfile_metadata_dict[val]['NWBFile']['session_start_time'] = self.eid_session_info[val]['start_time']
+            nwbfile_metadata_dict[val]['NWBFile']['keywords'] = self.eid_session_info[val]['start_time']
+            nwbfile_metadata_dict[val]['NWBFile']['experiment_description'] = self.eid_session_info[val]['narrative']
+            nwbfile_metadata_dict[val]['NWBFile']['session_id'] = Ceid
+            nwbfile_metadata_dict[val]['NWBFile']['experimenter'] = ','.join(self.eid_session_info[val]['users'])
+            nwbfile_metadata_dict[val]['NWBFile']['identifier'] = Ceid
+            nwbfile_metadata_dict[val]['NWBFile']['institution'] = \
                 [i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info[val]['lab']][0]]
-            nwbfile_metadata_dict[val]['lab'] = self.eid_session_info[val]['lab']
-            nwbfile_metadata_dict[val]['session_description'] = self.eid_session_info[val]['task_protocol']
-            nwbfile_metadata_dict[val]['surgery'] = 'None'
-            nwbfile_metadata_dict[val]['notes'] = 'Procedures:' + ','.join(self.eid_session_info[val]['procedures']) \
+            nwbfile_metadata_dict[val]['NWBFile']['lab'] = self.eid_session_info[val]['lab']
+            nwbfile_metadata_dict[val]['NWBFile']['session_description'] = self.eid_session_info[val]['task_protocol']
+            nwbfile_metadata_dict[val]['NWBFile']['surgery'] = 'None'
+            nwbfile_metadata_dict[val]['NWBFile']['notes'] = 'Procedures:' + ','.join(self.eid_session_info[val]['procedures']) \
                                                   + ', Project:' + self.eid_session_info[val]['project']
 
+        self.nwbfile_metadata_dict=nwbfile_metadata_dict
         return nwbfile_metadata_dict
 
     def set_subject_metadata(self):
-        subject_metadata_dict = [dict()]*len(self.eid_list)
+        subject_metadata_dict = self._initialize_container_dict('Subject')
         for val, Ceid in enumerate(self.eid_list):
             if self.subject_table[val]:
-                subject_metadata_dict[val]['subject_id'] = self.subject_table[val]['id']
-                subject_metadata_dict[val]['description'] = self.subject_table[val]['description']
-                subject_metadata_dict[val]['genotype'] = ','.join(self.subject_table[val]['genotype'])
-                subject_metadata_dict[val]['sex'] = self.subject_table[val]['sex']
-                subject_metadata_dict[val]['species'] = self.subject_table[val]['species']
-                subject_metadata_dict[val]['weight'] = self.subject_table[val]['reference_weight']
-                subject_metadata_dict[val]['date_of_birth'] = self.subject_table[val]['birth_date']
+                subject_metadata_dict[val]['Subject']['subject_id'] = self.subject_table[val]['id']
+                subject_metadata_dict[val]['Subject']['description'] = self.subject_table[val]['description']
+                subject_metadata_dict[val]['Subject']['genotype'] = ','.join(self.subject_table[val]['genotype'])
+                subject_metadata_dict[val]['Subject']['sex'] = self.subject_table[val]['sex']
+                subject_metadata_dict[val]['Subject']['species'] = self.subject_table[val]['species']
+                subject_metadata_dict[val]['Subject']['weight'] = self.subject_table[val]['reference_weight']
+                subject_metadata_dict[val]['Subject']['date_of_birth'] = self.subject_table[val]['birth_date']
+        self.subject_metadata_dict = subject_metadata_dict
         return subject_metadata_dict
 
     def set_surgery_metadata(self):  # currently not exposed by api
@@ -331,6 +337,7 @@ class Alyx2NWBSchema:
                 if 'eye' in self.dataset_details[val].keys():
                     behavior_metadata_dict[val]['Behavior']['PupilTracking'] = \
                         self._get_timeseries_object(self.dataset_details[val], u, 'time_series')
+        self.behavior_metadata_dict = behavior_metadata_dict
         return behavior_metadata_dict
 
     def set_trials_data(self):
@@ -345,6 +352,7 @@ class Alyx2NWBSchema:
                                                                               default_colnames_dict=dict(
                                                                                   start_time='intervals',
                                                                                   stop_time='intervals'))
+        self.trials_metadata_dict = trials_metadata_dict
         return trials_metadata_dict
 
     def set_stimulus_metadata(self):
@@ -368,6 +376,7 @@ class Alyx2NWBSchema:
                 if 'passiveWhiteNoise' in u:
                     stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
                         self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+        self.stimulus_metadata_dict = stimulus_metadata_dict
         return stimulus_metadata_dict
 
     def set_device_metadata(self):
@@ -381,6 +390,7 @@ class Alyx2NWBSchema:
                         self._get_dynamictable_array(name=[f'{u}{ii}'],
                                                      description=['NeuroPixels probe'])
                     )
+        self.device_metadata_dict = device_metadata_dict
         return device_metadata_dict
 
     def set_units_metadata(self):
@@ -401,29 +411,32 @@ class Alyx2NWBSchema:
                         #                              description=['times of spikes in the cluster',
                         #                                           'electrodes of this cluster,', 'None']
                         #                              ))
+        self.units_metadata_dict = units_metadata_dict
         return units_metadata_dict
 
     def set_electrodegroup_metadata(self):
-        electrodes_metadata_dict = self._initialize_container_dict('ElectrodeGroups', default_value=[])
+        electrodes_group_metadata_dict = self._initialize_container_dict('ElectrodeGroups', default_value=[])
         for val, Ceid in enumerate(self.eid_list):
             for ii in range(2):
-                electrodes_metadata_dict[val]['ElectrodeGroups'].extend(
+                electrodes_group_metadata_dict[val]['ElectrodeGroups'].extend(
                     self._get_dynamictable_array(name=[f'Probe{ii}'],
                                                  description=['NeuroPixels device'],
                                                  device=[self.set_device_metadata()[val]['Devices'][ii]],
                                                  location=[''])
                 )
-        return electrodes_metadata_dict
+        self.electrodegroup_metadata_dict = electrodes_group_metadata_dict
+        return electrodes_group_metadata_dict
 
     def set_electrodetable_metadata(self):
         electrodes_objects = ['channels']
-        electrodes_metadata_dict = self._initialize_container_dict()
+        electrodes_table_metadata_dict = self._initialize_container_dict()
         current_electrodes_objects = self._get_current_object_names(electrodes_objects)
         for val, Ceid in enumerate(self.eid_list):
             for i in current_electrodes_objects[val]:
-                electrodes_metadata_dict[val] = self._get_dynamictable_object(
+                electrodes_table_metadata_dict[val] = self._get_dynamictable_object(
                     self.dataset_details[val], 'channels', 'ElectrodeTable')
-        return electrodes_metadata_dict
+        self.electrodetable_metadata_dict = electrodes_table_metadata_dict
+        return electrodes_table_metadata_dict
 
     def set_ecephys_metadata(self):
         ecephys_objects = ['spikes']
@@ -432,6 +445,7 @@ class Alyx2NWBSchema:
         for val, Ceid in enumerate(self.eid_list):
             ecephys_metadata_dict[val]['EventDetection'] = \
                 self._get_timeseries_object(self.dataset_details[val], 'spikes', 'SpikeEventSeries')
+        self.ecephys_metadata_dict = ecephys_metadata_dict
         return ecephys_metadata_dict
 
     def set_ophys_metadata(self):
@@ -440,3 +454,22 @@ class Alyx2NWBSchema:
     def set_scratch_metadata(self):
         # this can be used to add further details about subject, lab,
         raise NotImplementedError
+
+    def write_metadata(self,fileloc):
+        metafile_dict = [dict()]*len(self.eid_list)
+        for val, Ceid in enumerate(self.eid_list):
+            metafile_dict[val] = {**self.eid_metadata[val],
+                                  **self.nwbfile_metadata_dict[val],
+                                  **self.subject_metadata_dict[val],
+                                  **self.behavior_metadata_dict[val],
+                                  **self.trials_metadata_dict[val],
+                                  **self.stimulus_metadata_dict[val],
+                                  **self.device_metadata_dict[val],
+                                  **self.units_metadata_dict[val],
+                                  **self.electrodegroup_metadata_dict[val],
+                                  **self.electrodetable_metadata_dict[val],
+                                  'Ephys': {**self.ecephys_metadata_dict[val]}}
+        self.metafile_dict=metafile_dict
+        with open(fileloc,'w') as f:
+            json.dump(metafile_dict,f,indent=2)
+
