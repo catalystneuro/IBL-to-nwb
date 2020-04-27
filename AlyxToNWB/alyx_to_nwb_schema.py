@@ -137,7 +137,9 @@ class Alyx2NWBSchema:
             datafiles_desc_inc = datafiles_desc_all
         return datafiles_inc, datafiles_names_inc, datafiles_desc_inc
 
-    def _initialize_container_dict(self, name=None, default_value=dict()):
+    def _initialize_container_dict(self, name=None, default_value=None):
+        if default_value is None:
+            default_value = dict()
         if name:
             return [{name: default_value}]*len(self.eid_list)
         else:
