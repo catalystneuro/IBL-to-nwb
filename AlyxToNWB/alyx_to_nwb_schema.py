@@ -208,13 +208,18 @@ class Alyx2NWBSchema:
         out_list = []
         idx_list = []
         if custom_names:
+            append_set = set(attrs_list).difference(set(custom_names.values()))
             for i in custom_names.values():
-                idx=[ii for ii,k in enumerate(attrs_list) if k in i][0]
+                idx = [ii for ii, k in enumerate(attrs_list) if k in i][0]
+                idx_list.extend([idx])
                 out_list.extend([attrs_list[idx]])
             out_list.extend(list(append_set))
+            idx_list.extend(list(set(range(len(attrs_list))).difference(set(idx_list))))
         else:
-            out_list=attrs_list
-        return out_list
+            idx_list = range(len(attrs_list))
+            out_list = attrs_list
+        out_dict = [attrs_dict[i] for i in idx_list]
+        return out_dict, out_list
 
     def _get_dynamictable_array(self, **kwargs):
         custom_keys = list(kwargs.keys())
@@ -288,13 +293,14 @@ class Alyx2NWBSchema:
     def set_subject_metadata(self):
         subject_metadata_dict = [dict()]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
-            subject_metadata_dict[val]['subject_id'] = self.subject_table['id']
-            subject_metadata_dict[val]['description'] = self.subject_table['description']
-            subject_metadata_dict[val]['genotype'] = ','.join(self.subject_table['genotype'])
-            subject_metadata_dict[val]['sex'] = self.subject_table['sex']
-            subject_metadata_dict[val]['species'] = self.subject_table['species']
-            subject_metadata_dict[val]['weight'] = self.subject_table['weighings'][0]['weight']
-            subject_metadata_dict[val]['date_of_birth'] = self.subject_table['birth_date']
+            if self.subject_table[val]:
+                subject_metadata_dict[val]['subject_id'] = self.subject_table[val]['id']
+                subject_metadata_dict[val]['description'] = self.subject_table[val]['description']
+                subject_metadata_dict[val]['genotype'] = ','.join(self.subject_table[val]['genotype'])
+                subject_metadata_dict[val]['sex'] = self.subject_table[val]['sex']
+                subject_metadata_dict[val]['species'] = self.subject_table[val]['species']
+                subject_metadata_dict[val]['weight'] = self.subject_table[val]['reference_weight']
+                subject_metadata_dict[val]['date_of_birth'] = self.subject_table[val]['birth_date']
         return subject_metadata_dict
 
     def set_surgery_metadata(self):  # currently not exposed by api
@@ -331,13 +337,14 @@ class Alyx2NWBSchema:
         trials_metadata_dict = self._initialize_container_dict()
         trials_objects = ['trials']
         current_trial_objects = self._get_current_object_names(trials_objects)
-        trials_table_default_cols=[]
         for val, Ceid in enumerate(self.eid_list):
             for k, u in enumerate(current_trial_objects[val]):
                 if 'trial' in u:
-                    trials_metadata_dict[val] = self._get_dynamictable_object(self.dataset_details[val],'trial','Trial',
-                                                  default_colnames_dict=dict(start_time='intervals',
-                                                                             stop_time='intervals'))
+                    trials_metadata_dict[val] = self._get_dynamictable_object(self.dataset_details[val], 'trials',
+                                                                              'Trial',
+                                                                              default_colnames_dict=dict(
+                                                                                  start_time='intervals',
+                                                                                  stop_time='intervals'))
         return trials_metadata_dict
 
     def set_stimulus_metadata(self):
@@ -361,16 +368,19 @@ class Alyx2NWBSchema:
                 if 'passiveWhiteNoise' in u:
                     stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
                         self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+        return stimulus_metadata_dict
 
     def set_device_metadata(self):
         device_objects = ['probes']
-        device_metadata_dict = self._initialize_container_dict('Devices')
+        device_metadata_dict = self._initialize_container_dict('Devices', default_value=[])
         current_device_objects = self._get_current_object_names(device_objects)
         for val, Ceid in enumerate(self.eid_list):
             for k, u in enumerate(current_device_objects[val]):
-                if 'probes' in u:
-                    temp=self._unpack_dataset_details(self.dataset_details[val],'probes')
-                    device_metadata_dict[val]['Devices']['name']=temp[0]
+                for ii in range(2):
+                    device_metadata_dict[val]['Devices'].extend(
+                        self._get_dynamictable_array(name=[f'{u}{ii}'],
+                                                     description=['NeuroPixels probe'])
+                    )
         return device_metadata_dict
 
     def set_units_metadata(self):
