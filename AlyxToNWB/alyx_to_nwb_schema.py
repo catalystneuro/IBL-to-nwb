@@ -2,7 +2,6 @@ import re
 import json
 from oneibl.one import ONE
 from .schema import metafile as nwb_schema
-from .schema import template_metafile as nwb_schema_template
 from .schema import dataset_details_list
 from .schema import alyx_subject_list
 
@@ -12,7 +11,6 @@ class Alyx2NWBSchema:
     def __init__(self, eid=None, one_obj: ONE = None, **one_kwargs):
         self._one_obj = one_obj
         self.one_kwargs = one_kwargs
-        self.schema_template = nwb_schema_template
         self.schema = nwb_schema
         self.one_obj = one_obj
         if not one_obj:
