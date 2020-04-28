@@ -263,7 +263,7 @@ class Alyx2NWBSchema:
             default_colnames = list(default_colnames_dict.keys())
         custom_columns_datafilename, custom_columns_name, custom_columns_description = \
             self._unpack_dataset_details(dataset_details, object_name, custom_attrs)
-        custom_columns_datafilename[:len(default_colnames)] = default_colnames
+        custom_columns_name[:len(default_colnames)] = default_colnames
         in_list = self._get_dynamictable_array(
             name=custom_columns_name,
             data=custom_columns_datafilename,
@@ -283,7 +283,8 @@ class Alyx2NWBSchema:
         nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
         for val, Ceid in enumerate(self.eid_list):
             nwbfile_metadata_dict[val]['NWBFile']['session_start_time'] = self.eid_session_info[val]['start_time']
-            nwbfile_metadata_dict[val]['NWBFile']['keywords'] = self.eid_session_info[val]['start_time']
+            nwbfile_metadata_dict[val]['NWBFile']['keywords'] = [','.join(self.eid_session_info[val]['users']),
+                                                                 self.eid_session_info[val]['lab'],'IBL']
             nwbfile_metadata_dict[val]['NWBFile']['experiment_description'] = self.eid_session_info[val]['narrative']
             nwbfile_metadata_dict[val]['NWBFile']['session_id'] = Ceid
             nwbfile_metadata_dict[val]['NWBFile']['experimenter'] = ','.join(self.eid_session_info[val]['users'])
@@ -353,7 +354,7 @@ class Alyx2NWBSchema:
             for k, u in enumerate(current_trial_objects[val]):
                 if 'trial' in u:
                     trials_metadata_dict[val] = self._get_dynamictable_object(self.dataset_details[val], 'trials',
-                                                                              'Trial',
+                                                                              'Trials',
                                                                               default_colnames_dict=dict(
                                                                                   start_time='intervals',
                                                                                   stop_time='intervals'))
@@ -386,12 +387,12 @@ class Alyx2NWBSchema:
     @property
     def device_metadata(self):
         device_objects = ['probes']
-        device_metadata_dict = self._initialize_container_dict('Devices', default_value=[])
+        device_metadata_dict = self._initialize_container_dict('Device', default_value=[])
         current_device_objects = self._get_current_object_names(device_objects)
         for val, Ceid in enumerate(self.eid_list):
             for k, u in enumerate(current_device_objects[val]):
                 for ii in range(2):
-                    device_metadata_dict[val]['Devices'].extend(
+                    device_metadata_dict[val]['Device'].extend(
                         self._get_dynamictable_array(name=[f'{u}{ii}'],
                                                      description=['NeuroPixels probe'])
                     )
@@ -426,7 +427,7 @@ class Alyx2NWBSchema:
                 electrodes_group_metadata_dict[val]['ElectrodeGroups'].extend(
                     self._get_dynamictable_array(name=[f'Probe{ii}'],
                                                  description=['NeuroPixels device'],
-                                                 device=[self.device_metadata[val]['Devices'][ii]],
+                                                 device=[self.device_metadata[val]['Device'][ii]['name']],
                                                  location=[''])
                 )
         return electrodes_group_metadata_dict
@@ -457,6 +458,10 @@ class Alyx2NWBSchema:
         raise NotImplementedError
 
     @property
+    def icephys_metadata(self):
+        raise NotImplementedError
+
+    @property
     def scratch_metadata(self):
         # this can be used to add further details about subject, lab,
         raise NotImplementedError
@@ -470,11 +475,15 @@ class Alyx2NWBSchema:
                                   **self.behavior_metadata[val],
                                   **self.trials_metadata[val],
                                   **self.stimulus_metadata[val],
-                                  **self.device_metadata[val],
                                   **self.units_metadata[val],
-                                  **self.electrodegroup_metadata[val],
                                   **self.electrodetable_metadata[val],
-                                  'Ephys': {**self.ecephys_metadata[val]}}
+                                  'Ecephys': {**self.ecephys_metadata[val],
+                                              **self.device_metadata[val],
+                                              **self.electrodegroup_metadata[val],
+                                              },
+                                  'Ophys': {},
+                                  'Icephys': {}}
+
         self.metafile_dict=metafile_dict
         with open(fileloc,'w') as f:
             json.dump(metafile_dict,f,indent=2)
