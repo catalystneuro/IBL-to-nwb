@@ -94,7 +94,7 @@
           "type": "object",
           "properties": {
             "name": {"type": "string", "default": "BehavioralEvents"},
-              "time_series": {
+            "time_series": {
               "type": "array",
               "items": {
                 "type": "object",
@@ -133,7 +133,7 @@
           "title": "BehavioralTimeSeries",
           "properties": {
             "unit": {"type": "string", "default": "m"},
-            "TimeSeries": {
+            "time_series": {
               "type": "array",
               "items": {
                 "type": "object",
@@ -168,7 +168,7 @@
     "Ecephys": {
       "type": "object",
       "properties": {
-        "Devices": {"$ref": "#/definitions/Devices"},
+        "Device": {"$ref": "#/definitions/Devices"},
         "ElectricalSeries": {
           "type": "array",
           "items": {
@@ -322,6 +322,33 @@
           }
         }
       }
+    },
+    "Stimulus": {
+      "type": "object",
+      "properties": {
+        "time_series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "title": "StimulusTimeSeries",
+            "allOf": [
+              {"$ref": "#/definitions/TimeSeries"}
+            ]
+          }
+        }
+      }
+    },
+    "Units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "title": "units_columns",
+        "properties": {
+          "name": {"type": "string"},
+          "data": {"type": "string"},
+          "description": {"type": "string"}
+        }
+      }
     }
   },
   "definitions": {
@@ -349,7 +376,8 @@
         "required": ["name"],
         "properties": {
           "name": {"type": "string", "default": "Device"},
-          "tag": {"type": "string"}
+          "tag": {"type": "string"},
+          "description": {"type": "string"}
         }
       }
     },
