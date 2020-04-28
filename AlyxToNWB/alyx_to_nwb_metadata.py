@@ -8,9 +8,19 @@ from .schema import alyx_subject_list
 
 class Alyx2NWBMetadata:  # TODO: test on different session eids
 
-    def __init__(self, eid=None, one_obj: ONE = None, **one_kwargs):
-        self._one_obj = one_obj
-        self.one_kwargs = one_kwargs
+    def __init__(self, eid=None, one_obj=None, **one_search_kwargs):
+        if not one_obj:
+            self._one_obj = one_obj
+        else:
+            self.one_obj = ONE()
+        if not eid:
+            eid = self.one_obj.search(**one_search_kwargs)
+            if len(eid) > 1:
+                print(f'nos of EIDs found: {len(eid)}, generating metadata from all')
+                if input('continue? y/n') == 'y':
+                    pass
+                else:
+                    exit()
         self.schema = nwb_schema
         self.one_obj = one_obj
         if not one_obj:
@@ -32,7 +42,7 @@ class Alyx2NWBMetadata:  # TODO: test on different session eids
             if not isinstance(eid_list, list):
                 eid_list = [eid_list]
         else:
-            eid_list = self._one_obj.search(**self.one_kwargs)
+            eid_list = self._one_obj.search(**self.one_search_kwargs)
         return eid_list
 
     def _get_dataset_details(self):
