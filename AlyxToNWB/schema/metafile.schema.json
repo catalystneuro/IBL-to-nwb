@@ -200,7 +200,6 @@
     },
     "Ophys": {
       "type": "object",
-      "required": ["Devices"],
       "properties": {
         "Devices": {"$ref": "#/definitions/Devices"},
         "DFOverF": {
@@ -293,6 +292,14 @@
         }
       }
     },
+    "Icephys": {
+      "type": "object",
+      "properties": {
+        "Devices": {
+          "$ref": "#/definitions/Devices"
+        }
+      }
+    },
     "Trials": {
       "type": "array",
       "items": {
@@ -302,7 +309,7 @@
           "name": {"type": "string"},
           "description": {"type": "string"},
           "data": {
-            "type": "string",
+            "type": ["string", "number"],
             "description": "ALF Uri of the actual dataset"
           }
         }
@@ -317,7 +324,7 @@
           "name": {"type": "string"},
           "description": {"type": "string"},
           "data": {
-            "type": "string",
+            "type": ["string", "number"],
             "description": "ALF Uri of the actual dataset"
           }
         }
@@ -345,7 +352,19 @@
         "title": "units_columns",
         "properties": {
           "name": {"type": "string"},
-          "data": {"type": "string"},
+          "data": {"type": ["string", "number"]},
+          "description": {"type": "string"}
+        }
+      }
+    },
+    "ElectrodeTable": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "title": "electrode_table_columns",
+        "properties": {
+          "name": {"type": "string"},
+          "data": {"type": ["string", "number"]},
           "description": {"type": "string"}
         }
       }
@@ -354,7 +373,10 @@
   "definitions": {
     "TimeSeries": {
       "type": "object",
-      "required": ["name", "description", "starting_time", "rate", "data"],
+      "anyOf": [
+        {"required": ["name", "description", "starting_time", "rate", "data"]},
+        {"required": ["name", "description", "timestamps", "data"]}
+      ],
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
@@ -362,8 +384,9 @@
         "tag": {"type": "string"},
         "starting_time": {"type": "number", "default": 0.0},
         "rate": {"type": "number", "default": -1.0},
+        "timestamps": {"type": ["string","number"]},
         "data": {
-          "type": "string",
+          "type": ["string","number"],
           "description": "ALF Uri of the actual dataset"
         }
       }
