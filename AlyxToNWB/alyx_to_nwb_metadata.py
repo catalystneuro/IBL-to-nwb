@@ -6,7 +6,7 @@ from .schema import dataset_details_list
 from .schema import alyx_subject_list
 
 
-class Alyx2NWBMetadata:#TODO: test on different session eids
+class Alyx2NWBMetadata:  # TODO: test on different session eids
 
     def __init__(self, eid=None, one_obj: ONE = None, **one_kwargs):
         self._one_obj = one_obj
@@ -69,7 +69,10 @@ class Alyx2NWBMetadata:#TODO: test on different session eids
                 self.subject_table[val] = alyx_subject_list[sub_id[0]]
             else:
                 for kk in alyx_subject_list[0]:
-                    self.subject_table[val][kk] = 'None'
+                    if kk == 'sex':
+                        self.subject_table[val][kk] = 'U'
+                    else:
+                        self.subject_table[val][kk] = 'None'
 
     def _dataset_type_parse(self):
         """
@@ -120,7 +123,7 @@ class Alyx2NWBMetadata:#TODO: test on different session eids
         """
         cond = lambda x: re.match(match_str, x)
         datafiles_all = [object_name + '.' + ii['name'] for ii in dataset_details[object_name] if not cond(ii['name'])]
-        datafiles_names_all = [object_name + '_' + ii['name'] for ii in dataset_details[object_name] if
+        datafiles_names_all = [ii['name'] for ii in dataset_details[object_name] if
                                not cond(ii['name'])]
         datafiles_desc_all = [ii['description'] for ii in dataset_details[object_name] if not cond(ii['name'])]
         if custom_attrs:
@@ -282,18 +285,19 @@ class Alyx2NWBMetadata:#TODO: test on different session eids
         for val, Ceid in enumerate(self.eid_list):
             nwbfile_metadata_dict[val]['NWBFile']['session_start_time'] = self.eid_session_info[val]['start_time']
             nwbfile_metadata_dict[val]['NWBFile']['keywords'] = [','.join(self.eid_session_info[val]['users']),
-                                                                 self.eid_session_info[val]['lab'],'IBL']
+                                                                 self.eid_session_info[val]['lab'], 'IBL']
             nwbfile_metadata_dict[val]['NWBFile']['experiment_description'] = self.eid_session_info[val]['narrative']
             nwbfile_metadata_dict[val]['NWBFile']['session_id'] = Ceid
-            nwbfile_metadata_dict[val]['NWBFile']['experimenter'] = ','.join(self.eid_session_info[val]['users'])
+            nwbfile_metadata_dict[val]['NWBFile']['experimenter'] = self.eid_session_info[val]['users']
             nwbfile_metadata_dict[val]['NWBFile']['identifier'] = Ceid
             nwbfile_metadata_dict[val]['NWBFile']['institution'] = \
-                [i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info[val]['lab']][0]]
+                [i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info[val]['lab']][0]][0]
             nwbfile_metadata_dict[val]['NWBFile']['lab'] = self.eid_session_info[val]['lab']
             nwbfile_metadata_dict[val]['NWBFile']['session_description'] = self.eid_session_info[val]['task_protocol']
             nwbfile_metadata_dict[val]['NWBFile']['surgery'] = 'None'
-            nwbfile_metadata_dict[val]['NWBFile']['notes'] = 'Procedures:' + ','.join(self.eid_session_info[val]['procedures']) \
-                                                  + ', Project:' + self.eid_session_info[val]['project']
+            nwbfile_metadata_dict[val]['NWBFile']['notes'] = 'Procedures:' + ','.join(
+                self.eid_session_info[val]['procedures']) \
+                                                             + ', Project:' + self.eid_session_info[val]['project']
 
         return nwbfile_metadata_dict
 
@@ -410,11 +414,11 @@ class Alyx2NWBMetadata:#TODO: test on different session eids
                     units_metadata_dict[val] = \
                         self._get_dynamictable_object(self.dataset_details[val], 'clusters', 'Units')
                     # units_metadata_dict[val]['Units'].extend(
-                        # self._get_dynamictable_array(name=['spike_times', 'electrode_groups', 'sampling_rate'],
-                        #                              data=['None', 'None', 'None'],
-                        #                              description=['times of spikes in the cluster',
-                        #                                           'electrodes of this cluster,', 'None']
-                        #                              ))
+                    # self._get_dynamictable_array(name=['spike_times', 'electrode_groups', 'sampling_rate'],
+                    #                              data=['None', 'None', 'None'],
+                    #                              description=['times of spikes in the cluster',
+                    #                                           'electrodes of this cluster,', 'None']
+                    #                              ))
         return units_metadata_dict
 
     @property
@@ -464,7 +468,7 @@ class Alyx2NWBMetadata:#TODO: test on different session eids
         # this can be used to add further details about subject, lab,
         raise NotImplementedError
 
-    def write_metadata(self,fileloc):
+    def write_metadata(self, fileloc):
         metafile_dict = [dict()]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
             metafile_dict[val] = {**self.eid_metadata[val],
@@ -481,8 +485,7 @@ class Alyx2NWBMetadata:#TODO: test on different session eids
                                               },
                                   'Ophys': {},
                                   'Icephys': {}}
-
-        self.metafile_dict=metafile_dict
-        with open(fileloc,'w') as f:
-            json.dump(metafile_dict,f,indent=2)
-
+            fileloc_upd = fileloc[:-5] + f'_eid_{val}' + fileloc[-5:]
+            with open(fileloc_upd, 'w') as f:
+                json.dump(metafile_dict[val], f, indent=2)
+        self.metafile_dict = metafile_dict
