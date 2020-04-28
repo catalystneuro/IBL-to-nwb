@@ -1,32 +1,47 @@
-from nwbn_conversion_tools import NWBConverter
 import os
+import json
+import pandas as pd
 import jsonschema
 import IBL_to_NWB
+from nwbn_conversion_tools import NWBConverter
 from .schema import dataset_format_list
+from oneibl.one import ONE
+import pynwb.behavior
+import pynwb.ecephys
+import pynwb
 
 class Alyx2NWBConverter(NWBConverter):
 
+    def __init__(self, nwbfile=None, saveloc=None,
+                 nwb_metadata: dict=None,
+                 metadata_obj: Alyx2NWBSchema = None,
+                 one_object: ONE = None):
 
-    def __init__(self, nwbfile=None, nwb_schema=None,
-                 schema_obj: Alyx2NWBSchema = None ,
-                 saveloc=None):
-        if ~nwb_schema & ~schema_obj:
-            raise Exception('provide a json schema or a Alyx2NEBSchema object as argument')
-        elif ~nwb_schema:
-                if jsonschema.validate(nwb_schema,IBL_to_NWB.metadata_schema):
-                    self.nwb_schema=nwb_schema
-        elif
+        if not nwb_metadata & ~metadata_obj & ~one_object:
+            raise Exception('provide a json schema + one_object or a Alyx2NEBSchema object as argument')
 
+        if not nwb_metadata:
+            if jsonschema.validate(nwb_metadata, IBL_to_NWB.metadata_schema):
+                self.nwb_metadata = nwb_metadata
 
-        if ~nwbfile:
-            self.nwbfile=self.create_nwb_file(**nwb_schema['NWBFile'])
+        if not metadata_obj:
+            self.metadata_obj = metadata_obj
+        else:
+            self.metadata_obj = json.loads(nwb_metadata)
 
-        if ~saveloc:
-            Warning('saving in current working directory')
-            self.saveloc=os.getcwd()
+        if not one_object:
+            self.one_object = one_object
+        else:
+            self.one_object = metadata_obj.one_obj
 
-    def create_nwb_file(self):
-        pass
+        if not saveloc:
+            Warning('saving nwb file in current working directory')
+            self.saveloc = os.getcwd()
+        else:
+            self.saveloc = saveloc
+
+        self.eid = self.nwb_metadata["eid"][0]
+        super(Alyx2NWBConverter, self).__init__(nwb_metadata, nwbfile)
 
     def create_processing_module(self):
         pass
