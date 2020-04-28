@@ -6,7 +6,7 @@ from .schema import dataset_details_list
 from .schema import alyx_subject_list
 
 
-class Alyx2NWBSchema:
+class Alyx2NWBMetadata:#TODO: test on different session eids
 
     def __init__(self, eid=None, one_obj: ONE = None, **one_kwargs):
         self._one_obj = one_obj

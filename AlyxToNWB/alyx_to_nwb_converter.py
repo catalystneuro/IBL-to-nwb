@@ -2,26 +2,27 @@ import os
 import json
 import pandas as pd
 import jsonschema
-import IBL_to_NWB
-from nwbn_conversion_tools import NWBConverter
-from .schema import dataset_format_list
+from nwb_conversion_tools import NWBConverter
 from oneibl.one import ONE
 import pynwb.behavior
 import pynwb.ecephys
 import pynwb
+from .alyx_to_nwb_metadata import Alyx2NWBMetadata
+from .schema import metafile
+
 
 class Alyx2NWBConverter(NWBConverter):
 
     def __init__(self, nwbfile=None, saveloc=None,
-                 nwb_metadata: dict=None,
-                 metadata_obj: Alyx2NWBSchema = None,
-                 one_object: ONE = None):
+                 nwb_metadata=None,
+                 metadata_obj=None,
+                 one_object=None):
 
-        if not nwb_metadata & ~metadata_obj & ~one_object:
+        if (not nwb_metadata) & (not metadata_obj) & (not one_object):
             raise Exception('provide a json schema + one_object or a Alyx2NEBSchema object as argument')
 
         if not nwb_metadata:
-            if jsonschema.validate(nwb_metadata, IBL_to_NWB.metadata_schema):
+            if jsonschema.validate(nwb_metadata, metafile):
                 self.nwb_metadata = nwb_metadata
 
         if not metadata_obj:
@@ -31,8 +32,10 @@ class Alyx2NWBConverter(NWBConverter):
 
         if not one_object:
             self.one_object = one_object
-        else:
+        elif not metadata_obj:
             self.one_object = metadata_obj.one_obj
+        else:
+            self.one_object = ONE()
 
         if not saveloc:
             Warning('saving nwb file in current working directory')
@@ -46,7 +49,7 @@ class Alyx2NWBConverter(NWBConverter):
     def create_stimulus(self):
         stimulus_list = self._get_data(self.nwb_metadata['Stimulus']['time_series'])
         for i in stimulus_list:
-            self.nwbfile.add_stimulus(pynwb.TimeSeries(**i)) #TODO: donvert timeseries data to starting_time and rate
+            self.nwbfile.add_stimulus(pynwb.TimeSeries(**i))  # TODO: donvert timeseries data to starting_time and rate
 
     def create_units(self):
         unit_table_list = self._get_data(self.nwb_metadata['Units'])
@@ -64,10 +67,10 @@ class Alyx2NWBConverter(NWBConverter):
                                        y=float('NaN'),
                                        z=float('NaN'),
                                        imp=float('NaN'),
-                                       location=f'location{j}', #TODO: location needs to be found from ibl datatype
+                                       location=f'location{j}',  # TODO: location needs to be found from ibl datatype
                                        group=f'group{j}',
                                        filtering='none'
-            )
+                                       )
         for i in electrode_table_list:
             self.nwbfile.add_electrode_column(name=i['name'],
                                               description=i['description'],
@@ -81,20 +84,20 @@ class Alyx2NWBConverter(NWBConverter):
                 pynwb.ecephys.EventDetection(
                     detection_method=i['description'],
                     source_electricalseries=pynwb.ecephys.SpikeEventSeries(**i)
-                ) #TODO: add method to find the electrodes using spikes.channels datatype
+                )  # TODO: add method to find the electrodes using spikes.channels datatype
             )
 
     def create_behavior(self):
         super(Alyx2NWBConverter, self).check_module('Behavior')
         for i in self.nwbfile['Behavior']:
-            if not i=='Position':
+            if not i == 'Position':
                 time_series_func = pynwb.TimeSeries
             else:
                 time_series_func = pynwb.behavior.SpatialSeries
 
             time_series_list_details = self._get_data(self.nwbfile['Behavior'][i]['time_series'])
             time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
-            func=getattr(pynwb.behavior, i)
+            func = getattr(pynwb.behavior, i)
             self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
 
     def create_trials(self):
@@ -103,10 +106,9 @@ class Alyx2NWBConverter(NWBConverter):
 
     def add_trial_columns(self, df):
         super(Alyx2NWBConverter, self).add_trials_from_df(df)
-        
+
     def add_trial_row(self, df):
         super(Alyx2NWBConverter, self).add_trials_from_df(df)
-    
 
     def _table_to_df(self, table_metadata):
         """
@@ -129,7 +131,8 @@ class Alyx2NWBConverter(NWBConverter):
             for i in sub_metadata:
                 out_dict[i]['data'] = self.one_object.load(self.eid, dataset_types=[sub_metadata['data']])
                 if out_dict[i].get('timestamps'):
-                    out_dict[i]['timestamps'] = self.one_object.load(self.eid, dataset_types=[sub_metadata['timestamps']])
+                    out_dict[i]['timestamps'] = self.one_object.load(self.eid,
+                                                                     dataset_types=[sub_metadata['timestamps']])
         else:
             out_dict['data'] = self.one_object.load(self.eid, dataset_types=[sub_metadata['data']])
             if out_dict.get('timestamps'):
