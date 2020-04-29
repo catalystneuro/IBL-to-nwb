@@ -6,7 +6,9 @@ from .schema import dataset_details_list
 from .schema import alyx_subject_list
 
 
-class Alyx2NWBMetadata:  # TODO: test on different session eids
+class Alyx2NWBMetadata:
+    # TODO: test on different session eids
+    # TODO: add docstrings
 
     def __init__(self, eid=None, one_obj=None, **one_search_kwargs):
         if not one_obj:
@@ -105,7 +107,6 @@ class Alyx2NWBMetadata:  # TODO: test on different session eids
             split_list_objects = [i.split('.')[0] for i in self.dataset_type_list[val]]
             split_list_attributes = [i.split('.')[1] for i in self.dataset_type_list[val]]
             dataset_description = [dataset_description_list[i] for i in self.dataset_type_list[val]]
-            # dataset_extension = [u['name'].split('.')[-1] for u in self.eid_session_info[val]['data_dataset_session_related']]
             split_list_objects_dict_details = dict()
             split_list_objects_dict = dict()
             for obj in set(split_list_objects):
@@ -478,7 +479,8 @@ class Alyx2NWBMetadata:  # TODO: test on different session eids
         # this can be used to add further details about subject, lab,
         raise NotImplementedError
 
-    def write_metadata(self, fileloc):
+    @property
+    def complete_metadata(self):
         metafile_dict = [dict()]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
             metafile_dict[val] = {**self.eid_metadata[val],
@@ -495,7 +497,11 @@ class Alyx2NWBMetadata:  # TODO: test on different session eids
                                               },
                                   'Ophys': {},
                                   'Icephys': {}}
+        return metafile_dict
+
+    def write_metadata(self, fileloc):
+        full_metadata = self.complete_metadata
+        for val, Ceid in enumerate(self.eid_list):
             fileloc_upd = fileloc[:-5] + f'_eid_{val}' + fileloc[-5:]
             with open(fileloc_upd, 'w') as f:
-                json.dump(metafile_dict[val], f, indent=2)
-        self.metafile_dict = metafile_dict
+                json.dump(full_metadata[val], f, indent=2)
