@@ -10,7 +10,7 @@
   "properties": {
     "eid": {
       "description": "list of supplied experiment ids",
-      "type": "array",
+      "type": ["array","string"],
       "items": {
         "title": "eid",
         "type": "string"
@@ -64,7 +64,7 @@
         "sex": {"type": "string", "enum": ["M", "F", "U", "O"], "default": "U"},
         "species": {"type": "string", "description": "Species of subject. Use latin name."},
         "subject_id": {"type": "string", "description": "ID of animal/person used/participating in experiment (lab convention)"},
-        "weight": {"type": "string", "description": "Weight at time of experiment, at time of surgery and at other important times."},
+        "weight": {"type": ["string","number"], "description": "Weight at time of experiment, at time of surgery and at other important times."},
         "date_of_birth": {"type": "string", "format": "date-time", "description": "Date of birth of subject. Can be supplied instead of 'age'."}
       }
     },
