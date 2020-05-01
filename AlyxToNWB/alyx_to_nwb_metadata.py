@@ -2,8 +2,6 @@ import re
 import json
 from oneibl.one import ONE
 from .schema import metafile as nwb_schema
-from .schema import dataset_details_list
-from .schema import alyx_subject_list
 
 
 class Alyx2NWBMetadata:
@@ -23,12 +21,14 @@ class Alyx2NWBMetadata:
                     pass
                 else:
                     exit()
+        self.one_search_kwargs = one_search_kwargs
         self.schema = nwb_schema
         self.one_obj = one_obj
         if not one_obj:
             self.one_obj = ONE()
         elif not isinstance(one_obj, ONE):
             raise Exception('one_obj is not of ONE class')
+        self.dataset_description_list = self._get_dataset_details()
         self.eid_list = self._get_eid_list(eid)
         self.eid_session_info = self._retrieve_eid_endpoint()
         self.dataset_type_list = self._list_eid_metadata('dataset_type')
@@ -48,11 +48,11 @@ class Alyx2NWBMetadata:
         return eid_list
 
     def _get_dataset_details(self):
-        list_type_returned = [None]*len(self.eid_list)
-        for val, e_id in enumerate(self.eid_list):
-            dataset_dict = self.eid_session_info[val]['data_dataset_session_related']
-            list_type_returned[val] = [i['name'] for i in dataset_dict]
-        return list_type_returned
+        data_url_resp = self.one_obj.alyx.rest('dataset-types', 'list')
+        out_dict = dict()
+        for i in data_url_resp:
+            out_dict.update({i['name']: i['description']})
+        return out_dict
 
     def _list_eid_metadata(self, list_type):
         list_type_returned = [None]*len(self.eid_list)
@@ -65,7 +65,7 @@ class Alyx2NWBMetadata:
         for val, ceid in enumerate(self.eid_list):
             eid_sess_info[val] = self.one_obj.alyx.rest('sessions/' + ceid, 'list')
             for i in eid_sess_info[val]:
-                if not eid_sess_info[val][i]:
+                if eid_sess_info[val][i] == None:
                     eid_sess_info[val][i] = 'None'
         return eid_sess_info
 
@@ -74,17 +74,9 @@ class Alyx2NWBMetadata:
 
     def _get_subject_table(self):
         self.subject_table = [dict()]*len(self.eid_list)
-        sub_name_list = [i['nickname'] for i in alyx_subject_list]
         for val, e_id in enumerate(self.eid_list):
-            sub_id = [i for j, i in enumerate(sub_name_list) if i == self.eid_session_info[val]['subject']]
-            if sub_id:
-                self.subject_table[val] = alyx_subject_list[sub_id[0]]
-            else:
-                for kk in alyx_subject_list[0]:
-                    if kk == 'sex':
-                        self.subject_table[val][kk] = 'U'
-                    else:
-                        self.subject_table[val][kk] = 'None'
+            self.subject_table[val] = self.one_obj.alyx.rest('subjects/' + self.eid_session_info[val]['subject'],
+                                                             'list')
 
     def _dataset_type_parse(self):
         """
@@ -101,12 +93,9 @@ class Alyx2NWBMetadata:
         dataset_type_list = [None]*len(self.eid_list)
         dataset_type_list_simple = [None]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
-            dataset_description_list = dict()
-            for data_id in dataset_details_list:
-                dataset_description_list[data_id['name']] = data_id['description']
             split_list_objects = [i.split('.')[0] for i in self.dataset_type_list[val]]
             split_list_attributes = [i.split('.')[1] for i in self.dataset_type_list[val]]
-            dataset_description = [dataset_description_list[i] for i in self.dataset_type_list[val]]
+            dataset_description = [self.dataset_description_list[i] for i in self.dataset_type_list[val]]
             split_list_objects_dict_details = dict()
             split_list_objects_dict = dict()
             for obj in set(split_list_objects):
