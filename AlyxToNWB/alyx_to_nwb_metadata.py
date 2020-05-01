@@ -213,16 +213,27 @@ class Alyx2NWBMetadata:
 
     def _attrnames_align(self, attrs_dict, custom_names):
         attrs_list = [i['name'] for i in attrs_dict]
+        out_dict = dict()
         out_list = []
-        idx_list = []
+        list_id_func_exclude = \
+            lambda val, comp_list, comp_bool: [i for i, j in enumerate(comp_list) if comp_bool & (j == val)]
+        cleanup = lambda x: [i[0] for i in x if i]
         if custom_names:
-            append_set = set(attrs_list).difference(set(custom_names.values()))
-            for i in custom_names.values():
-                idx = [ii for ii, k in enumerate(attrs_list) if k in i][0]
-                idx_list.extend([idx])
-                out_list.extend([attrs_list[idx]])
-            out_list.extend(list(append_set))
-            idx_list.extend(list(set(range(len(attrs_list))).difference(set(idx_list))))
+            custom_names_list = [i for i in list(custom_names.values())]
+            custom_names_dict = []
+            for i in range(len(custom_names_list)):
+                custom_names_dict.extend([{'name':custom_names_list[i],'description': 'no_description'}])
+            attr_list_include_idx = cleanup([list_id_func_exclude(i, attrs_list, True) for i in custom_names_list])
+            attr_list_exclude_idx = set(range(len(attrs_list))).difference(set(attr_list_include_idx))
+            custom_names_list_include_idx = [i for i,j in enumerate(custom_names_list) if list_id_func_exclude(j, attrs_list, True)]
+            for ii,jj in enumerate(custom_names_list_include_idx):
+                custom_names_dict[custom_names_list_include_idx[ii]] = attrs_dict[attr_list_include_idx[ii]]
+                custom_names_list[custom_names_list_include_idx[ii]] = attrs_list[attr_list_include_idx[ii]]
+            extend_dict = [attrs_dict[i] for i in attr_list_exclude_idx]
+            extend_list = [attrs_list[i] for i in attr_list_exclude_idx]
+            custom_names_dict.extend(extend_dict)
+            custom_names_list.extend(extend_list)
+            return custom_names_dict, custom_names_list
         else:
             out_dict = attrs_dict
             out_list = attrs_list
@@ -259,8 +270,8 @@ class Alyx2NWBMetadata:
                         }
                     ]
                 }
-                """
-        dataset_details[object_name], _ = self._attrnames_align(dataset_details[object_name], default_colnames_dict)
+        """
+        dataset_details[object_name], _ = self._attrnames_align(dataset_details[object_name].copy(), default_colnames_dict)
         if not default_colnames_dict:
             default_colnames = []
         else:
@@ -410,8 +421,6 @@ class Alyx2NWBMetadata:
         current_units_objects = self._get_current_object_names(units_objects)
         temp_dataset = self.dataset_details.copy()
         for val, Ceid in enumerate(self.eid_list):
-            temp_dataset[val][current_units_objects[val][0]].extend(temp_dataset[val][current_units_objects[val][1]])
-            temp_dataset_details = dict(clusters=temp_dataset[val]['clusters'])
             for k, u in enumerate(current_units_objects[val]):
                 if 'clusters' in u:
                     units_metadata_dict[val] = \
