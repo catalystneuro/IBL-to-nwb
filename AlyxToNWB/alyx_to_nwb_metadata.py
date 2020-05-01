@@ -111,7 +111,8 @@ class Alyx2NWBMetadata:
             dataset_type_list_simple[val] = split_list_objects_dict
         return dataset_type_list, dataset_type_list_simple
 
-    def _unpack_dataset_details(self, dataset_details, object_name, custom_attrs=None, match_str=' '):
+    @staticmethod
+    def _unpack_dataset_details(dataset_details, object_name, custom_attrs=None, match_str=' '):
         """
         helper function to split object and attributes of the IBL datatypes into
         names: obj_attr; data= obj.attr; desc for each
@@ -142,9 +143,12 @@ class Alyx2NWBMetadata:
         if default_value is None:
             default_value = dict()
         if name:
-            return [{name: default_value}]*len(self.eid_list)
+            outval = []
+            for i in range(len(self.eid_list)):
+                outval.extend([dict({name: default_value.copy()})])  # TODO: resolve mutability issue
+            return outval
         else:
-            return [[]]*len(self.eid_list)
+            return [None]*len(self.eid_list)
 
     def _get_all_object_names(self):
         outlist = [[]]*len(self.eid_list)
@@ -153,13 +157,13 @@ class Alyx2NWBMetadata:
         return outlist
 
     def _get_current_object_names(self, obj_list):
-        out_list = [['']*len(obj_list)]*len(self.eid_list)
+        out_list = []
         for val, Ceid in enumerate(self.eid_list):
+            loop_list=[]
             for j, k in enumerate(obj_list):
                 if k in self._get_all_object_names()[val]:
-                    out_list[val][j] = [i for i in self._get_all_object_names()[val] if k == i][0]
-                else:
-                    out_list[val][j] = ''
+                    loop_list.extend([i for i in self._get_all_object_names()[val] if k == i])
+            out_list.append(loop_list)
         return out_list
 
     def _get_timeseries_object(self, dataset_details, object_name, ts_name, custom_attrs=None, **kwargs):
@@ -191,9 +195,9 @@ class Alyx2NWBMetadata:
         matchstr = r'.*time.*|.*interval.*'
         timeattr_name = [i['name'] for i in dataset_details[object_name] if re.match(matchstr, i['name'])]
         datafiles, datafiles_names, datafiles_desc = \
-            self._unpack_dataset_details(dataset_details, object_name, custom_attrs, match_str=matchstr)
+            self._unpack_dataset_details(dataset_details.copy(), object_name, custom_attrs, match_str=matchstr)
         datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
-            self._unpack_dataset_details(dataset_details, object_name, timeattr_name[0])
+            self._unpack_dataset_details(dataset_details.copy(), object_name, timeattr_name[0])
         if not datafiles:
             datafiles_names = datafiles_time_name
             datafiles_desc = datafiles_time_desc
@@ -220,17 +224,16 @@ class Alyx2NWBMetadata:
             out_list.extend(list(append_set))
             idx_list.extend(list(set(range(len(attrs_list))).difference(set(idx_list))))
         else:
-            idx_list = range(len(attrs_list))
+            out_dict = attrs_dict
             out_list = attrs_list
-        out_dict = [attrs_dict[i] for i in idx_list]
-        return out_dict, out_list
+            return out_dict, out_list
 
     def _get_dynamictable_array(self, **kwargs):
         custom_keys = list(kwargs.keys())
         custom_data = list(kwargs.values())
         out_list = [None]*len(custom_data[0])
         for ii, jj in enumerate(custom_data[0]):
-            out_list[ii] = dict()
+            out_list[ii] = dict().copy()
             for i, j in enumerate(custom_keys):
                 out_list[ii][j] = custom_data[i][ii]
         return out_list
@@ -263,7 +266,7 @@ class Alyx2NWBMetadata:
         else:
             default_colnames = list(default_colnames_dict.keys())
         custom_columns_datafilename, custom_columns_name, custom_columns_description = \
-            self._unpack_dataset_details(dataset_details, object_name, custom_attrs)
+            self._unpack_dataset_details(dataset_details.copy(), object_name, custom_attrs)
         custom_columns_name[:len(default_colnames)] = default_colnames
         in_list = self._get_dynamictable_array(
             name=custom_columns_name,
@@ -274,9 +277,9 @@ class Alyx2NWBMetadata:
 
     @property
     def eid_metadata(self):
-        eid_metadata = [dict()]*len(self.eid_list)
+        eid_metadata = [None]*len(self.eid_list)
         for val, Ceid in enumerate(self.eid_list):
-            eid_metadata[val].update(dict(eid=self.eid_list))
+            eid_metadata[val] = dict(eid=self.eid_list[val])
         return eid_metadata
 
     @property
@@ -329,33 +332,33 @@ class Alyx2NWBMetadata:
             for k, u in enumerate(current_behavior_objects[val]):
                 if 'wheel' in u:
                     behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries'] = \
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
                 if 'wheelMoves' in self.dataset_details[val].keys():
                     behavior_metadata_dict[val]['Behavior']['BehavioralEpochs'] = \
-                        self._get_timeseries_object(self.dataset_details[val], u, 'interval_series')
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'interval_series')
                 if 'lickPiezo' in self.dataset_details[val].keys():
                     behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
                 if 'licks' in self.dataset_details[val].keys():
                     behavior_metadata_dict[val]['Behavior']['BehavioralEvents'] = \
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
                 if 'face' in self.dataset_details[val].keys():
                     behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
                 if 'eye' in self.dataset_details[val].keys():
                     behavior_metadata_dict[val]['Behavior']['PupilTracking'] = \
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
         return behavior_metadata_dict
 
     @property
     def trials_metadata(self):
-        trials_metadata_dict = self._initialize_container_dict()
+        trials_metadata_dict = self._initialize_container_dict('Trials')
         trials_objects = ['trials']
         current_trial_objects = self._get_current_object_names(trials_objects)
         for val, Ceid in enumerate(self.eid_list):
             for k, u in enumerate(current_trial_objects[val]):
                 if 'trial' in u:
-                    trials_metadata_dict[val] = self._get_dynamictable_object(self.dataset_details[val], 'trials',
+                    trials_metadata_dict[val] = self._get_dynamictable_object(self.dataset_details[val].copy(), 'trials',
                                                                               'Trials',
                                                                               default_colnames_dict=dict(
                                                                                   start_time='intervals',
@@ -371,19 +374,19 @@ class Alyx2NWBMetadata:
             for k, u in enumerate(current_stimulus_objects[val]):
                 if 'sparseNoise' in u:
                     stimulus_metadata_dict[val]['Stimulus'] = \
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
                 if 'passiveBeeps' in u:
                     stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
                 if 'passiveValveClick' in u:
                     stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
                 if 'passiveVisual' in u:
                     stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
                 if 'passiveWhiteNoise' in u:
                     stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val], u, 'time_series')['time_series'])
+                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
         return stimulus_metadata_dict
 
     @property
@@ -412,13 +415,19 @@ class Alyx2NWBMetadata:
             for k, u in enumerate(current_units_objects[val]):
                 if 'clusters' in u:
                     units_metadata_dict[val] = \
-                        self._get_dynamictable_object(self.dataset_details[val], 'clusters', 'Units')
-                    # units_metadata_dict[val]['Units'].extend(
-                    # self._get_dynamictable_array(name=['spike_times', 'electrode_groups', 'sampling_rate'],
-                    #                              data=['None', 'None', 'None'],
-                    #                              description=['times of spikes in the cluster',
-                    #                                           'electrodes of this cluster,', 'None']
-                    #                              ))
+                        self._get_dynamictable_object(self.dataset_details[val].copy(), 'clusters', 'Units',
+                                                      default_colnames_dict=dict(location='brainAcronyms',
+                                                                                 quality='metrics',
+                                                                                 waveform_mean='waveforms',
+                                                                                 electrodes='channels',
+                                                                                 electrode_group='probes',
+                                                                                 ))
+                    units_metadata_dict[val]['Units'].extend(
+                        self._get_dynamictable_array(name=['obs_intervals', 'spike_times'],
+                                                     data=['trials.intervals', 'spikes.clusters, spike.times'],
+                                                     description=['time intervals of each cluster',
+                                                                  'spike times of cluster']
+                                                     ))
         return units_metadata_dict
 
     @property
@@ -442,7 +451,7 @@ class Alyx2NWBMetadata:
         for val, Ceid in enumerate(self.eid_list):
             for i in current_electrodes_objects[val]:
                 electrodes_table_metadata_dict[val] = self._get_dynamictable_object(
-                    self.dataset_details[val], 'channels', 'ElectrodeTable')
+                    self.dataset_details[val].copy(), 'channels', 'ElectrodeTable')
         return electrodes_table_metadata_dict
 
     @property
@@ -452,7 +461,7 @@ class Alyx2NWBMetadata:
         current_ecephys_objects = self._get_current_object_names(ecephys_objects)
         for val, Ceid in enumerate(self.eid_list):
             ecephys_metadata_dict[val]['EventDetection'] = \
-                self._get_timeseries_object(self.dataset_details[val], 'spikes', 'SpikeEventSeries')
+                self._get_timeseries_object(self.dataset_details[val].copy(), 'spikes', 'SpikeEventSeries')
         return ecephys_metadata_dict
 
     @property
@@ -484,8 +493,8 @@ class Alyx2NWBMetadata:
                                               **self.device_metadata[val],
                                               **self.electrodegroup_metadata[val],
                                               },
-                                  'Ophys': {},
-                                  'Icephys': {}}
+                                  'Ophys': dict().copy(),
+                                  'Icephys': dict().copy()}
         return metafile_dict
 
     def write_metadata(self, fileloc):
