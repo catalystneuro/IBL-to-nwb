@@ -51,9 +51,14 @@ class Alyx2NWBConverter(NWBConverter):
             self.saveloc = os.getcwd()
         else:
             self.saveloc = saveloc
-
-        self.eid = self.nwb_metadata["eid"][0]
-        super(Alyx2NWBConverter, self).__init__(nwb_metadata, nwbfile)
+        self.eid = self.nwb_metadata["eid"]
+        self.nwb_metadata['NWBFile']['session_start_time'] = \
+            datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'], '%Y-%m-%dT%X')
+        self.nwb_metadata['Subject']['date_of_birth'] = \
+            datetime.strptime(self.nwb_metadata['Subject']['date_of_birth'], '%Y-%m-%d')
+        super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
+        self._loaded_datasets = dict()
+        self.unit_table_length = None
 
     def create_stimulus(self):
         stimulus_list = self._get_data(self.nwb_metadata['Stimulus']['time_series'])
