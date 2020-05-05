@@ -544,7 +544,7 @@ class Alyx2NWBMetadata:
                     units_metadata_dict[val] = \
                         self._get_dynamictable_object(self.dataset_details[val].copy(), 'clusters', 'Units',
                                                       default_colnames_dict=dict(location='brainAcronyms',
-                                                                                 quality='metrics',
+                                                                                 id='metrics',
                                                                                  waveform_mean='waveforms',
                                                                                  electrodes='channels',
                                                                                  electrode_group='probes',
@@ -555,6 +555,11 @@ class Alyx2NWBMetadata:
                                                      data=['trials.intervals', 'spikes.clusters,spikes.times'],
                                                      description=['time intervals of each cluster',
                                                                   'spike times of cluster']
+                                                     ))
+                    units_metadata_dict[val]['Units'].extend(
+                        self._get_dynamictable_array(name=metrics_columns,
+                                                     data=['clusters.metrics']*len(metrics_columns),
+                                                     description=['metrics_table columns data']*len(metrics_columns)
                                                      ))
         return units_metadata_dict
 
