@@ -1,6 +1,9 @@
 import os
 import json
 import pandas as pd
+import numpy as np
+from copy import deepcopy
+from datetime import datetime
 import jsonschema
 from nwb_conversion_tools import NWBConverter
 from oneibl.one import ONE
@@ -14,30 +17,36 @@ from .schema import metafile
 class Alyx2NWBConverter(NWBConverter):
 
     def __init__(self, nwbfile=None, saveloc=None,
-                 nwb_metadata=None,
-                 metadata_obj=None,
+                 nwb_metadata_file=None,
+                 metadata_obj: Alyx2NWBMetadata = None,
                  one_object=None):
 
-        if (not nwb_metadata) & (not metadata_obj) & (not one_object):
-            raise Exception('provide a json schema + one_object or a Alyx2NEBSchema object as argument')
-
-        if not nwb_metadata:
-            if jsonschema.validate(nwb_metadata, metafile):
-                self.nwb_metadata = nwb_metadata
-
-        if not metadata_obj:
-            self.metadata_obj = metadata_obj
+        if not (nwb_metadata_file == None):
+            if isinstance(nwb_metadata_file, dict):
+                self.nwb_metadata = nwb_metadata_file
+            elif isinstance(nwb_metadata_file, str):
+                with open(nwb_metadata_file, 'r') as f:
+                    self.nwb_metadata = json.load(f)
+            # jsonschema.validate(nwb_metadata_file, metafile)
+        elif not (metadata_obj == None):
+            if len(metadata_obj.complete_metadata) > 1:
+                num = int(input(f'{metadata_obj.complete_metadata}'
+                                'eids found, input a number [0-no_eids] to make nwb from'))
+                if num > len(metadata_obj.complete_metadata):
+                    raise Exception('number entered greater than number of eids')
+                self.nwb_metadata = metadata_obj.complete_metadata[num]
+            else:
+                self.nwb_metadata = metadata_obj.complete_metadata[0]
         else:
-            self.metadata_obj = json.loads(nwb_metadata)
-
-        if not one_object:
+            raise Exception('required one of argument: nwb_metadata_file OR metadata_obj')
+        if not (one_object == None):
             self.one_object = one_object
-        elif not metadata_obj:
+        elif not (metadata_obj == None):
             self.one_object = metadata_obj.one_obj
         else:
+            Warning('creating a ONE object and continuing')
             self.one_object = ONE()
-
-        if not saveloc:
+        if not (saveloc == None):
             Warning('saving nwb file in current working directory')
             self.saveloc = os.getcwd()
         else:
