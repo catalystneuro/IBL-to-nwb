@@ -169,9 +169,14 @@ class Alyx2NWBConverter(NWBConverter):
         :return: df_out: data frame conversion
         """
         data_dict = dict()
-        _ = [data_dict.update({i['name']: self.one_object.load(self.eid, dataset_types=[i['data']])}) \
-             for i in table_metadata]
-        df_out = pd.DataFrame(data=data_dict)
+        for i in table_metadata:
+            if i['name'] in 'start_time':
+                data_dict.update({i['name']: self.one_object.load(self.eid, dataset_types=[i['data']])[0][:, 0]})
+            elif i['name'] in 'stop_time':
+                data_dict.update({i['name']: self.one_object.load(self.eid, dataset_types=[i['data']])[0][:, 1]})
+            else:
+                data_dict.update({i['name']: self.one_object.load(self.eid, dataset_types=[i['data']])[0]})
+        df_out = pd.DataFrame(data_dict)
         return df_out
 
     def _get_multiple_data(self, datastring, max_len=None):
