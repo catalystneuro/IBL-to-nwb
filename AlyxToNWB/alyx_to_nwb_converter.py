@@ -94,13 +94,19 @@ class Alyx2NWBConverter(NWBConverter):
     def create_electrode_table_ecephys(self):
         self.create_electrode_groups(self.nwb_metadata['Ecephys'])
         electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'])
+        default_args = ['group']
+        default_ids = self._get_default_column_ids(default_args, [i['name'] for i in electrode_table_list])
         for j in range(len(electrode_table_list[0]['data'])):
+            if default_ids:
+                group_data = self.nwbfile.electrode_groups['Probe{}'.format(electrode_table_list[default_ids[0]]['data'][j])]
+            else:# else fill with probe zero data.
+                group_data = self.nwbfile.electrode_groups[f'Probe{0}']
             self.nwbfile.add_electrode(x=float('NaN'),
                                        y=float('NaN'),
                                        z=float('NaN'),
                                        imp=float('NaN'),
-                                       location=f'location{j}',  # TODO: location needs to be found from ibl datatype
-                                       group=f'group{j}',
+                                       location=f'location{j}',
+                                       group=group_data,
                                        filtering='none'
                                        )
         for i in electrode_table_list:
@@ -122,7 +128,7 @@ class Alyx2NWBConverter(NWBConverter):
     def create_behavior(self):
         super(Alyx2NWBConverter, self).check_module('Behavior')
         for i in self.nwbfile['Behavior']:
-            if not i == 'Position':
+            if not (i == 'Position'):
                 time_series_func = pynwb.TimeSeries
             else:
                 time_series_func = pynwb.behavior.SpatialSeries
