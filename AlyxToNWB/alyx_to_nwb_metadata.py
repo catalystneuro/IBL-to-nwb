@@ -234,6 +234,7 @@ class Alyx2NWBMetadata:
         """
         matchstr = r'.*time.*|.*interval.*'
         timeattr_name = [i['name'] for i in dataset_details[object_name] if re.match(matchstr, i['name'])]
+        dataset_details[object_name],_ = self._drop_attrs(dataset_details[object_name].copy(), drop_attrs)
         datafiles, datafiles_names, datafiles_desc = \
             self._unpack_dataset_details(dataset_details.copy(), object_name, custom_attrs, match_str=matchstr)
         datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
@@ -293,7 +294,50 @@ class Alyx2NWBMetadata:
             out_list = attrs_list
             return out_dict, out_list
 
-    def _get_dynamictable_array(self, **kwargs):
+    @staticmethod
+    def _drop_attrs(dataset_details, drop_attrs, default_colnames_dict=None):
+        """
+        Used to remove given attributes of the IBL dataset.
+        Parameters
+        ----------
+        dataset_details
+        drop_attrs
+        default_colnames_dict
+
+        Returns
+        -------
+
+        """
+        dataset_details_copy = dataset_details.copy()
+        if drop_attrs is None:
+            return dataset_details, default_colnames_dict
+        elif not(default_colnames_dict==None):
+            default_colnames_dict_copy = default_colnames_dict.copy()
+            for i,j in default_colnames_dict_copy.items():
+                if j in drop_attrs:
+                    default_colnames_dict.pop(i)
+        attrs_list = [i['name'] for i in dataset_details]
+        for i, j in enumerate(attrs_list):
+            if j in drop_attrs:
+                del dataset_details_copy[i]
+        return dataset_details_copy, default_colnames_dict
+
+    @staticmethod
+    def _get_dynamictable_array(**kwargs):
+        """
+        Helper to dynamictable object method
+        Parameters
+        ----------
+        kwargs
+            keys and values that define the dictionary,
+            both keys and values are lists where each index would slice all the keys/values and create a dict out of that
+
+        Returns
+        -------
+        list
+            list of dictionaries each with the keys and values from kwargs
+
+        """
         custom_keys = list(kwargs.keys())
         custom_data = list(kwargs.values())
         out_list = [None]*len(custom_data[0])
@@ -304,7 +348,7 @@ class Alyx2NWBMetadata:
         return out_list
 
     def _get_dynamictable_object(self, dataset_details, object_name, dt_name, default_colnames_dict=None,
-                                 custom_attrs=None):
+                                 custom_attrs=None,drop_attrs=None):
         """
 
         Parameters
@@ -339,6 +383,8 @@ class Alyx2NWBMetadata:
                     ]
                 }
         """
+        dataset_details[object_name], default_colnames_dict = self._drop_attrs(dataset_details[object_name].copy(),
+                                                                drop_attrs, default_colnames_dict)
         dataset_details[object_name], _ = self._attrnames_align(dataset_details[object_name].copy(), default_colnames_dict)
         if not default_colnames_dict:
             default_colnames = []
@@ -502,7 +548,8 @@ class Alyx2NWBMetadata:
                                                                                  waveform_mean='waveforms',
                                                                                  electrodes='channels',
                                                                                  electrode_group='probes',
-                                                                                 ))
+                                                                                 ),
+                                                      drop_attrs=['uuids'])
                     units_metadata_dict[val]['Units'].extend(
                         self._get_dynamictable_array(name=['obs_intervals', 'spike_times'],
                                                      data=['trials.intervals', 'spikes.clusters,spikes.times'],
@@ -513,10 +560,10 @@ class Alyx2NWBMetadata:
 
     @property
     def electrodegroup_metadata(self):
-        electrodes_group_metadata_dict = self._initialize_container_dict('ElectrodeGroups', default_value=[])
+        electrodes_group_metadata_dict = self._initialize_container_dict('ElectrodeGroup', default_value=[])
         for val, Ceid in enumerate(self.eid_list):
             for ii in range(2):
-                electrodes_group_metadata_dict[val]['ElectrodeGroups'].extend(
+                electrodes_group_metadata_dict[val]['ElectrodeGroup'].extend(
                     self._get_dynamictable_array(name=[f'Probe{ii}'],
                                                  description=['NeuroPixels device'],
                                                  device=[self.device_metadata[val]['Device'][ii]['name']],
@@ -574,8 +621,8 @@ class Alyx2NWBMetadata:
                                               **self.device_metadata[val],
                                               **self.electrodegroup_metadata[val],
                                               },
-                                  'Ophys': dict().copy(),
-                                  'Icephys': dict().copy()}
+                                  'Ophys': dict(),
+                                  'Icephys': dict()}
         return metafile_dict
 
     def write_metadata(self, fileloc):
