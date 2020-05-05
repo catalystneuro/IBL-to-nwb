@@ -5,7 +5,6 @@ from .schema import metafile as nwb_schema
 
 
 class Alyx2NWBMetadata:
-    # TODO: test on different session eids
     # TODO: add docstrings
 
     def __init__(self, eid=None, one_obj=None, **one_search_kwargs):
@@ -48,6 +47,15 @@ class Alyx2NWBMetadata:
         return eid_list
 
     def _get_dataset_details(self):
+        """
+        Retrieves all datasets in the alyx database currently.
+        Retrieves a list of dicts with keys like id, name, created_by,description etc. Uses only name and description.
+        Returns
+        -------
+        list
+            List of dicts:
+            {<dataset-name> : <dataset_description>
+        """
         data_url_resp = self.one_obj.alyx.rest('dataset-types', 'list')
         out_dict = dict()
         for i in data_url_resp:
@@ -55,12 +63,30 @@ class Alyx2NWBMetadata:
         return out_dict
 
     def _list_eid_metadata(self, list_type):
+        """
+        Uses one's list method to get the types of <list_type> data from the given eid.
+        Parameters
+        ----------
+        list_type: str
+            one of strings from
+            >>> ONE().search_terms()
+        Returns
+        -------
+        list
+        """
         list_type_returned = [None]*len(self.eid_list)
         for val, e_id in enumerate(self.eid_list):
             list_type_returned[val] = self.one_obj.list(e_id, list_type)
         return list_type_returned
 
     def _retrieve_eid_endpoint(self):
+        """
+        To get the current sessions url response. Contains all the session metadata as well as the current datasets etc.
+        Returns
+        -------
+        list
+            list of server responses.
+        """
         eid_sess_info = [None]*len(self.eid_list)
         for val, ceid in enumerate(self.eid_list):
             eid_sess_info[val] = self.one_obj.alyx.rest('sessions/' + ceid, 'list')
@@ -80,15 +106,19 @@ class Alyx2NWBMetadata:
 
     def _dataset_type_parse(self):
         """
-        :return: list of dict. Each item as a dict with values as list of dict with keys: name and description
-        -<dataset object name>: (eg. spikes, clusters etc)
-            -name: objects attribute type (eg. times, intervals etc
-             description: attributes description
-            -name: objects attribute type (eg. times, intervals etc
-             description: attributes description
-             .
-             .
-             .
+
+        Returns
+        -------
+        list
+            list of dicts:
+            {<dataset object name>: (eg. spikes, clusters etc)
+                [
+                    {name: objects attribute type (eg. times, intervals etc
+                    description: attributes description}
+                    {name: objects attribute type (eg. times, intervals etc
+                    description: attributes description}
+                ]
+            }
         """
         dataset_type_list = [None]*len(self.eid_list)
         dataset_type_list_simple = [None]*len(self.eid_list)
@@ -145,7 +175,7 @@ class Alyx2NWBMetadata:
         if name:
             outval = []
             for i in range(len(self.eid_list)):
-                outval.extend([dict({name: default_value.copy()})])  # TODO: resolve mutability issue
+                outval.extend([dict({name: default_value.copy()})])
             return outval
         else:
             return [None]*len(self.eid_list)
@@ -166,31 +196,41 @@ class Alyx2NWBMetadata:
             out_list.append(loop_list)
         return out_list
 
-    def _get_timeseries_object(self, dataset_details, object_name, ts_name, custom_attrs=None, **kwargs):
+    def _get_timeseries_object(self, dataset_details, object_name, ts_name, custom_attrs=None, drop_attrs=None, **kwargs):
         """
-        :param dataset_details: self.dataset_details
-        :param object_name: name of hte object_name in the IBL datatype
-        :param custom_attrs: if there are a subset of IBL object's attributes for which to create time series.
-        :param ts_name: timeseries key name like 'time_series', can also be 'interval_series' in some cases
-        :param kwargs: if there are additional fields that need to be created within the times series object. This happens
-        when the neuro_datatype is like roi response series, electrical series etc (classes that inherit from timeseries in pynwb)
-        generate a dictionary like:
-        {
-        "time_series": [
+
+        Parameters
+        ----------
+        dataset_details
+            self.dataset_details
+        object_name
+            name of hte object_name in the IBL datatype
+        ts_name
+            the key name for the timeseries list
+        custom_attrs
+            Attributes to consider
+        kwargs
+            additional keys/values to add to the default timeseries. For derivatives of TimeSEries
+
+        Returns
+        -------
+        dict()
             {
-              "name": "face_motionEnergy",
-              "data": "face.motionEnergy",
-              "timestamps": "face.timestamps",
-              "description": "Features extracted from the video of the frontal aspect of the subject, including the subject\\'s face and forearms."
-            },
-            {
-              "name": "_ibl_lickPiezo_times",
-              "data": "_ibl_lickPiezo.raw",
-              "timestamps": "_ibl_lickPiezo.timestamps",
-              "description": "Voltage values from a thin-film piezo connected to the lick spout, so that values are proportional to deflection of the spout and licks can be detected as peaks of the signal."
+                "time_series": [
+                    {
+                      "name": "face_motionEnergy",
+                      "data": "face.motionEnergy",
+                      "timestamps": "face.timestamps",
+                      "description": "Features extracted from the video of the frontal aspect of the subject, including the subject\\'s face and forearms."
+                    },
+                    {
+                      "name": "_ibl_lickPiezo_times",
+                      "data": "_ibl_lickPiezo.raw",
+                      "timestamps": "_ibl_lickPiezo.timestamps",
+                      "description": "Voltage values from a thin-film piezo connected to the lick spout, so that values are proportional to deflection of the spout and licks can be detected as peaks of the signal."
+                    }
+                ]
             }
-        ]
-        }
         """
         matchstr = r'.*time.*|.*interval.*'
         timeattr_name = [i['name'] for i in dataset_details[object_name] if re.match(matchstr, i['name'])]
@@ -211,7 +251,21 @@ class Alyx2NWBMetadata:
             timeseries_dict[ts_name][i].update(**kwargs)
         return timeseries_dict
 
-    def _attrnames_align(self, attrs_dict, custom_names):
+    @staticmethod
+    def _attrnames_align(attrs_dict, custom_names):
+        """
+        the attributes that receive the custom names are reordered to be first in the list
+        Parameters. This assigns description:'no_description' to those that are not found. This will
+        later be used(nwb_converter) as an identifier for non-existent data for the given eid.
+        ----------
+        attrs_dict:list
+            list of dict(attr_name:'',attr_description:'')
+        custom_names
+            same as 'default_colnames_dict' in self._get_dynamictable_object
+        Returns
+        -------
+        dict()
+        """
         attrs_list = [i['name'] for i in attrs_dict]
         out_dict = dict()
         out_list = []
@@ -252,11 +306,25 @@ class Alyx2NWBMetadata:
     def _get_dynamictable_object(self, dataset_details, object_name, dt_name, default_colnames_dict=None,
                                  custom_attrs=None):
         """
-                :param dataset_details: self.dataset_details
-                :param object_name: name of hte object_name in the IBL datatype
-                :param dt_name: table key name like 'time_series', can also be 'interval_series' in some cases
-                :param custom_colmns: the custom set of attributes for which to create columns from
-                {'Trials':
+
+        Parameters
+        ----------
+        dataset_details
+            self.dataset_details for each eid
+        object_name:str
+            object from the IBL data types from which to create this table.
+        dt_name:str
+            custom name for the dynamic table. Its the key with the value being dynamictable_array
+        default_colnames_dict:dict()
+            keys are the custom names of the columns, corresponding values are the attributes which have to be renamed.
+        custom_attrs:list
+            list of attributes for the given IBL object in object_name to be considered, all others are ignored
+
+        Returns
+        -------
+        outdict:dict()
+            example output below:
+            {'Trials':
                     [
                         {
                           "name": "column1 name",
@@ -325,7 +393,7 @@ class Alyx2NWBMetadata:
                 subject_metadata_dict[val]['Subject']['genotype'] = ','.join(self.subject_table[val]['genotype'])
                 subject_metadata_dict[val]['Subject']['sex'] = self.subject_table[val]['sex']
                 subject_metadata_dict[val]['Subject']['species'] = self.subject_table[val]['species']
-                subject_metadata_dict[val]['Subject']['weight'] = self.subject_table[val]['reference_weight']
+                subject_metadata_dict[val]['Subject']['weight'] = str(self.subject_table[val]['reference_weight'])
                 subject_metadata_dict[val]['Subject']['date_of_birth'] = self.subject_table[val]['birth_date']
         return subject_metadata_dict
 
@@ -417,6 +485,10 @@ class Alyx2NWBMetadata:
     @property
     def units_metadata(self):
         units_objects = ['clusters', 'spikes']
+        metrics_columns = ['cluster_id', 'cluster_id.1', 'num_spikes', 'firing_rate', 'presence_ratio',
+                           'presence_ratio_std', 'isi_viol', 'amplitude_cutoff', 'amplitude_std', 'epoch_name',
+                           'ks2_contamination_pct', 'ks2_label']
+
         units_metadata_dict = self._initialize_container_dict('Units')
         current_units_objects = self._get_current_object_names(units_objects)
         temp_dataset = self.dataset_details.copy()
@@ -433,7 +505,7 @@ class Alyx2NWBMetadata:
                                                                                  ))
                     units_metadata_dict[val]['Units'].extend(
                         self._get_dynamictable_array(name=['obs_intervals', 'spike_times'],
-                                                     data=['trials.intervals', 'spikes.clusters, spike.times'],
+                                                     data=['trials.intervals', 'spikes.clusters,spikes.times'],
                                                      description=['time intervals of each cluster',
                                                                   'spike times of cluster']
                                                      ))
