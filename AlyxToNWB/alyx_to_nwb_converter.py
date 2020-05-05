@@ -61,20 +61,38 @@ class Alyx2NWBConverter(NWBConverter):
         self.unit_table_length = None
 
     def create_stimulus(self):
-        stimulus_list = self._get_data(self.nwb_metadata['Stimulus']['time_series'])
+        stimulus_list = self._get_data(self.nwb_metadata['Stimulus'].get('time_series'))
         for i in stimulus_list:
             self.nwbfile.add_stimulus(pynwb.TimeSeries(**i))  # TODO: donvert timeseries data to starting_time and rate
 
     def create_units(self):
         unit_table_list = self._get_data(self.nwb_metadata['Units'])
+        default_args = ['id', 'waveform_mean','electrodes','electrode_group','spike_times','obs_intervals']
+        default_ids = self._get_default_column_ids(default_args, [i['name'] for i in unit_table_list])
+        non_default_ids = list(set(range(len(unit_table_list))).difference(set(default_ids)))
+        default_dict=dict()
+        [default_dict.update({unit_table_list[i]['name']:unit_table_list[i]['data']}) for i in default_ids]
         for j in range(len(unit_table_list[0]['data'])):
-            self.nwbfile.add_unit(id=j)
-        for i in unit_table_list:
-            self.nwbfile.add_unit_column(name=i['name'],
-                                         description=i['description'],
-                                         data=i['data'])
+            add_dict=dict().copy()
+            for i in default_dict.keys():
+                if i == 'electrodes':
+                    add_dict.update({i: [default_dict[i][j]]})
+                elif i == 'obs_intervals':
+                    add_dict.update({i: default_dict[i]})
+                elif i == 'electrode_group':
+                    self.create_electrode_groups(self.nwb_metadata['Ecephys'])
+                    add_dict.update({i:self.nwbfile.electrode_groups[f'Probe{default_dict[i][j]}']})
+                else:
+                    add_dict.update({i: default_dict[i][j]})
+            self.nwbfile.add_unit(**add_dict)
 
-    def create_electrodes_ecephys(self):
+        for i in non_default_ids:
+            self.nwbfile.add_unit_column(name=unit_table_list[i]['name'],
+                                         description=unit_table_list[i]['description'],
+                                         data=unit_table_list[i]['data'])
+
+    def create_electrode_table_ecephys(self):
+        self.create_electrode_groups(self.nwb_metadata['Ecephys'])
         electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'])
         for j in range(len(electrode_table_list[0]['data'])):
             self.nwbfile.add_electrode(x=float('NaN'),
