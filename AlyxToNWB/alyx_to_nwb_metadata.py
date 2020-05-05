@@ -584,7 +584,8 @@ class Alyx2NWBMetadata:
         for val, Ceid in enumerate(self.eid_list):
             for i in current_electrodes_objects[val]:
                 electrodes_table_metadata_dict[val] = self._get_dynamictable_object(
-                    self.dataset_details[val].copy(), 'channels', 'ElectrodeTable')
+                    self.dataset_details[val].copy(), 'channels', 'ElectrodeTable',
+                    default_colnames_dict=dict(group='probes'))
         return electrodes_table_metadata_dict
 
     @property
