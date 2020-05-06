@@ -67,14 +67,15 @@ class Alyx2NWBConverter(NWBConverter):
             self.nwbfile.add_stimulus(pynwb.TimeSeries(**i))  # TODO: donvert timeseries data to starting_time and rate
 
     def create_units(self):
-        unit_table_list = self._get_data(self.nwb_metadata['Units'])
+        unit_table_list = self._get_data(self.nwb_metadata['Units'], probes=2)
+        # no required arguments for units table. Below are default columns in the table.
         default_args = ['id', 'waveform_mean','electrodes','electrode_group','spike_times','obs_intervals']
         default_ids = self._get_default_column_ids(default_args, [i['name'] for i in unit_table_list])
         non_default_ids = list(set(range(len(unit_table_list))).difference(set(default_ids)))
         default_dict=dict()
         [default_dict.update({unit_table_list[i]['name']:unit_table_list[i]['data']}) for i in default_ids]
         for j in range(len(unit_table_list[0]['data'])):
-            add_dict=dict().copy()
+            add_dict=dict()
             for i in default_dict.keys():
                 if i == 'electrodes':
                     add_dict.update({i: [default_dict[i][j]]})
@@ -83,6 +84,11 @@ class Alyx2NWBConverter(NWBConverter):
                 elif i == 'electrode_group':
                     self.create_electrode_groups(self.nwb_metadata['Ecephys'])
                     add_dict.update({i:self.nwbfile.electrode_groups[f'Probe{default_dict[i][j]}']})
+                elif i == 'id':
+                    if j >= self.unit_table_length[0]:
+                        add_dict.update({i: default_dict[i][j]+self.unit_table_length[0]})
+                    else:
+                        add_dict.update({i: default_dict[i][j]})
                 else:
                     add_dict.update({i: default_dict[i][j]})
             self.nwbfile.add_unit(**add_dict)
@@ -94,26 +100,44 @@ class Alyx2NWBConverter(NWBConverter):
 
     def create_electrode_table_ecephys(self):
         self.create_electrode_groups(self.nwb_metadata['Ecephys'])
-        electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'])
-        default_args = ['group']
-        default_ids = self._get_default_column_ids(default_args, [i['name'] for i in electrode_table_list])
+        electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'], probes=2)
+        # electrode table has required arguments:
+        required_args = ['group', 'x', 'y']
+        default_ids = self._get_default_column_ids(required_args, [i['name'] for i in electrode_table_list])
+        non_default_ids = list(set(range(len(electrode_table_list))).difference(set(default_ids)))
+        default_dict = dict()
+        [default_dict.update({electrode_table_list[i]['name']: electrode_table_list[i]['data']}) for i in default_ids]
+        if 'group' in default_dict.keys():
+            group_labels = default_dict['group']
+        else:  # else fill with probe zero data.
+            group_labels = np.concatenate([np.zeros(self.electrode_table_length[0],dtype=int),
+                                           np.ones(self.electrode_table_length[1],dtype=int)])
+            group_data = self.nwbfile.electrode_groups[f'Probe{0}']
         for j in range(len(electrode_table_list[0]['data'])):
-            if default_ids:
-                group_data = self.nwbfile.electrode_groups['Probe{}'.format(electrode_table_list[default_ids[0]]['data'][j])]
-            else:# else fill with probe zero data.
-                group_data = self.nwbfile.electrode_groups[f'Probe{0}']
-            self.nwbfile.add_electrode(x=float('NaN'),
-                                       y=float('NaN'),
+            if 'x' in default_dict.keys():
+                x = default_dict['x'][j][0]
+                y = default_dict['x'][j][1]
+            else:
+                x = float('NaN')
+                y = float('NaN')
+            # if 'group' in default_dict.keys():
+                # group_data = self.nwbfile.electrode_groups['Probe{}'.format(electrode_table_list[default_ids[0]]['data'][j])]
+            group_data = self.nwbfile.electrode_groups[
+                    'Probe{}'.format(group_labels[j])]
+            # else:# else fill with probe zero data.
+            #     group_data = self.nwbfile.electrode_groups[f'Probe{0}']
+            self.nwbfile.add_electrode(x=x,
+                                       y=y,
                                        z=float('NaN'),
                                        imp=float('NaN'),
-                                       location=f'location{j}',
+                                       location='None',
                                        group=group_data,
                                        filtering='none'
                                        )
-        for i in electrode_table_list:
-            self.nwbfile.add_electrode_column(name=i['name'],
-                                              description=i['description'],
-                                              data=i['data'])
+        for i in non_default_ids:
+            self.nwbfile.add_electrode_column(name=electrode_table_list[i]['name'],
+                                              description=electrode_table_list[i]['description'],
+                                              data=electrode_table_list[i]['data'])
 
     def create_timeseries_ecephys(self):
         super(Alyx2NWBConverter, self).check_module('Ecephys')
@@ -148,14 +172,6 @@ class Alyx2NWBConverter(NWBConverter):
 
     def add_trial_row(self, df):
         super(Alyx2NWBConverter, self).add_trials_from_df(df)
-
-    def _resize_data(self, data, max_size):
-        if max_size is None:
-            return data
-        ls_out=[[None]]*max_size
-        for i in data:
-            ls_out[i[0]]=i[1]
-        return ls_out
 
     def _get_default_column_ids(self,default_namelist,namelist):
         out_idx = []
