@@ -112,7 +112,6 @@ class Alyx2NWBConverter(NWBConverter):
         else:  # else fill with probe zero data.
             group_labels = np.concatenate([np.zeros(self.electrode_table_length[0],dtype=int),
                                            np.ones(self.electrode_table_length[1],dtype=int)])
-            group_data = self.nwbfile.electrode_groups[f'Probe{0}']
         for j in range(len(electrode_table_list[0]['data'])):
             if 'x' in default_dict.keys():
                 x = default_dict['x'][j][0]
@@ -120,12 +119,8 @@ class Alyx2NWBConverter(NWBConverter):
             else:
                 x = float('NaN')
                 y = float('NaN')
-            # if 'group' in default_dict.keys():
-                # group_data = self.nwbfile.electrode_groups['Probe{}'.format(electrode_table_list[default_ids[0]]['data'][j])]
             group_data = self.nwbfile.electrode_groups[
                     'Probe{}'.format(group_labels[j])]
-            # else:# else fill with probe zero data.
-            #     group_data = self.nwbfile.electrode_groups[f'Probe{0}']
             self.nwbfile.add_electrode(x=x,
                                        y=y,
                                        z=float('NaN'),
