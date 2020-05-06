@@ -59,6 +59,7 @@ class Alyx2NWBConverter(NWBConverter):
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
         self._loaded_datasets = dict()
         self.unit_table_length = None
+        self.electrode_table_length = None
 
     def create_stimulus(self):
         stimulus_list = self._get_data(self.nwb_metadata['Stimulus'].get('time_series'))
@@ -179,7 +180,7 @@ class Alyx2NWBConverter(NWBConverter):
         df_out = pd.DataFrame(data_dict)
         return df_out
 
-    def _get_multiple_data(self, datastring, max_len=None):
+    def _get_multiple_data(self, datastring, probes):
         """
         This method is current specific to units table to retrieve spike times for a given cluster
         Parameters
@@ -192,44 +193,48 @@ class Alyx2NWBConverter(NWBConverter):
             with the spike time data
         """
         spike_clusters, spike_times = datastring.split(',')
-        spike_cluster_data = self.one_object.load(self.eid, dataset_types=[spike_clusters])[0].tolist()
-        spike_times_data = self.one_object.load(self.eid, dataset_types=[spike_times])[0].tolist()
-        if not ((spike_cluster_data is None) | (spike_cluster_data is None)):
-            df = pd.DataFrame({'sp_cluster': spike_cluster_data, 'sp_times': spike_times_data})
-            df_group = df.groupby(['sp_cluster'])['sp_times'].apply(list).reset_index(name='sp_times_group')
-            return self._resize_data(df_group.values,max_len) # TODO: put zeros where the group by does not yeield any output
-        else:
-            return None
+        spike_cluster_data = self.one_object.load(self.eid, dataset_types=[spike_clusters])
+        spike_times_data = self.one_object.load(self.eid, dataset_types=[spike_times])
+        if not ((spike_cluster_data is None) | (spike_cluster_data is None)):# if bot hdata are found only then
+            ls_merged = []
+            for i in range(probes):
+                df = pd.DataFrame({'sp_cluster': spike_cluster_data[i], 'sp_times': spike_times_data[i]})
+                data = df.groupby(['sp_cluster'])['sp_times'].apply(list).reset_index(name='sp_times_group')
+                if self.unit_table_length is None:
+                    return data
+                ls_grouped = [[None]]*self.unit_table_length[i]
+                for index,sp_list in data.values:
+                    ls_grouped[index] = sp_list
+                ls_merged.extend(ls_grouped)
+            return ls_merged
 
-    def _load(self, dataset_to_load, dataset_key):
+    def _load(self, dataset_to_load, dataset_key, probes):
+        def _load_return(loaded_dataset_):
+            if loaded_dataset_[0] is None:  # dataset not found in the database
+                return None
+            if self.unit_table_length is None and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+                self.unit_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
+            if self.electrode_table_length is None and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+                self.electrode_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
+            if isinstance(loaded_dataset_[0],pd.DataFrame):  # assuming all columns exist as colnames for the table in the json file:
+                loaded_dataset_ = [loaded_dataset_[i][dataset_key].to_numpy() for i in range(probes)]
+            out_data = np.concatenate(loaded_dataset_)
+            return out_data
+        
         if dataset_to_load not in self._loaded_datasets.keys():
             if len(dataset_to_load.split(',')) == 1:
-                load_data = self.one_object.load(self.eid, dataset_types=[dataset_to_load])[0]
-                if isinstance(load_data,pd.DataFrame):
-                    # assuming all columns exist as colnames for the table in the json file:
-                    self._loaded_datasets.update({dataset_to_load:load_data[dataset_key].to_list()})
-                    return load_data[dataset_key].to_list()
-                elif load_data is None:
-                    return None #TODO: length will be 2 for all datasets. except for trials table.
-                elif len(load_data)==2:# will do in case of spikes.* Dim 2 is for teh two probes.
-                    return load_data
-                else:
-                    if self.unit_table_length is None:
-                        self.unit_table_length = len(load_data)
-                return load_data.tolist()
-            else:
-                load_data = self._get_multiple_data(dataset_to_load, self.unit_table_length)
-                self._loaded_datasets.update({dataset_to_load:load_data})
-            return load_data
+                loaded_dataset = self.one_object.load(self.eid, dataset_types=[dataset_to_load])[0:probes]
+                self._loaded_datasets.update({dataset_to_load: loaded_dataset})
+                return _load_return(loaded_dataset)
+            else:# special case  when multiple datasets are involved
+                loaded_dataset = self._get_multiple_data(dataset_to_load, probes)
+                self._loaded_datasets.update({dataset_to_load:loaded_dataset})
+                return loaded_dataset
         else:
-            if isinstance(self._loaded_datasets[dataset_to_load], pd.DataFrame):
-                return self._loaded_datasets[dataset_to_load][dataset_key]
-            elif self._loaded_datasets[dataset_to_load] is None:
-                return None
-            else:
-                return self._loaded_datasets[dataset_to_load]
+            loaded_dataset = self._loaded_datasets[dataset_to_load]
+            return _load_return(loaded_dataset)
 
-    def _get_data(self, sub_metadata):# TODO: add an argument for no_loops: trials is 1 but for units (clusters) its 2 since there ae two probes data..
+    def _get_data(self, sub_metadata, probes=1):
         """
         :param sub_metadata: metadata dict containing a data field with a dataset type to retrieve data from(npy, tsv etc)
         :return: out_dict: dictionary with actual data loaded in the data field
@@ -246,11 +251,11 @@ class Alyx2NWBConverter(NWBConverter):
             return []
         for i, j in enumerate(out_dict):
             if out_dict[i].get('timestamps'):
-                out_dict[i]['timestamps'] = self._load(j['timestamps'],j['name'])
+                out_dict[i]['timestamps'] = self._load(j['timestamps'],j['name'], probes)
             if j['name'] == 'id':# valid in case of units table.
-                out_dict[i]['data'] = self._load(j['data'], 'cluster_id')
+                out_dict[i]['data'] = self._load(j['data'], 'cluster_id', probes)
             else:
-                out_dict[i]['data'] = self._load(j['data'], j['name'])
+                out_dict[i]['data'] = self._load(j['data'], j['name'], probes)
             if out_dict[i]['data'] is not None:
                 include_idx.extend([i])
         out_dict_trim.extend([out_dict[j] for j in include_idx])
