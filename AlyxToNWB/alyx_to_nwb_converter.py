@@ -191,7 +191,6 @@ class Alyx2NWBConverter(NWBConverter):
         numpy array
             with the spike time data
         """
-        # TODO: there will be two max_len for each probe: from cluster.channels length: 713, 331 clusters for probe 1 and probe 2
         spike_clusters, spike_times = datastring.split(',')
         spike_cluster_data = self.one_object.load(self.eid, dataset_types=[spike_clusters])[0].tolist()
         spike_times_data = self.one_object.load(self.eid, dataset_types=[spike_times])[0].tolist()
@@ -235,12 +234,9 @@ class Alyx2NWBConverter(NWBConverter):
         :param sub_metadata: metadata dict containing a data field with a dataset type to retrieve data from(npy, tsv etc)
         :return: out_dict: dictionary with actual data loaded in the data field
         """
-
         include_idx = []
         out_dict_trim = []
         if isinstance(sub_metadata, list):
-
-            # unit_table_length = None
             out_dict = deepcopy(sub_metadata)
             print('a')
         elif isinstance(sub_metadata,dict):
@@ -248,10 +244,7 @@ class Alyx2NWBConverter(NWBConverter):
         else:
             print('out')
             return []
-            # cluster_df = None
-        for i, j in enumerate(out_dict):  # TODO: verify that the size two array that many return corresponds to the two probes.
-            # if not j.get('description') == 'no_description':  # when there is no data for the given eid
-            # include_idx.extend([i])
+        for i, j in enumerate(out_dict):
             if out_dict[i].get('timestamps'):
                 out_dict[i]['timestamps'] = self._load(j['timestamps'],j['name'])
             if j['name'] == 'id':# valid in case of units table.
@@ -260,48 +253,8 @@ class Alyx2NWBConverter(NWBConverter):
                 out_dict[i]['data'] = self._load(j['data'], j['name'])
             if out_dict[i]['data'] is not None:
                 include_idx.extend([i])
-
-                # if not (j.get('data') == 'clusters.metrics'):
-                #     if len(j.get('data').split(',')) == 1:
-                #         data0 = self.one_object.load(self.eid, dataset_types=[j['data']])[0]
-                #         if isinstance(data0,pd.DataFrame):
-                #             out_dict[i]['data'] = data0.to_numpy().tolist()
-                #         else:
-                #             out_dict[i]['data'] = data0.tolist()
-                #         if out_dict[i].get('timestamps'):
-                #             out_dict[i]['timestamps'] = \
-                #             self.one_object.load(self.eid, dataset_types=[j['timestamps']])[0].tolist()
-                #         if unit_table_length is None:
-                #             unit_table_length = len(out_dict[i]['data'])
-                #     else:  # this part of code is exclusive to units table for spikes times:
-                #         temp = self._get_multiple_data(j.get('data'), unit_table_length)
-                #         if not (temp is None):
-                #             out_dict[i]['data'] = temp
-                #         else:  # if either of the data was not found, (returned None) then exclude that index
-                #             include_idx = include_idx[:-1]
-                # else:
-                #     if cluster_df is None:  # to load only once
-                #         cluster_df = self.one_object.load(self.eid, dataset_types=[j['data']])[0]
-                #     if j['name'] == 'id':
-                #         out_dict[i]['data'] = cluster_df['cluster_id'].to_list()
-                #     else:
-                #         out_dict[i]['data'] = cluster_df[j['name']].to_list()
-
         out_dict_trim.extend([out_dict[j] for j in include_idx])
         return out_dict_trim
-        # elif not (sub_metadata == None):
-        #     out_dict = deepcopy(sub_metadata)
-        #     if sub_metadata:  # if it is not an empty dict
-        #         out_dict['data'] = self._load(j['data'])
-        #         out_dict['data'] = self.one_object.load(self.eid, dataset_types=[sub_metadata['data']])[0].tolist()
-        #         if out_dict.get('timestamps'):
-        #             out_dict['timestamps'] = self.one_object.load(self.eid, dataset_types=[sub_metadata['timestamps']])[
-        #                 0].tolist()
-        #         return out_dict
-        #     else:
-        #         return []
-        # elif (sub_metadata == None):
-        #     return []
 
     def write_nwb(self):
         super(Alyx2NWBConverter, self).save(self.saveloc)
