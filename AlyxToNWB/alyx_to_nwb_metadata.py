@@ -191,8 +191,7 @@ class Alyx2NWBMetadata:
         for val, Ceid in enumerate(self.eid_list):
             loop_list=[]
             for j, k in enumerate(obj_list):
-                if k in self._get_all_object_names()[val]:
-                    loop_list.extend([i for i in self._get_all_object_names()[val] if k == i])
+                loop_list.extend([i for i in self._get_all_object_names()[val] if k == i])
             out_list.append(loop_list)
         return out_list
 
@@ -458,19 +457,19 @@ class Alyx2NWBMetadata:
                 if 'wheel' in u:
                     behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries'] = \
                         self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
-                if 'wheelMoves' in self.dataset_details[val].keys():
+                if 'wheelMoves' in u:
                     behavior_metadata_dict[val]['Behavior']['BehavioralEpochs'] = \
                         self._get_timeseries_object(self.dataset_details[val].copy(), u, 'interval_series')
-                if 'lickPiezo' in self.dataset_details[val].keys():
+                if 'lickPiezo' in u:
                     behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries']['time_series'].extend(
                         self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
-                if 'licks' in self.dataset_details[val].keys():
+                if 'licks' in u:
                     behavior_metadata_dict[val]['Behavior']['BehavioralEvents'] = \
                         self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
-                if 'face' in self.dataset_details[val].keys():
+                if 'face' in u:
                     behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries']['time_series'].extend(
                         self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
-                if 'eye' in self.dataset_details[val].keys():
+                if 'eye' in u:
                     behavior_metadata_dict[val]['Behavior']['PupilTracking'] = \
                         self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
         return behavior_metadata_dict
@@ -597,7 +596,7 @@ class Alyx2NWBMetadata:
         current_ecephys_objects = self._get_current_object_names(ecephys_objects)
         for val, Ceid in enumerate(self.eid_list):
             ecephys_metadata_dict[val]['EventDetection'] = \
-                self._get_timeseries_object(self.dataset_details[val].copy(), 'spikes', 'SpikeEventSeries')
+                self._get_timeseries_object(self.dataset_details[val].copy(), 'spikes', 'SpikeEventSeries',drop_attrs='templates')
         return ecephys_metadata_dict
 
     @property
