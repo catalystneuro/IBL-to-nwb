@@ -11,6 +11,7 @@ import pynwb.behavior
 import pynwb.ecephys
 import pynwb
 from .alyx_to_nwb_metadata import Alyx2NWBMetadata
+import re
 from .schema import metafile
 
 
@@ -53,7 +54,9 @@ class Alyx2NWBConverter(NWBConverter):
             self.saveloc = saveloc
         self.eid = self.nwb_metadata["eid"]
         self.nwb_metadata['NWBFile']['session_start_time'] = \
-            datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'], '%Y-%m-%dT%X')
+            datetime.strptime(re.search('\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}',
+                                        self.nwb_metadata['NWBFile']['session_start_time']).group(),
+                              '%Y-%m-%dT%X')
         self.nwb_metadata['Subject']['date_of_birth'] = \
             datetime.strptime(self.nwb_metadata['Subject']['date_of_birth'], '%Y-%m-%d')
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
