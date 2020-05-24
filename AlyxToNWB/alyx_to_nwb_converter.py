@@ -62,7 +62,8 @@ class Alyx2NWBConverter(NWBConverter):
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
         self._loaded_datasets = dict()
         self.unit_table_length = None
-        self.electrode_table_length = None
+        self.no_probes = len(self.nwb_metadata['Probes'])
+        self.electrode_table_length = [0]*self.no_probes
         self.electrode_table_exist = False
 
     def create_stimulus(self):
@@ -71,7 +72,7 @@ class Alyx2NWBConverter(NWBConverter):
             self.nwbfile.add_stimulus(pynwb.TimeSeries(**i))  # TODO: donvert timeseries data to starting_time and rate
 
     def create_units(self):
-        unit_table_list = self._get_data(self.nwb_metadata['Units'], probes=2)
+        unit_table_list = self._get_data(self.nwb_metadata['Units'], probes=self.no_probes)
         # no required arguments for units table. Below are default columns in the table.
         default_args = ['id', 'waveform_mean','electrodes','electrode_group','spike_times','obs_intervals']
         default_ids = self._get_default_column_ids(default_args, [i['name'] for i in unit_table_list])
@@ -87,7 +88,7 @@ class Alyx2NWBConverter(NWBConverter):
                     add_dict.update({i: default_dict[i]})
                 elif i == 'electrode_group':
                     self.create_electrode_groups(self.nwb_metadata['Ecephys'])
-                    add_dict.update({i:self.nwbfile.electrode_groups[f'Probe{default_dict[i][j]}']})
+                    add_dict.update({i:self.nwbfile.electrode_groups[self.nwb_metadata['Probes'][default_dict[i][j]]['name']]})
                 elif i == 'id':
                     if j >= self.unit_table_length[0]:
                         add_dict.update({i: default_dict[i][j]+self.unit_table_length[0]})
@@ -108,7 +109,7 @@ class Alyx2NWBConverter(NWBConverter):
         if self.electrode_table_exist:
             pass
         self.create_electrode_groups(self.nwb_metadata['Ecephys'])
-        electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'], probes=2)
+        electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'], probes=self.no_probes)
         # electrode table has required arguments:
         required_args = ['group', 'x', 'y']
         default_ids = self._get_default_column_ids(required_args, [i['name'] for i in electrode_table_list])
@@ -118,8 +119,7 @@ class Alyx2NWBConverter(NWBConverter):
         if 'group' in default_dict.keys():
             group_labels = default_dict['group']
         else:  # else fill with probe zero data.
-            group_labels = np.concatenate([np.zeros(self.electrode_table_length[0],dtype=int),
-                                           np.ones(self.electrode_table_length[1],dtype=int)])
+            group_labels = np.concatenate([np.ones(self.electrode_table_length[i],dtype=int)*i for i in range(self.no_probes)])
         for j in range(len(electrode_table_list[0]['data'])):
             if 'x' in default_dict.keys():
                 x = default_dict['x'][j][0]
@@ -127,8 +127,7 @@ class Alyx2NWBConverter(NWBConverter):
             else:
                 x = float('NaN')
                 y = float('NaN')
-            group_data = self.nwbfile.electrode_groups[
-                    'Probe{}'.format(group_labels[j])]
+            group_data = self.nwbfile.electrode_groups[self.nwb_metadata['Probes'][group_labels[j]]['name']]
             self.nwbfile.add_electrode(x=x,
                                        y=y,
                                        z=float('NaN'),
@@ -148,9 +147,9 @@ class Alyx2NWBConverter(NWBConverter):
             self.create_electrode_table_ecephys()
         super(Alyx2NWBConverter, self).check_module('Ecephys')
         spikeeventseries_table_list = self._get_data(self.nwb_metadata['Ecephys']['EventDetection']['SpikeEventSeries'],
-                                                     probes=2)
+                                                     probes=self.no_probes)
         for i in spikeeventseries_table_list:
-            for j in range(2):
+            for j in range(self.no_probes):
                 self.nwbfile.processing['Ecephys'].add(
                     pynwb.ecephys.SpikeEventSeries(name=i['name']+f'Probe{j}',
                                                    description=i['description'],
@@ -174,6 +173,15 @@ class Alyx2NWBConverter(NWBConverter):
             time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
             func = getattr(pynwb.behavior, i)
             self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
+
+    def create_probes(self):
+        """
+        Fills in all the probes metadata into the custom NeuroPixels extension.
+        Returns
+        -------
+
+        """
+        raise NotImplementedError
 
     def create_trials(self):
         trial_df = self._table_to_df(self.nwb_metadata['Trials'])
@@ -221,8 +229,14 @@ class Alyx2NWBConverter(NWBConverter):
             with the spike time data
         """
         spike_clusters, spike_times = datastring.split(',')
-        spike_cluster_data = self.one_object.load(self.eid, dataset_types=[spike_clusters])
-        spike_times_data = self.one_object.load(self.eid, dataset_types=[spike_times])
+        if spike_clusters not in self._loaded_datasets.keys():
+            spike_cluster_data = self.one_object.load(self.eid, dataset_types=[spike_clusters])
+        else:
+            spike_cluster_data = self._loaded_datasets[spike_clusters]
+        if spike_times not in self._loaded_datasets.keys():
+            spike_times_data = self.one_object.load(self.eid, dataset_types=[spike_times])
+        else:
+            spike_times_data = self._loaded_datasets[spike_times]
         if not ((spike_cluster_data is None) | (spike_cluster_data is None)):# if bot hdata are found only then
             ls_merged = []
             for i in range(probes):
@@ -242,7 +256,7 @@ class Alyx2NWBConverter(NWBConverter):
                 return None
             if self.unit_table_length is None and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                 self.unit_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
-            if self.electrode_table_length is None and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+            if self.electrode_table_length[0]==0 and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                 self.electrode_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
             if isinstance(loaded_dataset_[0],pd.DataFrame):  # assuming all columns exist as colnames for the table in the json file:
                 loaded_dataset_ = [loaded_dataset_[i][dataset_key].to_numpy() for i in range(probes)]
