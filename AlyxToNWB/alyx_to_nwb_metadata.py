@@ -28,7 +28,7 @@ class Alyx2NWBMetadata:
         elif not isinstance(one_obj, ONE):
             raise Exception('one_obj is not of ONE class')
         self.dataset_description_list = self._get_dataset_details()
-        if not eid:
+        if eid is None:
             self.eid = self._get_eid_list()
         else:
             self.eid = eid
@@ -381,6 +381,10 @@ class Alyx2NWBMetadata:
         return dict(eid=self.eid)
 
     @property
+    def probe_metadata(self):
+        return dict(Probes=self.eid_session_info['probe_insertion'])
+
+    @property
     def nwbfile_metadata(self):
         nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
         nwbfile_metadata_dict['NWBFile']['session_start_time'] = self.eid_session_info['start_time']
@@ -483,15 +487,11 @@ class Alyx2NWBMetadata:
 
     @property
     def device_metadata(self):
-        device_objects = ['probes']
         device_metadata_dict = self._initialize_container_dict('Device', default_value=[])
-        current_device_objects = self._get_current_object_names(device_objects)
-        for k, u in enumerate(current_device_objects):
-            for ii in range(2):
-                device_metadata_dict['Device'].extend(
-                    self._get_dynamictable_array(name=[f'{u}{ii}'],
-                                                 description=['NeuroPixels probe'])
-                    )
+        device_metadata_dict['Device'].extend(
+            self._get_dynamictable_array(name=['NeuroPixels probe'],
+                                         description=['NeuroPixels probe'])
+            )
         return device_metadata_dict
 
     @property
@@ -530,12 +530,13 @@ class Alyx2NWBMetadata:
     @property
     def electrodegroup_metadata(self):
         electrodes_group_metadata_dict = self._initialize_container_dict('ElectrodeGroup', default_value=[])
-        for ii in range(2):
+        for ii in range(len(self.probe_metadata['Probes'])):
             electrodes_group_metadata_dict['ElectrodeGroup'].extend(
-                self._get_dynamictable_array(name=[f'Probe{ii}'],
-                                             description=['NeuroPixels device'],
-                                             device=[self.device_metadata['Device'][ii]['name']],
-                                             location=[''])
+                self._get_dynamictable_array(name=[self.probe_metadata['Probes'][ii]['name']],
+                                             description=['model {}'.format(self.probe_metadata['Probes'][ii]['model'])],
+                                             device=[self.device_metadata['Device'][0]['name']],
+                                             location=['Mouse CoordinateSystem:{}'.format(
+                                                 self.probe_metadata['Probes'][ii]['trajectory_estimate'][0]['coordinate_system'])])
                 )
         return electrodes_group_metadata_dict
 
@@ -577,19 +578,20 @@ class Alyx2NWBMetadata:
     @property
     def complete_metadata(self):
         metafile_dict = {**self.eid_metadata,
-                              **self.nwbfile_metadata,
-                              **self.subject_metadata,
-                              **self.behavior_metadata,
-                              **self.trials_metadata,
-                              **self.stimulus_metadata,
-                              **self.units_metadata,
-                              **self.electrodetable_metadata,
-                              'Ecephys': {**self.ecephys_metadata,
-                                          **self.device_metadata,
-                                          **self.electrodegroup_metadata,
-                                          },
-                              'Ophys': dict(),
-                              'Icephys': dict()}
+                         **self.probe_metadata,
+                         **self.nwbfile_metadata,
+                         **self.subject_metadata,
+                         **self.behavior_metadata,
+                         **self.trials_metadata,
+                         **self.stimulus_metadata,
+                         **self.units_metadata,
+                         **self.electrodetable_metadata,
+                         'Ecephys': {**self.ecephys_metadata,
+                                     **self.device_metadata,
+                                     **self.electrodegroup_metadata,
+                                      },
+                         'Ophys': dict(),
+                         'Icephys': dict()}
         return metafile_dict
 
     def write_metadata(self, fileloc):
