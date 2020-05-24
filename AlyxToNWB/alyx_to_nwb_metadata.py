@@ -28,7 +28,10 @@ class Alyx2NWBMetadata:
         elif not isinstance(one_obj, ONE):
             raise Exception('one_obj is not of ONE class')
         self.dataset_description_list = self._get_dataset_details()
-        self.eid_list = self._get_eid_list(eid)
+        if not eid:
+            self.eid = self._get_eid_list()
+        else:
+            self.eid = eid
         self.eid_session_info = self._retrieve_eid_endpoint()
         self.dataset_type_list = self._list_eid_metadata('dataset_type')
         self.users_list = self._list_eid_metadata('users')
@@ -38,13 +41,11 @@ class Alyx2NWBMetadata:
         self._get_lab_table()
         self._get_subject_table()
 
-    def _get_eid_list(self, eid_list):
-        if eid_list:
-            if not isinstance(eid_list, list):
-                eid_list = [eid_list]
-        else:
-            eid_list = self._one_obj.search(**self.one_search_kwargs)
-        return eid_list
+    def _get_eid_list(self):
+        eid_list = self._one_obj.search(**self.one_search_kwargs)
+        if len(eid_list)>1:
+            Warning('multiple eids found for entered search arguments, picking{}'.format(eid_list[0]))
+        return eid_list[0]
 
     def _get_dataset_details(self):
         """
@@ -74,10 +75,7 @@ class Alyx2NWBMetadata:
         -------
         list
         """
-        list_type_returned = [None]*len(self.eid_list)
-        for val, e_id in enumerate(self.eid_list):
-            list_type_returned[val] = self.one_obj.list(e_id, list_type)
-        return list_type_returned
+        return self.one_obj.list(self.eid, list_type)
 
     def _retrieve_eid_endpoint(self):
         """
@@ -87,22 +85,13 @@ class Alyx2NWBMetadata:
         list
             list of server responses.
         """
-        eid_sess_info = [None]*len(self.eid_list)
-        for val, ceid in enumerate(self.eid_list):
-            eid_sess_info[val] = self.one_obj.alyx.rest('sessions/' + ceid, 'list')
-            for i in eid_sess_info[val]:
-                if eid_sess_info[val][i] == None:
-                    eid_sess_info[val][i] = 'None'
-        return eid_sess_info
+        return self.one_obj.alyx.rest('sessions/' + self.eid, 'list')
 
     def _get_lab_table(self):
         self.lab_table = self.one_obj.alyx.rest('labs', 'list')
 
     def _get_subject_table(self):
-        self.subject_table = [dict()]*len(self.eid_list)
-        for val, e_id in enumerate(self.eid_list):
-            self.subject_table[val] = self.one_obj.alyx.rest('subjects/' + self.eid_session_info[val]['subject'],
-                                                             'list')
+        self.subject_table = self.one_obj.alyx.rest('subjects/' + self.eid_session_info['subject'],'list')
 
     def _dataset_type_parse(self):
         """
@@ -120,25 +109,22 @@ class Alyx2NWBMetadata:
                 ]
             }
         """
-        dataset_type_list = [None]*len(self.eid_list)
-        dataset_type_list_simple = [None]*len(self.eid_list)
-        for val, Ceid in enumerate(self.eid_list):
-            split_list_objects = [i.split('.')[0] for i in self.dataset_type_list[val]]
-            split_list_attributes = [i.split('.')[1] for i in self.dataset_type_list[val]]
-            dataset_description = [self.dataset_description_list[i] for i in self.dataset_type_list[val]]
-            split_list_objects_dict_details = dict()
-            split_list_objects_dict = dict()
-            for obj in set(split_list_objects):
-                split_list_objects_dict_details[obj] = []
-                split_list_objects_dict[obj] = []
-            for att_idx, attrs in enumerate(split_list_attributes):
-                append_dict = {'name': attrs,
-                               'description': dataset_description[att_idx]}
-                # 'extension': dataset_extension[att_idx] }
-                split_list_objects_dict_details[split_list_objects[att_idx]].extend([append_dict])
-                split_list_objects_dict[split_list_objects[att_idx]].extend([attrs])
-            dataset_type_list[val] = split_list_objects_dict_details
-            dataset_type_list_simple[val] = split_list_objects_dict
+        split_list_objects = [i.split('.')[0] for i in self.dataset_type_list]
+        split_list_attributes = [i.split('.')[1] for i in self.dataset_type_list]
+        dataset_description = [self.dataset_description_list[i] for i in self.dataset_type_list]
+        split_list_objects_dict_details = dict()
+        split_list_objects_dict = dict()
+        for obj in set(split_list_objects):
+            split_list_objects_dict_details[obj] = []
+            split_list_objects_dict[obj] = []
+        for att_idx, attrs in enumerate(split_list_attributes):
+            append_dict = {'name': attrs,
+                           'description': dataset_description[att_idx]}
+            # 'extension': dataset_extension[att_idx] }
+            split_list_objects_dict_details[split_list_objects[att_idx]].extend([append_dict])
+            split_list_objects_dict[split_list_objects[att_idx]].extend([attrs])
+        dataset_type_list = split_list_objects_dict_details
+        dataset_type_list_simple = split_list_objects_dict
         return dataset_type_list, dataset_type_list_simple
 
     @staticmethod
@@ -173,27 +159,18 @@ class Alyx2NWBMetadata:
         if default_value is None:
             default_value = dict()
         if name:
-            outval = []
-            for i in range(len(self.eid_list)):
-                outval.extend([dict({name: default_value.copy()})])
-            return outval
+            return dict({name: default_value.copy()})
         else:
-            return [None]*len(self.eid_list)
+            return None
 
     def _get_all_object_names(self):
-        outlist = [[]]*len(self.eid_list)
-        for val, Ceid in enumerate(self.eid_list):
-            outlist[val] = sorted(list(set([i.split('.')[0] for i in self.dataset_type_list[val]])))
-        return outlist
+        return sorted(list(set([i.split('.')[0] for i in self.dataset_type_list])))
 
     def _get_current_object_names(self, obj_list):
-        out_list = []
-        for val, Ceid in enumerate(self.eid_list):
-            loop_list=[]
-            for j, k in enumerate(obj_list):
-                loop_list.extend([i for i in self._get_all_object_names()[val] if k == i])
-            out_list.append(loop_list)
-        return out_list
+        loop_list=[]
+        for j, k in enumerate(obj_list):
+            loop_list.extend([i for i in self._get_all_object_names() if k == i])
+        return loop_list
 
     def _get_timeseries_object(self, dataset_details, object_name, ts_name, custom_attrs=None, drop_attrs=None, **kwargs):
         """
@@ -401,77 +378,70 @@ class Alyx2NWBMetadata:
 
     @property
     def eid_metadata(self):
-        eid_metadata = [None]*len(self.eid_list)
-        for val, Ceid in enumerate(self.eid_list):
-            eid_metadata[val] = dict(eid=self.eid_list[val])
-        return eid_metadata
+        return dict(eid=self.eid)
 
     @property
     def nwbfile_metadata(self):
         nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
-        for val, Ceid in enumerate(self.eid_list):
-            nwbfile_metadata_dict[val]['NWBFile']['session_start_time'] = self.eid_session_info[val]['start_time']
-            nwbfile_metadata_dict[val]['NWBFile']['keywords'] = [','.join(self.eid_session_info[val]['users']),
-                                                                 self.eid_session_info[val]['lab'], 'IBL']
-            nwbfile_metadata_dict[val]['NWBFile']['experiment_description'] = self.eid_session_info[val]['narrative']
-            nwbfile_metadata_dict[val]['NWBFile']['session_id'] = Ceid
-            nwbfile_metadata_dict[val]['NWBFile']['experimenter'] = self.eid_session_info[val]['users']
-            nwbfile_metadata_dict[val]['NWBFile']['identifier'] = Ceid
-            nwbfile_metadata_dict[val]['NWBFile']['institution'] = \
-                [i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info[val]['lab']][0]][0]
-            nwbfile_metadata_dict[val]['NWBFile']['lab'] = self.eid_session_info[val]['lab']
-            nwbfile_metadata_dict[val]['NWBFile']['session_description'] = self.eid_session_info[val]['task_protocol']
-            nwbfile_metadata_dict[val]['NWBFile']['surgery'] = 'None'
-            nwbfile_metadata_dict[val]['NWBFile']['notes'] = 'Procedures:' + ','.join(
-                self.eid_session_info[val]['procedures']) \
-                                                             + ', Project:' + self.eid_session_info[val]['project']
+        nwbfile_metadata_dict['NWBFile']['session_start_time'] = self.eid_session_info['start_time']
+        nwbfile_metadata_dict['NWBFile']['keywords'] = [','.join(self.eid_session_info['users']),
+                                                             self.eid_session_info['lab'], 'IBL']
+        nwbfile_metadata_dict['NWBFile']['experiment_description'] = self.eid_session_info['narrative']
+        nwbfile_metadata_dict['NWBFile']['session_id'] = self.eid
+        nwbfile_metadata_dict['NWBFile']['experimenter'] = self.eid_session_info['users']
+        nwbfile_metadata_dict['NWBFile']['identifier'] = self.eid
+        nwbfile_metadata_dict['NWBFile']['institution'] = \
+            [i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info['lab']][0]][0]
+        nwbfile_metadata_dict['NWBFile']['lab'] = self.eid_session_info['lab']
+        nwbfile_metadata_dict['NWBFile']['session_description'] = self.eid_session_info['task_protocol']
+        nwbfile_metadata_dict['NWBFile']['surgery'] = 'None'
+        nwbfile_metadata_dict['NWBFile']['notes'] = 'Procedures:' + ','.join(
+            self.eid_session_info['procedures']) \
+                                                         + ', Project:' + self.eid_session_info['project']
 
         return nwbfile_metadata_dict
 
     @property
     def subject_metadata(self):
         subject_metadata_dict = self._initialize_container_dict('Subject')
-        for val, Ceid in enumerate(self.eid_list):
-            if self.subject_table[val]:
-                subject_metadata_dict[val]['Subject']['subject_id'] = self.subject_table[val]['id']
-                subject_metadata_dict[val]['Subject']['description'] = self.subject_table[val]['description']
-                subject_metadata_dict[val]['Subject']['genotype'] = ','.join(self.subject_table[val]['genotype'])
-                subject_metadata_dict[val]['Subject']['sex'] = self.subject_table[val]['sex']
-                subject_metadata_dict[val]['Subject']['species'] = self.subject_table[val]['species']
-                subject_metadata_dict[val]['Subject']['weight'] = str(self.subject_table[val]['reference_weight'])
-                subject_metadata_dict[val]['Subject']['date_of_birth'] = self.subject_table[val]['birth_date']
+        if self.subject_table:
+            subject_metadata_dict['Subject']['subject_id'] = self.subject_table['id']
+            subject_metadata_dict['Subject']['description'] = self.subject_table['description']
+            subject_metadata_dict['Subject']['genotype'] = ','.join(self.subject_table['genotype'])
+            subject_metadata_dict['Subject']['sex'] = self.subject_table['sex']
+            subject_metadata_dict['Subject']['species'] = self.subject_table['species']
+            subject_metadata_dict['Subject']['weight'] = str(self.subject_table['reference_weight'])
+            subject_metadata_dict['Subject']['date_of_birth'] = self.subject_table['birth_date']
         return subject_metadata_dict
 
     @property
     def surgery_metadata(self):  # currently not exposed by api
-        surgery_metadata_dict = [dict()]*len(self.eid_list)
-        return surgery_metadata_dict
+        return dict()
 
     @property
     def behavior_metadata(self):
         behavior_metadata_dict = self._initialize_container_dict('Behavior')
         behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye']
         current_behavior_objects = self._get_current_object_names(behavior_objects)
-        for val, Ceid in enumerate(self.eid_list):
-            for k, u in enumerate(current_behavior_objects[val]):
-                if 'wheel' in u:
-                    behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries'] = \
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
-                if 'wheelMoves' in u:
-                    behavior_metadata_dict[val]['Behavior']['BehavioralEpochs'] = \
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'interval_series')
-                if 'lickPiezo' in u:
-                    behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
-                if 'licks' in u:
-                    behavior_metadata_dict[val]['Behavior']['BehavioralEvents'] = \
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
-                if 'face' in u:
-                    behavior_metadata_dict[val]['Behavior']['BehavioralTimeSeries']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
-                if 'eye' in u:
-                    behavior_metadata_dict[val]['Behavior']['PupilTracking'] = \
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
+        for k, u in enumerate(current_behavior_objects):
+            if 'wheel' in u:
+                behavior_metadata_dict['Behavior']['BehavioralTimeSeries'] = \
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
+            if 'wheelMoves' in u:
+                behavior_metadata_dict['Behavior']['BehavioralEpochs'] = \
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'interval_series')
+            if 'lickPiezo' in u:
+                behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
+            if 'licks' in u:
+                behavior_metadata_dict['Behavior']['BehavioralEvents'] = \
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
+            if 'face' in u:
+                behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
+            if 'eye' in u:
+                behavior_metadata_dict['Behavior']['PupilTracking'] = \
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
         return behavior_metadata_dict
 
     @property
@@ -479,14 +449,13 @@ class Alyx2NWBMetadata:
         trials_metadata_dict = self._initialize_container_dict('Trials')
         trials_objects = ['trials']
         current_trial_objects = self._get_current_object_names(trials_objects)
-        for val, Ceid in enumerate(self.eid_list):
-            for k, u in enumerate(current_trial_objects[val]):
-                if 'trial' in u:
-                    trials_metadata_dict[val] = self._get_dynamictable_object(self.dataset_details[val].copy(), 'trials',
-                                                                              'Trials',
-                                                                              default_colnames_dict=dict(
-                                                                                  start_time='intervals',
-                                                                                  stop_time='intervals'))
+        for k, u in enumerate(current_trial_objects):
+            if 'trial' in u:
+                trials_metadata_dict = self._get_dynamictable_object(self.dataset_details.copy(), 'trials',
+                                                                          'Trials',
+                                                                          default_colnames_dict=dict(
+                                                                              start_time='intervals',
+                                                                              stop_time='intervals'))
         return trials_metadata_dict
 
     @property
@@ -494,23 +463,22 @@ class Alyx2NWBMetadata:
         stimulus_objects = ['sparseNoise', 'passiveBeeps', 'passiveValveClick', 'passiveVisual', 'passiveWhiteNoise']
         stimulus_metadata_dict = self._initialize_container_dict('Stimulus')
         current_stimulus_objects = self._get_current_object_names(stimulus_objects)
-        for val, Ceid in enumerate(self.eid_list):
-            for k, u in enumerate(current_stimulus_objects[val]):
-                if 'sparseNoise' in u:
-                    stimulus_metadata_dict[val]['Stimulus'] = \
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')
-                if 'passiveBeeps' in u:
-                    stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
-                if 'passiveValveClick' in u:
-                    stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
-                if 'passiveVisual' in u:
-                    stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
-                if 'passiveWhiteNoise' in u:
-                    stimulus_metadata_dict[val]['Stimulus']['time_series'].extend(
-                        self._get_timeseries_object(self.dataset_details[val].copy(), u, 'time_series')['time_series'])
+        for k, u in enumerate(current_stimulus_objects):
+            if 'sparseNoise' in u:
+                stimulus_metadata_dict['Stimulus'] = \
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
+            if 'passiveBeeps' in u:
+                stimulus_metadata_dict['Stimulus']['time_series'].extend(
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
+            if 'passiveValveClick' in u:
+                stimulus_metadata_dict['Stimulus']['time_series'].extend(
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
+            if 'passiveVisual' in u:
+                stimulus_metadata_dict['Stimulus']['time_series'].extend(
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
+            if 'passiveWhiteNoise' in u:
+                stimulus_metadata_dict['Stimulus']['time_series'].extend(
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
         return stimulus_metadata_dict
 
     @property
@@ -518,12 +486,11 @@ class Alyx2NWBMetadata:
         device_objects = ['probes']
         device_metadata_dict = self._initialize_container_dict('Device', default_value=[])
         current_device_objects = self._get_current_object_names(device_objects)
-        for val, Ceid in enumerate(self.eid_list):
-            for k, u in enumerate(current_device_objects[val]):
-                for ii in range(2):
-                    device_metadata_dict[val]['Device'].extend(
-                        self._get_dynamictable_array(name=[f'{u}{ii}'],
-                                                     description=['NeuroPixels probe'])
+        for k, u in enumerate(current_device_objects):
+            for ii in range(2):
+                device_metadata_dict['Device'].extend(
+                    self._get_dynamictable_array(name=[f'{u}{ii}'],
+                                                 description=['NeuroPixels probe'])
                     )
         return device_metadata_dict
 
@@ -536,42 +503,39 @@ class Alyx2NWBMetadata:
 
         units_metadata_dict = self._initialize_container_dict('Units')
         current_units_objects = self._get_current_object_names(units_objects)
-        temp_dataset = self.dataset_details.copy()
-        for val, Ceid in enumerate(self.eid_list):
-            for k, u in enumerate(current_units_objects[val]):
-                if 'clusters' in u:
-                    units_metadata_dict[val] = \
-                        self._get_dynamictable_object(self.dataset_details[val].copy(), 'clusters', 'Units',
-                                                      default_colnames_dict=dict(location='brainAcronyms',
-                                                                                 id='metrics',
-                                                                                 waveform_mean='waveforms',
-                                                                                 electrodes='channels',
-                                                                                 electrode_group='probes',
-                                                                                 ),
-                                                      drop_attrs=['uuids'])
-                    units_metadata_dict[val]['Units'].extend(
-                        self._get_dynamictable_array(name=['obs_intervals', 'spike_times'],
-                                                     data=['trials.intervals', 'spikes.clusters,spikes.times'],
-                                                     description=['time intervals of each cluster',
-                                                                  'spike times of cluster']
-                                                     ))
-                    units_metadata_dict[val]['Units'].extend(
-                        self._get_dynamictable_array(name=metrics_columns,
-                                                     data=['clusters.metrics']*len(metrics_columns),
-                                                     description=['metrics_table columns data']*len(metrics_columns)
+        for k, u in enumerate(current_units_objects):
+            if 'clusters' in u:
+                units_metadata_dict = \
+                    self._get_dynamictable_object(self.dataset_details.copy(), 'clusters', 'Units',
+                                                  default_colnames_dict=dict(location='brainAcronyms',
+                                                                             id='metrics',
+                                                                             waveform_mean='waveforms',
+                                                                             electrodes='channels',
+                                                                             electrode_group='probes',
+                                                                             ),
+                                                  drop_attrs=['uuids'])
+                units_metadata_dict['Units'].extend(
+                    self._get_dynamictable_array(name=['obs_intervals', 'spike_times'],
+                                                 data=['trials.intervals', 'spikes.clusters,spikes.times'],
+                                                 description=['time intervals of each cluster',
+                                                              'spike times of cluster']
+                                                 ))
+                units_metadata_dict['Units'].extend(
+                    self._get_dynamictable_array(name=metrics_columns,
+                                                 data=['clusters.metrics']*len(metrics_columns),
+                                                 description=['metrics_table columns data']*len(metrics_columns)
                                                      ))
         return units_metadata_dict
 
     @property
     def electrodegroup_metadata(self):
         electrodes_group_metadata_dict = self._initialize_container_dict('ElectrodeGroup', default_value=[])
-        for val, Ceid in enumerate(self.eid_list):
-            for ii in range(2):
-                electrodes_group_metadata_dict[val]['ElectrodeGroup'].extend(
-                    self._get_dynamictable_array(name=[f'Probe{ii}'],
-                                                 description=['NeuroPixels device'],
-                                                 device=[self.device_metadata[val]['Device'][ii]['name']],
-                                                 location=[''])
+        for ii in range(2):
+            electrodes_group_metadata_dict['ElectrodeGroup'].extend(
+                self._get_dynamictable_array(name=[f'Probe{ii}'],
+                                             description=['NeuroPixels device'],
+                                             device=[self.device_metadata['Device'][ii]['name']],
+                                             location=[''])
                 )
         return electrodes_group_metadata_dict
 
@@ -580,13 +544,12 @@ class Alyx2NWBMetadata:
         electrodes_objects = ['channels']
         electrodes_table_metadata_dict = self._initialize_container_dict()
         current_electrodes_objects = self._get_current_object_names(electrodes_objects)
-        for val, Ceid in enumerate(self.eid_list):
-            for i in current_electrodes_objects[val]:
-                electrodes_table_metadata_dict[val] = self._get_dynamictable_object(
-                    self.dataset_details[val].copy(), 'channels', 'ElectrodeTable',
-                    default_colnames_dict=dict(group='probes',
-                                               x='localCoordinates',
-                                               y='localCoordinates'))
+        for i in current_electrodes_objects:
+            electrodes_table_metadata_dict = self._get_dynamictable_object(
+                self.dataset_details.copy(), 'channels', 'ElectrodeTable',
+                default_colnames_dict=dict(group='probes',
+                                           x='localCoordinates',
+                                           y='localCoordinates'))
         return electrodes_table_metadata_dict
 
     @property
@@ -594,9 +557,8 @@ class Alyx2NWBMetadata:
         ecephys_objects = ['spikes']
         ecephys_metadata_dict = self._initialize_container_dict('EventDetection')
         current_ecephys_objects = self._get_current_object_names(ecephys_objects)
-        for val, Ceid in enumerate(self.eid_list):
-            ecephys_metadata_dict[val]['EventDetection'] = \
-                self._get_timeseries_object(self.dataset_details[val].copy(), 'spikes', 'SpikeEventSeries',drop_attrs='templates')
+        ecephys_metadata_dict['EventDetection'] = \
+            self._get_timeseries_object(self.dataset_details.copy(), 'spikes', 'SpikeEventSeries',drop_attrs='templates')
         return ecephys_metadata_dict
 
     @property
@@ -614,27 +576,24 @@ class Alyx2NWBMetadata:
 
     @property
     def complete_metadata(self):
-        metafile_dict = [dict()]*len(self.eid_list)
-        for val, Ceid in enumerate(self.eid_list):
-            metafile_dict[val] = {**self.eid_metadata[val],
-                                  **self.nwbfile_metadata[val],
-                                  **self.subject_metadata[val],
-                                  **self.behavior_metadata[val],
-                                  **self.trials_metadata[val],
-                                  **self.stimulus_metadata[val],
-                                  **self.units_metadata[val],
-                                  **self.electrodetable_metadata[val],
-                                  'Ecephys': {**self.ecephys_metadata[val],
-                                              **self.device_metadata[val],
-                                              **self.electrodegroup_metadata[val],
-                                              },
-                                  'Ophys': dict(),
-                                  'Icephys': dict()}
+        metafile_dict = {**self.eid_metadata,
+                              **self.nwbfile_metadata,
+                              **self.subject_metadata,
+                              **self.behavior_metadata,
+                              **self.trials_metadata,
+                              **self.stimulus_metadata,
+                              **self.units_metadata,
+                              **self.electrodetable_metadata,
+                              'Ecephys': {**self.ecephys_metadata,
+                                          **self.device_metadata,
+                                          **self.electrodegroup_metadata,
+                                          },
+                              'Ophys': dict(),
+                              'Icephys': dict()}
         return metafile_dict
 
     def write_metadata(self, fileloc):
         full_metadata = self.complete_metadata
-        for val, Ceid in enumerate(self.eid_list):
-            fileloc_upd = fileloc[:-5] + f'_eid_{val}' + fileloc[-5:]
-            with open(fileloc_upd, 'w') as f:
-                json.dump(full_metadata[val], f, indent=2)
+        fileloc_upd = fileloc[:-5] + f'_eid_{self.eid[-5:-1]}' + fileloc[-5:]
+        with open(fileloc_upd, 'w') as f:
+            json.dump(full_metadata, f, indent=2)
