@@ -13,7 +13,7 @@ import pynwb
 from .alyx_to_nwb_metadata import Alyx2NWBMetadata
 import re
 from .schema import metafile
-
+from tqdm import tqdm
 
 class Alyx2NWBConverter(NWBConverter):
 
@@ -22,7 +22,7 @@ class Alyx2NWBConverter(NWBConverter):
                  metadata_obj: Alyx2NWBMetadata = None,
                  one_object=None):
 
-        if not (nwb_metadata_file == None):
+        if nwb_metadata_file is not None:
             if isinstance(nwb_metadata_file, dict):
                 self.nwb_metadata = nwb_metadata_file
             elif isinstance(nwb_metadata_file, str):
@@ -53,12 +53,11 @@ class Alyx2NWBConverter(NWBConverter):
         else:
             self.saveloc = saveloc
         self.eid = self.nwb_metadata["eid"]
-        self.nwb_metadata['NWBFile']['session_start_time'] = \
-            datetime.strptime(re.search('\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}',
-                                        self.nwb_metadata['NWBFile']['session_start_time']).group(),
-                              '%Y-%m-%dT%X')
-        self.nwb_metadata['Subject']['date_of_birth'] = \
-            datetime.strptime(self.nwb_metadata['Subject']['date_of_birth'], '%Y-%m-%d')
+        if not isinstance(self.nwb_metadata['NWBFile']['session_start_time'],datetime):
+            self.nwb_metadata['NWBFile']['session_start_time'] = \
+                datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X')
+            self.nwb_metadata['Subject']['date_of_birth'] = \
+                datetime.strptime(self.nwb_metadata['Subject']['date_of_birth'], '%Y-%m-%d %X')
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
         self._loaded_datasets = dict()
         self.unit_table_length = None
@@ -290,11 +289,9 @@ class Alyx2NWBConverter(NWBConverter):
         out_dict_trim = []
         if isinstance(sub_metadata, list):
             out_dict = deepcopy(sub_metadata)
-            print('a')
         elif isinstance(sub_metadata,dict):
             out_dict = deepcopy(list(sub_metadata))
         else:
-            print('out')
             return []
         for i, j in enumerate(out_dict):
             if out_dict[i].get('timestamps'):
@@ -307,6 +304,16 @@ class Alyx2NWBConverter(NWBConverter):
                 include_idx.extend([i])
         out_dict_trim.extend([out_dict[j] for j in include_idx])
         return out_dict_trim
+
+    def run_conversion(self):
+        execute_list=[self.create_stimulus,
+                      self.create_trials,
+                      self.create_electrode_table_ecephys,
+                      self.create_timeseries_ecephys,
+                      self.create_units]
+        for i in tqdm(execute_list):
+            i()
+            print('\n'+i.__name__)
 
     def write_nwb(self):
         super(Alyx2NWBConverter, self).save(self.saveloc)

@@ -1,8 +1,9 @@
 import re
-import json
+import json, yaml
 from oneibl.one import ONE
 from .schema import metafile as nwb_schema
-
+import os
+from datetime import datetime
 
 class Alyx2NWBMetadata:
     # TODO: add docstrings
@@ -40,6 +41,13 @@ class Alyx2NWBMetadata:
         self.dataset_details, self.dataset_simple = self._dataset_type_parse()
         self._get_lab_table()
         self._get_subject_table()
+
+    def _get_datetime(self, dtstr, format='%Y-%m-%dT%X'):
+        try:
+            return datetime.strptime(dtstr,format)
+        except ValueError:
+            return self._get_datetime(dtstr.split('.')[0], format=format)
+
 
     def _get_eid_list(self):
         eid_list = self._one_obj.search(**self.one_search_kwargs)
@@ -387,7 +395,7 @@ class Alyx2NWBMetadata:
     @property
     def nwbfile_metadata(self):
         nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
-        nwbfile_metadata_dict['NWBFile']['session_start_time'] = self.eid_session_info['start_time']
+        nwbfile_metadata_dict['NWBFile']['session_start_time'] = self._get_datetime(self.eid_session_info['start_time'])
         nwbfile_metadata_dict['NWBFile']['keywords'] = [','.join(self.eid_session_info['users']),
                                                              self.eid_session_info['lab'], 'IBL']
         nwbfile_metadata_dict['NWBFile']['experiment_description'] = self.eid_session_info['narrative']
@@ -415,7 +423,7 @@ class Alyx2NWBMetadata:
             subject_metadata_dict['Subject']['sex'] = self.subject_table['sex']
             subject_metadata_dict['Subject']['species'] = self.subject_table['species']
             subject_metadata_dict['Subject']['weight'] = str(self.subject_table['reference_weight'])
-            subject_metadata_dict['Subject']['date_of_birth'] = self.subject_table['birth_date']
+            subject_metadata_dict['Subject']['date_of_birth'] = self._get_datetime(self.subject_table['birth_date'],format='%Y-%m-%d')
         return subject_metadata_dict
 
     @property
@@ -594,8 +602,19 @@ class Alyx2NWBMetadata:
                          'Icephys': dict()}
         return metafile_dict
 
-    def write_metadata(self, fileloc):
+    def write_metadata(self, fileloc, savetype='json'):
         full_metadata = self.complete_metadata
-        fileloc_upd = fileloc[:-5] + f'_eid_{self.eid[-5:-1]}' + fileloc[-5:]
-        with open(fileloc_upd, 'w') as f:
-            json.dump(full_metadata, f, indent=2)
+        bsname = os.path.basename(fileloc)
+        drname = os.path.dirname(fileloc)
+        fileloc_upd = os.path.join(drname,
+                                   bsname.split('.')[0] + f'_eid_{self.eid[-4:]}.' + savetype)
+        if savetype=='json':
+            full_metadata['NWBFile']['session_start_time'] = str(full_metadata['NWBFile']['session_start_time'])
+            full_metadata['Subject']['date_of_birth'] = str(full_metadata['Subject']['date_of_birth'])
+            with open(fileloc_upd, 'w') as f:
+                json.dump(full_metadata, f, indent=2)
+        elif savetype in ['yaml', 'yml']:
+            with open(fileloc_upd, 'w') as f:
+                yaml.dump(full_metadata, f, default_flow_style=False)
+        print(f'data written in {fileloc_upd}')
+        return fileloc_upd
