@@ -566,8 +566,11 @@ class Alyx2NWBMetadata:
         ecephys_objects = ['spikes']
         ecephys_metadata_dict = self._initialize_container_dict('EventDetection')
         current_ecephys_objects = self._get_current_object_names(ecephys_objects)
-        ecephys_metadata_dict['EventDetection'] = \
-            self._get_timeseries_object(self.dataset_details.copy(), 'spikes', 'SpikeEventSeries',drop_attrs='templates')
+        if current_ecephys_objects:
+            ecephys_metadata_dict['EventDetection'] = \
+                self._get_timeseries_object(self.dataset_details.copy(), 'spikes', 'SpikeEventSeries',drop_attrs='templates')
+        else:
+            raise Warning(f'could not find spikes data in eid {self.eid}')
         return ecephys_metadata_dict
 
     @property

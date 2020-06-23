@@ -150,7 +150,7 @@ class Alyx2NWBConverter(NWBConverter):
         for i in spikeeventseries_table_list:
             for j in range(self.no_probes):
                 self.nwbfile.processing['Ecephys'].add(
-                    pynwb.ecephys.SpikeEventSeries(name=i['name']+f'Probe{j}',
+                    pynwb.ecephys.SpikeEventSeries(name=i['name']+'_'+self.nwb_metadata['Probes'][j]['name'],
                                                    description=i['description'],
                                                    timestamps=i['timestamps'][j],
                                                    data=i['data'][j],
