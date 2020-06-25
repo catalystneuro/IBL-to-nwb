@@ -398,25 +398,27 @@ class Alyx2NWBMetadata:
         nwbfile_metadata_dict['NWBFile']['session_start_time'] = self._get_datetime(self.eid_session_info['start_time'])
         nwbfile_metadata_dict['NWBFile']['keywords'] = [','.join(self.eid_session_info['users']),
                                                              self.eid_session_info['lab'], 'IBL']
-        nwbfile_metadata_dict['NWBFile']['experiment_description'] = self.eid_session_info['narrative']
+        nwbfile_metadata_dict['NWBFile']['experiment_description'] = self.eid_session_info['project']
         nwbfile_metadata_dict['NWBFile']['session_id'] = self.eid
         nwbfile_metadata_dict['NWBFile']['experimenter'] = self.eid_session_info['users']
         nwbfile_metadata_dict['NWBFile']['identifier'] = self.eid
         nwbfile_metadata_dict['NWBFile']['institution'] = \
             [i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info['lab']][0]][0]
         nwbfile_metadata_dict['NWBFile']['lab'] = self.eid_session_info['lab']
-        nwbfile_metadata_dict['NWBFile']['session_description'] = self.eid_session_info['task_protocol']
+        nwbfile_metadata_dict['NWBFile']['protocol'] = self.eid_session_info['task_protocol']
         nwbfile_metadata_dict['NWBFile']['surgery'] = 'None'
         nwbfile_metadata_dict['NWBFile']['notes'] = 'Procedures:' + ','.join(
             self.eid_session_info['procedures']) \
                                                          + ', Project:' + self.eid_session_info['project']
 
+        nwbfile_metadata_dict['NWBFile']['session_description'] = self.eid_session_info['narrative']
         return nwbfile_metadata_dict
 
     @property
     def subject_metadata(self):
         subject_metadata_dict = self._initialize_container_dict('Subject')
         if self.subject_table:
+            subject_metadata_dict['Subject']['age'] = self.subject_table['age_weeks']+' weeks'
             subject_metadata_dict['Subject']['subject_id'] = self.subject_table['id']
             subject_metadata_dict['Subject']['description'] = self.subject_table['description']
             subject_metadata_dict['Subject']['genotype'] = ','.join(self.subject_table['genotype'])
