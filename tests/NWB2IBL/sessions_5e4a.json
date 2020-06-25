@@ -1,0 +1,454 @@
+{
+  "start_time": "2020-06-05T12:12:00",
+  "lab": "zadorlab",
+  "project": "probe00 went in easily on first try, back labelled with diI\r\nprobe01 left this for awhile poking at a more anterior position than this, w/ significant dimpling, but I couldn't get in, then I came back here right next to probe 00 and went in easily on the first try. back labelled with diI\r\nBehavior wasn't very good, just over 400 trials with some really long RTs",
+  "users": [
+    "chrisk"
+  ],
+  "task_protocol": null,
+  "narrative": "_iblrig_tasks_ephysChoiceWorld6.4.0",
+  "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+  "n_trials": 457,
+  "data_dataset_session_related": [
+    {
+      "id": "cef65f5c-b72f-11ea-aef5-a492ab6caf21",
+      "name": "choice",
+      "dataset_type": "trials.choice",
+      "data_url": "intervals/trials/choice",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6866e-b72f-11ea-8a34-a492ab6caf21",
+      "name": "contrastLeft",
+      "dataset_type": "trials.contrastLeft",
+      "data_url": "intervals/trials/contrastLeft",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6866f-b72f-11ea-8bbd-a492ab6caf21",
+      "name": "contrastRight",
+      "dataset_type": "trials.contrastRight",
+      "data_url": "intervals/trials/contrastRight",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef68670-b72f-11ea-9798-a492ab6caf21",
+      "name": "feedbackType",
+      "dataset_type": "trials.feedbackType",
+      "data_url": "intervals/trials/feedbackType",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6ad7e-b72f-11ea-af3b-a492ab6caf21",
+      "name": "feedback_times",
+      "dataset_type": "trials.feedback_times",
+      "data_url": "intervals/trials/feedback_times",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6ad7f-b72f-11ea-ab85-a492ab6caf21",
+      "name": "goCueTrigger_times",
+      "dataset_type": "trials.goCueTrigger_times",
+      "data_url": "intervals/trials/goCueTrigger_times",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6ad80-b72f-11ea-bb6a-a492ab6caf21",
+      "name": "goCue_times",
+      "dataset_type": "trials.goCue_times",
+      "data_url": "intervals/trials/goCue_times",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6ad81-b72f-11ea-964e-a492ab6caf21",
+      "name": "id",
+      "dataset_type": "trials.id",
+      "data_url": "intervals/trials/id",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6ad82-b72f-11ea-ac15-a492ab6caf21",
+      "name": "itiDuration",
+      "dataset_type": "trials.itiDuration",
+      "data_url": "intervals/trials/itiDuration",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6ad83-b72f-11ea-9363-a492ab6caf21",
+      "name": "probabilityLeft",
+      "dataset_type": "trials.probabilityLeft",
+      "data_url": "intervals/trials/probabilityLeft",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6d48c-b72f-11ea-871a-a492ab6caf21",
+      "name": "response_times",
+      "dataset_type": "trials.response_times",
+      "data_url": "intervals/trials/response_times",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6d48d-b72f-11ea-929d-a492ab6caf21",
+      "name": "rewardVolume",
+      "dataset_type": "trials.rewardVolume",
+      "data_url": "intervals/trials/rewardVolume",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6d48e-b72f-11ea-8528-a492ab6caf21",
+      "name": "start_time",
+      "dataset_type": "trials.start_time",
+      "data_url": "intervals/trials/start_time",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6d48f-b72f-11ea-bb7a-a492ab6caf21",
+      "name": "stimOn_times",
+      "dataset_type": "trials.stimOn_times",
+      "data_url": "intervals/trials/stimOn_times",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6fb9e-b72f-11ea-9c9b-a492ab6caf21",
+      "name": "stop_time",
+      "dataset_type": "trials.stop_time",
+      "data_url": "intervals/trials/stop_time",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "size": 56
+    },
+    {
+      "id": "cef6fb9f-b72f-11ea-a35e-a492ab6caf21",
+      "name": "amplitude_cutoff",
+      "dataset_type": "clusters.amplitude_cutoff",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/amplitude_cutoff",
+      "size": 56
+    },
+    {
+      "id": "cef6fba0-b72f-11ea-95a2-a492ab6caf21",
+      "name": "amplitude_std",
+      "dataset_type": "clusters.amplitude_std",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/amplitude_std",
+      "size": 56
+    },
+    {
+      "id": "cef6fba1-b72f-11ea-80ce-a492ab6caf21",
+      "name": "amps",
+      "dataset_type": "clusters.amps",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/amps",
+      "size": 56
+    },
+    {
+      "id": "cef722ae-b72f-11ea-bec8-a492ab6caf21",
+      "name": "cluster_id",
+      "dataset_type": "clusters.cluster_id",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/cluster_id",
+      "size": 56
+    },
+    {
+      "id": "cef722af-b72f-11ea-9577-a492ab6caf21",
+      "name": "cluster_id.1",
+      "dataset_type": "clusters.cluster_id.1",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/cluster_id.1",
+      "size": 56
+    },
+    {
+      "id": "cef722b0-b72f-11ea-88a3-a492ab6caf21",
+      "name": "depths",
+      "dataset_type": "clusters.depths",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/depths",
+      "size": 56
+    },
+    {
+      "id": "cef722b1-b72f-11ea-b1be-a492ab6caf21",
+      "name": "electrodes",
+      "dataset_type": "clusters.electrodes",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/electrodes",
+      "size": 56
+    },
+    {
+      "id": "cef722b2-b72f-11ea-a0b0-a492ab6caf21",
+      "name": "electrodes_index",
+      "dataset_type": "clusters.electrodes_index",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/electrodes_index",
+      "size": 56
+    },
+    {
+      "id": "cef722b3-b72f-11ea-80d3-a492ab6caf21",
+      "name": "epoch_name",
+      "dataset_type": "clusters.epoch_name",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/epoch_name",
+      "size": 56
+    },
+    {
+      "id": "cef749c0-b72f-11ea-be31-a492ab6caf21",
+      "name": "firing_rate",
+      "dataset_type": "clusters.firing_rate",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/firing_rate",
+      "size": 56
+    },
+    {
+      "id": "cef749c1-b72f-11ea-b7eb-a492ab6caf21",
+      "name": "id",
+      "dataset_type": "clusters.id",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/id",
+      "size": 56
+    },
+    {
+      "id": "cef749c2-b72f-11ea-80ea-a492ab6caf21",
+      "name": "isi_viol",
+      "dataset_type": "clusters.isi_viol",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/isi_viol",
+      "size": 56
+    },
+    {
+      "id": "cef749c3-b72f-11ea-a3fc-a492ab6caf21",
+      "name": "ks2_contamination_pct",
+      "dataset_type": "clusters.ks2_contamination_pct",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/ks2_contamination_pct",
+      "size": 56
+    },
+    {
+      "id": "cef749c4-b72f-11ea-af30-a492ab6caf21",
+      "name": "ks2_label",
+      "dataset_type": "clusters.ks2_label",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/ks2_label",
+      "size": 56
+    },
+    {
+      "id": "cef770d0-b72f-11ea-93e1-a492ab6caf21",
+      "name": "num_spikes",
+      "dataset_type": "clusters.num_spikes",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/num_spikes",
+      "size": 56
+    },
+    {
+      "id": "cef770d1-b72f-11ea-8060-a492ab6caf21",
+      "name": "obs_intervals",
+      "dataset_type": "clusters.obs_intervals",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/obs_intervals",
+      "size": 56
+    },
+    {
+      "id": "cef770d2-b72f-11ea-9d09-a492ab6caf21",
+      "name": "obs_intervals_index",
+      "dataset_type": "clusters.obs_intervals_index",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/obs_intervals_index",
+      "size": 56
+    },
+    {
+      "id": "cef770d3-b72f-11ea-81f1-a492ab6caf21",
+      "name": "peakToTrough",
+      "dataset_type": "clusters.peakToTrough",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/peakToTrough",
+      "size": 56
+    },
+    {
+      "id": "cef770d4-b72f-11ea-aaec-a492ab6caf21",
+      "name": "presence_ratio",
+      "dataset_type": "clusters.presence_ratio",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/presence_ratio",
+      "size": 56
+    },
+    {
+      "id": "cef797e2-b72f-11ea-b0d0-a492ab6caf21",
+      "name": "presence_ratio_std",
+      "dataset_type": "clusters.presence_ratio_std",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/presence_ratio_std",
+      "size": 56
+    },
+    {
+      "id": "cef797e3-b72f-11ea-b49b-a492ab6caf21",
+      "name": "waveform_mean",
+      "dataset_type": "clusters.waveform_mean",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/waveform_mean",
+      "size": 56
+    },
+    {
+      "id": "cef797e4-b72f-11ea-b281-a492ab6caf21",
+      "name": "waveformsChannels",
+      "dataset_type": "clusters.waveformsChannels",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "units/waveformsChannels",
+      "size": 56
+    },
+    {
+      "id": "cef797e5-b72f-11ea-acbd-a492ab6caf21",
+      "name": "ampsprobe00",
+      "dataset_type": "spikes.ampsprobe00",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "processing/Ecephys/ampsprobe00",
+      "size": 56
+    },
+    {
+      "id": "cef7bef4-b72f-11ea-878b-a492ab6caf21",
+      "name": "ampsprobe01",
+      "dataset_type": "spikes.ampsprobe01",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "processing/Ecephys/ampsprobe01",
+      "size": 56
+    },
+    {
+      "id": "cef7bef5-b72f-11ea-b44b-a492ab6caf21",
+      "name": "clustersprobe00",
+      "dataset_type": "spikes.clustersprobe00",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "processing/Ecephys/clustersprobe00",
+      "size": 56
+    },
+    {
+      "id": "cef7bef6-b72f-11ea-a653-a492ab6caf21",
+      "name": "clustersprobe01",
+      "dataset_type": "spikes.clustersprobe01",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "processing/Ecephys/clustersprobe01",
+      "size": 56
+    },
+    {
+      "id": "cef7bef7-b72f-11ea-a432-a492ab6caf21",
+      "name": "depthsprobe00",
+      "dataset_type": "spikes.depthsprobe00",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "processing/Ecephys/depthsprobe00",
+      "size": 56
+    },
+    {
+      "id": "cef7bef8-b72f-11ea-8138-a492ab6caf21",
+      "name": "depthsprobe01",
+      "dataset_type": "spikes.depthsprobe01",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "processing/Ecephys/depthsprobe01",
+      "size": 56
+    },
+    {
+      "id": "cef7bef9-b72f-11ea-89b7-a492ab6caf21",
+      "name": "samplesprobe00",
+      "dataset_type": "spikes.samplesprobe00",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "processing/Ecephys/samplesprobe00",
+      "size": 56
+    },
+    {
+      "id": "cef7befa-b72f-11ea-bb11-a492ab6caf21",
+      "name": "samplesprobe01",
+      "dataset_type": "spikes.samplesprobe01",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "processing/Ecephys/samplesprobe01",
+      "size": 56
+    },
+    {
+      "id": "cef7e602-b72f-11ea-a32e-a492ab6caf21",
+      "name": "filtering",
+      "dataset_type": "channels.filtering",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/filtering",
+      "size": 56
+    },
+    {
+      "id": "cef7e603-b72f-11ea-ae35-a492ab6caf21",
+      "name": "group",
+      "dataset_type": "channels.group",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/group",
+      "size": 56
+    },
+    {
+      "id": "cef7e604-b72f-11ea-b92e-a492ab6caf21",
+      "name": "group_name",
+      "dataset_type": "channels.group_name",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/group_name",
+      "size": 56
+    },
+    {
+      "id": "cef7e605-b72f-11ea-8e1d-a492ab6caf21",
+      "name": "id",
+      "dataset_type": "channels.id",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/id",
+      "size": 56
+    },
+    {
+      "id": "cef80d12-b72f-11ea-9abf-a492ab6caf21",
+      "name": "imp",
+      "dataset_type": "channels.imp",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/imp",
+      "size": 56
+    },
+    {
+      "id": "cef80d13-b72f-11ea-8046-a492ab6caf21",
+      "name": "location",
+      "dataset_type": "channels.location",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/location",
+      "size": 56
+    },
+    {
+      "id": "cef80d14-b72f-11ea-8557-a492ab6caf21",
+      "name": "rawInd",
+      "dataset_type": "channels.rawInd",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/rawInd",
+      "size": 56
+    },
+    {
+      "id": "cef80d15-b72f-11ea-8e88-a492ab6caf21",
+      "name": "x",
+      "dataset_type": "channels.x",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/x",
+      "size": 56
+    },
+    {
+      "id": "cef80d16-b72f-11ea-a775-a492ab6caf21",
+      "name": "y",
+      "dataset_type": "channels.y",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/y",
+      "size": 56
+    },
+    {
+      "id": "cef83424-b72f-11ea-9148-a492ab6caf21",
+      "name": "z",
+      "dataset_type": "channels.z",
+      "url": "C:\\Users\\Saksham\\Google Drive (sxs1790@case.edu)\\NWB\\IBL-to-nwb\\tests\\guitests\\iblguisave_5e4a.nwb",
+      "data_url": "general/extracellular_ephys/electrodes/z",
+      "size": 56
+    }
+  ]
+}
