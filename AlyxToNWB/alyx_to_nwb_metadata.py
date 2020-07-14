@@ -118,7 +118,7 @@ class Alyx2NWBMetadata:
             }
         """
         split_list_objects = [i.split('.')[0] for i in self.dataset_type_list]
-        split_list_attributes = [i.split('.')[1] for i in self.dataset_type_list]
+        split_list_attributes = ['.'.join(i.split('.')[1:]) for i in self.dataset_type_list]
         dataset_description = [self.dataset_description_list[i] for i in self.dataset_type_list]
         split_list_objects_dict_details = dict()
         split_list_objects_dict = dict()
@@ -138,13 +138,25 @@ class Alyx2NWBMetadata:
     @staticmethod
     def _unpack_dataset_details(dataset_details, object_name, custom_attrs=None, match_str=' '):
         """
-        helper function to split object and attributes of the IBL datatypes into
-        names: obj_attr; data= obj.attr; desc for each
-        :param dataset_details:
-        :param object_name:
-        :param custom_attrs:
-        :param match_str:
-        :return:
+        Unpacks the dataset_details into:
+        Parameters
+        ----------
+        dataset_details: dict
+            self.dataset_details
+        object_name: str
+            eg: spikes, clusters, ecephys
+        custom_attrs: list
+            attrs to unpack
+        match_str: regex
+            match string: attrs to exclude (like .times/.intervals etc)
+        Returns
+        -------
+        datafiles: str
+            ex: 'face.motionEnergy'
+        datanames: str
+            ex: 'motionEnergy'
+        datadesc: str
+            ex: <description string for motionEnergy>
         """
         cond = lambda x: re.match(match_str, x)
         datafiles_all = [object_name + '.' + ii['name'] for ii in dataset_details[object_name] if not cond(ii['name'])]
@@ -152,11 +164,15 @@ class Alyx2NWBMetadata:
                                not cond(ii['name'])]
         datafiles_desc_all = [ii['description'] for ii in dataset_details[object_name] if not cond(ii['name'])]
         if custom_attrs:
-            datafiles_inc = [i for i in datafiles_all if i in object_name + '.' + custom_attrs]
-            datafiles_names_inc = [datafiles_names_all[j] for j, i in enumerate(datafiles_all) if
-                                   i in object_name + '.' + custom_attrs]
-            datafiles_desc_inc = [datafiles_desc_all[j] for j, i in enumerate(datafiles_all) if
-                                  i in object_name + '.' + custom_attrs]
+            datafiles_inc = []
+            datafiles_names_inc = []
+            datafiles_desc_inc = []
+            for attrs in custom_attrs:
+                datafiles_inc.extend([i for i in datafiles_all if i in object_name + '.' + attrs])
+                datafiles_names_inc.extend([datafiles_names_all[j] for j, i in enumerate(datafiles_all) if
+                                       i in object_name + '.' + attrs])
+                datafiles_desc_inc.extend([datafiles_desc_all[j] for j, i in enumerate(datafiles_all) if
+                                      i in object_name + '.' + attrs])
         else:
             datafiles_inc = datafiles_all
             datafiles_names_inc = datafiles_names_all
@@ -185,14 +201,16 @@ class Alyx2NWBMetadata:
 
         Parameters
         ----------
-        dataset_details
+        dataset_details: dict
             self.dataset_details
-        object_name
+        object_name: str
             name of hte object_name in the IBL datatype
-        ts_name
+        ts_name: str
             the key name for the timeseries list
-        custom_attrs
+        custom_attrs: list
             Attributes to consider
+        drop_attrs: list
+            Attributes to drop
         kwargs
             additional keys/values to add to the default timeseries. For derivatives of TimeSEries
 
@@ -222,7 +240,7 @@ class Alyx2NWBMetadata:
         datafiles, datafiles_names, datafiles_desc = \
             self._unpack_dataset_details(dataset_details.copy(), object_name, custom_attrs, match_str=matchstr)
         datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
-            self._unpack_dataset_details(dataset_details.copy(), object_name, timeattr_name[0])
+            self._unpack_dataset_details(dataset_details.copy(), object_name, timeattr_name)
         if not datafiles:
             datafiles_names = datafiles_time_name
             datafiles_desc = datafiles_time_desc
@@ -284,15 +302,28 @@ class Alyx2NWBMetadata:
         Used to remove given attributes of the IBL dataset.
         Parameters
         ----------
-        dataset_details
-        drop_attrs
+        dataset_details: list
+            self.dataset_details['clusters']
+            [
+                {
+                    'name': 'amps',
+                    'description': description
+                },
+                {
+                    'name': 'channels',
+                    'description': description
+                }
+            ]
+        drop_attrs: list
+            list of str: attribute names to drop of the self.dataset_details dict
         default_colnames_dict
-
         Returns
         -------
+        dataset_details: list
+            list without dictionaries with 'name' as in drop_attrs
 
         """
-        dataset_details_copy = dataset_details.copy()
+        # dataset_details_copy = dataset_details.copy()
         if drop_attrs is None:
             return dataset_details, default_colnames_dict
         elif not(default_colnames_dict==None):
@@ -301,10 +332,11 @@ class Alyx2NWBMetadata:
                 if j in drop_attrs:
                     default_colnames_dict.pop(i)
         attrs_list = [i['name'] for i in dataset_details]
-        for i, j in enumerate(attrs_list):
-            if j in drop_attrs:
-                del dataset_details_copy[i]
-        return dataset_details_copy, default_colnames_dict
+        dataset_details_return = [dataset_details[i] for i, j in enumerate(attrs_list) if j not in drop_attrs]
+        # for i, j in enumerate(attrs_list):
+        #     if j in drop_attrs:
+        #         del dataset_details_copy[i]
+        return dataset_details_return, default_colnames_dict
 
     @staticmethod
     def _get_dynamictable_array(**kwargs):
@@ -390,7 +422,20 @@ class Alyx2NWBMetadata:
 
     @property
     def probe_metadata(self):
-        return dict(Probes=self.eid_session_info['probe_insertion'])
+        probes_metadata_dict = self._initialize_container_dict('Probes', default_value=[])
+        probe_list = self.eid_session_info['probe_insertion']
+        probe_fields = ['id', 'model', 'name', 'trajectory_estimate']
+        input_dict = dict()
+        for k in probe_fields:
+            if k == 'trajectory_estimate':
+                input_dict.update(
+                    {k: [[str(l) for l in probe_list[i].get(k, ["None"])] for i in range(len(probe_list))]})
+            else:
+                input_dict.update({k: [probe_list[i].get(k, "None") for i in range(len(probe_list))]})
+        probes_metadata_dict['Probes'].extend(
+            self._get_dynamictable_array(**input_dict)
+        )
+        return probes_metadata_dict
 
     @property
     def nwbfile_metadata(self):
@@ -415,17 +460,29 @@ class Alyx2NWBMetadata:
         return nwbfile_metadata_dict
 
     @property
+    def sessions_metadata(self):
+        sessions_metadata_dict = self._initialize_container_dict('IBLSessionsData')
+        custom_fields = ['subject','location','procedures','project','type','number','end_time','narrative',
+                         'parent_session','url','extended_qc','qc']
+        sessions_metadata_dict['IBLSessionsData'] = {i: str(self.eid_session_info[i]) if i not in ['procedures','number']
+                                                        else self.eid_session_info[i] for i in custom_fields}
+        return sessions_metadata_dict
+
+    @property
     def subject_metadata(self):
-        subject_metadata_dict = self._initialize_container_dict('Subject')
+        subject_metadata_dict = self._initialize_container_dict('IBLSubject')
         if self.subject_table:
-            subject_metadata_dict['Subject']['age'] = self.subject_table['age_weeks']+' weeks'
-            subject_metadata_dict['Subject']['subject_id'] = self.subject_table['id']
-            subject_metadata_dict['Subject']['description'] = self.subject_table['description']
-            subject_metadata_dict['Subject']['genotype'] = ','.join(self.subject_table['genotype'])
-            subject_metadata_dict['Subject']['sex'] = self.subject_table['sex']
-            subject_metadata_dict['Subject']['species'] = self.subject_table['species']
-            subject_metadata_dict['Subject']['weight'] = str(self.subject_table['reference_weight'])
-            subject_metadata_dict['Subject']['date_of_birth'] = self._get_datetime(self.subject_table['birth_date'],format='%Y-%m-%d')
+            subject_metadata_dict['IBLSubject']['age'] = str(self.subject_table.pop('age_weeks'))+' weeks'
+            subject_metadata_dict['IBLSubject']['subject_id'] = self.subject_table.pop('id')
+            subject_metadata_dict['IBLSubject']['description'] = self.subject_table.pop('description')
+            subject_metadata_dict['IBLSubject']['genotype'] = ','.join(self.subject_table.pop('genotype'))
+            subject_metadata_dict['IBLSubject']['sex'] = self.subject_table.pop('sex')
+            subject_metadata_dict['IBLSubject']['species'] = self.subject_table.pop('species')
+            subject_metadata_dict['IBLSubject']['weight'] = str(self.subject_table.pop('reference_weight'))
+            subject_metadata_dict['IBLSubject']['date_of_birth'] = self._get_datetime(self.subject_table.pop('birth_date'),format='%Y-%m-%d')
+            del self.subject_table['weighings']
+            del self.subject_table['water_administrations']
+            subject_metadata_dict['IBLSubject'].update(self.subject_table)
         return subject_metadata_dict
 
     @property
@@ -438,7 +495,7 @@ class Alyx2NWBMetadata:
         behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye']
         current_behavior_objects = self._get_current_object_names(behavior_objects)
         for k, u in enumerate(current_behavior_objects):
-            if 'wheel' in u:
+            if 'wheel' == u:
                 behavior_metadata_dict['Behavior']['BehavioralTimeSeries'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'wheelMoves' in u:
@@ -541,12 +598,16 @@ class Alyx2NWBMetadata:
     def electrodegroup_metadata(self):
         electrodes_group_metadata_dict = self._initialize_container_dict('ElectrodeGroup', default_value=[])
         for ii in range(len(self.probe_metadata['Probes'])):
+            try:
+                location_str = self.probe_metadata['Probes'][ii]['trajectory_estimate'][0]['coordinate_system']
+            except:
+                location_str = 'None'
             electrodes_group_metadata_dict['ElectrodeGroup'].extend(
                 self._get_dynamictable_array(name=[self.probe_metadata['Probes'][ii]['name']],
                                              description=['model {}'.format(self.probe_metadata['Probes'][ii]['model'])],
                                              device=[self.device_metadata['Device'][0]['name']],
                                              location=['Mouse CoordinateSystem:{}'.format(
-                                                 self.probe_metadata['Probes'][ii]['trajectory_estimate'][0]['coordinate_system'])])
+                                                 location_str)])
                 )
         return electrodes_group_metadata_dict
 
@@ -565,15 +626,30 @@ class Alyx2NWBMetadata:
 
     @property
     def ecephys_metadata(self):
-        ecephys_objects = ['spikes']
+        ecephys_objects = ['templates']
         ecephys_metadata_dict = self._initialize_container_dict('EventDetection')
         current_ecephys_objects = self._get_current_object_names(ecephys_objects)
         if current_ecephys_objects:
             ecephys_metadata_dict['EventDetection'] = \
-                self._get_timeseries_object(self.dataset_details.copy(), 'spikes', 'SpikeEventSeries',drop_attrs='templates')
+                self._get_timeseries_object(self.dataset_details.copy(), 'templates', 'SpikeEventSeries',
+                                            drop_attrs=['amps','waveformsChannels'])
         else:
-            raise Warning(f'could not find spikes data in eid {self.eid}')
+            raise Warning(f'could not find template data in eid {self.eid}')
         return ecephys_metadata_dict
+
+    @property
+    def acquisition_metadata(self):
+        acquisition_objects = ['ephysData']
+        container_name_objects = ['ElectricalSeries']
+        custom_attrs_objects = [['raw.ap']]
+        acquisition_container = self._initialize_container_dict('Acquisition')
+        current_acquisition_objects = self._get_current_object_names(acquisition_objects)
+        if current_acquisition_objects != acquisition_objects:
+            return dict()
+        for i, j, k in zip(acquisition_objects, container_name_objects, custom_attrs_objects):
+            acquisition_container['Acquisition'].update(self._get_timeseries_object(
+                self.dataset_details.copy(), i, j, custom_attrs=k))
+        return acquisition_container
 
     @property
     def ophys_metadata(self):
@@ -593,6 +669,7 @@ class Alyx2NWBMetadata:
         metafile_dict = {**self.eid_metadata,
                          **self.probe_metadata,
                          **self.nwbfile_metadata,
+                         **self.sessions_metadata,
                          **self.subject_metadata,
                          **self.behavior_metadata,
                          **self.trials_metadata,
@@ -604,7 +681,8 @@ class Alyx2NWBMetadata:
                                      **self.electrodegroup_metadata,
                                       },
                          'Ophys': dict(),
-                         'Icephys': dict()}
+                         'Icephys': dict(),
+                         **self.acquisition_metadata}
         return metafile_dict
 
     def write_metadata(self, fileloc, savetype='json'):
@@ -615,7 +693,7 @@ class Alyx2NWBMetadata:
                                    bsname.split('.')[0] + f'_eid_{self.eid[-4:]}.' + savetype)
         if savetype=='json':
             full_metadata['NWBFile']['session_start_time'] = str(full_metadata['NWBFile']['session_start_time'])
-            full_metadata['Subject']['date_of_birth'] = str(full_metadata['Subject']['date_of_birth'])
+            full_metadata['IBLSubject']['date_of_birth'] = str(full_metadata['IBLSubject']['date_of_birth'])
             with open(fileloc_upd, 'w') as f:
                 json.dump(full_metadata, f, indent=2)
         elif savetype in ['yaml', 'yml']:

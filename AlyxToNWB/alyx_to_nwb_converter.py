@@ -14,6 +14,7 @@ from .alyx_to_nwb_metadata import Alyx2NWBMetadata
 import re
 from .schema import metafile
 from tqdm import tqdm
+from ndx_ibl_labmetadata import IblSessionData, IblProbes, IblSubject
 
 class Alyx2NWBConverter(NWBConverter):
 
@@ -56,8 +57,8 @@ class Alyx2NWBConverter(NWBConverter):
         if not isinstance(self.nwb_metadata['NWBFile']['session_start_time'],datetime):
             self.nwb_metadata['NWBFile']['session_start_time'] = \
                 datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X')
-            self.nwb_metadata['Subject']['date_of_birth'] = \
-                datetime.strptime(self.nwb_metadata['Subject']['date_of_birth'], '%Y-%m-%d %X')
+            self.nwb_metadata['IBLSubject']['date_of_birth'] = \
+                datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%d %X')
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
         self._loaded_datasets = dict()
         self.unit_table_length = None
@@ -152,7 +153,7 @@ class Alyx2NWBConverter(NWBConverter):
                 self.nwbfile.processing['Ecephys'].add(
                     pynwb.ecephys.SpikeEventSeries(name=i['name']+'_'+self.nwb_metadata['Probes'][j]['name'],
                                                    description=i['description'],
-                                                   timestamps=i['timestamps'][j],
+                                                   timestamps=np.arange(i['timestamps'][j].shape[1]),
                                                    data=i['data'][j],
                                                    electrodes=self.nwbfile.create_electrode_table_region(
                                                        description=f'Probe{j}',
@@ -163,24 +164,40 @@ class Alyx2NWBConverter(NWBConverter):
     def create_behavior(self):
         super(Alyx2NWBConverter, self).check_module('Behavior')
         for i in self.nwb_metadata['Behavior']:
-            if not (i == 'Position'):
+            if not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'])
+                time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
+                func = getattr(pynwb.behavior, i)
+                self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
             else:
-                time_series_func = pynwb.behavior.SpatialSeries
-
-            time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'])
-            time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
-            func = getattr(pynwb.behavior, i)
-            self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
+                time_series_func = pynwb.misc.IntervalSeries
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['interval_series'])
+                for k in time_series_list_details:
+                    k['timestamps'] = k['timestamps'].flatten()
+                    k['data'] = np.vstack((k['data'],-1*np.ones(k['data'].shape,dtype=float))).flatten()
+                time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
+                func = getattr(pynwb.behavior, i)
+                self.nwbfile.processing['Behavior'].add(func(interval_series=time_series_list_obj))
 
     def create_probes(self):
         """
         Fills in all the probes metadata into the custom NeuroPixels extension.
-        Returns
-        -------
-
         """
-        raise NotImplementedError
+        for i in self.nwb_metadata['Probes']:
+            self.nwbfile.add_device(IblProbes(**i))
+
+    def create_iblsubject(self):
+        """
+        Populates the custom subject extension for IBL mice daata
+        """
+        self.nwbfile.subject = IblSubject(**self.nwb_metadata['IBLSubject'])
+
+    def create_lab_meta_data(self):
+        """
+        Populates the custom lab_meta_data extension for IBL sessions data
+        """
+        self.nwbfile.add_lab_meta_data(IblSessionData(**self.nwb_metadata['IBLSessionsData']))
 
     def create_trials(self):
         trial_df = self._table_to_df(self.nwb_metadata['Trials'])
@@ -258,8 +275,10 @@ class Alyx2NWBConverter(NWBConverter):
             if self.electrode_table_length[0]==0 and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                 self.electrode_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
             if isinstance(loaded_dataset_[0],pd.DataFrame):  # assuming all columns exist as colnames for the table in the json file:
+                if dataset_key not in loaded_dataset_[0].columns:
+                    return None # if column name not in the clusters.metrics dataframe
                 loaded_dataset_ = [loaded_dataset_[i][dataset_key].to_numpy() for i in range(probes)]
-            if 'spikes' in dataset_to_load:#in case of spikes.<attr> datatype
+            if any([1 for dtnames in ['spikes','templates'] if dtnames in dataset_to_load]):#in case of spikes.<attr> datatype
                 return loaded_dataset_# when spikes.data, dont combine
             out_data = np.concatenate(loaded_dataset_)
             return out_data
