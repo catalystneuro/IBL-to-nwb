@@ -323,7 +323,7 @@ class Alyx2NWBMetadata:
             list without dictionaries with 'name' as in drop_attrs
 
         """
-        dataset_details_copy = dataset_details.copy()
+        # dataset_details_copy = dataset_details.copy()
         if drop_attrs is None:
             return dataset_details, default_colnames_dict
         elif not(default_colnames_dict==None):
@@ -332,10 +332,11 @@ class Alyx2NWBMetadata:
                 if j in drop_attrs:
                     default_colnames_dict.pop(i)
         attrs_list = [i['name'] for i in dataset_details]
-        for i, j in enumerate(attrs_list):
-            if j in drop_attrs:
-                del dataset_details_copy[i]
-        return dataset_details_copy, default_colnames_dict
+        dataset_details_return = [dataset_details[i] for i, j in enumerate(attrs_list) if j not in drop_attrs]
+        # for i, j in enumerate(attrs_list):
+        #     if j in drop_attrs:
+        #         del dataset_details_copy[i]
+        return dataset_details_return, default_colnames_dict
 
     @staticmethod
     def _get_dynamictable_array(**kwargs):
@@ -421,7 +422,20 @@ class Alyx2NWBMetadata:
 
     @property
     def probe_metadata(self):
-        return dict(Probes=self.eid_session_info['probe_insertion'])
+        probes_metadata_dict = self._initialize_container_dict('Probes', default_value=[])
+        probe_list = self.eid_session_info['probe_insertion']
+        probe_fields = ['id', 'model', 'name', 'trajectory_estimate']
+        input_dict = dict()
+        for k in probe_fields:
+            if k == 'trajectory_estimate':
+                input_dict.update(
+                    {k: [[str(l) for l in probe_list[i].get(k, ["None"])] for i in range(len(probe_list))]})
+            else:
+                input_dict.update({k: [probe_list[i].get(k, "None") for i in range(len(probe_list))]})
+        probes_metadata_dict['Probes'].extend(
+            self._get_dynamictable_array(**input_dict)
+        )
+        return probes_metadata_dict
 
     @property
     def nwbfile_metadata(self):
@@ -446,17 +460,33 @@ class Alyx2NWBMetadata:
         return nwbfile_metadata_dict
 
     @property
+    def sessions_metadata(self):
+        sessions_metadata_dict = self._initialize_container_dict('IBLSessionsData')
+        custom_fields = ['subject','location','procedures','project','type','number','end_time','narrative',
+                         'parent_session','url','extended_qc','qc','json']
+        sessions_metadata_dict['IBLSessionsData'] = {i: str(self.eid_session_info[i]) if i not in ['procedures','number']
+                                                        else self.eid_session_info[i] for i in custom_fields}
+        sessions_metadata_dict['IBLSessionsData']['wateradmin_session_related'] = \
+            [str(i) for i in self.eid_session_info['wateradmin_session_related']]
+        return sessions_metadata_dict
+
+    @property
     def subject_metadata(self):
-        subject_metadata_dict = self._initialize_container_dict('Subject')
+        subject_metadata_dict = self._initialize_container_dict('IBLSubject')
         if self.subject_table:
-            subject_metadata_dict['Subject']['age'] = str(self.subject_table['age_weeks'])+' weeks'
-            subject_metadata_dict['Subject']['subject_id'] = self.subject_table['id']
-            subject_metadata_dict['Subject']['description'] = self.subject_table['description']
-            subject_metadata_dict['Subject']['genotype'] = ','.join(self.subject_table['genotype'])
-            subject_metadata_dict['Subject']['sex'] = self.subject_table['sex']
-            subject_metadata_dict['Subject']['species'] = self.subject_table['species']
-            subject_metadata_dict['Subject']['weight'] = str(self.subject_table['reference_weight'])
-            subject_metadata_dict['Subject']['date_of_birth'] = self._get_datetime(self.subject_table['birth_date'],format='%Y-%m-%d')
+            subject_metadata_dict['IBLSubject']['age'] = str(self.subject_table.pop('age_weeks'))+' weeks'
+            subject_metadata_dict['IBLSubject']['subject_id'] = self.subject_table.pop('id')
+            subject_metadata_dict['IBLSubject']['description'] = self.subject_table.pop('description')
+            subject_metadata_dict['IBLSubject']['genotype'] = ','.join(self.subject_table.pop('genotype'))
+            subject_metadata_dict['IBLSubject']['sex'] = self.subject_table.pop('sex')
+            subject_metadata_dict['IBLSubject']['species'] = self.subject_table.pop('species')
+            subject_metadata_dict['IBLSubject']['weight'] = str(self.subject_table.pop('reference_weight'))
+            subject_metadata_dict['IBLSubject']['date_of_birth'] = self._get_datetime(self.subject_table.pop('birth_date'),format='%Y-%m-%d')
+            # del self.subject_table['weighings']
+            # del self.subject_table['water_administrations']
+            subject_metadata_dict['IBLSubject'].update(self.subject_table)
+            subject_metadata_dict['IBLSubject']['weighings'] = [str(i) for i in subject_metadata_dict['IBLSubject']['weighings']]
+            subject_metadata_dict['IBLSubject']['water_administrations'] = [str(i) for i in subject_metadata_dict['IBLSubject']['water_administrations']]
         return subject_metadata_dict
 
     @property
@@ -603,15 +633,15 @@ class Alyx2NWBMetadata:
 
     @property
     def ecephys_metadata(self):
-        ecephys_objects = ['template']
+        ecephys_objects = ['templates']
         ecephys_metadata_dict = self._initialize_container_dict('EventDetection')
         current_ecephys_objects = self._get_current_object_names(ecephys_objects)
         if current_ecephys_objects:
             ecephys_metadata_dict['EventDetection'] = \
-                self._get_timeseries_object(self.dataset_details.copy(), 'spikes', 'SpikeEventSeries',
+                self._get_timeseries_object(self.dataset_details.copy(), 'templates', 'SpikeEventSeries',
                                             drop_attrs=['amps','waveformsChannels'])
         else:
-            raise Warning(f'could not find spikes data in eid {self.eid}')
+            raise Warning(f'could not find template data in eid {self.eid}')
         return ecephys_metadata_dict
 
     @property
@@ -649,6 +679,7 @@ class Alyx2NWBMetadata:
         metafile_dict = {**self.eid_metadata,
                          **self.probe_metadata,
                          **self.nwbfile_metadata,
+                         **self.sessions_metadata,
                          **self.subject_metadata,
                          **self.behavior_metadata,
                          **self.trials_metadata,
@@ -672,7 +703,7 @@ class Alyx2NWBMetadata:
                                    bsname.split('.')[0] + f'_eid_{self.eid[-4:]}.' + savetype)
         if savetype=='json':
             full_metadata['NWBFile']['session_start_time'] = str(full_metadata['NWBFile']['session_start_time'])
-            full_metadata['Subject']['date_of_birth'] = str(full_metadata['Subject']['date_of_birth'])
+            full_metadata['IBLSubject']['date_of_birth'] = str(full_metadata['IBLSubject']['date_of_birth'])
             with open(fileloc_upd, 'w') as f:
                 json.dump(full_metadata, f, indent=2)
         elif savetype in ['yaml', 'yml']:

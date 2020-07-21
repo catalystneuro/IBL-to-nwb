@@ -57,8 +57,8 @@ class Alyx2NWBConverter(NWBConverter):
         if not isinstance(self.nwb_metadata['NWBFile']['session_start_time'],datetime):
             self.nwb_metadata['NWBFile']['session_start_time'] = \
                 datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X')
-            self.nwb_metadata['Subject']['date_of_birth'] = \
-                datetime.strptime(self.nwb_metadata['Subject']['date_of_birth'], '%Y-%m-%d %X')
+            self.nwb_metadata['IBLSubject']['date_of_birth'] = \
+                datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%d %X')
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
         self._loaded_datasets = dict()
         self.unit_table_length = None
