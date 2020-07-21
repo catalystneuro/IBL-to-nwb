@@ -463,9 +463,11 @@ class Alyx2NWBMetadata:
     def sessions_metadata(self):
         sessions_metadata_dict = self._initialize_container_dict('IBLSessionsData')
         custom_fields = ['subject','location','procedures','project','type','number','end_time','narrative',
-                         'parent_session','url','extended_qc','qc']
+                         'parent_session','url','extended_qc','qc','json']
         sessions_metadata_dict['IBLSessionsData'] = {i: str(self.eid_session_info[i]) if i not in ['procedures','number']
                                                         else self.eid_session_info[i] for i in custom_fields}
+        sessions_metadata_dict['IBLSessionsData']['wateradmin_session_related'] = \
+            [str(i) for i in self.eid_session_info['wateradmin_session_related']]
         return sessions_metadata_dict
 
     @property
@@ -480,9 +482,11 @@ class Alyx2NWBMetadata:
             subject_metadata_dict['IBLSubject']['species'] = self.subject_table.pop('species')
             subject_metadata_dict['IBLSubject']['weight'] = str(self.subject_table.pop('reference_weight'))
             subject_metadata_dict['IBLSubject']['date_of_birth'] = self._get_datetime(self.subject_table.pop('birth_date'),format='%Y-%m-%d')
-            del self.subject_table['weighings']
-            del self.subject_table['water_administrations']
+            # del self.subject_table['weighings']
+            # del self.subject_table['water_administrations']
             subject_metadata_dict['IBLSubject'].update(self.subject_table)
+            subject_metadata_dict['IBLSubject']['weighings'] = [str(i) for i in subject_metadata_dict['IBLSubject']['weighings']]
+            subject_metadata_dict['IBLSubject']['water_administrations'] = [str(i) for i in subject_metadata_dict['IBLSubject']['water_administrations']]
         return subject_metadata_dict
 
     @property

@@ -9,35 +9,56 @@ from datetime import datetime
 
 
 class NWBToIBLSession:
-    field_map_nwbfile = {'session_start_time': 'start_time',
-                         'institution': 'lab',
-                         'experiment_description': 'project',
-                         'experimenter': 'users',
-                         'lab': 'lab',
-                         'protocol': 'task_protocol',
-                         'session_description': 'narrative'}
+    field_map_nwbfile = {
+        'session_start_time': 'start_time',
+        'institution': 'lab',
+        'experiment_description': 'project',
+        'experimenter': 'users',
+        'lab': 'lab',
+        'protocol': 'task_protocol',
+        'session_description': 'narrative'
+    }
 
-    field_map_subject = {'subject_id': 'id',
-                         'description': 'description',
-                         'genotype': 'genotype',
-                         'sex': 'sex',
-                         'species': 'species',
-                         'weight': 'reference_weight',
-                         'date_of_birth': 'birth_date',
-                         'age': 'age_weeks'}
+    field_map_subject = {
+        'subject_id': 'id',
+        'description': 'description',
+        'genotype': 'genotype',
+        'sex': 'sex',
+        'species': 'species',
+        'weight': 'reference_weight',
+        'date_of_birth': 'birth_date',
+        'age': 'age_weeks',
+        'nickname': 'nickname',
+        'url': 'url',
+        'responsible_user': 'responsible_user',
+        'death_date': 'death_date',
+        'litter': 'litter',
+        'strain': 'strain',
+        'source': 'source',
+        'line': 'line',
+        'projects': 'projects',
+        'session_projects': 'session_projects',
+        'lab': 'lab',
+        'alive': 'alive',
+        'last_water_restriction': 'last_water_restriction',
+        'expected_water': 'expected_water',
+        'remaining_water': 'remaining_water',
+        'weighings': 'weighings',
+        'water_administrations': 'water_administrations'
+    }
 
     def __init__(self, nwbfile_loc):
         self.nwbfileloc = nwbfile_loc
-        self.nwbfile = NWBHDF5IO(nwbfile_loc, 'r').read()
+        self.nwbfile = NWBHDF5IO(nwbfile_loc, 'r', load_namespaces=True).read()
         self.nwb_h5file = h5py.File(nwbfile_loc,'r')
         # self.url_schema = self._schema_gen()
         self.session_json = self._get_nwb_info('nwbfile')
         self.subject_json = self._get_nwb_info('subject')
         # updating subject fields:
-        self.subject_json['projects'] = [self.session_json['project']]
-        self.subject_json['lab'] = self.session_json['lab']
-        self.subject_json['responsible_user'] = self.session_json['users'][0]
-        self.subject_json['nickname'] = self.session_json['users']
+        # self.subject_json['projects'] = [self.session_json['project']]
+        # self.subject_json['lab'] = self.session_json['lab']
+        # self.subject_json['responsible_user'] = self.session_json['users'][0]
+        # self.subject_json['nickname'] = self.session_json['users']
         # updating session fields:
         self.session_json['url'] = nwbfile_loc
         if self.nwbfile.trials:
@@ -65,15 +86,41 @@ class NWBToIBLSession:
 
     def _get_nwb_info(self, nwbkey):
         if nwbkey == 'subject':
-            if self.nwbfile.subject:
-                return self._create_ibl_dict(self.nwbfile.subject.fields, self.field_map_subject)
+            if self.nwb_h5file.get('general/Ibl_subject_data',None):
+                sub_dict = dict()
+                for i,j in self.nwb_h5file['general/Ibl_subject_data'].items():
+                    sub_dict[i] = j.value
+                sub_dict_out = self._create_ibl_dict(sub_dict, self.field_map_subject)
+                # sub_dict_out = {i:str(j) for i,j in sub_dict_out.items() if i not in ['projects','session_projects']}
+                sub_dict_out['birth_date'] = str(sub_dict_out['birth_date'])
+                sub_dict_out['projects'] = list(sub_dict['projects'])
+                sub_dict_out['session_projects'] = list(sub_dict['session_projects'])
+                sub_dict_out['weighings'] = list(sub_dict['weighings'])
+                sub_dict_out['water_administrations'] = list(sub_dict['water_administrations'])
+                return sub_dict_out
             else:
                 return dict()
         if nwbkey == 'nwbfile':
             nwbdict=dict()
             for i,j in self.field_map_nwbfile.items():
                 nwbdict[i] = getattr(self.nwbfile,i)
-            return self._create_ibl_dict(nwbdict,self.field_map_nwbfile)
+            nwb_data = self._create_ibl_dict(nwbdict,self.field_map_nwbfile)
+            custom_data = self.nwbfile.lab_meta_data['Ibl_session_data'].fields
+            nwb_data.update(custom_data)
+            nwb_data['procedures'] = list(nwb_data['procedures'])
+            nwb_data['number'] = int(nwb_data['number'])
+            nwb_data['wateradmin_session_related'] = list(nwb_data['wateradmin_session_related'])
+            #adding probes:
+            self.nwbfile.devices.pop('NeuroPixels probe')
+            count=0
+            nwb_data['probe_insertion'] = []
+            for i,j in self.nwbfile.devices.items():
+                nwb_data['probe_insertion'].append(j.fields)
+                nwb_data['probe_insertion'][count]['trajectory_estimate'] = \
+                    list(nwb_data['probe_insertion'][count]['trajectory_estimate'])
+                count = count + 1
+            # nwb_data['extended_qc'] = json.loads(nwb_data['extended_qc'])
+            return nwb_data
 
     def _get_nwb_data(self):
         out = []
@@ -124,6 +171,9 @@ class NWBToIBLSession:
         time_key = [i for i in dumpfile if 'time' in i or 'date' in i]
         if time_key:
             time_key=time_key[0]
-            dumpfile[time_key] = datetime.strftime(dumpfile[time_key],'%Y-%m-%dT%X')
+            try:
+                dumpfile[time_key] = datetime.strftime(dumpfile[time_key],'%Y-%m-%dT%X')
+            except TypeError:
+                pass
         with open(filename,'w') as f:
             json.dump(dumpfile, f, indent=2)

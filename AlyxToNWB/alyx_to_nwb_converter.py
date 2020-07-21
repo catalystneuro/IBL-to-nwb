@@ -14,7 +14,7 @@ from .alyx_to_nwb_metadata import Alyx2NWBMetadata
 import re
 from .schema import metafile
 from tqdm import tqdm
-from ndx_ibl_labmetadata import IblSessionData, IblProbes, IblSubject
+from ndx_ibl_metadata import IblSessionData, IblProbes, IblSubject
 
 class Alyx2NWBConverter(NWBConverter):
 
@@ -154,7 +154,7 @@ class Alyx2NWBConverter(NWBConverter):
                     pynwb.ecephys.SpikeEventSeries(name=i['name']+'_'+self.nwb_metadata['Probes'][j]['name'],
                                                    description=i['description'],
                                                    timestamps=np.arange(i['timestamps'][j].shape[1]),
-                                                   data=i['data'][j],
+                                                   data=np.transpose(i['data'][j],[1,0,2]),
                                                    electrodes=self.nwbfile.create_electrode_table_region(
                                                        description=f'Probe{j}',
                                                        region=list(range(self.electrode_table_length[j])))
@@ -270,15 +270,15 @@ class Alyx2NWBConverter(NWBConverter):
         def _load_return(loaded_dataset_):
             if loaded_dataset_[0] is None:  # dataset not found in the database
                 return None
-            if self.unit_table_length is None and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+            if self.unit_table_length is None and 'cluster' in dataset_to_load.split('.')[0]:  # capture total number of clusters for each probe, used in spikes.times
                 self.unit_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
-            if self.electrode_table_length[0]==0 and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+            if self.electrode_table_length[0]==0 and 'channel' in dataset_to_load.split('.')[0]:  # capture total number of clusters for each probe, used in spikes.times
                 self.electrode_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
             if isinstance(loaded_dataset_[0],pd.DataFrame):  # assuming all columns exist as colnames for the table in the json file:
                 if dataset_key not in loaded_dataset_[0].columns:
                     return None # if column name not in the clusters.metrics dataframe
                 loaded_dataset_ = [loaded_dataset_[i][dataset_key].to_numpy() for i in range(probes)]
-            if any([1 for dtnames in ['spikes','templates'] if dtnames in dataset_to_load]):#in case of spikes.<attr> datatype
+            if any([1 for dtnames in ['spikes','templates'] if dtnames in dataset_to_load.split('.')[0]]):#in case of spikes.<attr> datatype
                 return loaded_dataset_# when spikes.data, dont combine
             out_data = np.concatenate(loaded_dataset_)
             return out_data
