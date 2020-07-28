@@ -14,6 +14,7 @@ from .alyx_to_nwb_metadata import Alyx2NWBMetadata
 import re
 from .schema import metafile
 from tqdm import tqdm
+from ndx_ibl_metadata import IblSessionData, IblProbes, IblSubject
 
 class Alyx2NWBConverter(NWBConverter):
 
@@ -165,25 +166,66 @@ class Alyx2NWBConverter(NWBConverter):
     def create_behavior(self):
         super(Alyx2NWBConverter, self).check_module('Behavior')
         for i in self.nwb_metadata['Behavior']:
-            if not (i == 'Position'):
+            if not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'])
+                time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
+                func = getattr(pynwb.behavior, i)
+                self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
+            elif i=='Position':
+                func = getattr(pynwb.behavior, i)
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['spatial_series'])
+                rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
+                for k1 in [0,1,2]:# loading the dataset gives a list of 1-3 elements as dicts, 3-6 as arrays for body,left,right camera
+                    names = list(time_series_list_details[0]['data'][k1].keys())
+                    x_ids = [n for n,k in enumerate(names) if 'x' in k]
+                    for xids in x_ids:
+                        data_loop = time_series_list_details[0]['data'][k1+3][:,xids:xids+2]
+                        data_add = time_series_list_details[0]['data'][k1+3][:,xids+2]
+                        func.create_spatial_series(name=names[xids][:-1], data=data_loop,
+                                         reference_frame='none', starting_time=time_series_list_details[0]['data'][0],
+                                         rate=rate_list[k1])
+                        func.add(pynwb.base.Timeseries(name=names[xids][:-1]+'likelihood',data=data_add,
+                                                  starting_time=time_series_list_details[0]['data'][0],
+                                                  rate=rate_list[k1]))
+                self.nwbfile.processing['Behavior'].add(func())
             else:
-                time_series_func = pynwb.behavior.SpatialSeries
+                time_series_func = pynwb.misc.IntervalSeries
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['interval_series'])
+                for k in time_series_list_details:
+                    k['timestamps'] = k['timestamps'].flatten()
+                    k['data'] = np.vstack((k['data'],-1*np.ones(k['data'].shape,dtype=float))).flatten()
+                time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
+                func = getattr(pynwb.behavior, i)
+                self.nwbfile.processing['Behavior'].add(func(interval_series=time_series_list_obj))
 
-            time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'],
-                                                      probes=self.no_probes)
-            time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
-            func = getattr(pynwb.behavior, i)
-            self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
+    def create_acquisition(self):
+        aq_list = self._get_data(self.nwb_metadata['Acquisition'], probes=self.no_probes)
+        dataset_typelist = {i:self._get_data(j) for i,j in self.nwb_metadata['Acquisition'].items()}
+        datatype_list = ['base.TimeSeries','image.ImageSeries']
+        for i,j in dataset_typelist.items():
+            func = [k for k in dataset_typelist if k in i][0]
+            func_call = getattr(pynwb,func)
+            self.nwbfile.add_acquisition(func_call(**j))
 
     def create_probes(self):
         """
         Fills in all the probes metadata into the custom NeuroPixels extension.
-        Returns
-        -------
-
         """
-        raise NotImplementedError
+        for i in self.nwb_metadata['Probes']:
+            self.nwbfile.add_device(IblProbes(**i))
+
+    def create_iblsubject(self):
+        """
+        Populates the custom subject extension for IBL mice daata
+        """
+        self.nwbfile.subject = IblSubject(**self.nwb_metadata['IBLSubject'])
+
+    def create_lab_meta_data(self):
+        """
+        Populates the custom lab_meta_data extension for IBL sessions data
+        """
+        self.nwbfile.add_lab_meta_data(IblSessionData(**self.nwb_metadata['IBLSessionsData']))
 
     def create_trials(self):
         trial_df = self._table_to_df(self.nwb_metadata['Trials'])
@@ -194,24 +236,6 @@ class Alyx2NWBConverter(NWBConverter):
 
     def add_trial(self, df):
         super(Alyx2NWBConverter, self).add_trials_from_df(df)
-
-    def add_acquisition(self):
-        for i,j in self.nwb_metadata['Acquisition'].items():
-            acquisition_data = self._get_data(j, probes=self.no_probes)
-            for i in acquisition_data:
-                for j in range(self.no_probes):
-                    self.nwbfile.add_acquisition(pynwb.ecephys.ElectricalSeries(
-                            name=i['name']+'_'+self.nwb_metadata['Probes'][j]['name'],
-                            description=i['description'],
-                            timestamps=i['timestamps'][j],
-                            data=i['data'][j],
-                            electrodes=self.nwbfile.create_electrode_table_region(
-                                description=f'Probe{j}',
-                                region=list(range(self.electrode_table_length[j]))
-                            )
-                        )
-                    )
-
 
     def _get_default_column_ids(self,default_namelist,namelist):
         out_idx = []

@@ -466,7 +466,7 @@ class Alyx2NWBMetadata:
     @property
     def behavior_metadata(self):
         behavior_metadata_dict = self._initialize_container_dict('Behavior')
-        behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye']
+        behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye', 'camera']
         current_behavior_objects = self._get_current_object_names(behavior_objects)
         for k, u in enumerate(current_behavior_objects):
             if 'wheel' == u:
@@ -487,6 +487,9 @@ class Alyx2NWBMetadata:
             if 'eye' in u:
                 behavior_metadata_dict['Behavior']['PupilTracking'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
+            if 'camera' in u:
+                behavior_metadata_dict['Behavior']['Position'] = \
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series')
         return behavior_metadata_dict
 
     @property
@@ -613,9 +616,12 @@ class Alyx2NWBMetadata:
 
     @property
     def acquisition_metadata(self):
-        acquisition_objects = ['ephysData']
-        container_name_objects = ['ElectricalSeries']
-        custom_attrs_objects = [['raw.ap']]
+        acquisition_objects = ['ephysData','_iblrig_Camera','_iblqc_ephysTimeRms',
+                               '_iblqc_ephysSpectralDensity','_iblqc_ephysSpectralDensity',
+                               '_iblmic_audioSpectrogram']
+        container_name_objects = ['TimeSeries','ImageSeries'] + 4*['TimeSeries']
+        custom_attrs_objects = [['raw.ap'],['raw'],['rms'],['freqs'],['power'],
+                                ['frequencies','power']]
         acquisition_container = self._initialize_container_dict('Acquisition')
         current_acquisition_objects = self._get_current_object_names(acquisition_objects)
         if current_acquisition_objects != acquisition_objects:
