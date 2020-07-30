@@ -64,7 +64,7 @@
         "sex": {"type": "string", "enum": ["M", "F", "U", "O"], "default": "U"},
         "species": {"type": "string", "description": "Species of subject. Use latin name."},
         "subject_id": {"type": "string", "description": "ID of animal/person used/participating in experiment (lab convention)"},
-        "weight": {"type": ["string","number"], "description": "Weight at time of experiment, at time of surgery and at other important times."},
+        "weight": {"type": "string", "description": "Weight at time of experiment, at time of surgery and at other important times."},
         "date_of_birth": {"type": "string", "format": "date-time", "description": "Date of birth of subject. Can be supplied instead of 'age'."}
       }
     },
@@ -304,13 +304,13 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "data"],
+        "required": ["name"],
         "properties": {
           "name": {"type": "string"},
-          "description": {"type": "string"},
+          "description": {"type": "string", "default": "no description"},
           "data": {
             "type": ["string", "number"],
-            "description": "ALF Uri of the actual dataset"
+            "description": "URI/Source path of the actual dataset"
           }
         }
       }
@@ -319,13 +319,15 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "data"],
+        "required": ["name"],
         "properties": {
           "name": {"type": "string"},
-          "description": {"type": "string"},
+          "description": {"type": "string",
+            "default": "no description"
+          },
           "data": {
             "type": ["string", "number"],
-            "description": "ALF Uri of the actual dataset"
+            "description": "URI/Source path of the actual dataset"
           }
         }
       }
