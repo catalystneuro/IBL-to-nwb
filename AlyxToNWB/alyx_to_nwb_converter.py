@@ -275,10 +275,12 @@ class Alyx2NWBConverter(NWBConverter):
         spike_clusters, spike_times = datastring.split(',')
         if spike_clusters not in self._loaded_datasets.keys():
             spike_cluster_data = self.one_object.load(self.eid, dataset_types=[spike_clusters])
+            self._loaded_datasets.update({spike_clusters: spike_cluster_data})
         else:
             spike_cluster_data = self._loaded_datasets[spike_clusters]
         if spike_times not in self._loaded_datasets.keys():
             spike_times_data = self.one_object.load(self.eid, dataset_types=[spike_times])
+            self._loaded_datasets.update({spike_times: spike_times_data})
         else:
             spike_times_data = self._loaded_datasets[spike_times]
         if not ((spike_cluster_data is None) | (spike_cluster_data is None)):# if bot hdata are found only then
@@ -286,8 +288,8 @@ class Alyx2NWBConverter(NWBConverter):
             for i in range(probes):
                 df = pd.DataFrame({'sp_cluster': spike_cluster_data[i], 'sp_times': spike_times_data[i]})
                 data = df.groupby(['sp_cluster'])['sp_times'].apply(np.array).reset_index(name='sp_times_group')
-                if self.unit_table_length is None:
-                    return data
+                if self.unit_table_length is None:# if unit table length is not known, ignore spike times
+                    return None
                 ls_grouped = [[None]]*self.unit_table_length[i]
                 for index,sp_list in data.values:
                     ls_grouped[index] = sp_list
@@ -295,33 +297,78 @@ class Alyx2NWBConverter(NWBConverter):
             return ls_merged
 
     def _load(self, dataset_to_load, dataset_key, probes):
-        def _load_return(loaded_dataset_):
-            if loaded_dataset_[0] is None:  # dataset not found in the database
+        def _load_as_array(loaded_dataset_):
+            """
+            Takes variable data formats: .csv, .npy, .bin, .meta, .json and converts them to ndarray.
+            Parameters
+            ----------
+            loaded_dataset_: [SessionDataInfo]
+            Returns
+            -------
+            out_data: [ndarray, list]
+            """
+            if len(loaded_dataset_.data)==0 or loaded_dataset_.data[0] is None:  # dataset not found in the database
                 return None
-            if self.unit_table_length is None and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
-                self.unit_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
-            if self.electrode_table_length[0]==0 and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
-                self.electrode_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
-            if isinstance(loaded_dataset_[0],pd.DataFrame):  # assuming all columns exist as colnames for the table in the json file:
-                loaded_dataset_ = [loaded_dataset_[i][dataset_key].to_numpy() for i in range(probes)]
-            if 'spikes' in dataset_to_load or 'ephysData' in dataset_to_load:#in case of spikes.<attr> datatype
-                return loaded_dataset_# when spikes.data, or raw ephys data, dont combine
-            out_data = np.concatenate(loaded_dataset_)
-            return out_data
-        
+            datatype = [i.suffix for i in loaded_dataset_.local_path]
+            dataloc = [str(i) for i in loaded_dataset_.local_path]
+
+            if datatype[0] in ['.csv','.npy']: # csv is for clusters metrics
+                # if a windows path is returned despite a npy file:
+                path_ids = [j for j, i in enumerate(loaded_dataset_.data) if 'WindowsPath' in [type(i)]]
+                if path_ids:
+                    temp = [np.load(str(loaded_dataset_.data[pt])) for pt in path_ids]
+                    loaded_dataset_ = temp
+                else:
+                    loaded_dataset_ = loaded_dataset_.data
+
+                # TODO: #datatype specific conditions
+                # if '.'.split(dataset_to_load)[0] in ['templates', 'ephysData', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']: # these would require probe specific dataset
+                if dataset_to_load in ['camera.dlc']:
+                    return loaded_dataset_
+                if 'audioSpectrogram.times' in dataset_to_load:
+                    loaded_dataset_ = loaded_dataset_[0:1] # some eids have *.times and *.times_mic as a list in the dataset. Keeping only one.
+                if self.unit_table_length is None and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+                    self.unit_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
+                if self.electrode_table_length[0]==0 and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+                    self.electrode_table_length = [loaded_dataset_[i].shape[0] for i in range(probes)]
+                if isinstance(loaded_dataset_[0],pd.DataFrame):  # file is loaded as dataframe when of type .csv
+                    if dataset_to_load in loaded_dataset_[0].columns.values:
+                        loaded_dataset_ = [loaded_dataset_[i][dataset_key].to_numpy() for i in range(probes)]
+                    else:
+                        return None
+                return np.concatenate(loaded_dataset_)
+            elif datatype[0] in ['.cbin']: # binary files require a special reader
+                from ibllib.io import spikeglx
+                for j,i in enumerate(loaded_dataset_.local_path):
+                    loaded_dataset_.data[j]=spikeglx.Reader(str(i)).read()
+                return loaded_dataset_.data
+            elif datatype[0] in ['.mp4']: # for image files, keep format as external in ImageSeries datatype
+                return [str(i) for i in loaded_dataset_.data]
+            elif datatype[0] in ['.ssv']: # when camera timestamps
+                print('converting camera timestamps..')
+                dt_start = datetime.datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X')
+                dt_func = lambda x: ((datetime.datetime.strptime('-'.join(x.split('-')[:-1])[:-1],'%Y-%m-%dT%H:%M:%S.%f' )) - dt_start).total_seconds()
+                dt_list = [dt.iloc[:,0].apply(dt_func).to_numpy() for dt in loaded_dataset_.data]# find difference in seconds from session start
+                print('done')
+                return dt_list
+
+
+        if not type(dataset_to_load) is str: #prevents errors when loading metafile json
+            return None
         if dataset_to_load not in self._loaded_datasets.keys():
             if len(dataset_to_load.split(',')) == 1:
-                loaded_dataset = self.one_object.load(self.eid, dataset_types=[dataset_to_load])[0:probes]
+                loaded_dataset = self.one_object.load(self.eid, dataset_types=[dataset_to_load], dclass_output=True)
                 self._loaded_datasets.update({dataset_to_load: loaded_dataset})
-                return _load_return(loaded_dataset)
+                return _load_as_array(loaded_dataset)
             else:# special case  when multiple datasets are involved
                 loaded_dataset = self._get_multiple_data(dataset_to_load, probes)
-                self._loaded_datasets.update({dataset_to_load:loaded_dataset})
+                if loaded_dataset is not None:
+                    self._loaded_datasets.update({dataset_to_load:loaded_dataset})
                 return loaded_dataset
         else:
             loaded_dataset = self._loaded_datasets[dataset_to_load]
             if len(dataset_to_load.split(',')) == 1:
-                return _load_return(loaded_dataset)
+                return _load_as_array(loaded_dataset)
             else:
                 return loaded_dataset
 
