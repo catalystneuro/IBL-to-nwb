@@ -4,6 +4,7 @@ from oneibl.one import ONE
 from .schema import metafile as nwb_schema
 import os
 from datetime import datetime
+import warnings
 
 class Alyx2NWBMetadata:
     # TODO: add docstrings
@@ -645,16 +646,21 @@ class Alyx2NWBMetadata:
 
     @property
     def ecephys_metadata(self):
-        ecephys_objects = ['templates']
-        ecephys_metadata_dict = self._initialize_container_dict('EventDetection')
-        current_ecephys_objects = self._get_current_object_names(ecephys_objects)
-        if current_ecephys_objects:
-            ecephys_metadata_dict['EventDetection'] = \
-                self._get_timeseries_object(self.dataset_details.copy(), 'templates', 'SpikeEventSeries',
-                                            drop_attrs=['amps','waveformsChannels'])
-        else:
-            raise Warning(f'could not find template data in eid {self.eid}')
-        return ecephys_metadata_dict
+        ecephys_objects = ['templates', 'ephysData', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']
+        container_object_names = ['SpikeEventSeries', 'ElectricalSeries1', 'ElectricalSeries2', 'DecompositionSeries']
+        custom_attrs_objects = [['waveforms'],['raw.ap','raw.lf'],['rms'],['power']]
+        ecephys_container = self._initialize_container_dict('Ecephys')
+        kwargs = dict()
+        for i,j,k in zip(ecephys_objects,container_object_names,custom_attrs_objects):
+            current_ecephys_objects = self._get_current_object_names([i])
+            if current_ecephys_objects:
+                if j=='DecompositionSeries':
+                    kwargs = dict(name=i, metric='power', bands='_iblqc_ephysSpectralDensity.freqs', timestamps=None)
+                ecephys_container['Ecephys'].update(self._get_timeseries_object(
+                    self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
+            else:
+                warnings.warn(f'could not find {i} data in eid {self.eid}')
+        return ecephys_container
 
     @property
     def acquisition_metadata(self):

@@ -4,11 +4,17 @@ import pandas as pd
 import numpy as np
 from copy import deepcopy
 from datetime import datetime
+import warnings
 import jsonschema
 from nwb_conversion_tools import NWBConverter
 from oneibl.one import ONE
 import pynwb.behavior
 import pynwb.ecephys
+from pynwb.ecephys import ElectricalSeries
+from pynwb.misc import DecompositionSeries
+from pynwb import TimeSeries
+from pynwb.image import ImageSeries
+from hdmf.common.table import DynamicTable
 import pynwb
 from .alyx_to_nwb_metadata import Alyx2NWBMetadata
 import re
@@ -144,6 +150,23 @@ class Alyx2NWBConverter(NWBConverter):
         self.electrode_table_exist = True
 
     def create_timeseries_ecephys(self):
+        if not self.electrode_table_exist:
+            self.create_electrode_table_ecephys()
+        for func, argmts in self.nwb_metadata['Ecephys']['Ecephys'].items():
+            data_retrieve = self._get_data(argmts, probes=self.no_probes)
+            for i in data_retrieve:
+                if 'ElectricalSeries' in func:
+                    i.update(dict(electrodes=self.probe_dt_region_all))
+                    self.nwbfile.add_acquisition(ElectricalSeries(**i))
+                elif 'DecompositionSeries' in func:
+                    bands_dt = DynamicTable(name='frequencies',description='freq').add_column('f_points',data=i['bands'])
+                    i.update(dict(bands=bands_dt))
+                    self.nwbfile.add_acquisition(DecompositionSeries(**i))
+                elif 'SpikeEventSeries' in func:
+                    i.update(dict(electrodes=self.probe_dt_region_all))
+                    self.nwbfile.add_acquisition(pynwb.ecephys.SpikeEventSeries(**i))
+
+
         # if not self.electrode_table_exist:
         #     self.create_electrode_table_ecephys()
         # super(Alyx2NWBConverter, self).check_module('Ecephys')
@@ -161,7 +184,7 @@ class Alyx2NWBConverter(NWBConverter):
         #                                                region=list(range(self.electrode_table_length[j])))
         #                                            )
         #     )
-        return None
+        # return None
 
     def create_behavior(self):
         super(Alyx2NWBConverter, self).check_module('Behavior')
@@ -391,6 +414,8 @@ class Alyx2NWBConverter(NWBConverter):
         for i, j in enumerate(out_dict):
             if out_dict[i].get('timestamps'):
                 out_dict[i]['timestamps'] = self._load(j['timestamps'],j['name'], probes)
+            if out_dict[i].get('bands'):# in case of Decomposotion series
+                out_dict[i]['bands'] = self._load(j['bands'], j['name'], probes)
             if j['name'] == 'id':# valid in case of units table.
                 out_dict[i]['data'] = self._load(j['data'], 'cluster_id', probes)
             else:
