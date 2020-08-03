@@ -664,19 +664,19 @@ class Alyx2NWBMetadata:
 
     @property
     def acquisition_metadata(self):
-        acquisition_objects = ['ephysData','_iblrig_Camera','_iblqc_ephysTimeRms',
-                               '_iblqc_ephysSpectralDensity','_iblqc_ephysSpectralDensity',
-                               '_iblmic_audioSpectrogram']
-        container_name_objects = ['TimeSeries','ImageSeries'] + 4*['TimeSeries']
-        custom_attrs_objects = [['raw.ap'],['raw'],['rms'],['freqs'],['power'],
-                                ['frequencies','power']]
+        acquisition_objects = ['ephysData','_iblrig_Camera','_iblmic_audioSpectrogram']
+        container_name_objects = ['TimeSeries','ImageSeries','DecompositionSeries']
+        custom_attrs_objects = [['raw.nidq'],['raw'], ['power']]
         acquisition_container = self._initialize_container_dict('Acquisition')
         current_acquisition_objects = self._get_current_object_names(acquisition_objects)
-        if current_acquisition_objects != acquisition_objects:
-            return dict()
-        for i, j, k in zip(acquisition_objects, container_name_objects, custom_attrs_objects):
+        # if current_acquisition_objects != acquisition_objects:
+        #     return dict()
+        kwargs = dict()
+        for i, j, k in zip(current_acquisition_objects, container_name_objects, custom_attrs_objects):
+            if j == 'DecompositionSeries':
+                kwargs=dict(name=i,metric='power',bands='_iblmic_audioSpectrogram.frequencies', timestamps=None)
             acquisition_container['Acquisition'].update(self._get_timeseries_object(
-                self.dataset_details.copy(), i, j, custom_attrs=k))
+                self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
         return acquisition_container
 
     @property

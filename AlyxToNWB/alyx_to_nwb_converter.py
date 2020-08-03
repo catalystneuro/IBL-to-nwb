@@ -83,6 +83,9 @@ class Alyx2NWBConverter(NWBConverter):
         # no required arguments for units table. Below are default columns in the table.
         default_args = ['id', 'waveform_mean','electrodes','electrode_group','spike_times','obs_intervals']
         default_ids = self._get_default_column_ids(default_args, [i['name'] for i in unit_table_list])
+        if len(default_ids)!=len(default_args):
+            warnings.warn(f'could not find clusters.{default_args} data. Skipping units table')
+            return None
         non_default_ids = list(set(range(len(unit_table_list))).difference(set(default_ids)))
         default_dict=dict()
         [default_dict.update({unit_table_list[i]['name']:unit_table_list[i]['data']}) for i in default_ids]
@@ -147,6 +150,14 @@ class Alyx2NWBConverter(NWBConverter):
             self.nwbfile.add_electrode_column(name=electrode_table_list[i]['name'],
                                               description=electrode_table_list[i]['description'],
                                               data=electrode_table_list[i]['data'])
+        #create probes specific DynamicTableRegion:
+        self.probe_dt_region = [self.nwbfile.create_electrode_table_region(name=i['name'],
+                                                   region=list(range(self.electrode_table_length[j])),
+                                                   description=i['name'])
+                                for j,i in enumerate(self.nwb_metadata['Probes'])]
+        self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(name='AllProbes',
+                                                      region=list(range(sum(self.electrode_table_length))),
+                                                      description='AllProbes')
         self.electrode_table_exist = True
 
     def create_timeseries_ecephys(self):
@@ -226,13 +237,24 @@ class Alyx2NWBConverter(NWBConverter):
                 self.nwbfile.processing['Behavior'].add(func(interval_series=time_series_list_obj))
 
     def create_acquisition(self):
-        aq_list = self._get_data(self.nwb_metadata['Acquisition'], probes=self.no_probes)
-        dataset_typelist = {i:self._get_data(j) for i,j in self.nwb_metadata['Acquisition'].items()}
-        datatype_list = ['base.TimeSeries','image.ImageSeries']
-        for i,j in dataset_typelist.items():
-            func = [k for k in dataset_typelist if k in i][0]
-            func_call = getattr(pynwb,func)
-            self.nwbfile.add_acquisition(func_call(**j))
+        if not self.electrode_table_exist:
+            self.create_electrode_table_ecephys()
+        for func, argmts in self.nwb_metadata['Acquisition'].items():
+            data_retrieve = self._get_data(argmts, probes=self.no_probes)
+            nwbfunc = eval(func)
+            for i in data_retrieve:
+                if func=='ImageSeries':
+                    for types in i['data']:
+                        customargs=dict(name=os.path.basename(str(types)),
+                                           external_file=str(types),
+                                           format='external',
+                                           timestamps=i['timestamps'])
+                        self.nwbfile.add_acquisition(nwbfunc(**customargs))
+                elif func=='DecompositionSeries':
+                    self.nwbfile.add_acquisition(nwbfunc(**i))
+                else:
+                    i.update(dict(electrodes=self.probe_dt_region_all))
+                    self.nwbfile.add_acquisition(nwbfunc(**i))
 
     def create_probes(self):
         """
