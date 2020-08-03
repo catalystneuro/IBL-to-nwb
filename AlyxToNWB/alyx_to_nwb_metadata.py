@@ -239,9 +239,17 @@ class Alyx2NWBMetadata:
         dataset_details[object_name],_ = self._drop_attrs(dataset_details[object_name].copy(), drop_attrs)
         datafiles, datafiles_names, datafiles_desc = \
             self._unpack_dataset_details(dataset_details.copy(), object_name, custom_attrs, match_str=matchstr)
-        datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
-            self._unpack_dataset_details(dataset_details.copy(), object_name, timeattr_name)
+        if timeattr_name:
+            datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
+                self._unpack_dataset_details(dataset_details.copy(), object_name, timeattr_name)
+        elif not kwargs:  #  if no timestamps info, then let this fields be data
+            return {ts_name:[]}
+        else:
+            datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
+                datafiles, datafiles_names, datafiles_desc
         if not datafiles:
+            if not kwargs:
+                return {ts_name:[]}
             datafiles_names = datafiles_time_name
             datafiles_desc = datafiles_time_desc
             datafiles = ['None']
@@ -518,8 +526,12 @@ class Alyx2NWBMetadata:
                 behavior_metadata_dict['Behavior']['PupilTracking'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'camera' in u:
-                behavior_metadata_dict['Behavior']['Position'] = \
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series')
+                camera_types = ['leftCamera','rightCamera','bodyCamera']
+                behavior_metadata_dict['Behavior']['Position'] = dict(spatial_series=[])
+                for i in camera_types:
+                    behavior_metadata_dict['Behavior']['Position']['spatial_series'].extend(
+                        self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series', name=i)['spatial_series']
+                    )
         return behavior_metadata_dict
 
     @property

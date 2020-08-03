@@ -166,15 +166,11 @@ class Alyx2NWBConverter(NWBConverter):
     def create_behavior(self):
         super(Alyx2NWBConverter, self).check_module('Behavior')
         for i in self.nwb_metadata['Behavior']:
-            if not (i == 'BehavioralEpochs'):
-                time_series_func = pynwb.TimeSeries
-                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'])
-                time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
-                func = getattr(pynwb.behavior, i)
-                self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
-            elif i=='Position':
+            if i=='Position':
                 func = getattr(pynwb.behavior, i)
                 time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['spatial_series'])
+                if not time_series_list_details:
+                    break
                 rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
                 for k1 in [0,1,2]:# loading the dataset gives a list of 1-3 elements as dicts, 3-6 as arrays for body,left,right camera
                     names = list(time_series_list_details[0]['data'][k1].keys())
@@ -189,6 +185,13 @@ class Alyx2NWBConverter(NWBConverter):
                                                   starting_time=time_series_list_details[0]['data'][0],
                                                   rate=rate_list[k1]))
                 self.nwbfile.processing['Behavior'].add(func())
+            elif not (i == 'BehavioralEpochs'):
+                time_series_func = pynwb.TimeSeries
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'])
+                time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
+                func = getattr(pynwb.behavior, i)
+                self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
+
             else:
                 time_series_func = pynwb.misc.IntervalSeries
                 time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['interval_series'])
