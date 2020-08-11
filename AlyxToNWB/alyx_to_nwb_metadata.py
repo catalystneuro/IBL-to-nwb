@@ -4,6 +4,7 @@ from oneibl.one import ONE
 from .schema import metafile as nwb_schema
 import os
 from datetime import datetime
+import warnings
 
 class Alyx2NWBMetadata:
     # TODO: add docstrings
@@ -239,9 +240,17 @@ class Alyx2NWBMetadata:
         dataset_details[object_name],_ = self._drop_attrs(dataset_details[object_name].copy(), drop_attrs)
         datafiles, datafiles_names, datafiles_desc = \
             self._unpack_dataset_details(dataset_details.copy(), object_name, custom_attrs, match_str=matchstr)
-        datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
-            self._unpack_dataset_details(dataset_details.copy(), object_name, timeattr_name)
+        if timeattr_name:
+            datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
+                self._unpack_dataset_details(dataset_details.copy(), object_name, timeattr_name)
+        elif not kwargs:  #  if no timestamps info, then let this fields be data
+            return {ts_name:[]}
+        else:
+            datafiles_timedata, datafiles_time_name, datafiles_time_desc = \
+                datafiles, datafiles_names, datafiles_desc
         if not datafiles:
+            if not kwargs:
+                return {ts_name:[]}
             datafiles_names = datafiles_time_name
             datafiles_desc = datafiles_time_desc
             datafiles = ['None']
@@ -496,7 +505,7 @@ class Alyx2NWBMetadata:
     @property
     def behavior_metadata(self):
         behavior_metadata_dict = self._initialize_container_dict('Behavior')
-        behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye']
+        behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye', 'camera']
         current_behavior_objects = self._get_current_object_names(behavior_objects)
         for k, u in enumerate(current_behavior_objects):
             if 'wheel' == u:
@@ -517,6 +526,13 @@ class Alyx2NWBMetadata:
             if 'eye' in u:
                 behavior_metadata_dict['Behavior']['PupilTracking'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
+            if 'camera' in u:
+                camera_types = ['leftCamera','rightCamera','bodyCamera']
+                behavior_metadata_dict['Behavior']['Position'] = dict(spatial_series=[])
+                for i in camera_types:
+                    behavior_metadata_dict['Behavior']['Position']['spatial_series'].extend(
+                        self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series', name=i)['spatial_series']
+                    )
         return behavior_metadata_dict
 
     @property
@@ -618,7 +634,7 @@ class Alyx2NWBMetadata:
     @property
     def electrodetable_metadata(self):
         electrodes_objects = ['channels']
-        electrodes_table_metadata_dict = self._initialize_container_dict()
+        electrodes_table_metadata_dict = self._initialize_container_dict('ElectrodeTable')
         current_electrodes_objects = self._get_current_object_names(electrodes_objects)
         for i in current_electrodes_objects:
             electrodes_table_metadata_dict = self._get_dynamictable_object(
@@ -630,29 +646,39 @@ class Alyx2NWBMetadata:
 
     @property
     def ecephys_metadata(self):
-        ecephys_objects = ['templates']
-        ecephys_metadata_dict = self._initialize_container_dict('EventDetection')
-        current_ecephys_objects = self._get_current_object_names(ecephys_objects)
-        if current_ecephys_objects:
-            ecephys_metadata_dict['EventDetection'] = \
-                self._get_timeseries_object(self.dataset_details.copy(), 'templates', 'SpikeEventSeries',
-                                            drop_attrs=['amps','waveformsChannels'])
-        else:
-            raise Warning(f'could not find template data in eid {self.eid}')
-        return ecephys_metadata_dict
+        ecephys_objects = ['templates', 'ephysData', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']
+        container_object_names = ['SpikeEventSeries', 'ElectricalSeries1', 'ElectricalSeries2', 'Spectrum']
+        custom_attrs_objects = [['waveforms'],['raw.ap','raw.lf'],['rms'],['power']]
+        ecephys_container = self._initialize_container_dict('Ecephys')
+        kwargs = dict()
+        for i,j,k in zip(ecephys_objects,container_object_names,custom_attrs_objects):
+            current_ecephys_objects = self._get_current_object_names([i])
+            if current_ecephys_objects:
+                if j=='Spectrum':
+                    kwargs = dict(name=i, power='_iblqc_ephysSpectralDensity.power',
+                                  frequencies='_iblqc_ephysSpectralDensity.freqs',
+                                  timestamps=None)
+                ecephys_container['Ecephys'].update(self._get_timeseries_object(
+                    self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
+            else:
+                warnings.warn(f'could not find {i} data in eid {self.eid}')
+        return ecephys_container
 
     @property
     def acquisition_metadata(self):
-        acquisition_objects = ['ephysData']
-        container_name_objects = ['ElectricalSeries']
-        custom_attrs_objects = [['raw.ap']]
+        acquisition_objects = ['ephysData','_iblrig_Camera','_iblmic_audioSpectrogram']
+        container_name_objects = ['TimeSeries','ImageSeries','DecompositionSeries']
+        custom_attrs_objects = [['raw.nidq'],['raw'], ['power']]
         acquisition_container = self._initialize_container_dict('Acquisition')
         current_acquisition_objects = self._get_current_object_names(acquisition_objects)
-        if current_acquisition_objects != acquisition_objects:
-            return dict()
-        for i, j, k in zip(acquisition_objects, container_name_objects, custom_attrs_objects):
+        # if current_acquisition_objects != acquisition_objects:
+        #     return dict()
+        kwargs = dict()
+        for i, j, k in zip(current_acquisition_objects, container_name_objects, custom_attrs_objects):
+            if j == 'DecompositionSeries':
+                kwargs=dict(name=i,metric='power',bands='_iblmic_audioSpectrogram.frequencies')
             acquisition_container['Acquisition'].update(self._get_timeseries_object(
-                self.dataset_details.copy(), i, j, custom_attrs=k))
+                self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
         return acquisition_container
 
     @property
