@@ -634,7 +634,7 @@ class Alyx2NWBMetadata:
     @property
     def electrodetable_metadata(self):
         electrodes_objects = ['channels']
-        electrodes_table_metadata_dict = self._initialize_container_dict()
+        electrodes_table_metadata_dict = self._initialize_container_dict('ElectrodeTable')
         current_electrodes_objects = self._get_current_object_names(electrodes_objects)
         for i in current_electrodes_objects:
             electrodes_table_metadata_dict = self._get_dynamictable_object(
@@ -647,15 +647,17 @@ class Alyx2NWBMetadata:
     @property
     def ecephys_metadata(self):
         ecephys_objects = ['templates', 'ephysData', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']
-        container_object_names = ['SpikeEventSeries', 'ElectricalSeries1', 'ElectricalSeries2', 'DecompositionSeries']
+        container_object_names = ['SpikeEventSeries', 'ElectricalSeries1', 'ElectricalSeries2', 'Spectrum']
         custom_attrs_objects = [['waveforms'],['raw.ap','raw.lf'],['rms'],['power']]
         ecephys_container = self._initialize_container_dict('Ecephys')
         kwargs = dict()
         for i,j,k in zip(ecephys_objects,container_object_names,custom_attrs_objects):
             current_ecephys_objects = self._get_current_object_names([i])
             if current_ecephys_objects:
-                if j=='DecompositionSeries':
-                    kwargs = dict(name=i, metric='power', bands='_iblqc_ephysSpectralDensity.freqs', timestamps=None)
+                if j=='Spectrum':
+                    kwargs = dict(name=i, power='_iblqc_ephysSpectralDensity.power',
+                                  frequencies='_iblqc_ephysSpectralDensity.freqs',
+                                  timestamps=None)
                 ecephys_container['Ecephys'].update(self._get_timeseries_object(
                     self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
             else:
@@ -674,7 +676,7 @@ class Alyx2NWBMetadata:
         kwargs = dict()
         for i, j, k in zip(current_acquisition_objects, container_name_objects, custom_attrs_objects):
             if j == 'DecompositionSeries':
-                kwargs=dict(name=i,metric='power',bands='_iblmic_audioSpectrogram.frequencies', timestamps=None)
+                kwargs=dict(name=i,metric='power',bands='_iblmic_audioSpectrogram.frequencies')
             acquisition_container['Acquisition'].update(self._get_timeseries_object(
                 self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
         return acquisition_container
