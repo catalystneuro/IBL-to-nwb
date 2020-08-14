@@ -97,6 +97,8 @@ class Alyx2NWBConverter(NWBConverter):
             for i in default_dict.keys():
                 if i == 'electrodes':
                     add_dict.update({i: [default_dict[i][j]]})
+                if i == 'spike_times':
+                    add_dict.update({i: default_dict[i][j]})
                 elif i == 'obs_intervals':
                     add_dict.update({i: default_dict[i]})
                 elif i == 'electrode_group':
@@ -178,11 +180,16 @@ class Alyx2NWBConverter(NWBConverter):
                                               self._data_attrs_dump[argmts[no]['timestamps']].items())):
                             for j, (dataset_name_ids,dataset_name_ids1) in enumerate(zip(probe_ids,probe_ids1)):
                                 probe_region = self.probe_dt_region[c]
-                                mod.add(TimeSeries(name=argmts[no]['data']+'_'+data_name_order[j], #TODO: error in ElectricalSeries
-                                                                              description = i['description'],
-                                                                              timestamps=i['timestamps'][dataset_name_ids1],
-                                                                              data=i['data'][dataset_name_ids]))
-                                                                              # electrodes=probe_region))
+                                args = dict(name=argmts[no]['data']+'_'+data_name_order[j],
+                                            description = i['description'],
+                                            timestamps=i['timestamps'][dataset_name_ids1],
+                                            data=i['data'][dataset_name_ids])
+                                if self._data_attrs_dump['electrode_table_length'][c]==args['data'].shape[1]:
+                                    ts_func = ElectricalSeries
+                                    args.update(dict(electrodes=probe_region))
+                                else:# when number of channels differ (not the ideal case)
+                                    ts_func = TimeSeries
+                                mod.add(ts_func(**args))
                     else:# for ephysData one for each probe
                         for j,probes in enumerate(range(self.no_probes)):
                             i.update(dict(electrodes=self.probe_dt_region[j],data=i['data'][j]))
@@ -200,27 +207,8 @@ class Alyx2NWBConverter(NWBConverter):
                                                                       # electrodes=probe_region))
                 elif 'SpikeEventSeries' in func:
                     i.update(dict(electrodes=self.probe_dt_region_all))
-                    self.mod.add(pynwb.ecephys.SpikeEventSeries(**i))
+                    mod.add(pynwb.ecephys.SpikeEventSeries(**i))
 
-
-        # if not self.electrode_table_exist:
-        #     self.create_electrode_table_ecephys()
-        # super(Alyx2NWBConverter, self).check_module('Ecephys')
-        # spikeeventseries_table_list = self._get_data(self.nwb_metadata['Ecephys']['EventDetection']['SpikeEventSeries'],
-        #                                              probes=self.no_probes)
-        # for i in spikeeventseries_table_list:
-        #     for j in range(self.no_probes):
-        #         self.nwbfile.processing['Ecephys'].add(
-        #             pynwb.ecephys.SpikeEventSeries(name=i['name']+'_'+self.nwb_metadata['Probes'][j]['name'],
-        #                                            description=i['description'],
-        #                                            timestamps=i['timestamps'][j],
-        #                                            data=i['data'][j],
-        #                                            electrodes=self.nwbfile.create_electrode_table_region(
-        #                                                description=f'Probe{j}',
-        #                                                region=list(range(self._data_attrs_dump['electrode_table_length'][j])))
-        #                                            )
-        #     )
-        # return None
 
     def create_behavior(self):
         super(Alyx2NWBConverter, self).check_module('Behavior')
@@ -230,7 +218,7 @@ class Alyx2NWBConverter(NWBConverter):
                 time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['spatial_series'])
                 if not time_series_list_details:
                     break
-                rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
+                # rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
                 datatype_list = self._data_attrs_dump['camera.dlc']
                 for k1 in [0,1,2]:# loading the dataset gives a list of 1-3 elements as dicts, 3-6 as arrays for body,left,right camera
                     names = time_series_list_details[0]['data'][k1]['columns']
@@ -238,10 +226,9 @@ class Alyx2NWBConverter(NWBConverter):
                     for xids in x_ids:
                         data_loop = time_series_list_details[0]['data'][k1+3][:,xids:xids+2]
                         # data_add = time_series_list_details[0]['data'][k1+3][:,xids+2]
-                        starting_time = time_series_list_details[0]['timestamps'][k1][0]
+                        ts = time_series_list_details[0]['timestamps'][k1]
                         position_cont.create_spatial_series(name=datatype_list[k1]+names[xids][:-1], data=data_loop,
-                                         reference_frame='none', starting_time=starting_time,
-                                         rate=rate_list[k1])
+                            reference_frame='none', timestamps=ts, conversion=1e3)#conversion assuming x,y in mm
                         # position_cont.add(pynwb.base.Timeseries(name=names[xids][:-1]+'likelihood',data=data_add,
                         #                           starting_time=starting_time,
                         #                           rate=rate_list[k1]))
@@ -283,6 +270,8 @@ class Alyx2NWBConverter(NWBConverter):
                     i.update(dict(bands=freqs))
                     temp = i['data'][:,:,np.newaxis]
                     i['data'] = np.moveaxis(temp,[0,1,2],[0,2,1])
+                    ts = i.pop('timestamps')
+                    i.update(dict(starting_time=ts[0],rate=np.mean(np.diff(ts.squeeze())),unit='sec'))
                     self.nwbfile.add_acquisition(nwbfunc(**i))
                 else:
                     i.update(dict(electrodes=self.probe_dt_region_all))
@@ -368,9 +357,9 @@ class Alyx2NWBConverter(NWBConverter):
             for i in range(probes):
                 df = pd.DataFrame({'sp_cluster': spike_cluster_data[i], 'sp_times': spike_times_data[i]})
                 data = df.groupby(['sp_cluster'])['sp_times'].apply(np.array).reset_index(name='sp_times_group')
-                if self._data_attrs_dump.get('unit_table_length',True):# if unit table length is not known, ignore spike times
+                if not self._data_attrs_dump.get('unit_table_length'):# if unit table length is not known, ignore spike times
                     return None
-                ls_grouped = [[None]]*self._data_attrs_dump['unit_table_length'][i]
+                ls_grouped = [[0.0]]*self._data_attrs_dump['unit_table_length'][i]# default spiking time for clusters with no time
                 for index,sp_list in data.values:
                     ls_grouped[index] = sp_list
                 ls_merged.extend(ls_grouped)
@@ -418,9 +407,9 @@ class Alyx2NWBConverter(NWBConverter):
                     return [loaded_dataset_[datanames.index(i)] for i in datanames_sorted]
                 if 'audioSpectrogram.times' in dataset_to_load:
                     loaded_dataset_ = loaded_dataset_[0] # some eids have *.times and *.times_mic as a list in the dataset. Keeping only one.
-                if self._data_attrs_dump.get('unit_table_length',True) and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+                if not self._data_attrs_dump.get('unit_table_length') and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                     self._data_attrs_dump['unit_table_length'] = [loaded_dataset_[i].shape[0] for i in range(probes)]
-                if self._data_attrs_dump.get('electrode_table_length',True) and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
+                if not self._data_attrs_dump.get('electrode_table_length') and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                     self._data_attrs_dump['electrode_table_length'] = [loaded_dataset_[i].shape[0] for i in range(probes)]
                 if isinstance(loaded_dataset_[0],pd.DataFrame):  # file is loaded as dataframe when of type .csv
                     if dataset_to_load in loaded_dataset_[0].columns.values:
