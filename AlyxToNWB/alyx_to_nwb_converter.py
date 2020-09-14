@@ -99,10 +99,9 @@ class Alyx2NWBConverter(NWBConverter):
                     add_dict.update({i: [default_dict[i][j]]})
                 if i == 'spike_times':
                     add_dict.update({i: default_dict[i][j]})
-                elif i == 'obs_intervals':
+                elif i == 'obs_intervals':#common across all clusters
                     add_dict.update({i: default_dict[i]})
                 elif i == 'electrode_group':
-                    self.create_electrode_groups(self.nwb_metadata['Ecephys'])
                     add_dict.update({i:self.nwbfile.electrode_groups[self.nwb_metadata['Probes'][default_dict[i][j]]['name']]})
                 elif i == 'id':
                     if j >= self._data_attrs_dump['unit_table_length'][0]:
@@ -123,7 +122,6 @@ class Alyx2NWBConverter(NWBConverter):
     def create_electrode_table_ecephys(self):
         if self.electrode_table_exist:
             pass
-        self.create_electrode_groups(self.nwb_metadata['Ecephys'])
         electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'], probes=self.no_probes)
         # electrode table has required arguments:
         required_args = ['group', 'x', 'y']
@@ -168,7 +166,10 @@ class Alyx2NWBConverter(NWBConverter):
     def create_timeseries_ecephys(self):
         if not self.electrode_table_exist:
             self.create_electrode_table_ecephys()
-        mod = self.nwbfile.create_processing_module('Ecephys','Processed electrophysiology data of IBL')
+        if not 'Ecephys' in self.nwbfile.processing:
+            mod = self.nwbfile.create_processing_module('Ecephys','Processed electrophysiology data of IBL')
+        else:
+            mod = self.nwbfile.get_processing_module('Ecephys')
         for func, argmts in self.nwb_metadata['Ecephys']['Ecephys'].items():
             data_retrieve = self._get_data(argmts, probes=self.no_probes)
             for no,i in enumerate(data_retrieve):
@@ -209,7 +210,6 @@ class Alyx2NWBConverter(NWBConverter):
                     i.update(dict(electrodes=self.probe_dt_region_all))
                     mod.add(pynwb.ecephys.SpikeEventSeries(**i))
 
-
     def create_behavior(self):
         super(Alyx2NWBConverter, self).check_module('Behavior')
         for i in self.nwb_metadata['Behavior']:
@@ -229,9 +229,6 @@ class Alyx2NWBConverter(NWBConverter):
                         ts = time_series_list_details[0]['timestamps'][k1]
                         position_cont.create_spatial_series(name=datatype_list[k1]+names[xids][:-1], data=data_loop,
                             reference_frame='none', timestamps=ts, conversion=1e3)#conversion assuming x,y in mm
-                        # position_cont.add(pynwb.base.Timeseries(name=names[xids][:-1]+'likelihood',data=data_add,
-                        #                           starting_time=starting_time,
-                        #                           rate=rate_list[k1]))
                 self.nwbfile.processing['Behavior'].add(position_cont)
             elif not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
@@ -251,6 +248,10 @@ class Alyx2NWBConverter(NWBConverter):
                 self.nwbfile.processing['Behavior'].add(func(interval_series=time_series_list_obj))
 
     def create_acquisition(self):
+        """
+        Acquisition data like audiospectrogram(raw beh data), nidq(raw ephys data), raw camera data.
+        These are independent of probe type.
+        """
         if not self.electrode_table_exist:
             self.create_electrode_table_ecephys()
         for func, argmts in self.nwb_metadata['Acquisition'].items():
@@ -260,7 +261,7 @@ class Alyx2NWBConverter(NWBConverter):
                 if func=='ImageSeries':
                     for types,times in zip(i['data'],i['timestamps']):
                         customargs=dict(name=os.path.basename(str(types)),
-                                           external_file=str(types),
+                                           external_file=[str(types)],
                                            format='external',
                                            timestamps=times)
                         self.nwbfile.add_acquisition(nwbfunc(**customargs))
@@ -274,7 +275,6 @@ class Alyx2NWBConverter(NWBConverter):
                     i.update(dict(starting_time=ts[0],rate=np.mean(np.diff(ts.squeeze())),unit='sec'))
                     self.nwbfile.add_acquisition(nwbfunc(**i))
                 else:
-                    i.update(dict(electrodes=self.probe_dt_region_all))
                     self.nwbfile.add_acquisition(nwbfunc(**i))
 
     def create_probes(self):
@@ -335,11 +335,13 @@ class Alyx2NWBConverter(NWBConverter):
         Parameters
         ----------
         datastring: str
-            csv of datasets
+            comma separated dataset names ex: "spike.times,spikes.clusters"
+        probes: int
+            number of probes for the eid (self.no_probes)
         Returns
         -------
-        numpy array
-            with the spike time data
+        ls_merged: [list, None]
+            list of length number of probes. Each element is a list > each element is an array of cluster's spike times
         """
         spike_clusters, spike_times = datastring.split(',')
         if spike_clusters not in self._loaded_datasets.keys():
@@ -359,7 +361,7 @@ class Alyx2NWBConverter(NWBConverter):
                 data = df.groupby(['sp_cluster'])['sp_times'].apply(np.array).reset_index(name='sp_times_group')
                 if not self._data_attrs_dump.get('unit_table_length'):# if unit table length is not known, ignore spike times
                     return None
-                ls_grouped = [[0.0]]*self._data_attrs_dump['unit_table_length'][i]# default spiking time for clusters with no time
+                ls_grouped = [[np.nan]]*self._data_attrs_dump['unit_table_length'][i]# default spiking time for clusters with no time
                 for index,sp_list in data.values:
                     ls_grouped[index] = sp_list
                 ls_merged.extend(ls_grouped)
@@ -390,23 +392,19 @@ class Alyx2NWBConverter(NWBConverter):
                 else:
                     loaded_dataset_ = loaded_dataset_.data
 
-                if dataset_to_load.split('.')[0] in ['_iblqc_ephysSpectralDensity','_iblqc_ephysTimeRms']: # record order of files and what probes they belong to
-                    probes_names = np.array([i.parent.name for i in dataloc])
-                    dataset_names = np.array([i.name for i in dataloc])
-                    probes_ids = [list(np.where(probes_names==i)[0])for i in np.unique(probes_names)]
-                    _ = [i.sort(key=lambda x: dataset_names[x]) for i in probes_ids]# AP first , LF second convention
-                    self._data_attrs_dump[dataset_to_load] = {probes_names[i[0]]:i for i in probes_ids}
+                if dataset_to_load.split('.')[0] in ['_iblqc_ephysSpectralDensity','_iblqc_ephysTimeRms', 'ephysData']:
+                    self._data_attrs_dump[dataset_to_load] = [i.name.split('.')[0] + '_' + i.parent.name for i in dataloc]
                     return loaded_dataset_
-                if dataset_to_load.split('.')[0] in ['camera']:
+                if dataset_to_load.split('.')[0] in ['camera']:#TODO: unexpected: camera.dlc is not 3d but a list
                     # correcting order of json vs npy files and names loop:
                     datanames = [i.name for i in dataloc]
                     func = lambda x: (x.split('.')[-1], x.split('.')[0])# json>npy, and sort the names also
                     datanames_sorted = sorted(datanames, key=func)
                     if not self._data_attrs_dump.get(dataset_to_load):
-                        self._data_attrs_dump[dataset_to_load] = [i.name.split('.')[0] for i in dataloc]
+                        self._data_attrs_dump[dataset_to_load] = [i.split('.')[0] for i in datanames_sorted]
                     return [loaded_dataset_[datanames.index(i)] for i in datanames_sorted]
-                if 'audioSpectrogram.times' in dataset_to_load:
-                    loaded_dataset_ = loaded_dataset_[0] # some eids have *.times and *.times_mic as a list in the dataset. Keeping only one.
+                if 'audioSpectrogram.times' in dataset_to_load: #TODO: unexpected: this dataset is a list in come cases
+                    return loaded_dataset_[0] if isinstance(loaded_dataset_,list) else loaded_dataset_
                 if not self._data_attrs_dump.get('unit_table_length') and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                     self._data_attrs_dump['unit_table_length'] = [loaded_dataset_[i].shape[0] for i in range(probes)]
                 if not self._data_attrs_dump.get('electrode_table_length') and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
@@ -417,6 +415,7 @@ class Alyx2NWBConverter(NWBConverter):
                     else:
                         return None
                 return np.concatenate(loaded_dataset_)
+
             elif datatype[0] in ['.cbin'] and self.save_raw: # binary files require a special reader
                 from ibllib.io import spikeglx
                 for j,i in enumerate(loaded_dataset_.local_path):
@@ -426,8 +425,11 @@ class Alyx2NWBConverter(NWBConverter):
                 return [str(i) for i in loaded_dataset_.data]
             elif datatype[0] in ['.ssv'] and self.save_raw: # when camera timestamps
                 print('converting camera timestamps..')
-                dt_start = datetime.datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X')
-                dt_func = lambda x: ((datetime.datetime.strptime('-'.join(x.split('-')[:-1])[:-1],'%Y-%m-%dT%H:%M:%S.%f' )) - dt_start).total_seconds()
+                if isinstance(self.nwb_metadata['NWBFile']['session_start_time'], datetime):
+                    dt_start = self.nwb_metadata['NWBFile']['session_start_time']
+                else:
+                    dt_start = datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X')
+                dt_func = lambda x: ((datetime.strptime('-'.join(x.split('-')[:-1])[:-1],'%Y-%m-%dT%H:%M:%S.%f' )) - dt_start).total_seconds()
                 dt_list = [dt.iloc[:,0].apply(dt_func).to_numpy() for dt in loaded_dataset_.data]# find difference in seconds from session start
                 print('done')
                 return dt_list
@@ -469,6 +471,10 @@ class Alyx2NWBConverter(NWBConverter):
             eid_to_load=eids[eid_id[0]]
         else:
             eid_to_load=eid
+        if 'ephysData.raw' in dataset_types[0] and not 'ephysData.raw.meta' in self._loaded_datasets:
+            meta= self.one_object.load(eid_to_load, dataset_types=['ephysData.raw.meta'])
+            ch = self.one_object.load(eid_to_load, dataset_types=['ephysData.raw.ch'])
+            self._loaded_datasets.update({'ephysData.raw.meta': meta, 'ephysData.raw.ch':ch})
         return self.one_object.load(eid_to_load,dataset_types=dataset_types, dclass_output=dclass_output)
 
     def _get_data(self, sub_metadata, probes=1):
