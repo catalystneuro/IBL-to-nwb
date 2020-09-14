@@ -22,6 +22,25 @@ from .schema import metafile
 from tqdm import tqdm
 from ndx_ibl_metadata import IblSessionData, IblProbes, IblSubject
 from ndx_spectrum import Spectrum
+from lazy_ops import DatasetView
+from hdmf.data_utils import DataChunkIterator
+
+def iter_datasetvieww(datasetview_obj):
+    '''
+    Generator to return a row of the array each time it is called.
+    This will be wrapped with a DataChunkIterator class.
+
+    Parameters
+    ----------
+    datasetview_obj: DatasetView
+        2-D array to iteratively write to nwb.
+    '''
+
+    for i in range(datasetview_obj.shape[0]//700):
+        curr_data = np.squeeze(datasetview_obj[i:i+1])
+        yield curr_data
+    return
+
 
 class Alyx2NWBConverter(NWBConverter):
 
@@ -174,38 +193,28 @@ class Alyx2NWBConverter(NWBConverter):
             data_retrieve = self._get_data(argmts, probes=self.no_probes)
             for no,i in enumerate(data_retrieve):
                 if 'ElectricalSeries' in func:
-                    if argmts[no]['data'] in self._data_attrs_dump: # for _iblqc_ephysTimeRms
-                        data_name_order = ['AP', 'LF']
-                        for c, ((probe_name, probe_ids), (probe_name1, probe_ids1)) in \
-                                enumerate(zip(self._data_attrs_dump[argmts[no]['data']].items(),
-                                              self._data_attrs_dump[argmts[no]['timestamps']].items())):
-                            for j, (dataset_name_ids,dataset_name_ids1) in enumerate(zip(probe_ids,probe_ids1)):
-                                probe_region = self.probe_dt_region[c]
-                                args = dict(name=argmts[no]['data']+'_'+data_name_order[j],
-                                            description = i['description'],
-                                            timestamps=i['timestamps'][dataset_name_ids1],
-                                            data=i['data'][dataset_name_ids])
-                                if self._data_attrs_dump['electrode_table_length'][c]==args['data'].shape[1]:
-                                    ts_func = ElectricalSeries
-                                    args.update(dict(electrodes=probe_region))
-                                else:# when number of channels differ (not the ideal case)
-                                    ts_func = TimeSeries
-                                mod.add(ts_func(**args))
+                    if argmts[no]['data']=='_iblqc_ephysTimeRms.rms':
+                        timestamps_names = self._data_attrs_dump['_iblqc_ephysTimeRms.timestamps']
+                        data_names = self._data_attrs_dump['_iblqc_ephysTimeRms.rms']
+                        for data_idx, data in enumerate(i['data']):
+                            mod.add(TimeSeries(name=data_names[data_idx],
+                                               description=i['description'],
+                                               timestamps=i['timestamps'][timestamps_names.index(data_names[data_idx])],
+                                               data=data))
                     else:# for ephysData one for each probe
                         for j,probes in enumerate(range(self.no_probes)):
-                            i.update(dict(electrodes=self.probe_dt_region[j],data=i['data'][j]))
-                            mod.add(ElectricalSeries(**i))
+                            mod.add(TimeSeries(name=i['name']+'_'+self.nwb_metadata['Probes'][j]['name'],
+                                               starting_time=i['timestamps'][j][0,1],
+                                               rate=i['data'][j].fs,
+                                               data=DataChunkIterator(iter_datasetvieww(i['data'][j]))))
                 elif 'Spectrum' in func:
-                    if argmts[no]['power'] in self._data_attrs_dump:
-                        data_name_order = ['AP', 'LF']
-                        for c, ((probe_name, probe_ids),(probe_name1, probe_ids1)) in \
-                                enumerate(zip(self._data_attrs_dump[argmts[no]['power']].items(),self._data_attrs_dump[argmts[no]['frequencies']].items())):
-                            for j, (dataset_name_ids,dataset_name_ids1) in enumerate(zip(probe_ids,probe_ids1)):
-                                probe_region = self.probe_dt_region[c]
-                                mod.add(Spectrum(name=argmts[no]['power']+'_'+data_name_order[j],
-                                                                      power=i['power'][dataset_name_ids],
-                                                                      frequencies=i['frequencies'][dataset_name_ids1]))
-                                                                      # electrodes=probe_region))
+                    if argmts[no]['data'] in '_iblqc_ephysSpectralDensity.power':
+                        freqs_names = self._data_attrs_dump['_iblqc_ephysSpectralDensity.freqs']
+                        data_names = self._data_attrs_dump['_iblqc_ephysSpectralDensity.power']
+                        for data_idx, data in enumerate(i['data']):
+                            mod.add(Spectrum(name=data_names[data_idx],
+                                             frequencies=i['frequencies'][freqs_names.index(data_names[data_idx])],
+                                             power=data))
                 elif 'SpikeEventSeries' in func:
                     i.update(dict(electrodes=self.probe_dt_region_all))
                     mod.add(pynwb.ecephys.SpikeEventSeries(**i))
@@ -419,7 +428,10 @@ class Alyx2NWBConverter(NWBConverter):
             elif datatype[0] in ['.cbin'] and self.save_raw: # binary files require a special reader
                 from ibllib.io import spikeglx
                 for j,i in enumerate(loaded_dataset_.local_path):
-                    loaded_dataset_.data[j]=spikeglx.Reader(str(i)).read()
+                    try:
+                        loaded_dataset_.data[j]=spikeglx.Reader(i)
+                    except:
+                        return None
                 return loaded_dataset_.data
             elif datatype[0] in ['.mp4'] and self.save_raw: # for image files, keep format as external in ImageSeries datatype
                 return [str(i) for i in loaded_dataset_.data]
