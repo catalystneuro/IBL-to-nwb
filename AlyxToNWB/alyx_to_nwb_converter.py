@@ -229,11 +229,12 @@ class Alyx2NWBConverter(NWBConverter):
                     break
                 # rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
                 datatype_list = self._data_attrs_dump['camera.dlc']
-                for k1 in [0,1,2]:# loading the dataset gives a list of 1-3 elements as dicts, 3-6 as arrays for body,left,right camera
+                loop_len = int(len(datatype_list)/2)
+                for k1 in range(loop_len):# loading the dataset gives a list of 1-3 elements as dicts, 3-6 as arrays for body,left,right camera
                     names = time_series_list_details[0]['data'][k1]['columns']
                     x_ids = [n for n,k in enumerate(names) if 'x' in k]
                     for xids in x_ids:
-                        data_loop = time_series_list_details[0]['data'][k1+3][:,xids:xids+2]
+                        data_loop = time_series_list_details[0]['data'][k1+loop_len][:,xids:xids+2]
                         # data_add = time_series_list_details[0]['data'][k1+3][:,xids+2]
                         ts = time_series_list_details[0]['timestamps'][k1]
                         position_cont.create_spatial_series(name=datatype_list[k1]+names[xids][:-1], data=data_loop,
