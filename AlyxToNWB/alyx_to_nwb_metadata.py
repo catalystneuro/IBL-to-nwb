@@ -1,10 +1,11 @@
 import re
 import json, yaml
-from oneibl.one import ONE
+from oneibl.one import ONE, OneAbstract
 from .schema import metafile as nwb_schema
 import os
 from datetime import datetime
 import warnings
+from copy import deepcopy
 
 class Alyx2NWBMetadata:
     # TODO: add docstrings
@@ -27,7 +28,7 @@ class Alyx2NWBMetadata:
         self.one_obj = one_obj
         if not one_obj:
             self.one_obj = ONE()
-        elif not isinstance(one_obj, ONE):
+        elif not isinstance(one_obj, OneAbstract):
             raise Exception('one_obj is not of ONE class')
         self.dataset_description_list = self._get_dataset_details()
         if eid is None:
@@ -482,18 +483,19 @@ class Alyx2NWBMetadata:
     @property
     def subject_metadata(self):
         subject_metadata_dict = self._initialize_container_dict('IBLSubject')
-        if self.subject_table:
-            subject_metadata_dict['IBLSubject']['age'] = str(self.subject_table.pop('age_weeks'))+' weeks'
-            subject_metadata_dict['IBLSubject']['subject_id'] = self.subject_table.pop('id')
-            subject_metadata_dict['IBLSubject']['description'] = self.subject_table.pop('description')
-            subject_metadata_dict['IBLSubject']['genotype'] = ','.join(self.subject_table.pop('genotype'))
-            subject_metadata_dict['IBLSubject']['sex'] = self.subject_table.pop('sex')
-            subject_metadata_dict['IBLSubject']['species'] = self.subject_table.pop('species')
-            subject_metadata_dict['IBLSubject']['weight'] = str(self.subject_table.pop('reference_weight'))
-            subject_metadata_dict['IBLSubject']['date_of_birth'] = self._get_datetime(self.subject_table.pop('birth_date'),format='%Y-%m-%d')
-            # del self.subject_table['weighings']
-            # del self.subject_table['water_administrations']
-            subject_metadata_dict['IBLSubject'].update(self.subject_table)
+        sub_table_dict = deepcopy(self.subject_table)
+        if sub_table_dict:
+            subject_metadata_dict['IBLSubject']['age'] = str(sub_table_dict.pop('age_weeks'))+' weeks'
+            subject_metadata_dict['IBLSubject']['subject_id'] = sub_table_dict.pop('id')
+            subject_metadata_dict['IBLSubject']['description'] = sub_table_dict.pop('description')
+            subject_metadata_dict['IBLSubject']['genotype'] = ','.join(sub_table_dict.pop('genotype'))
+            subject_metadata_dict['IBLSubject']['sex'] = sub_table_dict.pop('sex')
+            subject_metadata_dict['IBLSubject']['species'] = sub_table_dict.pop('species')
+            subject_metadata_dict['IBLSubject']['weight'] = str(sub_table_dict.pop('reference_weight'))
+            subject_metadata_dict['IBLSubject']['date_of_birth'] = self._get_datetime(sub_table_dict.pop('birth_date'),format='%Y-%m-%d')
+            # del sub_table_dict['weighings']
+            # del sub_table_dict['water_administrations']
+            subject_metadata_dict['IBLSubject'].update(sub_table_dict)
             subject_metadata_dict['IBLSubject']['weighings'] = [str(i) for i in subject_metadata_dict['IBLSubject']['weighings']]
             subject_metadata_dict['IBLSubject']['water_administrations'] = [str(i) for i in subject_metadata_dict['IBLSubject']['water_administrations']]
         return subject_metadata_dict
