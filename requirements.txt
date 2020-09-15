@@ -1,0 +1,5 @@
+pynwb
+ibllib==1.5.4
+wheel
+ipykernel
+nwb-conversion-tools==0.3.4
