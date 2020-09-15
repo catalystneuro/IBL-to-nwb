@@ -31,7 +31,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
        # use the ONE doc to use correct search terms to retrieve the eid
        eid = one.search(dataset_types=['_iblmic_audioSpectrogram.frequencies'])[0]
        ```
-     3. Using the eid, generate a json file containing all the collected data/metadata from the servers:
+     3. Using the eid, generate a json file containing all the collected data/metadata from the servers (Example output [file](https://github.com/catalystneuro/IBL-to-nwb/blob/master/AlyxToNWB/schema/example_metadata_output_file.json)):
      
         ```python
         from .AlyxToNWB import Alyx2NWBMetadata
