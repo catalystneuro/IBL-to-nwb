@@ -4,24 +4,67 @@ This repository houses the modules used to convert IBL specific neurophysiology 
 - __Alyx__: a data base that contains all the metadata associated with an experiment: session details, subject details, probe information etc. This data has a one-to-one mapping to supported metadata of NWB. 
 - __ALF__: format for storage of all the experimental data: electrophysiology time series (raw + processed), trials data, sorted spikes data, behavior (raw + processed), stimulus.
 The figure below shows the mapping from ALF/ALyx to NWB: 
- (Image)
+![](https://github.com/catalystneuro/IBL-to-nwb/blob/documentation/images/ibl_nwb_map.jpg)
 
 ## Usage:
-1. **IBL to NWB conversion:**  
-
-    The conversion is a two step process: 
-- The metadata and names of data files are first retrieved from the databases: mapped to the framework of various inbuilt NWB [neurodata_types](https://nwb-schema.readthedocs.io/en/latest/format_description.html). For example, electrophysiology time series raw data is mapped into NWB [Timeseries](https://nwb-schema.readthedocs.io/en/latest/format_description.html#time-series-a-base-neurodata-type-for-storing-time-series-data) by unpacking that into fields: `name`, `description`, `timestamps` and `data` which constitute the `TimeSeries` datatype. Similar unpacking happends for various other data to match the corresponding NWB datatype. 
-
-    These unpacked datatypes are then structured in a hirarchical manner into a schema (in compliance with the NWB schema) which is then input to the next conversion step. 
-    
-- The schema is read, actual data retrieved from ALF servers and NWB file is created. The user has the option to specify changes to metadata using a gui before storage. This NWB file is stored locally on the users machine.    
-
-2. **NWB file to IBL format:**
+1. **IBL to NWB conversion (using API):**  
  
-#### API usage: 
+    1. Installation: 
+    
+       ```shell
+       cd desired-path
+       git clone https://github.com/catalystneuro/IBL-to-nwb.git
+       cd IBL-to-nwb
+       ```
+       create virtual environment and install dependencies from requirements.txt: 
+       
+       ```shell
+       python -m venv venv
+       venv/scripts/activate
+       pip install -r requirements.txt
+       ```
+    2. Retrive the id of the experiment of interest using [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) api:
+    
+       ```python
+       from oneibl.one import ONE
+       one=ONE()
+       # use the ONE doc to use correct search terms to retrieve the eid
+       eid = one.search(dataset_types=['_iblmic_audioSpectrogram.frequencies'])[0]
+       ```
+     3. Using the eid, generate a json file containing all the collected data/metadata from the servers:
+     
+        ```python
+        from .AlyxToNWB import Alyx2NWBMetadata
+        metadata_object = Alyx2NWBMetadata(eid=eid,one_obj=one)
+        # alternatively, you can also provide one search **kwargs directly:
+        metadata_obj = Alyx2NWBMetadata(dataset_types=['_iblmic_audioSpectrogram.frequencies'])
+        json_save_loc = r'path-to-save-json-file.json'
+        metadata_obj.write_metadata(json_save_loc)
+        ```
+     4. Generate nwb file using the saved json file:
+      
+        ```python
+        from .AlyxToNWB import Alyx2NWBConverter
+        nwb_saveloc = r'nwb-save-path.nwb'
+        converter=Alyx2NWBConverter(nwb_metadata_file=json_save_loc, saveloc=nwb_saveloc)
+        # alternatively you can also provide the metadata object:
+        converter=Alyx2NWBConverter(metadata_obj=metadata_obj, saveloc=nwb_saveloc)
+        # create nwb file: 
+        converter.run_conversion()
+        ```
+        
+     This should create an nwb file. [Example file](https://drive.google.com/file/d/1BEQ0z-qby6tO_QtA_FJ-Up51Thh6jYGu/view?usp=sharing). 
+       
 
-#### GUI usage: 
+2. **IBL to NWB conversion (using GUI):** 
 
-
-## Notes:
+    ```python
+    from .AlyxToNWB import Alyx2NWBGui
+    Alyx2NWBGui(eid=eid, nwbfile_saveloc=nwb_saveloc, metadata_fileloc=json_save_loc)
+    #alternatively provide the one search kwargs:
+    Alyx2NWBGui(nwbfile_saveloc=nwb_saveloc, metadata_fileloc=json_save_loc, dataset_types=['_iblmic_audioSpectrogram.frequencies''])
+    ```
+    This opens up a gui which will allow you to edit nwbfile/ibl session related metadata and also convert to nwb using `run_conversion` button. Check the animation       below on how to navigate this gui:
+    
+    ![](https://github.com/catalystneuro/IBL-to-nwb/blob/documentation/images/gui_gif.gif)
 
