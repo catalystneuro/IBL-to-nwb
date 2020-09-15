@@ -46,7 +46,8 @@ The figure below shows the mapping from ALF/ALyx to NWB:
         ```python
         from .AlyxToNWB import Alyx2NWBConverter
         nwb_saveloc = r'nwb-save-path.nwb'
-        converter=Alyx2NWBConverter(nwb_metadata_file=json_save_loc, saveloc=nwb_saveloc)
+        save_raw = False # keep as true if you want to add raw (ephysData.raw.* , camera.raw*) files, these are large files and will take time to download and create the nwbfile!!
+        converter=Alyx2NWBConverter(nwb_metadata_file=json_save_loc, saveloc=nwb_saveloc, save_raw=save_raw)
         # alternatively you can also provide the metadata object:
         converter=Alyx2NWBConverter(metadata_obj=metadata_obj, saveloc=nwb_saveloc)
         # create nwb file: 
