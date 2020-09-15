@@ -1,5 +1,5 @@
 # IBL-to-nwb
-This repository houses the modules used to convert IBL specific neurophysiology data present in their propreitary format (Alyx + ALF) into NWB data standard.
+This repository houses the modules used to convert IBL specific neurophysiology data in the open source [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) format (Alyx + ALF) into NWB data standard.
 
 - __Alyx__: a data base that contains all the metadata associated with an experiment: session details, subject details, probe information etc. This data has a one-to-one mapping to supported metadata of NWB. 
 - __ALF__: format for storage of all the experimental data: electrophysiology time series (raw + processed), trials data, sorted spikes data, behavior (raw + processed), stimulus.
