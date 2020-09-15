@@ -522,9 +522,13 @@ class Alyx2NWBConverter(NWBConverter):
                       self.create_trials,
                       self.create_electrode_table_ecephys,
                       self.create_timeseries_ecephys,
-                      self.create_units]
+                      self.create_units,
+                      self.create_behavior,
+                      self.create_probes,
+                      self.create_iblsubject,
+                      self.create_lab_meta_data]
         if self.save_raw:
-            execute_list.append(self.add_acquisition)
+            execute_list.append(self.create_acquisition)
         for i in tqdm(execute_list):
             i()
             print('\n'+i.__name__)
