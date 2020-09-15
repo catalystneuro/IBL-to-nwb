@@ -1,5 +1,5 @@
 # IBL-to-nwb
-This repository houses the modules used to convert IBL specific neurophysiology data present in their propreitary format (Alyx + ALF) into NWB data standard. 
+This repository houses the modules used to convert IBL specific neurophysiology data present in their propreitary format (Alyx + ALF) into NWB data standard.
 
 - __Alyx__: a data base that contains all the metadata associated with an experiment: session details, subject details, probe information etc. This data has a one-to-one mapping to supported metadata of NWB. 
 - __ALF__: format for storage of all the experimental data: electrophysiology time series (raw + processed), trials data, sorted spikes data, behavior (raw + processed), stimulus.
@@ -20,7 +20,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
        
        ```shell
        python -m venv venv
-       venv/scripts/activate
+       venv\Scripts\activate
        pip install -r requirements.txt
        ```
     2. Retrive the id of the experiment of interest using [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) api:
@@ -67,4 +67,16 @@ The figure below shows the mapping from ALF/ALyx to NWB:
     This opens up a gui which will allow you to edit nwbfile/ibl session related metadata and also convert to nwb using `run_conversion` button. Check the animation       below on how to navigate this gui:
     
     ![](https://github.com/catalystneuro/IBL-to-nwb/blob/documentation/images/gui_gif.gif)
+    
+3. **Visualization of nwbfile using [nwbwigets](https://github.com/NeurodataWithoutBorders/nwb-jupyter-widgets) in a __Jupyter notebook__**:
+ 
+    ```python
+    from pynwb import NWBHDF5IO
+    from nwbwidgets import nwb2widget
+    from IPython.display import display
+    io = NWBHDF5IO(r"path-to-saved-nwb-file.nwb", mode='r', load_namespaces=True)
+    nwb = io.read()
+    a=nwb2widget(nwb)
+    display(a)
+    ```
 
