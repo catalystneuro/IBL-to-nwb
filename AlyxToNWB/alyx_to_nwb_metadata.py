@@ -529,12 +529,8 @@ class Alyx2NWBMetadata:
                 behavior_metadata_dict['Behavior']['PupilTracking'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'camera' in u:
-                camera_types = ['leftCamera','rightCamera','bodyCamera']
-                behavior_metadata_dict['Behavior']['Position'] = dict(spatial_series=[])
-                for i in camera_types:
-                    behavior_metadata_dict['Behavior']['Position']['spatial_series'].extend(
-                        self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series', name=i)['spatial_series']
-                    )
+                behavior_metadata_dict['Behavior']['Position'] = \
+                    self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series', name='camera_dlc')
         return behavior_metadata_dict
 
     @property

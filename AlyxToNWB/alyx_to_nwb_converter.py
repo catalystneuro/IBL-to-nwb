@@ -228,17 +228,17 @@ class Alyx2NWBConverter(NWBConverter):
                 if not time_series_list_details:
                     break
                 # rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
-                datatype_list = self._data_attrs_dump['camera.dlc']
-                loop_len = int(len(datatype_list)/2)
-                for k1 in range(loop_len):# loading the dataset gives a list of 1-3 elements as dicts, 3-6 as arrays for body,left,right camera
-                    names = time_series_list_details[0]['data'][k1]['columns']
-                    x_ids = [n for n,k in enumerate(names) if 'x' in k]
-                    for xids in x_ids:
-                        data_loop = time_series_list_details[0]['data'][k1+loop_len][:,xids:xids+2]
-                        # data_add = time_series_list_details[0]['data'][k1+3][:,xids+2]
-                        ts = time_series_list_details[0]['timestamps'][k1]
-                        position_cont.create_spatial_series(name=datatype_list[k1]+names[xids][:-1], data=data_loop,
-                            reference_frame='none', timestamps=ts, conversion=1e3)#conversion assuming x,y in mm
+                dataname_list = self._data_attrs_dump['camera.dlc']
+                data_list = time_series_list_details[0]['data']
+                timestamps_list = time_series_list_details[0]['timestamps']
+                for dataname,data,timestamps in zip(dataname_list,data_list,timestamps_list):
+                    colnames = data.columns
+                    data_np = data.to_numpy()
+                    x_column_ids = [n for n, k in enumerate(colnames) if 'x' in k]
+                    for x_column_id in x_column_ids:
+                        data_loop = data_np[:,x_column_id:x_column_id+2]
+                        position_cont.create_spatial_series(name=dataname + colnames[x_column_id][:-2], data=data_loop,
+                                                            reference_frame='none', timestamps=timestamps, conversion=1e3)
                 self.nwbfile.processing['Behavior'].add(position_cont)
             elif not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
@@ -411,8 +411,16 @@ class Alyx2NWBConverter(NWBConverter):
                     func = lambda x: (x.split('.')[-1], x.split('.')[0])# json>npy, and sort the names also
                     datanames_sorted = sorted(datanames, key=func)
                     if not self._data_attrs_dump.get(dataset_to_load):
-                        self._data_attrs_dump[dataset_to_load] = [i.split('.')[0] for i in datanames_sorted]
-                    return [loaded_dataset_[datanames.index(i)] for i in datanames_sorted]
+                        self._data_attrs_dump[dataset_to_load] = [i.split('.')[0] for i in datanames_sorted[:int(len(datanames_sorted))]]
+                    loaded_dataset_sorted = [loaded_dataset_[datanames.index(i)] for i in datanames_sorted]
+                    if 'time' in dataset_to_load.split('.')[-1]:
+                        return loaded_dataset_sorted
+                    df_out=[]
+                    filetype_change_id = int(len(loaded_dataset_sorted)/2)
+                    for no,fields in enumerate(loaded_dataset_sorted[:filetype_change_id]):
+                        df = pd.DataFrame(data=loaded_dataset_sorted[no+3],columns=loaded_dataset_sorted[no]['columns'])
+                        df_out.append(df)
+                    return df_out
                 if 'audioSpectrogram.times' in dataset_to_load: #TODO: unexpected: this dataset is a list in come cases
                     return loaded_dataset_[0] if isinstance(loaded_dataset_,list) else loaded_dataset_
                 if not self._data_attrs_dump.get('unit_table_length') and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
@@ -446,6 +454,13 @@ class Alyx2NWBConverter(NWBConverter):
                 dt_list = [dt.iloc[:,0].apply(dt_func).to_numpy() for dt in loaded_dataset_.data]# find difference in seconds from session start
                 print('done')
                 return dt_list
+            elif datatype[0]=='.pqt':
+                datanames = [i.name for i in dataloc]
+                func = lambda x: (x.split('.')[-1], x.split('.')[0])  # json>npy, and sort the names also
+                datanames_sorted = sorted(datanames, key=func)
+                if not self._data_attrs_dump.get(dataset_to_load):
+                    self._data_attrs_dump[dataset_to_load] = [i.split('.')[0] for i in datanames_sorted]
+                return [loaded_dataset_.data[datanames.index(i)] for i in datanames_sorted]
             else:
                 return None
 
