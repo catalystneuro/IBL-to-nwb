@@ -47,7 +47,7 @@ class Alyx2NWBConverter(NWBConverter):
     def __init__(self, nwbfile=None, saveloc=None,
                  nwb_metadata_file=None,
                  metadata_obj: Alyx2NWBMetadata = None,
-                 one_object=None, save_raw=False):
+                 one_object=None, save_raw=False, save_camera_raw=False):
 
         if nwb_metadata_file is not None:
             if isinstance(nwb_metadata_file, dict):
@@ -90,7 +90,7 @@ class Alyx2NWBConverter(NWBConverter):
         self.no_probes = len(self.nwb_metadata['Probes'])
         self.electrode_table_exist = False
         self.save_raw = save_raw
-        self.raw_data_types = ['ephysData','_iblrig_Camera']
+        self.save_camera_raw = save_camera_raw
         self._data_attrs_dump = dict()
 
     def create_stimulus(self):
@@ -434,7 +434,7 @@ class Alyx2NWBConverter(NWBConverter):
                         return None
                 return np.concatenate(loaded_dataset_)
 
-            elif datatype[0] in ['.cbin'] and self.save_raw: # binary files require a special reader
+            elif datatype[0] in ['.cbin'] and self.save_raw:
                 from ibllib.io import spikeglx
                 for j,i in enumerate(loaded_dataset_.local_path):
                     try:
@@ -442,9 +442,9 @@ class Alyx2NWBConverter(NWBConverter):
                     except:
                         return None
                 return loaded_dataset_.data
-            elif datatype[0] in ['.mp4'] and self.save_raw: # for image files, keep format as external in ImageSeries datatype
+            elif datatype[0] in ['.mp4'] and self.save_camera_raw:
                 return [str(i) for i in loaded_dataset_.data]
-            elif datatype[0] in ['.ssv'] and self.save_raw: # when camera timestamps
+            elif datatype[0] in ['.ssv'] and self.save_camera_raw: # when camera timestamps
                 print('converting camera timestamps..')
                 if isinstance(self.nwb_metadata['NWBFile']['session_start_time'], datetime):
                     dt_start = self.nwb_metadata['NWBFile']['session_start_time']
@@ -467,7 +467,9 @@ class Alyx2NWBConverter(NWBConverter):
 
         if not type(dataset_to_load) is str: #prevents errors when loading metafile json
             return None
-        if dataset_to_load.split('.')[0] in self.raw_data_types and not self.save_raw:
+        if dataset_to_load.split('.')[0] == 'ephysData' and not self.save_raw:
+            return None
+        if dataset_to_load.split('.')[0] == '_iblrig_Camera' and not self.save_camera_raw:
             return None
         if dataset_to_load not in self._loaded_datasets.keys():
             if len(dataset_to_load.split(',')) == 1:

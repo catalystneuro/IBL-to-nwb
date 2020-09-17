@@ -728,4 +728,3 @@ class Alyx2NWBMetadata:
             with open(fileloc_upd, 'w') as f:
                 yaml.dump(full_metadata, f, default_flow_style=False)
         print(f'data written in {fileloc_upd}')
-        return fileloc_upd
