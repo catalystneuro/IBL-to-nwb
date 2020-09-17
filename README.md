@@ -19,9 +19,8 @@ The figure below shows the mapping from ALF/ALyx to NWB:
        create virtual environment and install dependencies from requirements.txt: 
        
        ```shell
-       python -m venv venv
-       venv\Scripts\activate
-       pip install -r requirements.txt
+       conda env create -f conda_environment.yaml
+       conda activate IBL2NWB
        ```
     2. Retrive the id of the experiment of interest using [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) api:
     

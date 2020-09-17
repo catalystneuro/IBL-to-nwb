@@ -1,0 +1,57 @@
+name: IBL2NWB
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+ - python >=3.6
+ - apptools >=4.5.0
+ - click
+ - colorcet
+ - colorlog
+ - cython
+ - dataclasses
+ - flake8
+ - globus-sdk
+ - h5py
+ - jupyter
+ - jupyterlab
+ - matplotlib
+ - mayavi
+ - nb_conda
+ - nb_conda_kernels
+ - numba
+ - numpy
+ - pandas
+ - pillow
+ - pip
+ - plotly
+ - pyarrow >=1.0.0
+ - pynrrd
+ - pyopengl
+ - pyqt
+ - pyqtgraph <= 0.10.0
+ - pytest
+ - requests
+ - scikits-bootstrap
+ - scikit-learn
+ - scipy >=1.4.1
+ - seaborn
+ - statsmodels
+ - tqdm
+ - pynwb
+ - numcodecs==0.7.1
+ - pygments==2.6.1
+ - pip:
+   - --pre
+   - datajoint
+   - graphviz
+   - mtscomp
+   - opencv-python
+   - SimpleITK
+   - -e git+https://github.com/catalystneuro/ndx-ibl-metadata.git@f7673163efe58eec542328185c535a7196d96f92#egg=ndx_ibl_metadata
+   - -e git+https://github.com/catalystneuro/nwb-conversion-tools.git@fb9703f8e86072f04356883975e5dfffa773913e#egg=nwb-conversion-tools
+   - ndx-spectrum==0.2.2
+   - ndx-icephys-meta==0.1.0
+   - ibllib
+   - lazy-ops
+   - pyrsistent==0.16.0
