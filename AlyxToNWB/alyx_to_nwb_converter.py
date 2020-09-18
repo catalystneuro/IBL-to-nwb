@@ -193,20 +193,13 @@ class Alyx2NWBConverter(NWBConverter):
             data_retrieve = self._get_data(argmts, probes=self.no_probes)
             for no,i in enumerate(data_retrieve):
                 if 'ElectricalSeries' in func:
-                    if argmts[no]['data']=='_iblqc_ephysTimeRms.rms':
-                        timestamps_names = self._data_attrs_dump['_iblqc_ephysTimeRms.timestamps']
-                        data_names = self._data_attrs_dump['_iblqc_ephysTimeRms.rms']
-                        for data_idx, data in enumerate(i['data']):
-                            mod.add(TimeSeries(name=data_names[data_idx],
-                                               description=i['description'],
-                                               timestamps=i['timestamps'][timestamps_names.index(data_names[data_idx])],
-                                               data=data))
-                    else:# for ephysData one for each probe
-                        for j,probes in enumerate(range(self.no_probes)):
-                            mod.add(TimeSeries(name=i['name']+'_'+self.nwb_metadata['Probes'][j]['name'],
-                                               starting_time=i['timestamps'][j][0,1],
-                                               rate=i['data'][j].fs,
-                                               data=DataChunkIterator(iter_datasetvieww(i['data'][j]))))
+                    timestamps_names = self._data_attrs_dump['_iblqc_ephysTimeRms.timestamps']
+                    data_names = self._data_attrs_dump['_iblqc_ephysTimeRms.rms']
+                    for data_idx, data in enumerate(i['data']):
+                        mod.add(TimeSeries(name=data_names[data_idx],
+                                           description=i['description'],
+                                           timestamps=i['timestamps'][timestamps_names.index(data_names[data_idx])],
+                                           data=data))
                 elif 'Spectrum' in func:
                     if argmts[no]['data'] in '_iblqc_ephysSpectralDensity.power':
                         freqs_names = self._data_attrs_dump['_iblqc_ephysSpectralDensity.freqs']
@@ -285,7 +278,16 @@ class Alyx2NWBConverter(NWBConverter):
                     i.update(dict(starting_time=ts[0],rate=np.mean(np.diff(ts.squeeze())),unit='sec'))
                     self.nwbfile.add_acquisition(nwbfunc(**i))
                 else:
-                    self.nwbfile.add_acquisition(nwbfunc(**i))
+                    if i['name'] in ['raw.lf','raw.ap']:
+                        for j, probes in enumerate(range(self.no_probes)):
+                            self.nwbfile.add_acquisition(
+                                TimeSeries(
+                                    name=i['name'] + '_' + self.nwb_metadata['Probes'][j]['name'],
+                                    starting_time=i['timestamps'][j][0, 1],
+                                    rate=i['data'][j].fs,
+                                    data=H5DataIO(DataChunkIterator(iter_datasetvieww(i['data'][j])),compression=True)))
+                    elif i['name'] in ['raw.nidq']:
+                        self.nwbfile.add_acquisition(nwbfunc(**i))
 
     def create_probes(self):
         """
@@ -528,9 +530,8 @@ class Alyx2NWBConverter(NWBConverter):
                       self.create_behavior,
                       self.create_probes,
                       self.create_iblsubject,
-                      self.create_lab_meta_data]
-        if self.save_raw:
-            execute_list.append(self.create_acquisition)
+                      self.create_lab_meta_data,
+                      self.create_acquisition]
         for i in tqdm(execute_list):
             i()
             print('\n'+i.__name__)

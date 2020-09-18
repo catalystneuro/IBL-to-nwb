@@ -644,9 +644,9 @@ class Alyx2NWBMetadata:
 
     @property
     def ecephys_metadata(self):
-        ecephys_objects = ['templates', 'ephysData', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']
-        container_object_names = ['SpikeEventSeries', 'ElectricalSeries1', 'ElectricalSeries2', 'Spectrum']
-        custom_attrs_objects = [['waveforms'],['raw.ap','raw.lf'],['rms'],['power']]
+        ecephys_objects = ['templates', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']
+        container_object_names = ['SpikeEventSeries', 'ElectricalSeries', 'Spectrum']
+        custom_attrs_objects = [['waveforms'],['rms'],['power']]
         ecephys_container = self._initialize_container_dict('Ecephys')
         kwargs = dict()
         for i,j,k in zip(ecephys_objects,container_object_names,custom_attrs_objects):
@@ -666,7 +666,7 @@ class Alyx2NWBMetadata:
     def acquisition_metadata(self):
         acquisition_objects = ['ephysData','_iblrig_Camera','_iblmic_audioSpectrogram']
         container_name_objects = ['TimeSeries','ImageSeries','DecompositionSeries']
-        custom_attrs_objects = [['raw.nidq'],['raw'], ['power']]
+        custom_attrs_objects = [['raw.nidq','raw.ap','raw.lf'],['raw'], ['power']]
         acquisition_container = self._initialize_container_dict('Acquisition')
         current_acquisition_objects = self._get_current_object_names(acquisition_objects)
         # if current_acquisition_objects != acquisition_objects:
