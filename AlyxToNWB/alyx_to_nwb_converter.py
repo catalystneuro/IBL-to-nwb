@@ -276,7 +276,7 @@ class Alyx2NWBConverter(NWBConverter):
                     temp = i['data'][:,:,np.newaxis]
                     i['data'] = np.moveaxis(temp,[0,1,2],[0,2,1])
                     ts = i.pop('timestamps')
-                    i.update(dict(starting_time=ts[0],rate=np.mean(np.diff(ts.squeeze())),unit='sec'))
+                    i.update(dict(starting_time=ts[0],rate=1/np.mean(np.diff(ts.squeeze())),unit='sec'))
                     self.nwbfile.add_acquisition(nwbfunc(**i))
                 else:
                     if i['name'] in ['raw.lf','raw.ap']:
@@ -311,13 +311,11 @@ class Alyx2NWBConverter(NWBConverter):
 
     def create_trials(self):
         trial_df = self._table_to_df(self.nwb_metadata['Trials'])
-        super(Alyx2NWBConverter, self).create_trials_from_df(trial_df)
-
-    def add_trial_columns(self, df):
-        super(Alyx2NWBConverter, self).add_trials_columns_from_df(df)
-
-    def add_trial(self, df):
-        super(Alyx2NWBConverter, self).add_trials_from_df(df)
+        for trial_dict in self.nwb_metadata['Trials']:
+            if trial_dict['name'] not in ['start_time', 'stop_time']:
+                self.nwbfile.add_trial_column(name=trial_dict['name'], description=trial_dict['description'])
+        for index, row in trial_df.iterrows():
+            self.nwbfile.add_trial(**dict(row))
 
     def _get_default_column_ids(self,default_namelist,namelist):
         out_idx = []
