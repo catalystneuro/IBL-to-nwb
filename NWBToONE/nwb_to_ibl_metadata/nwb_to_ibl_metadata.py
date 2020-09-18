@@ -1,5 +1,4 @@
 import json
-import genson
 from oneibl.one import ONE
 from pynwb import NWBFile, NWBHDF5IO
 import uuid
@@ -86,9 +85,9 @@ class NWBToIBLSession:
 
     def _get_nwb_info(self, nwbkey):
         if nwbkey == 'subject':
-            if self.nwb_h5file.get('general/Ibl_subject_data',None):
+            if self.nwb_h5file.get('general/Subject',None):
                 sub_dict = dict()
-                for i,j in self.nwb_h5file['general/Ibl_subject_data'].items():
+                for i,j in self.nwb_h5file['general/Subject'].items():
                     sub_dict[i] = j.value
                 sub_dict_out = self._create_ibl_dict(sub_dict, self.field_map_subject)
                 # sub_dict_out = {i:str(j) for i,j in sub_dict_out.items() if i not in ['projects','session_projects']}
