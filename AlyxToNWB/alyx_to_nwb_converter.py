@@ -270,13 +270,15 @@ class Alyx2NWBConverter(NWBConverter):
                                            timestamps=times)
                         self.nwbfile.add_acquisition(nwbfunc(**customargs))
                 elif func=='DecompositionSeries':
+                    i['bands'] = np.squeeze(i['bands'])
                     freqs = DynamicTable('frequencies','spectogram frequencies',id=np.arange(i['bands'].shape[0]))
                     freqs.add_column('bands','frequency value',data=i['bands'])
                     i.update(dict(bands=freqs))
                     temp = i['data'][:,:,np.newaxis]
                     i['data'] = np.moveaxis(temp,[0,1,2],[0,2,1])
                     ts = i.pop('timestamps')
-                    i.update(dict(starting_time=ts[0],rate=1/np.mean(np.diff(ts.squeeze())),unit='sec'))
+                    starting_time = ts[0][0] if isinstance(ts[0],np.ndarray) else ts[0]
+                    i.update(dict(starting_time=np.float64(starting_time),rate=1/np.mean(np.diff(ts.squeeze())),unit='sec'))
                     self.nwbfile.add_acquisition(nwbfunc(**i))
                 else:
                     if i['name'] in ['raw.lf','raw.ap']:
@@ -493,25 +495,6 @@ class Alyx2NWBConverter(NWBConverter):
             else:
                 return loaded_dataset
 
-    def _custom_loader(self, eid, dataset_types=None, dclass_output=None):
-        datatypes = [['_iblmic_audioSpectrogram.frequencies','_iblmic_audioSpectrogram.power','_iblmic_audioSpectrogram.times_mic'],
-                     ['camera.dlc'],['_iblrig_Camera.raw','_iblrig_Camera.timestamps'],
-                     ['_iblqc_ephysTimeRms.rms','_iblqc_ephysTimeRms.timestamps',
-                      '_iblqc_ephysSpectralDensity.power','_iblqc_ephysSpectralDensity.freqs',
-                      'ephysData.raw.ap','ephysData.raw.lf','ephysData.raw.nidq','ephysData.raw.timestamps']]
-        eids=['383f300e-ff4e-479a-8967-a33ea51b436e','dfd8e7df-dc51-4589-b6ca-7baccfeb94b4',
-              'db4df448-e449-4a6f-a0e7-288711e7a75a','db4df448-e449-4a6f-a0e7-288711e7a75a']
-        eid_id = [j for j,i in enumerate(datatypes) if dataset_types[0] in i]
-        if eid_id:
-            eid_to_load=eids[eid_id[0]]
-        else:
-            eid_to_load=eid
-        if 'ephysData.raw' in dataset_types[0] and not 'ephysData.raw.meta' in self._loaded_datasets:
-            meta= self.one_object.load(eid_to_load, dataset_types=['ephysData.raw.meta'])
-            ch = self.one_object.load(eid_to_load, dataset_types=['ephysData.raw.ch'])
-            self._loaded_datasets.update({'ephysData.raw.meta': meta, 'ephysData.raw.ch':ch})
-        return self.one_object.load(eid_to_load,dataset_types=dataset_types, dclass_output=dclass_output)
-
     def _get_data(self, sub_metadata, probes=1):
         """
         :param sub_metadata: metadata dict containing a data field with a dataset type to retrieve data from(npy, tsv etc)
@@ -550,9 +533,11 @@ class Alyx2NWBConverter(NWBConverter):
                       self.create_iblsubject,
                       self.create_lab_meta_data,
                       self.create_acquisition]
-        for i in tqdm(execute_list):
+        t = tqdm(execute_list)
+        for i in t:
+            t.set_postfix(current=f'creating nwb ' + i.__name__.split('_')[-1])
             i()
-            print('\n'+i.__name__)
+        print('done converting')
 
     def write_nwb(self):
         super(Alyx2NWBConverter, self).save(self.saveloc)
