@@ -106,6 +106,7 @@ class NWBToIBLSession:
             nwb_data = self._create_ibl_dict(nwbdict,self.field_map_nwbfile)
             custom_data = self.nwbfile.lab_meta_data['Ibl_session_data'].fields
             nwb_data.update(custom_data)
+            nwb_data['subject'] = self.nwb_h5file['general/Subject']['nickname'].value
             nwb_data['procedures'] = list(nwb_data['procedures'])
             nwb_data['number'] = int(nwb_data['number'])
             nwb_data['wateradmin_session_related'] = list(nwb_data['wateradmin_session_related'])

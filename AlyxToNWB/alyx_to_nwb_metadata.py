@@ -472,7 +472,7 @@ class Alyx2NWBMetadata:
     @property
     def sessions_metadata(self):
         sessions_metadata_dict = self._initialize_container_dict('IBLSessionsData')
-        custom_fields = ['subject','location','procedures','project','type','number','end_time','narrative',
+        custom_fields = ['location','procedures','project','type','number','end_time','narrative',
                          'parent_session','url','extended_qc','qc','json']
         sessions_metadata_dict['IBLSessionsData'] = {i: str(self.eid_session_info[i]) if i not in ['procedures','number']
                                                         else self.eid_session_info[i] for i in custom_fields}
