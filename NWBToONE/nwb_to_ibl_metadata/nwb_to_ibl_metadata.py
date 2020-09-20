@@ -85,9 +85,9 @@ class NWBToIBLSession:
 
     def _get_nwb_info(self, nwbkey):
         if nwbkey == 'subject':
-            if self.nwb_h5file.get('general/Subject',None):
+            if self.nwb_h5file.get('general/subject',None):
                 sub_dict = dict()
-                for i,j in self.nwb_h5file['general/Subject'].items():
+                for i,j in self.nwb_h5file['general/subject'].items():
                     sub_dict[i] = j.value
                 sub_dict_out = self._create_ibl_dict(sub_dict, self.field_map_subject)
                 # sub_dict_out = {i:str(j) for i,j in sub_dict_out.items() if i not in ['projects','session_projects']}
@@ -106,7 +106,7 @@ class NWBToIBLSession:
             nwb_data = self._create_ibl_dict(nwbdict,self.field_map_nwbfile)
             custom_data = self.nwbfile.lab_meta_data['Ibl_session_data'].fields
             nwb_data.update(custom_data)
-            nwb_data['subject'] = self.nwb_h5file['general/Subject']['nickname'].value
+            nwb_data['subject'] = self.nwb_h5file['general/subject']['nickname'].value
             nwb_data['procedures'] = list(nwb_data['procedures'])
             nwb_data['number'] = int(nwb_data['number'])
             nwb_data['wateradmin_session_related'] = list(nwb_data['wateradmin_session_related'])
