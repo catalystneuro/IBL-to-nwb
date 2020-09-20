@@ -1,10 +1,10 @@
 import json
-from oneibl.one import ONE
-from pynwb import NWBFile, NWBHDF5IO
-import uuid
-import h5py
 import sys
+import uuid
 from datetime import datetime
+
+import h5py
+from pynwb import NWBHDF5IO
 
 
 class NWBToIBLSession:
@@ -49,10 +49,10 @@ class NWBToIBLSession:
     def __init__(self, nwbfile_loc):
         self.nwbfileloc = nwbfile_loc
         self.nwbfile = NWBHDF5IO(nwbfile_loc, 'r', load_namespaces=True).read()
-        self.nwb_h5file = h5py.File(nwbfile_loc,'r')
+        self.nwb_h5file = h5py.File(nwbfile_loc, 'r')
         # self.url_schema = self._schema_gen()
-        self.session_json = self._get_nwb_info('nwbfile')
-        self.subject_json = self._get_nwb_info('subject')
+        self.session_json = self._get_nwbfile_info()
+        self.subject_json = self._get_subject_info()
         # updating subject fields:
         # self.subject_json['projects'] = [self.session_json['project']]
         # self.subject_json['lab'] = self.session_json['lab']
@@ -66,61 +66,46 @@ class NWBToIBLSession:
             self.session_json['n_trials'] = 1
         self.session_json['data_dataset_session_related'] = self._get_nwb_data()
 
-    def _create_ibl_dict(self, nwb_dict, key_map):
-        out = dict()
-        for i,j in key_map.items():
-            if i in nwb_dict.keys():
-                out[j] = nwb_dict[i]
-            else:
-                out[j] = ''
-        return out
+    @staticmethod
+    def _create_ibl_dict(nwb_dict, key_map):
+        return {key: nwb_dict.get(val, '') for key, val in key_map.items()}
 
-    # def _schema_gen(self):
-    #     eid = self.one.search(dataset_types=['spikes.times'])
-    #     return self.one.alyx.rest('sessions/' + eid[0], 'list')
-    #     schema = genson.SchemaBuilder()
-    #     schema.add_schema({'type': 'object', 'properties': {}})
-    #     schema.add_object(self.url_resp)
-    #     return schema.to_schema()
+    def _get_subject_info(self):
+        if 'general/subject' not in self.nwb_h5file:
+            return dict()
+        sub_dict = dict()
+        for i, j in self.nwb_h5file['general/subject'].items():
+            sub_dict[i] = j.value
+        sub_dict_out = self._create_ibl_dict(sub_dict, self.field_map_subject)
+        # sub_dict_out = {i:str(j) for i,j in sub_dict_out.items() if i not in ['projects','session_projects']}
+        sub_dict_out['birth_date'] = str(sub_dict_out['birth_date'])
+        sub_dict_out['projects'] = list(sub_dict['projects'])
+        sub_dict_out['session_projects'] = list(sub_dict['session_projects'])
+        sub_dict_out['weighings'] = list(sub_dict['weighings'])
+        sub_dict_out['water_administrations'] = list(sub_dict['water_administrations'])
+        return sub_dict_out
 
-    def _get_nwb_info(self, nwbkey):
-        if nwbkey == 'subject':
-            if self.nwb_h5file.get('general/subject',None):
-                sub_dict = dict()
-                for i,j in self.nwb_h5file['general/subject'].items():
-                    sub_dict[i] = j.value
-                sub_dict_out = self._create_ibl_dict(sub_dict, self.field_map_subject)
-                # sub_dict_out = {i:str(j) for i,j in sub_dict_out.items() if i not in ['projects','session_projects']}
-                sub_dict_out['birth_date'] = str(sub_dict_out['birth_date'])
-                sub_dict_out['projects'] = list(sub_dict['projects'])
-                sub_dict_out['session_projects'] = list(sub_dict['session_projects'])
-                sub_dict_out['weighings'] = list(sub_dict['weighings'])
-                sub_dict_out['water_administrations'] = list(sub_dict['water_administrations'])
-                return sub_dict_out
-            else:
-                return dict()
-        if nwbkey == 'nwbfile':
-            nwbdict=dict()
-            for i,j in self.field_map_nwbfile.items():
-                nwbdict[i] = getattr(self.nwbfile,i)
-            nwb_data = self._create_ibl_dict(nwbdict,self.field_map_nwbfile)
-            custom_data = self.nwbfile.lab_meta_data['Ibl_session_data'].fields
-            nwb_data.update(custom_data)
-            nwb_data['subject'] = self.nwb_h5file['general/subject']['nickname'].value
-            nwb_data['procedures'] = list(nwb_data['procedures'])
-            nwb_data['number'] = int(nwb_data['number'])
-            nwb_data['wateradmin_session_related'] = list(nwb_data['wateradmin_session_related'])
-            #adding probes:
-            self.nwbfile.devices.pop('NeuroPixels probe')
-            count=0
-            nwb_data['probe_insertion'] = []
-            for i,j in self.nwbfile.devices.items():
-                nwb_data['probe_insertion'].append(j.fields)
-                nwb_data['probe_insertion'][count]['trajectory_estimate'] = \
-                    list(nwb_data['probe_insertion'][count]['trajectory_estimate'])
-                count = count + 1
-            # nwb_data['extended_qc'] = json.loads(nwb_data['extended_qc'])
-            return nwb_data
+    def _get_nwbfile_info(self):
+        nwbdict = dict()
+        for i, j in self.field_map_nwbfile.items():
+            nwbdict[i] = getattr(self.nwbfile, i)
+        nwb_data = self._create_ibl_dict(nwbdict, self.field_map_nwbfile)
+        custom_data = self.nwbfile.lab_meta_data['Ibl_session_data'].fields
+        nwb_data.update(custom_data)
+        nwb_data['subject'] = self.nwb_h5file['general/subject']['nickname'].value
+        nwb_data['procedures'] = list(nwb_data['procedures'])
+        nwb_data['number'] = int(nwb_data['number'])
+        nwb_data['wateradmin_session_related'] = list(nwb_data['wateradmin_session_related'])
+
+        # adding probes:
+        self.nwbfile.devices.pop('NeuroPixels probe')
+        nwb_data['probe_insertion'] = []
+        for i, val in enumerate(self.nwbfile.devices.values()):
+            nwb_data['probe_insertion'].append(val.fields)
+            nwb_data['probe_insertion'][i]['trajectory_estimate'] = \
+                list(nwb_data['probe_insertion'][i]['trajectory_estimate'])
+        # nwb_data['extended_qc'] = json.loads(nwb_data['extended_qc'])
+        return nwb_data
 
     def _get_nwb_data(self):
         out = []
@@ -170,10 +155,10 @@ class NWBToIBLSession:
             dumpfile = self.subject_json
         time_key = [i for i in dumpfile if 'time' in i or 'date' in i]
         if time_key:
-            time_key=time_key[0]
+            time_key = time_key[0]
             try:
                 dumpfile[time_key] = datetime.strftime(dumpfile[time_key],'%Y-%m-%dT%X')
             except TypeError:
                 pass
-        with open(filename,'w') as f:
+        with open(filename, 'w') as f:
             json.dump(dumpfile, f, indent=2)
