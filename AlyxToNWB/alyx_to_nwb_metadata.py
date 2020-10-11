@@ -6,35 +6,35 @@ import os
 from datetime import datetime
 import warnings
 from copy import deepcopy
+from pathlib import Path
 
 class Alyx2NWBMetadata:
     # TODO: add docstrings
 
     def __init__(self, eid=None, one_obj=None, **one_search_kwargs):
-        if not one_obj:
-            self._one_obj = one_obj
-        else:
+        if one_obj is None:
             self.one_obj = ONE()
-        if not eid:
+        elif not isinstance(one_obj, OneAbstract):
+            raise Exception('one_obj is not of ONE class')
+        else:
+            self.one_obj = one_obj
+        if eid is None:
             eid = self.one_obj.search(**one_search_kwargs)
             if len(eid) > 1:
-                print(f'nos of EIDs found: {len(eid)}, generating metadata from all')
+                print(f'nos of EIDs found for your search query: {len(eid)}, '
+                      f'generating metadata from the first')
                 if input('continue? y/n') == 'y':
                     pass
                 else:
                     exit()
-        self.one_search_kwargs = one_search_kwargs
-        self.schema = nwb_schema
-        self.one_obj = one_obj
-        if not one_obj:
-            self.one_obj = ONE()
-        elif not isinstance(one_obj, OneAbstract):
-            raise Exception('one_obj is not of ONE class')
-        self.dataset_description_list = self._get_dataset_details()
-        if eid is None:
-            self.eid = self._get_eid_list()
+            self.eid = eid[0]
+        elif isinstance(eid,list):
+            self.eid = eid[0]
         else:
             self.eid = eid
+        self.one_search_kwargs = one_search_kwargs
+        self.schema = nwb_schema
+        self.dataset_description_list = self._get_dataset_details()
         self.eid_session_info = self._retrieve_eid_endpoint()
         self.dataset_type_list = self._list_eid_metadata('dataset_type')
         self.users_list = self._list_eid_metadata('users')
@@ -49,13 +49,6 @@ class Alyx2NWBMetadata:
             return datetime.strptime(dtstr,format)
         except ValueError:
             return self._get_datetime(dtstr.split('.')[0], format=format)
-
-
-    def _get_eid_list(self):
-        eid_list = self._one_obj.search(**self.one_search_kwargs)
-        if len(eid_list)>1:
-            Warning('multiple eids found for entered search arguments, picking{}'.format(eid_list[0]))
-        return eid_list[0]
 
     def _get_dataset_details(self):
         """
@@ -462,17 +455,14 @@ class Alyx2NWBMetadata:
         nwbfile_metadata_dict['NWBFile']['lab'] = self.eid_session_info['lab']
         nwbfile_metadata_dict['NWBFile']['protocol'] = self.eid_session_info['task_protocol']
         nwbfile_metadata_dict['NWBFile']['surgery'] = 'None'
-        nwbfile_metadata_dict['NWBFile']['notes'] = 'Procedures:' + ','.join(
-            self.eid_session_info['procedures']) \
-                                                         + ', Project:' + self.eid_session_info['project']
-
-        nwbfile_metadata_dict['NWBFile']['session_description'] = self.eid_session_info['narrative']
+        nwbfile_metadata_dict['NWBFile']['notes'] = self.eid_session_info['narrative']
+        nwbfile_metadata_dict['NWBFile']['session_description'] = ','.join(self.eid_session_info['procedures'])
         return nwbfile_metadata_dict
 
     @property
     def sessions_metadata(self):
         sessions_metadata_dict = self._initialize_container_dict('IBLSessionsData')
-        custom_fields = ['location','procedures','project','type','number','end_time','narrative',
+        custom_fields = ['location','project','type','number','end_time',
                          'parent_session','url','extended_qc','qc','json']
         sessions_metadata_dict['IBLSessionsData'] = {i: str(self.eid_session_info[i]) if i not in ['procedures','number']
                                                         else self.eid_session_info[i] for i in custom_fields}
