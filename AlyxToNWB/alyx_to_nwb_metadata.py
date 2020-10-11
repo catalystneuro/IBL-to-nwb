@@ -703,18 +703,16 @@ class Alyx2NWBMetadata:
                          **self.acquisition_metadata}
         return metafile_dict
 
-    def write_metadata(self, fileloc, savetype='json'):
+    def write_metadata(self, fileloc, savetype='.json'):
         full_metadata = self.complete_metadata
-        bsname = os.path.basename(fileloc)
-        drname = os.path.dirname(fileloc)
-        fileloc_upd = os.path.join(drname,
-                                   bsname.split('.')[0] + f'_eid_{self.eid[-4:]}.' + savetype)
-        if savetype=='json':
+        if Path(fileloc).suffix != savetype:
+            raise ValueError(f'fileloc filetype should of of type {savetype}')
+        if savetype=='.json':
             full_metadata['NWBFile']['session_start_time'] = str(full_metadata['NWBFile']['session_start_time'])
             full_metadata['IBLSubject']['date_of_birth'] = str(full_metadata['IBLSubject']['date_of_birth'])
-            with open(fileloc_upd, 'w') as f:
+            with open(fileloc, 'w') as f:
                 json.dump(full_metadata, f, indent=2)
-        elif savetype in ['yaml', 'yml']:
-            with open(fileloc_upd, 'w') as f:
+        elif savetype in ['.yaml', '.yml']:
+            with open(fileloc, 'w') as f:
                 yaml.dump(full_metadata, f, default_flow_style=False)
-        print(f'data written in {fileloc_upd}')
+        print(f'data written in {fileloc}')
