@@ -28,7 +28,9 @@ The figure below shows the mapping from ALF/ALyx to NWB:
        from oneibl.one import ONE
        one=ONE()
        # use the ONE doc to use correct search terms to retrieve the eid
-       eid = one.search(dataset_types=['_iblmic_audioSpectrogram.frequencies'])[0]
+       eid = one.search(date_range=['2020-03-23', '2020-03-24'],subject='CSH_ZAD_011')[0]
+       # example eid:
+       eid = 'da188f2c-553c-4e04-879b-c9ea2d1b9a93'
        ```
      3. Using the eid, generate a json file containing all the collected data/metadata from the servers (Example output [file](https://github.com/catalystneuro/IBL-to-nwb/blob/master/AlyxToNWB/schema/example_metadata_output_file.json)):
      
@@ -36,7 +38,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
         from .AlyxToNWB import Alyx2NWBMetadata
         metadata_object = Alyx2NWBMetadata(eid=eid,one_obj=one)
         # alternatively, you can also provide one search **kwargs directly:
-        metadata_obj = Alyx2NWBMetadata(dataset_types=['_iblmic_audioSpectrogram.frequencies'])
+        metadata_obj = Alyx2NWBMetadata(date_range=['2020-03-23', '2020-03-24'],subject='CSH_ZAD_011')
         json_save_loc = r'path-to-save-json-file.json'
         metadata_obj.write_metadata(json_save_loc)
         ```
@@ -51,6 +53,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
         converter=Alyx2NWBConverter(metadata_obj=metadata_obj, saveloc=nwb_saveloc)
         # create nwb file: 
         converter.run_conversion()
+        converter.write_nwb()
         ```
         
      This should create an nwb file. [Example file](https://drive.google.com/file/d/1BEQ0z-qby6tO_QtA_FJ-Up51Thh6jYGu/view?usp=sharing). 
