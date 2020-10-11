@@ -48,8 +48,10 @@ class Alyx2NWBConverter(NWBConverter):
     def __init__(self, nwbfile=None, saveloc=None,
                  nwb_metadata_file=None,
                  metadata_obj: Alyx2NWBMetadata = None,
-                 one_object=None, save_raw=False, save_camera_raw=False):
+                 one_object=None, save_raw=False, save_camera_raw=False,complevel=9,shuffle=False):
 
+        self.complevel = complevel
+        self.shuffle = shuffle
         if nwb_metadata_file is not None:
             if isinstance(nwb_metadata_file, dict):
                 self.nwb_metadata = nwb_metadata_file
@@ -89,6 +91,8 @@ class Alyx2NWBConverter(NWBConverter):
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
         self._loaded_datasets = dict()
         self.no_probes = len(self.nwb_metadata['Probes'])
+        if self.no_probes==0:
+            warnings.warn('could not find probe information, will create trials, behavior, acquisition')
         self.electrode_table_exist = False
         self.save_raw = save_raw
         self.save_camera_raw = save_camera_raw
@@ -100,6 +104,8 @@ class Alyx2NWBConverter(NWBConverter):
             self.nwbfile.add_stimulus(pynwb.TimeSeries(**i))  # TODO: donvert timeseries data to starting_time and rate
 
     def create_units(self):
+        if self.no_probes==0:
+            return
         if not self.electrode_table_exist:
             self.create_electrode_table_ecephys()
         unit_table_list = self._get_data(self.nwb_metadata['Units'], probes=self.no_probes)
@@ -140,6 +146,8 @@ class Alyx2NWBConverter(NWBConverter):
                                          data=unit_table_list[i]['data'])
 
     def create_electrode_table_ecephys(self):
+        if self.no_probes==0:
+            return
         if self.electrode_table_exist:
             pass
         electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'], probes=self.no_probes)
@@ -184,6 +192,8 @@ class Alyx2NWBConverter(NWBConverter):
         self.electrode_table_exist = True
 
     def create_timeseries_ecephys(self):
+        if self.no_probes==0:
+            return
         if not self.electrode_table_exist:
             self.create_electrode_table_ecephys()
         if not 'Ecephys' in self.nwbfile.processing:
@@ -219,8 +229,8 @@ class Alyx2NWBConverter(NWBConverter):
             if i=='Position':
                 position_cont = pynwb.behavior.Position()
                 time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['spatial_series'])
-                if not time_series_list_details:
-                    break
+                if len(time_series_list_details)==0:
+                    continue
                 # rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
                 dataname_list = self._data_attrs_dump['camera.dlc']
                 data_list = time_series_list_details[0]['data']
@@ -237,6 +247,8 @@ class Alyx2NWBConverter(NWBConverter):
             elif not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
                 time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'])
+                if len(time_series_list_details)==0:
+                    continue
                 time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
                 func = getattr(pynwb.behavior, i)
                 self.nwbfile.processing['Behavior'].add(func(time_series=time_series_list_obj))
@@ -244,6 +256,8 @@ class Alyx2NWBConverter(NWBConverter):
             else:
                 time_series_func = pynwb.misc.IntervalSeries
                 time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['interval_series'])
+                if len(time_series_list_details)==0:
+                    continue
                 for k in time_series_list_details:
                     k['timestamps'] = k['timestamps'].flatten()
                     k['data'] = np.vstack((k['data'],-1*np.ones(k['data'].shape,dtype=float))).flatten()
@@ -256,8 +270,6 @@ class Alyx2NWBConverter(NWBConverter):
         Acquisition data like audiospectrogram(raw beh data), nidq(raw ephys data), raw camera data.
         These are independent of probe type.
         """
-        if not self.electrode_table_exist:
-            self.create_electrode_table_ecephys()
         for func, argmts in self.nwb_metadata['Acquisition'].items():
             data_retrieve = self._get_data(argmts, probes=self.no_probes)
             nwbfunc = eval(func)
@@ -288,7 +300,8 @@ class Alyx2NWBConverter(NWBConverter):
                                     name=i['name'] + '_' + self.nwb_metadata['Probes'][j]['name'],
                                     starting_time=i['timestamps'][j][0, 1],
                                     rate=i['data'][j].fs,
-                                    data=H5DataIO(DataChunkIterator(iter_datasetvieww(i['data'][j])),compression=True)))
+                                    data=H5DataIO(DataChunkIterator(iter_datasetvieww(i['data'][j])),
+                                                  compression=True, shuffle=self.shuffle, compression_opts=self.complevel)))
                     elif i['name'] in ['raw.nidq']:
                         self.nwbfile.add_acquisition(nwbfunc(**i))
 
