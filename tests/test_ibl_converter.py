@@ -11,22 +11,23 @@ from oneibl.one import ONE
 from AlyxToNWB.alyx_to_nwb_converter import Alyx2NWBConverter
 from AlyxToNWB.alyx_to_nwb_metadata import Alyx2NWBMetadata
 import json,yaml
+from pathlib import Path
 
-
+nonetype=type(None)
 
 class TestConverter:
 
     def check_args(self, full_metadata_dict, original_dict):
-        for i, j in full_metadata_dict.keys():
-            assert i in original_dict
+        for i, j in full_metadata_dict.items():
+            assert i in original_dict.keys()
             if isinstance(original_dict[i], Iterable):
-                assert type(j) in original_dict[i]
+                assert type(j) in original_dict[i] or isinstance(j,nonetype)
             else:
-                assert type(j) == original_dict[i]
+                assert type(j) in [original_dict[i],nonetype]
 
     def test_metadata_converter(self):
         eid_temp = 'da188f2c-553c-4e04-879b-c9ea2d1b9a93'
-        temp_path = tempfile.mkdtemp()
+        temp_path = Path(tempfile.mkdtemp())
         converter_name_json = temp_path / 'temp.json'
         converter_name_yaml = temp_path/'temp.yaml'
         one=ONE()
@@ -36,12 +37,12 @@ class TestConverter:
         for i in full_metadata:
             assert i in metafile_base_fields
         # check nwbfile related fields:
-        for i in nwbfile_required_dict:
-            assert i['name'] in full_metadata['NWBFile']
-            if isinstance(i['type'],Iterable):
-                assert type(full_metadata['NWBFile'][i['name']]) in i['type']
+        for i,j in nwbfile_required_dict.items():
+            assert i in full_metadata['NWBFile']
+            if isinstance(j,Iterable):
+                assert type(full_metadata['NWBFile'][i]) in j
             else:
-                assert type(full_metadata['NWBFile'][i['name']])==i['type']
+                assert type(full_metadata['NWBFile'][i])==j
             _ = full_metadata['NWBFile'].pop(i)
         self.check_args(full_metadata['NWBFile'], nwbfile_optional_dict)
         #check sessions,subject, probes fields:
@@ -69,33 +70,39 @@ class TestConverter:
         assert 'ElectrodeGroup' in full_metadata['Ecephys']
         assert isinstance(full_metadata['Ecephys']['ElectrodeGroup'], list)
         for i in full_metadata['Ecephys']['ElectrodeGroup']:
-            self.check_args(i, device_data_dict)
+            self.check_args(i, electrode_group_data_dict)
         # Ecephys: Ecephys:
         assert 'Ecephys' in full_metadata['Ecephys']
         assert isinstance(full_metadata['Ecephys']['Ecephys'], dict)
         for i,j in full_metadata['Ecephys']['Ecephys'].items():
-            if i=='Spectrum':
-                self.check_args(j, spectrum_data_dict)
-            else:
-                self.check_args(j, timeseries_data_dict)
+            assert isinstance(j,list)
+            for j1 in j:
+                if i=='Spectrum':
+                    _ = j1.pop('timestamps')
+                    _ = j1.pop('data')
+                    self.check_args(j1, spectrum_data_dict)
+                else:
+                    self.check_args(j1, timeseries_data_dict)
         #Acquisition:
         assert isinstance(full_metadata['Acquisition'], dict)
         for i, j in full_metadata['Acquisition'].items():
-            if i == 'DecompositionSeries':
-                self.check_args(j, decomposition_data_dict)
-            else:
-                self.check_args(j, timeseries_data_dict)
+            assert isinstance(j, list)
+            for j1 in j:
+                if i == 'DecompositionSeries':
+                    self.check_args(j1, decomposition_data_dict)
+                else:
+                    self.check_args(j1, timeseries_data_dict)
         #Behavior:
         assert isinstance(full_metadata['Behavior'],dict)
         for i, j in full_metadata['Behavior'].items():
             assert isinstance(j,dict)
-            for i1,j1 in j:
+            for i1,j1 in j.items():
                 assert i1 in ['time_series','interval_series','spatial_series']
                 for j11 in j1:
                     self.check_args(j11,timeseries_data_dict)
         #save yaml/json files and check types:
-        converter_metadata.write_metadata(converter_name_json)
-        converter_metadata.write_metadata(converter_name_yaml)
+        converter_metadata.write_metadata(converter_name_json,savetype='.json')
+        converter_metadata.write_metadata(converter_name_yaml,savetype='.yaml')
         with open(converter_name_json,'r') as f:
             json_load = json.load(f)
             assert isinstance(json_load,dict)
