@@ -2,6 +2,8 @@ from ndx_ibl_metadata import IblSessionData, IblSubject, IblProbes
 from pynwb import NWBFile, TimeSeries
 from ndx_spectrum import Spectrum
 from pynwb.misc import DecompositionSeries
+from collections import Iterable
+
 
 def _get_values_dict(names_list, docval_list):
     return_dict=dict()
@@ -14,6 +16,8 @@ def _get_values_dict(names_list, docval_list):
 metafile_base_fields = ['eid','Probes','NWBFile','IBLSessionsData','IBLSubject','Behavior',
                         'Trials','Stimulus','Units','ElectrodeTable','Ecephys','Acquisition',
                         'Ophys','Icephys']
+
+nonetype=type(None)
 
 _nwbfile_optional_fields = [
     'experiment_description',
@@ -61,3 +65,12 @@ decomposition_data_dict = {i:str for i in _decomposition_data_fields}
 dt_columns_data_dict = dict(name=str,data=str,description=str)
 device_data_dict = dict(name=str,description=str)
 electrode_group_data_dict = dict(name=str, description=str,device=str,location=str)
+
+
+def check_args(full_metadata_dict, original_dict):
+    for i, j in full_metadata_dict.items():
+        assert i in original_dict.keys()
+        if isinstance(original_dict[i], Iterable):
+            assert type(j) in original_dict[i] or isinstance(j, nonetype)
+        else:
+            assert type(j) in [original_dict[i], nonetype]
