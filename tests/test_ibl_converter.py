@@ -25,7 +25,6 @@ def build_converter():
     eid_temp = 'da188f2c-553c-4e04-879b-c9ea2d1b9a93'
     metadata_converter = Alyx2NWBMetadata(eid=eid_temp, one_obj=ONE())
     yield metadata_converter
-    yield metadata_converter
 
 
 def test_metadata_converter(tmp_path, build_converter):
