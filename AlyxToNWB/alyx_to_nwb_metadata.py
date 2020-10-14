@@ -245,9 +245,9 @@ class Alyx2NWBMetadata:
         if not datafiles:
             if not kwargs:
                 return {ts_name:[]}
-            datafiles_names = datafiles_time_name
-            datafiles_desc = datafiles_time_desc
-            datafiles = ['None']
+            # datafiles_names = datafiles_time_name
+            # datafiles_desc = datafiles_time_desc
+            # datafiles = ['None']
         timeseries_dict = {ts_name: [None]*len(datafiles)}
         for i, j in enumerate(datafiles):
             timeseries_dict[ts_name][i] = {'name': datafiles_names[i],
@@ -326,20 +326,22 @@ class Alyx2NWBMetadata:
             list without dictionaries with 'name' as in drop_attrs
 
         """
-        # dataset_details_copy = dataset_details.copy()
-        if drop_attrs is None:
-            return dataset_details, default_colnames_dict
-        elif not(default_colnames_dict==None):
-            default_colnames_dict_copy = default_colnames_dict.copy()
-            for i,j in default_colnames_dict_copy.items():
-                if j in drop_attrs:
-                    default_colnames_dict.pop(i)
         attrs_list = [i['name'] for i in dataset_details]
+        if default_colnames_dict is not None:
+            default_colnames_dict_copy = default_colnames_dict.copy()
+            for i, j in default_colnames_dict.items():
+                if j not in attrs_list:
+                    default_colnames_dict_copy.pop(i)
+        else:
+            default_colnames_dict_copy = default_colnames_dict
+        if drop_attrs is None:
+            return dataset_details, default_colnames_dict_copy
+        elif default_colnames_dict is not None:
+            for i,j in default_colnames_dict.items():
+                if j in drop_attrs and j in attrs_list:
+                    default_colnames_dict_copy.pop(i)
         dataset_details_return = [dataset_details[i] for i, j in enumerate(attrs_list) if j not in drop_attrs]
-        # for i, j in enumerate(attrs_list):
-        #     if j in drop_attrs:
-        #         del dataset_details_copy[i]
-        return dataset_details_return, default_colnames_dict
+        return dataset_details_return, default_colnames_dict_copy
 
     @staticmethod
     def _get_dynamictable_array(**kwargs):
@@ -583,12 +585,11 @@ class Alyx2NWBMetadata:
                 units_metadata_dict = \
                     self._get_dynamictable_object(self.dataset_details.copy(), 'clusters', 'Units',
                                                   default_colnames_dict=dict(location='brainAcronyms',
-                                                                             id='metrics',
                                                                              waveform_mean='waveforms',
                                                                              electrodes='channels',
                                                                              electrode_group='probes',
                                                                              ),
-                                                  drop_attrs=['uuids'])
+                                                  drop_attrs=['uuids','metrics'])
                 units_metadata_dict['Units'].extend(
                     self._get_dynamictable_array(name=['obs_intervals', 'spike_times'],
                                                  data=['trials.intervals', 'spikes.clusters,spikes.times'],

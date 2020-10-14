@@ -41,6 +41,7 @@ dependencies:
  - pynwb
  - numcodecs==0.7.1
  - pygments==2.6.1
+ - tzlocal
  - pip:
    - --pre
    - datajoint
