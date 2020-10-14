@@ -25,6 +25,8 @@ from ndx_spectrum import Spectrum
 from lazy_ops import DatasetView
 from hdmf.data_utils import DataChunkIterator
 from hdmf.backends.hdf5.h5_utils import H5DataIO
+from tzlocal import get_localzone
+
 
 def iter_datasetvieww(datasetview_obj):
     '''
@@ -59,15 +61,8 @@ class Alyx2NWBConverter(NWBConverter):
                 with open(nwb_metadata_file, 'r') as f:
                     self.nwb_metadata = json.load(f)
             # jsonschema.validate(nwb_metadata_file, metafile)
-        elif not (metadata_obj == None):
-            if len(metadata_obj.complete_metadata) > 1:
-                num = int(input(f'{metadata_obj.complete_metadata}'
-                                'eids found, input a number [0-no_eids] to make nwb from'))
-                if num > len(metadata_obj.complete_metadata):
-                    raise Exception('number entered greater than number of eids')
-                self.nwb_metadata = metadata_obj.complete_metadata[num]
-            else:
-                self.nwb_metadata = metadata_obj.complete_metadata[0]
+        elif metadata_obj is not None:
+            self.nwb_metadata = metadata_obj.complete_metadata
         else:
             raise Exception('required one of argument: nwb_metadata_file OR metadata_obj')
         if not (one_object == None):
@@ -85,9 +80,9 @@ class Alyx2NWBConverter(NWBConverter):
         self.eid = self.nwb_metadata["eid"]
         if not isinstance(self.nwb_metadata['NWBFile']['session_start_time'],datetime):
             self.nwb_metadata['NWBFile']['session_start_time'] = \
-                datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X')
+                datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X').replace(tzinfo=get_localzone())
             self.nwb_metadata['IBLSubject']['date_of_birth'] = \
-                datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%d %X')
+                datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%d %X').replace(tzinfo=get_localzone())
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
         self._loaded_datasets = dict()
         self.no_probes = len(self.nwb_metadata['Probes'])
@@ -325,12 +320,20 @@ class Alyx2NWBConverter(NWBConverter):
         self.nwbfile.add_lab_meta_data(IblSessionData(**self.nwb_metadata['IBLSessionsData']))
 
     def create_trials(self):
-        trial_df = self._table_to_df(self.nwb_metadata['Trials'])
-        for trial_dict in self.nwb_metadata['Trials']:
-            if trial_dict['name'] not in ['start_time', 'stop_time']:
-                self.nwbfile.add_trial_column(name=trial_dict['name'], description=trial_dict['description'])
-        for index, row in trial_df.iterrows():
-            self.nwbfile.add_trial(**dict(row))
+        table_data = self._get_data(self.nwb_metadata['Trials'], probes=self.no_probes)
+        required_fields = ['start_time','stop_time']
+        required_data = [i for i in table_data if i['name'] in required_fields]
+        optional_data = [i for i in table_data if i['name'] not in required_fields]
+        if len(required_fields)!=len(required_data):
+            warnings.warn('could not find required datasets: trials.start_time, trials.stop_time, '
+                          'skipping trials table')
+            return
+        for start_time,stop_time in zip(required_data[0]['data'][:,0],required_data[1]['data'][:,1]):
+            self.nwbfile.add_trial(start_time=start_time,stop_time=stop_time)
+        for op_data in optional_data:
+            self.nwbfile.add_trial_column(name=op_data['name'],
+                                          description=op_data['description'],
+                                          data=op_data['data'])
 
     def _get_default_column_ids(self,default_namelist,namelist):
         out_idx = []
@@ -338,22 +341,6 @@ class Alyx2NWBConverter(NWBConverter):
             if i in default_namelist:
                 out_idx.extend([j])
         return out_idx
-
-    def _table_to_df(self, table_metadata):
-        """
-        :param table_metadata: array containing dictionaries with name, data and description for the column
-        :return: df_out: data frame conversion
-        """
-        data_dict = dict()
-        for i in table_metadata:
-            if i['name'] in 'start_time':
-                data_dict.update({i['name']: self.one_object.load(self.eid, dataset_types=[i['data']])[0][:, 0]})
-            elif i['name'] in 'stop_time':
-                data_dict.update({i['name']: self.one_object.load(self.eid, dataset_types=[i['data']])[0][:, 1]})
-            else:
-                data_dict.update({i['name']: self.one_object.load(self.eid, dataset_types=[i['data']])[0]})
-        df_out = pd.DataFrame(data_dict)
-        return df_out
 
     def _get_multiple_data(self, datastring, probes):
         """
@@ -382,12 +369,16 @@ class Alyx2NWBConverter(NWBConverter):
             spike_times_data = self._loaded_datasets[spike_times]
         if not ((spike_cluster_data is None) | (spike_cluster_data is None)):# if bot hdata are found only then
             ls_merged = []
-            for i in range(probes):
+            if not self._data_attrs_dump.get('unit_table_length'):  # if unit table length is not known, ignore spike times
+                return None
+            if np.abs(np.max(spike_cluster_data[0])-self._data_attrs_dump['unit_table_length'][0])>20:
+                i_loop = np.arange(self.no_probes-1,-1,-1)
+            else:
+                i_loop = np.arange(self.no_probes)
+            for j,i in enumerate(i_loop):
                 df = pd.DataFrame({'sp_cluster': spike_cluster_data[i], 'sp_times': spike_times_data[i]})
                 data = df.groupby(['sp_cluster'])['sp_times'].apply(np.array).reset_index(name='sp_times_group')
-                if not self._data_attrs_dump.get('unit_table_length'):# if unit table length is not known, ignore spike times
-                    return None
-                ls_grouped = [[np.nan]]*self._data_attrs_dump['unit_table_length'][i]# default spiking time for clusters with no time
+                ls_grouped = [[np.nan]]*self._data_attrs_dump['unit_table_length'][j]# default spiking time for clusters with no time
                 for index,sp_list in data.values:
                     ls_grouped[index] = sp_list
                 ls_merged.extend(ls_grouped)
@@ -444,7 +435,7 @@ class Alyx2NWBConverter(NWBConverter):
                 if not self._data_attrs_dump.get('electrode_table_length') and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                     self._data_attrs_dump['electrode_table_length'] = [loaded_dataset_[i].shape[0] for i in range(probes)]
                 if isinstance(loaded_dataset_[0],pd.DataFrame):  # file is loaded as dataframe when of type .csv
-                    if dataset_to_load in loaded_dataset_[0].columns.values:
+                    if dataset_key in loaded_dataset_[0].columns.values:
                         loaded_dataset_ = [loaded_dataset_[i][dataset_key].to_numpy() for i in range(probes)]
                     else:
                         return None
@@ -465,7 +456,7 @@ class Alyx2NWBConverter(NWBConverter):
                 if isinstance(self.nwb_metadata['NWBFile']['session_start_time'], datetime):
                     dt_start = self.nwb_metadata['NWBFile']['session_start_time']
                 else:
-                    dt_start = datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X')
+                    dt_start = datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X').replace(tzinfo=get_localzone())
                 dt_func = lambda x: ((datetime.strptime('-'.join(x.split('-')[:-1])[:-1],'%Y-%m-%dT%H:%M:%S.%f' )) - dt_start).total_seconds()
                 dt_list = [dt.iloc[:,0].apply(dt_func).to_numpy() for dt in loaded_dataset_.data]# find difference in seconds from session start
                 print('done')
