@@ -13,15 +13,15 @@ import json, yaml
 from pathlib import Path
 import pytest
 import numpy as np
+from numpy.testing import assert_array_equal
 from hdmf.common.table import VectorData
 import pandas as pd
 from pynwb.behavior import Position, SpatialSeries
-import pickle
 import h5py
 
 
 @pytest.fixture(scope='module')
-def build_converter(tmp_path):
+def build_converter():
     eid_temp = 'da188f2c-553c-4e04-879b-c9ea2d1b9a93'
     metadata_converter = Alyx2NWBMetadata(eid=eid_temp, one_obj=ONE())
     yield metadata_converter
@@ -115,7 +115,7 @@ def test_metadata_converter(tmp_path, build_converter):
 
 
 def test_nwb_converter(tmp_path, build_converter):
-    nwbfileloc = tmp_path/'test.nwb'
+    nwbfileloc = str(tmp_path/'test.nwb')
     full_metadata = build_converter.complete_metadata
     converter_nwb1 = Alyx2NWBConverter(
         nwb_metadata_file=build_converter.complete_metadata,
@@ -127,11 +127,8 @@ def test_nwb_converter(tmp_path, build_converter):
         saveloc=nwbfileloc,
         save_raw=False,
         save_camera_raw=False)
-    # test run conversion:
     converter_nwb1.run_conversion()
-    # test writing nwb roundtrip:
     converter_nwb1.write_nwb()
-
     with NWBHDF5IO(nwbfileloc, 'r') as io:
         nwbfile = io.read()
         # test nwbfile fields:
@@ -181,36 +178,28 @@ def test_nwb_converter(tmp_path, build_converter):
             assert trlcol['name'] in nwbfile.trials.colnames
             dtcol = [nwbfile.trials.columns[no] for no, i in enumerate(nwbfile.trials.colnames)
                      if trlcol['name'] == i and isinstance(nwbfile.trials.columns[no], VectorData)][0]
-            # assert dtcol.description==trlcol['description']
             if trlcol['data'].split('.')[-1] != 'intervals':
-                data = converter_nwb1._loaded_datasets.get(trlcol['data']).data
-                assert data == dtcol.data.values
+                data = converter_nwb1._loaded_datasets.get(trlcol['data']).data[0]
+                assert_array_equal(data, dtcol.data[()])
         # test units:
         unit_data_len = sum(converter_nwb1._data_attrs_dump['unit_table_length'])
-        for unitcol in full_metadata['Units']:
-            assert unitcol['name'] in nwbfile.units.colnames
-            dtcol = [nwbfile.units.columns[no] for no, i in enumerate(nwbfile.units.colnames) if unitcol['name'] == i][
-                0]
-            assert dtcol.description == unitcol['description']
-            assert dtcol.data.shape[0] == unit_data_len
-            # -- check consistency of only clusters.* and except the df: clusters.metrics
-            if unitcol['data'].split('.')[-1] not in ['metrics', 'times'] and unitcol['data'].split('.')[
-                0] == 'clusters':
-                data = np.concatenate(converter_nwb1._loaded_datasets.get(unitcol['data']).data)
-                assert data == dtcol.data.values
+        dt_column_names=[getattr(nwbfile.units,i['name']).name for i in full_metadata['Units']]
+        for no, unitcol in enumerate(full_metadata['Units']):
+            assert unitcol['name'] == dt_column_names[no]
+        assert nwbfile.units.id.shape[0]==unit_data_len
         # test electrode group:
         for group in full_metadata['Ecephys']['ElectrodeGroup']:
             name = group.pop('name')
             assert name in nwbfile.electrode_groups
-            assert group == nwbfile.electrode_groups[name]
+            electrode_group_dict = nwbfile.electrode_groups[name].fields
+            if electrode_group_dict.get('device'):
+                electrode_group_dict['device'] = electrode_group_dict['device'].name
+            assert group == electrode_group_dict
         # test electrode table:
         elec_tbl_len = sum(converter_nwb1._data_attrs_dump['electrode_table_length'])
         for electrode in full_metadata['ElectrodeTable']:
             assert electrode['name'] in nwbfile.electrodes.colnames
-            dtcol = [nwbfile.electrodes.columns[no] for no, i in enumerate(nwbfile.electrodes.colnames) if
-                     electrode['name'] == i][0]
-            assert dtcol.description == electrode['description']
-            assert dtcol.data.shape[0] == elec_tbl_len  # -- only checking length
+        assert nwbfile.electrodes.id.shape[0] == elec_tbl_len
         # test timeseries ephys:
         ephys_datasets = nwbfile.processing['Ecephys'].data_interfaces
         for i, j in full_metadata['Ecephys']['Ecephys'].items():
@@ -220,22 +209,22 @@ def test_nwb_converter(tmp_path, build_converter):
                 for k in field_names:
                     assert k in ephys_datasets.keys()
                     if 'Spectrum' in i:
-                        assert isinstance(ephys_datasets[k], Spectrum)  # TODO: validate Spectrum dataset further
+                        assert isinstance(ephys_datasets[k], Spectrum)
                     else:
                         assert isinstance(ephys_datasets[k], TimeSeries)
         # test behavior:
         ephys_datasets = nwbfile.processing['Behavior'].data_interfaces
         for i, j in full_metadata['Behavior'].items():
-            assert i in ephys_datasets.keys()
             for i1, j1 in j.items():
                 for j11 in j1:
+                    assert i in ephys_datasets.keys()
                     assert j11['name'] in getattr(ephys_datasets[i], i1).keys()
                     if i == 'Position':
                         assert isinstance(getattr(ephys_datasets[i], i1)[j11['name']], SpatialSeries)
                     else:
                         assert isinstance(getattr(ephys_datasets[i], i1)[j11['name']], TimeSeries)
         # test acquisition: test only presence of names of datasets:
-        acq_datasets = nwbfile.processing['Acquisition']
+        acq_datasets = nwbfile.acquisition
         for i, j in full_metadata['Acquisition'].items():
             for j1 in j:
                 assert any([True for h in acq_datasets.keys() if j1['name'] in h])
