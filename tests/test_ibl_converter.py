@@ -1,23 +1,16 @@
-import datetime
-import shutil
-import tempfile
-from ndx_ibl_metadata import IblSessionData, IblSubject, IblProbes
-from pynwb import NWBHDF5IO, NWBFile
-import h5py
-from collections import Iterable
+from pynwb import NWBHDF5IO, TimeSeries
 from .utils import *
 from oneibl.one import ONE
 from AlyxToNWB.alyx_to_nwb_converter import Alyx2NWBConverter
 from AlyxToNWB.alyx_to_nwb_metadata import Alyx2NWBMetadata
 import json, yaml
-from pathlib import Path
 import pytest
-import numpy as np
 from numpy.testing import assert_array_equal
 from hdmf.common.table import VectorData
-import pandas as pd
-from pynwb.behavior import Position, SpatialSeries
+from pynwb.behavior import SpatialSeries
 import h5py
+import jsonschema
+from ndx_spectrum import Spectrum
 
 
 @pytest.fixture(scope='module')
@@ -31,86 +24,16 @@ def test_metadata_converter(tmp_path, build_converter):
     converter_name_json = tmp_path/'temp.json'
     converter_name_yaml = tmp_path/'temp.yaml'
     full_metadata = build_converter.complete_metadata
-    # check base keys
-    for i in full_metadata:
-        assert i in metafile_base_fields
-    # check nwbfile related fields:
-    for i, j in nwbfile_required_dict.items():
-        assert i in full_metadata['NWBFile']
-        if isinstance(j, Iterable):
-            assert type(full_metadata['NWBFile'][i]) in j
-        else:
-            assert type(full_metadata['NWBFile'][i]) == j
-        _ = full_metadata['NWBFile'].pop(i)
-    check_args(full_metadata['NWBFile'], nwbfile_optional_dict)
-    # check sessions,subject, probes fields:
-    check_args(full_metadata['IBLSessionsData'], sessions_data_dict)
-    check_args(full_metadata['IBLSubject'], subject_data_dict)
-    assert isinstance(full_metadata['Probes'], list)
-    for probe in full_metadata['Probes']:
-        check_args(probe, probes_data_dict)
-    # check trials, units, electrode_table:
-    assert isinstance(full_metadata['Trials'], list)
-    for i in full_metadata['Trials']:
-        check_args(i, dt_columns_data_dict)
-    assert isinstance(full_metadata['Units'], list)
-    for i in full_metadata['Units']:
-        check_args(i, dt_columns_data_dict)
-    assert isinstance(full_metadata['ElectrodeTable'], list)
-    for i in full_metadata['ElectrodeTable']:
-        check_args(i, dt_columns_data_dict)
-    # Ecephys: Device:
-    assert 'Device' in full_metadata['Ecephys']
-    assert isinstance(full_metadata['Ecephys']['Device'], list)
-    for i in full_metadata['Ecephys']['Device']:
-        check_args(i, device_data_dict)
-    # Ecephys: ElectrodeGroup:
-    assert 'ElectrodeGroup' in full_metadata['Ecephys']
-    assert isinstance(full_metadata['Ecephys']['ElectrodeGroup'], list)
-    for i in full_metadata['Ecephys']['ElectrodeGroup']:
-        check_args(i, electrode_group_data_dict)
-    # Ecephys: Ecephys:
-    assert 'Ecephys' in full_metadata['Ecephys']
-    assert isinstance(full_metadata['Ecephys']['Ecephys'], dict)
-    for i, j in full_metadata['Ecephys']['Ecephys'].items():
-        assert isinstance(j, list)
-        for j1 in j:
-            if i == 'Spectrum':
-                _ = j1.pop('timestamps')
-                _ = j1.pop('data')
-                check_args(j1, spectrum_data_dict)
-            else:
-                check_args(j1, timeseries_data_dict)
-    # Acquisition:
-    assert isinstance(full_metadata['Acquisition'], dict)
-    for i, j in full_metadata['Acquisition'].items():
-        assert isinstance(j, list)
-        for j1 in j:
-            if i == 'DecompositionSeries':
-                check_args(j1, decomposition_data_dict)
-            else:
-                check_args(j1, timeseries_data_dict)
-    # Behavior:
-    assert isinstance(full_metadata['Behavior'], dict)
-    for i, j in full_metadata['Behavior'].items():
-        assert isinstance(j, dict)
-        for i1, j1 in j.items():
-            assert i1 in ['time_series', 'interval_series', 'spatial_series']
-            for j11 in j1:
-                check_args(j11, timeseries_data_dict)
+    jsonschema.validate(full_metadata, json_schema)
     # save yaml/json files and check types:
     build_converter.write_metadata(converter_name_json, savetype='.json')
     build_converter.write_metadata(converter_name_yaml, savetype='.yaml')
     with open(converter_name_json, 'r') as f:
         json_load = json.load(f)
-        assert isinstance(json_load, dict)
-        assert 'session_start_time' in json_load['NWBFile']
-        assert 'date_of_birth' in json_load['IBLSubject']
+        jsonschema.validate(json_load, json_schema)
     with open(converter_name_yaml, 'r') as f:
         yaml_load = yaml.load(f)
-        assert isinstance(yaml_load, dict)
-        assert 'session_start_time' in json_load['NWBFile']
-        assert 'date_of_birth' in json_load['IBLSubject']
+        jsonschema.validate(json_load, json_schema)
 
 
 def test_nwb_converter(tmp_path, build_converter):
