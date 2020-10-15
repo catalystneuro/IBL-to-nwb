@@ -24,6 +24,8 @@ def test_metadata_converter(tmp_path, build_converter):
     converter_name_json = tmp_path/'temp.json'
     converter_name_yaml = tmp_path/'temp.yaml'
     full_metadata = build_converter.complete_metadata
+    full_metadata['NWBFile']['session_start_time'] = str(full_metadata['NWBFile']['session_start_time'])
+    full_metadata['IBLSubject']['date_of_birth'] = str(full_metadata['IBLSubject']['date_of_birth'])
     jsonschema.validate(full_metadata, json_schema)
     # save yaml/json files and check types:
     build_converter.write_metadata(converter_name_json, savetype='.json')

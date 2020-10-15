@@ -80,9 +80,9 @@ class Alyx2NWBConverter(NWBConverter):
         self.eid = self.nwb_metadata["eid"]
         if not isinstance(self.nwb_metadata['NWBFile']['session_start_time'],datetime):
             self.nwb_metadata['NWBFile']['session_start_time'] = \
-                datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%d %X').replace(tzinfo=get_localzone())
+                datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],'%Y-%m-%dT%X').replace(tzinfo=get_localzone())
             self.nwb_metadata['IBLSubject']['date_of_birth'] = \
-                datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%d %X').replace(tzinfo=get_localzone())
+                datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%dT%X').replace(tzinfo=get_localzone())
         super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
         self._loaded_datasets = dict()
         self.no_probes = len(self.nwb_metadata['Probes'])
