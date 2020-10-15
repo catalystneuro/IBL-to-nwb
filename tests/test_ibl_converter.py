@@ -1,8 +1,8 @@
 from pynwb import NWBHDF5IO, TimeSeries
 from .utils import *
 from oneibl.one import ONE
-from AlyxToNWB.alyx_to_nwb_converter import Alyx2NWBConverter
-from AlyxToNWB.alyx_to_nwb_metadata import Alyx2NWBMetadata
+from ibl_nwb import Alyx2NWBConverter
+from ibl_nwb import Alyx2NWBMetadata
 import json, yaml
 import pytest
 from numpy.testing import assert_array_equal
