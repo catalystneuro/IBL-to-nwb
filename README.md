@@ -35,7 +35,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
      3. Using the eid, generate a json file containing all the collected data/metadata from the servers (Example output [file](https://github.com/catalystneuro/IBL-to-nwb/blob/master/AlyxToNWB/schema/example_metadata_output_file.json)):
      
         ```python
-        from .AlyxToNWB import Alyx2NWBMetadata
+        from .ibl_nwb import Alyx2NWBMetadata
         metadata_object = Alyx2NWBMetadata(eid=eid,one_obj=one)
         # alternatively, you can also provide one search **kwargs directly:
         metadata_obj = Alyx2NWBMetadata(date_range=['2020-03-23', '2020-03-24'],subject='CSH_ZAD_011')
@@ -45,7 +45,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
      4. Generate nwb file using the saved json file:
       
         ```python
-        from .AlyxToNWB import Alyx2NWBConverter
+        from .ibl_nwb import Alyx2NWBConverter
         nwb_saveloc = r'nwb-save-path.nwb'
         save_raw = False # keep as true if you want to add raw (ephysData.raw.* , camera.raw*) files, these are large files and will take time to download and create the nwbfile!!
         converter=Alyx2NWBConverter(nwb_metadata_file=json_save_loc, saveloc=nwb_saveloc, save_raw=save_raw)
@@ -62,7 +62,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
 2. **IBL to NWB conversion (using GUI):** 
 
     ```python
-    from .AlyxToNWB import Alyx2NWBGui
+    from .ibl_nwb import Alyx2NWBGui
     Alyx2NWBGui(eid=eid, nwbfile_saveloc=nwb_saveloc, metadata_fileloc=json_save_loc)
     #alternatively provide the one search kwargs:
     Alyx2NWBGui(nwbfile_saveloc=nwb_saveloc, metadata_fileloc=json_save_loc, dataset_types=['_iblmic_audioSpectrogram.frequencies''])
