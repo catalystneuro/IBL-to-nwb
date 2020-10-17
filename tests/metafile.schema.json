@@ -1,204 +1,386 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "metafile.schema.json",
-  "title": "Schema for the metafile",
-  "description": "Schema for the ibl_to_nwb metafile",
-  "version": "0.1.0",
-  "type": "object",
-  "required": ["NWBFile","eid","Probes","IBLSubject","IBLSessionsData"],
-  "additionalProperties": false,
-  "properties": {
-    "eid": {
-      "description": "list of supplied experiment ids", "type": ["string"]
-    },
-    "NWBFile": {
-      "type": "object", "additionalProperties": false, "required": ["session_start_time", "keywords", "identifier"], "properties": {
-        "keywords": {"description": "Terms to search over", "type": "array", "items": {"type": "string"}}, "experiment_description": {"type": "string"}, "session_id": {"type": "string", "description": "UUID for the session"}, "experimenter": {"type": "array", "items": {"type": "string"}}, "identifier": {"type": "string", "description": "UUID"}, "institution": {"type": "string"}, "lab": {"type": "string"}, "session_description": {"type": "string"}, "session_start_time": {"type": "string", "pattern": "^([0-9]{4})-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2})?"}, "surgery": {"type": "string"}, "pharmacology": {"type": "string"}, "protocol": {"type": "string", "description": "Experimental protocol, if applicable. E.g., include IACUC protocol"}, "related_publications": {"type": "array", "items": {"type": "string"}}, "notes": {"type": "string"}, "virus": {"type": "string"}
+  "$schema": "http://json-schema.org/draft-07/schema#", "$id": "metafile.schema.json",
+  "title": "Schema for the metafile", "description": "Schema for the ibl_to_nwb metafile", "version": "0.1.0",
+  "type": "object", "required": ["NWBFile", "eid", "Probes", "IBLSubject", "IBLSessionsData"],
+  "additionalProperties": false, "properties": {
+  "eid": {
+    "description": "list of supplied experiment ids", "type": ["string"]
+  }, "NWBFile": {
+    "type": "object", "additionalProperties": false, "required": ["session_start_time", "keywords", "identifier"],
+    "properties": {
+      "keywords": {
+        "description": "Terms to search over", "type": "array", "items": {
+          "type": "string"
+        }
+      }, "experiment_description": {
+        "type": "string"
+      }, "session_id": {
+        "type": "string", "description": "UUID for the session"
+      }, "experimenter": {
+        "type": "array", "items": {
+          "type": "string"
+        }
+      }, "identifier": {
+        "type": "string", "description": "UUID"
+      }, "institution": {
+        "type": "string"
+      }, "lab": {
+        "type": "string"
+      }, "session_description": {
+        "type": "string"
+      }, "session_start_time": {
+        "type": "string", "pattern": "^([0-9]{4})-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2})?$"
+      }, "surgery": {
+        "type": "string"
+      }, "pharmacology": {
+        "type": "string"
+      }, "protocol": {
+        "type": "string", "description": "Experimental protocol, if applicable. E.g., include IACUC protocol"
+      }, "related_publications": {
+        "type": "array", "items": {
+          "type": "string"
+        }
+      }, "notes": {
+        "type": "string"
+      }, "virus": {
+        "type": "string"
       }
-    },
-    "IBLSubject": {
+    }
+  }, "IBLSubject": {
+    "type": "object", "additionalProperties": false, "properties": {
+      "description": {
+        "type": "string"
+      }, "age": {
+        "type": "string", "description": "age in weeks"
+      }, "genotype": {
+        "type": "string", "description": "Genetic strain. If absent, assume Wild Type (WT)"
+      }, "sex": {
+        "type": "string", "enum": ["M", "F"]
+      }, "species": {
+        "type": "string", "description": "Species of subject. Use latin name."
+      }, "subject_id": {
+        "type": "string", "description": "UUID generally"
+      }, "weight": {
+        "type": "string", "description": "weight in gms"
+      }, "date_of_birth": {
+        "type": "string", "pattern": "^([0-9]{4})-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2})?$"
+      }, "nickname": {
+        "type": "string"
+      }, "url": {
+        "type": "string"
+      }, "responsible_user": {
+        "type": "string"
+      }, "death_date": {
+        "type": "string"
+      }, "litter": {
+        "type": "string"
+      }, "strain": {
+        "type": "string"
+      }, "source": {
+        "type": "string"
+      }, "line": {
+        "type": "string"
+      }, "projects": {
+        "type": "array", "items": {
+          "type": "string"
+        }
+      }, "session_projects": {
+        "type": "array", "items": {
+          "type": "string"
+        }
+      }, "lab": {
+        "type": "string"
+      }, "alive": {
+        "type": "boolean"
+      }, "last_water_restriction": {
+        "type": ["number", "null"]
+      }, "expected_water": {
+        "type": ["number", "null"]
+      }, "remaining_water": {
+        "type": ["number", "null"]
+      }, "weighings": {
+        "type": "array", "items": {
+          "type": "string"
+        }
+      }, "water_administrations": {
+        "type": "array", "items": {
+          "type": "string"
+        }
+      }
+    }
+  }, "IBLSessionsData": {
+    "type": "object", "additionalProperties": false, "properties": {
+      "location": {
+        "type": "string"
+      }, "project": {
+        "type": "string"
+      }, "type": {
+        "type": "string"
+      }, "number": {
+        "type": "number"
+      }, "end_time": {
+        "type": "string", "pattern": "^([0-9]{4})-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2})?$"
+      }, "parent_session": {
+        "type": "string"
+      }, "url": {
+        "type": "string"
+      }, "extended_qc": {
+        "type": "string"
+      }, "qc": {
+        "type": "string"
+      }, "json": {
+        "type": "string"
+      }, "wateradmin_session_related": {
+        "type": "array", "items": {
+          "type": "string"
+        }
+      }, "notes": {
+        "type": "array", "items": {
+          "type": "string"
+        }
+      }
+    }
+  }, "Probes": {
+    "type": "array", "items": {
       "type": "object", "additionalProperties": false, "properties": {
-        "description": {"type": "string"}, "age": {"type": "string", "description": "age in weeks"}, "genotype": {"type": "string", "description": "Genetic strain. If absent, assume Wild Type (WT)"}, "sex": {"type": "string", "enum": ["M", "F"]}, "species": {"type": "string", "description": "Species of subject. Use latin name."}, "subject_id": {"type": "string", "description": "UUID generally"}, "weight": {"type": "string", "description": "weight in gms"}, "date_of_birth": {"type": "string", "pattern": "^([0-9]{4})-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2})?"}, "nickname": {"type": "string"}, "url": {"type": "string"}, "responsible_user": {"type": "string"}, "death_date": {"type": "string"}, "litter": {"type": "string"}, "strain": {"type": "string"}, "source": {"type": "string"}, "line": {"type": "string"}, "projects": {"type": "array", "items": {"type": "string"}}, "session_projects": {"type": "array", "items": {"type": "string"}}, "lab": {"type": "string"}, "alive": {"type": "boolean"}, "last_water_restriction": {"type": ["number", "null"]}, "expected_water": {"type": ["number", "null"]}, "remaining_water": {"type": ["number", "null"]}, "weighings": {"type": "array", "items": {"type": "string"}}, "water_administrations": {"type": "array", "items": {"type": "string"}}
-      }
-    },
-    "IBLSessionsData": {
-      "type": "object", "additionalProperties": false, "properties": {
-        "location": {"type": "string"}, "project": {"type": "string"}, "type": {"type": "string"}, "number": {"type": "number"}, "end_time": {"type": "string", "pattern": "^([0-9]{4})-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2})?"}, "parent_session": {"type": "string"}, "url": {"type": "string"}, "extended_qc": {"type": "string"}, "qc": {"type": "string"}, "json": {"type": "string"}, "wateradmin_session_related": {"type": "array", "items": {"type": "string"}}
-      }
-    },
-    "Probes": {
-      "type": "array", "items": {
-        "type": "object", "additionalProperties": false, "properties": {
-          "id": {"type": "string", "description": "UUID"}, "name": {"type": "string"}, "model": {"type": "string", "description": "Model number/name for the neuropixels probe"}, "trajectory_estimate": {"type": "array", "items": {"type": "string", "description": "string version of a dict"}}
-        }
-      }
-    },
-    "Behavior": {
-      "type": "object",
-      "properties": {
-        "Position": {
-          "type": "object", "properties": {
-            "name": {"type": "string"},
-            "spatial_series": {
-              "type": "array", "items": {
-                "type": "object", "$ref": "#/definitions/TimeSeries"
-              }
-            }
-          }
-        },
-        "BehavioralEvents": {
-          "type": "object", "properties": {
-            "name": {"type": "string"}, "time_series": {
-              "type": "array", "items": {
-                "type": "object", "$ref": "#/definitions/TimeSeries"
-              }
-            }
-          }
-        },
-        "PupilTracking": {
-          "type": "object", "properties": {
-            "name": {"type": "string"}, "time_series": {
-              "type": "array", "items": {
-                "type": "object", "$ref": "#/definitions/TimeSeries"
-              }
-            }
-          }
-        },
-        "BehavioralTimeSeries": {
-          "type": "object", "properties": {
-            "unit": {"type": "string", "default": "m"}, "time_series": {
-              "type": "array", "items": {
-                "type": "object", "$ref": "#/definitions/TimeSeries"
-              }
-            }
-          }
-        },
-        "BehavioralEpochs": {
-          "type": "object", "properties": {
-            "name": {"type": "string"}, "interval_series": {
-              "type": "array", "items": {
-                "type": "object", "$ref": "#/definitions/TimeSeries"
-              }
-            }
-          }
-        }
-      }
-    },
-    "Ecephys": {
-      "type": "object", "additionalProperties": false, "required": ["Ecephys", "Device"], "properties": {
-        "Ecephys": {
-          "type": "object", "additionalProperties": false, "properties": {
-            "ElectricalSeries": {
-              "type": "array", "items": {
-                "type": "object", "additionalProperties": false, "required": ["name", "description", "timestamps", "data"], "properties": {
-                  "name": {"type": "string"}, "description": {"type": "string"}, "timestamps": {"type": "string", "pattern": ".+\\.timestamps"}, "data": {"type": "string", "pattern": ".+\\..+"}
-                }
-              }
-            }, "SpikeEventSeries": {
-              "type": "array", "items": {
-                "type": "object", "additionalProperties": false, "required": ["name", "description", "timestamps", "data"], "properties": {
-                  "name": {"type": "string"}, "description": {"type": "string"}, "timestamps": {"type": "string", "pattern": ".+\\.timestamps"}, "data": {"type": "string", "pattern": ".+\\..+"}
-                }
-              }
-            }, "Spectrum": {
-              "type": "array", "items": {
-                "type": "object", "additionalProperties": false, "required": ["name", "description", "power", "frequencies"], "properties": {
-                  "name": {"type": "string"}, "description": {"type": "string"}, "data": {"type": "string", "pattern": "^.+\\.(power)$"}, "power": {"type": "string", "pattern": "^.+\\.(power)$"}, "frequencies": {"type": "string", "pattern": "^.+\\.(freqs)$"}, "timestamps": {"type": "null"}
-                }
-              }
-            }
-          }
-        }, "Device": {
+        "id": {
+          "type": "string", "description": "UUID"
+        }, "name": {
+          "type": "string"
+        }, "model": {
+          "type": "string", "description": "Model number/name for the neuropixels probe"
+        }, "trajectory_estimate": {
           "type": "array", "items": {
-            "type": "object", "required": ["name", "description"], "additionalProperties": false, "properties": {
-              "name": {"type": "string"}, "description": {"type": "string"}
-            }
-          }
-        }, "ElectrodeGroup": {
-          "type": "array", "items": {
-            "type": "object", "required": ["name", "description", "location", "device"], "properties": {
-              "name": {"type": "string"}, "description": {"type": "string"}, "location": {"type": "string"}, "device": {"type": "string"}, "tag": {"type": "string"}
-            }
-          }
-        }
-      }
-    },
-    "Ophys": {
-      "type": "object", "properties": {}
-    },
-    "Icephys": {
-      "type": "object", "properties": {}
-    },
-    "Trials": {
-      "type": "array", "items": {
-        "type": "object", "required": ["name", "data", "description"], "properties": {
-          "name": {"type": "string", "description": "trial table column name"}, "description": {"type": "string", "description": "Alyx desc of dataset"}, "data": {
-            "type": "string", "description": "Alyx name of dataset:ex: trials.intervals", "pattern": ".+\\..+"
-          }
-        }
-      }
-    },
-    "Stimulus": {
-      "type": "object", "properties": {
-        "time_series": {
-          "type": "array", "items": {
-            "type": "object", "title": "StimulusTimeSeries", "allOf": [
-              {"$ref": "#/definitions/TimeSeries"}
-            ]
-          }
-        }
-      }
-    },
-    "Units": {
-      "type": "array", "items": {
-        "type": "object", "properties": {
-          "name": {"type": "string"}, "data": {"type": "string", "pattern": ".+\\..+"}, "description": {"type": "string"}
-        }
-      }
-    },
-    "ElectrodeTable": {
-      "type": "array", "items": {
-        "type": "object", "properties": {
-          "name": {"type": "string"}, "data": {"type": ["string", "number"]}, "description": {"type": "string"}
-        }
-      }
-    },
-    "Acquisition": {
-      "type": "object",
-      "properties": {
-        "DecompositionSeries": {
-          "type": "array", "items": {
-            "type": "object",
-            "$ref": "#/definitions/TimeSeries",
-            "properties": {
-              "metric": {"type": "string"},
-              "bands": {"type": "string", "pattern": ".+\\.freq.+"}
-            }
-          }
-        },
-        "TimeSeries": {
-          "type": "array", "items": {
-            "type": "object", "$ref": "#/definitions/TimeSeries"
-          }
-        },
-        "ImageSeries": {
-          "type": "array", "items": {
-            "type": "object", "$ref": "#/definitions/TimeSeries"
+            "type": "string", "description": "string version of a dict"
           }
         }
       }
     }
-  },
-  "definitions": {
-    "TimeSeries": {
-      "type": "object",
-      "required": ["name", "description", "timestamps", "data"],
-      "properties": {
-        "name": {"type": "string"},
-        "description": {"type": "string"},
-        "timestamps": {"type": "string", "pattern": ".+\\.((time.+)|(interval.+))+"},
-        "data": {"type": "string", "pattern": ".+\\..+"}
+  }, "Behavior": {
+    "type": "object", "properties": {
+      "Position": {
+        "type": "object", "properties": {
+          "name": {
+            "type": "string"
+          }, "spatial_series": {
+            "type": "array", "items": {
+              "type": "object", "$ref": "#/definitions/TimeSeries"
+            }
+          }
+        }
+      }, "BehavioralEvents": {
+        "type": "object", "properties": {
+          "name": {
+            "type": "string"
+          }, "time_series": {
+            "type": "array", "items": {
+              "type": "object", "$ref": "#/definitions/TimeSeries"
+            }
+          }
+        }
+      }, "PupilTracking": {
+        "type": "object", "properties": {
+          "name": {
+            "type": "string"
+          }, "time_series": {
+            "type": "array", "items": {
+              "type": "object", "$ref": "#/definitions/TimeSeries"
+            }
+          }
+        }
+      }, "BehavioralTimeSeries": {
+        "type": "object", "properties": {
+          "unit": {
+            "type": "string", "default": "m"
+          }, "time_series": {
+            "type": "array", "items": {
+              "type": "object", "$ref": "#/definitions/TimeSeries"
+            }
+          }
+        }
+      }, "BehavioralEpochs": {
+        "type": "object", "properties": {
+          "name": {
+            "type": "string"
+          }, "interval_series": {
+            "type": "array", "items": {
+              "type": "object", "$ref": "#/definitions/TimeSeries"
+            }
+          }
+        }
+      }
+    }
+  }, "Ecephys": {
+    "type": "object", "additionalProperties": false, "required": ["Ecephys", "Device"], "properties": {
+      "Ecephys": {
+        "type": "object", "additionalProperties": false, "properties": {
+          "ElectricalSeries": {
+            "type": "array", "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["name", "description", "timestamps", "data"], "properties": {
+                "name": {
+                  "type": "string"
+                }, "description": {
+                  "type": "string"
+                }, "timestamps": {
+                  "type": "string", "pattern": ".+\\.timestamps"
+                }, "data": {
+                  "type": "string", "pattern": ".+\\..+"
+                }
+              }
+            }
+          }, "SpikeEventSeries": {
+            "type": "array", "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["name", "description", "timestamps", "data"], "properties": {
+                "name": {
+                  "type": "string"
+                }, "description": {
+                  "type": "string"
+                }, "timestamps": {
+                  "type": "string", "pattern": ".+\\.timestamps"
+                }, "data": {
+                  "type": "string", "pattern": ".+\\..+"
+                }
+              }
+            }
+          }, "Spectrum": {
+            "type": "array", "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["name", "description", "power", "frequencies"], "properties": {
+                "name": {
+                  "type": "string"
+                }, "description": {
+                  "type": "string"
+                }, "data": {
+                  "type": "string", "pattern": "^.+\\.(power)$"
+                }, "power": {
+                  "type": "string", "pattern": "^.+\\.(power)$"
+                }, "frequencies": {
+                  "type": "string", "pattern": "^.+\\.(freqs)$"
+                }, "timestamps": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        }
+      }, "Device": {
+        "type": "array", "items": {
+          "type": "object", "required": ["name", "description"], "additionalProperties": false, "properties": {
+            "name": {
+              "type": "string"
+            }, "description": {
+              "type": "string"
+            }
+          }
+        }
+      }, "ElectrodeGroup": {
+        "type": "array", "items": {
+          "type": "object", "required": ["name", "description", "location", "device"], "properties": {
+            "name": {
+              "type": "string"
+            }, "description": {
+              "type": "string"
+            }, "location": {
+              "type": "string"
+            }, "device": {
+              "type": "string"
+            }, "tag": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }, "Ophys": {
+    "type": "object", "properties": {}
+  }, "Icephys": {
+    "type": "object", "properties": {}
+  }, "Trials": {
+    "type": "array", "items": {
+      "type": "object", "required": ["name", "data", "description"], "properties": {
+        "name": {
+          "type": "string", "description": "trial table column name"
+        }, "description": {
+          "type": "string", "description": "Alyx desc of dataset"
+        }, "data": {
+          "type": "string", "description": "Alyx name of dataset:ex: trials.intervals", "pattern": ".+\\..+"
+        }
+      }
+    }
+  }, "Stimulus": {
+    "type": "object", "properties": {
+      "time_series": {
+        "type": "array", "items": {
+          "type": "object", "title": "StimulusTimeSeries", "allOf": [
+            {
+              "$ref": "#/definitions/TimeSeries"
+            }
+          ]
+        }
+      }
+    }
+  }, "Units": {
+    "type": "array", "items": {
+      "type": "object", "properties": {
+        "name": {
+          "type": "string"
+        }, "data": {
+          "type": "string", "pattern": ".+\\..+"
+        }, "description": {
+          "type": "string"
+        }
+      }
+    }
+  }, "ElectrodeTable": {
+    "type": "array", "items": {
+      "type": "object", "properties": {
+        "name": {
+          "type": "string"
+        }, "data": {
+          "type": ["string", "number"]
+        }, "description": {
+          "type": "string"
+        }
+      }
+    }
+  }, "Acquisition": {
+    "type": "object", "properties": {
+      "DecompositionSeries": {
+        "type": "array", "items": {
+          "type": "object", "$ref": "#/definitions/TimeSeries", "properties": {
+            "metric": {
+              "type": "string"
+            }, "bands": {
+              "type": "string", "pattern": ".+\\.freq.+"
+            }
+          }
+        }
+      }, "TimeSeries": {
+        "type": "array", "items": {
+          "type": "object", "$ref": "#/definitions/TimeSeries"
+        }
+      }, "ImageSeries": {
+        "type": "array", "items": {
+          "type": "object", "$ref": "#/definitions/TimeSeries"
+        }
       }
     }
   }
+}, "definitions": {
+  "TimeSeries": {
+    "type": "object", "required": ["name", "description", "timestamps", "data"], "properties": {
+      "name": {
+        "type": "string"
+      }, "description": {
+        "type": "string"
+      }, "timestamps": {
+        "type": "string", "pattern": ".+\\.((time.+)|(interval.+))+"
+      }, "data": {
+        "type": "string", "pattern": ".+\\..+"
+      }
+    }
+  }
+}
 }

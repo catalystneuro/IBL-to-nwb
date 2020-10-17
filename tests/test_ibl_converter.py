@@ -1,5 +1,5 @@
 from pynwb import NWBHDF5IO, TimeSeries
-from .utils import *
+from .utils import json_schema
 from oneibl.one import ONE
 from ibl_nwb import Alyx2NWBConverter
 from ibl_nwb import Alyx2NWBMetadata
@@ -11,6 +11,7 @@ from pynwb.behavior import SpatialSeries
 import h5py
 import jsonschema
 from ndx_spectrum import Spectrum
+from datetime import datetime
 
 
 @pytest.fixture(scope='module')
@@ -24,8 +25,10 @@ def test_metadata_converter(tmp_path, build_converter):
     converter_name_json = tmp_path/'temp.json'
     converter_name_yaml = tmp_path/'temp.yaml'
     full_metadata = build_converter.complete_metadata
-    full_metadata['NWBFile']['session_start_time'] = str(full_metadata['NWBFile']['session_start_time'])
-    full_metadata['IBLSubject']['date_of_birth'] = str(full_metadata['IBLSubject']['date_of_birth'])
+    full_metadata['NWBFile']['session_start_time'] = datetime.strftime(
+        full_metadata['NWBFile']['session_start_time'],'%Y-%m-%dT%X')
+    full_metadata['IBLSubject']['date_of_birth'] = datetime.strftime(
+        full_metadata['IBLSubject']['date_of_birth'],'%Y-%m-%dT%X')
     jsonschema.validate(full_metadata, json_schema)
     # save yaml/json files and check types:
     build_converter.write_metadata(converter_name_json, savetype='.json')
