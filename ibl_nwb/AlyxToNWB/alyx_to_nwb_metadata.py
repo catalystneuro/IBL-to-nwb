@@ -45,10 +45,21 @@ class Alyx2NWBMetadata:
         self._get_subject_table()
 
     def _get_datetime(self, dtstr, format='%Y-%m-%dT%X'):
+        if '.' in dtstr:
+            dtstr = dtstr.split('.')[0]
+        if len(dtstr)>19:
+            dtstr = dtstr[:19]
+        if len(dtstr)==10:
+            format = '%Y-%m-%d'
+        elif len(dtstr)==19:
+            if 'T' in dtstr:
+                format = '%Y-%m-%dT%X'
+            else:
+                format = '%Y-%m-%d %X'
         try:
             return datetime.strptime(dtstr,format)
-        except ValueError:
-            return self._get_datetime(dtstr.split('.')[0], format=format)
+        except:
+            raise Exception('could not convert to datetime')
 
     def _get_dataset_details(self):
         """
@@ -434,7 +445,7 @@ class Alyx2NWBMetadata:
         for k in probe_fields:
             if k == 'trajectory_estimate':
                 input_dict.update(
-                    {k: [[str(l) for l in probe_list[i].get(k, ["None"])] for i in range(len(probe_list))]})
+                    {k: [[json.dumps(l) for l in probe_list[i].get(k, ["None"])] for i in range(len(probe_list))]})
             else:
                 input_dict.update({k: [probe_list[i].get(k, "None") for i in range(len(probe_list))]})
         probes_metadata_dict['Probes'].extend(
@@ -457,7 +468,7 @@ class Alyx2NWBMetadata:
         nwbfile_metadata_dict['NWBFile']['lab'] = self.eid_session_info['lab']
         nwbfile_metadata_dict['NWBFile']['protocol'] = self.eid_session_info['task_protocol']
         nwbfile_metadata_dict['NWBFile']['surgery'] = 'None'
-        nwbfile_metadata_dict['NWBFile']['notes'] = self.eid_session_info['narrative']
+        nwbfile_metadata_dict['NWBFile']['notes'] = ', '.join([f"User:{i['user']}{i['text']}" for i in self.eid_session_info['notes']])
         nwbfile_metadata_dict['NWBFile']['session_description'] = ','.join(self.eid_session_info['procedures'])
         return nwbfile_metadata_dict
 
@@ -465,11 +476,15 @@ class Alyx2NWBMetadata:
     def sessions_metadata(self):
         sessions_metadata_dict = self._initialize_container_dict('IBLSessionsData')
         custom_fields = ['location','project','type','number','end_time',
-                         'parent_session','url','extended_qc','qc','json']
+                         'parent_session','url','qc']
         sessions_metadata_dict['IBLSessionsData'] = {i: str(self.eid_session_info[i]) if i not in ['procedures','number']
                                                         else self.eid_session_info[i] for i in custom_fields}
+        sessions_metadata_dict['IBLSessionsData']['extended_qc'] = json.dumps(self.eid_session_info['extended_qc'])
+        sessions_metadata_dict['IBLSessionsData']['json'] = json.dumps(self.eid_session_info['json'])
         sessions_metadata_dict['IBLSessionsData']['wateradmin_session_related'] = \
-            [str(i) for i in self.eid_session_info['wateradmin_session_related']]
+            [json.dumps(i) for i in self.eid_session_info['wateradmin_session_related']]
+        sessions_metadata_dict['IBLSessionsData']['notes'] = \
+            [json.dumps(i) for i in self.eid_session_info['notes']]
         return sessions_metadata_dict
 
     @property
@@ -484,12 +499,12 @@ class Alyx2NWBMetadata:
             subject_metadata_dict['IBLSubject']['sex'] = sub_table_dict.pop('sex')
             subject_metadata_dict['IBLSubject']['species'] = sub_table_dict.pop('species')
             subject_metadata_dict['IBLSubject']['weight'] = str(sub_table_dict.pop('reference_weight'))
-            subject_metadata_dict['IBLSubject']['date_of_birth'] = self._get_datetime(sub_table_dict.pop('birth_date'),format='%Y-%m-%d')
+            subject_metadata_dict['IBLSubject']['date_of_birth'] = self._get_datetime(sub_table_dict.pop('birth_date'))
             # del sub_table_dict['weighings']
             # del sub_table_dict['water_administrations']
             subject_metadata_dict['IBLSubject'].update(sub_table_dict)
-            subject_metadata_dict['IBLSubject']['weighings'] = [str(i) for i in subject_metadata_dict['IBLSubject']['weighings']]
-            subject_metadata_dict['IBLSubject']['water_administrations'] = [str(i) for i in subject_metadata_dict['IBLSubject']['water_administrations']]
+            subject_metadata_dict['IBLSubject']['weighings'] = [json.dumps(i) for i in subject_metadata_dict['IBLSubject']['weighings']]
+            subject_metadata_dict['IBLSubject']['water_administrations'] = [json.dumps(i) for i in subject_metadata_dict['IBLSubject']['water_administrations']]
         return subject_metadata_dict
 
     @property
@@ -709,8 +724,10 @@ class Alyx2NWBMetadata:
         if Path(fileloc).suffix != savetype:
             raise ValueError(f'fileloc filetype should of of type {savetype}')
         if savetype=='.json':
-            full_metadata['NWBFile']['session_start_time'] = str(full_metadata['NWBFile']['session_start_time'])
-            full_metadata['IBLSubject']['date_of_birth'] = str(full_metadata['IBLSubject']['date_of_birth'])
+            full_metadata['NWBFile']['session_start_time'] = datetime.strftime(
+                full_metadata['NWBFile']['session_start_time'],'%Y-%m-%dT%X')
+            full_metadata['IBLSubject']['date_of_birth'] = datetime.strftime(
+                full_metadata['IBLSubject']['date_of_birth'],'%Y-%m-%dT%X')
             with open(fileloc, 'w') as f:
                 json.dump(full_metadata, f, indent=2)
         elif savetype in ['.yaml', '.yml']:
