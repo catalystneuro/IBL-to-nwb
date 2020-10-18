@@ -1,5 +1,5 @@
 from pynwb import NWBHDF5IO, TimeSeries
-from .utils import json_schema
+from .utils import json_schema, raw_file_names, camera_raw_file_names
 from oneibl.one import ONE
 from ibl_nwb import Alyx2NWBConverter
 from ibl_nwb import Alyx2NWBMetadata
@@ -12,23 +12,30 @@ import h5py
 import jsonschema
 from ndx_spectrum import Spectrum
 from datetime import datetime
+import requests
 
 
 @pytest.fixture(scope='module')
 def build_converter():
     eid_temp = 'da188f2c-553c-4e04-879b-c9ea2d1b9a93'
-    metadata_converter = Alyx2NWBMetadata(eid=eid_temp, one_obj=ONE())
+    try:
+        metadata_converter = Alyx2NWBMetadata(eid=eid_temp, one_obj=ONE())
+    except Exception as e:
+        metadata_converter = e
     yield metadata_converter
 
 
 def test_metadata_converter(tmp_path, build_converter):
     converter_name_json = tmp_path/'temp.json'
     converter_name_yaml = tmp_path/'temp.yaml'
+    if isinstance(build_converter, Exception):
+        print(str(build_converter))
+        return
     full_metadata = build_converter.complete_metadata
     full_metadata['NWBFile']['session_start_time'] = datetime.strftime(
-        full_metadata['NWBFile']['session_start_time'],'%Y-%m-%dT%X')
+        full_metadata['NWBFile']['session_start_time'], '%Y-%m-%dT%X')
     full_metadata['IBLSubject']['date_of_birth'] = datetime.strftime(
-        full_metadata['IBLSubject']['date_of_birth'],'%Y-%m-%dT%X')
+        full_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%dT%X')
     jsonschema.validate(full_metadata, json_schema)
     # save yaml/json files and check types:
     build_converter.write_metadata(converter_name_json, savetype='.json')
@@ -43,17 +50,22 @@ def test_metadata_converter(tmp_path, build_converter):
 
 def test_nwb_converter(tmp_path, build_converter):
     nwbfileloc = str(tmp_path/'test.nwb')
+    if isinstance(build_converter, Exception):
+        print(str(build_converter))
+        return
     full_metadata = build_converter.complete_metadata
+    save_raw = False
+    save_camera_raw = False
     converter_nwb1 = Alyx2NWBConverter(
         nwb_metadata_file=build_converter.complete_metadata,
         saveloc=nwbfileloc,
-        save_raw=False,
-        save_camera_raw=False)
+        save_raw=save_raw,
+        save_camera_raw=save_camera_raw)
     converter_nwb2 = Alyx2NWBConverter(
         metadata_obj=build_converter,
         saveloc=nwbfileloc,
-        save_raw=False,
-        save_camera_raw=False)
+        save_raw=save_raw,
+        save_camera_raw=save_camera_raw)
     converter_nwb1.run_conversion()
     converter_nwb1.write_nwb()
     with NWBHDF5IO(nwbfileloc, 'r') as io:
@@ -110,10 +122,10 @@ def test_nwb_converter(tmp_path, build_converter):
                 assert_array_equal(data, dtcol.data[()])
         # test units:
         unit_data_len = sum(converter_nwb1._data_attrs_dump['unit_table_length'])
-        dt_column_names=[getattr(nwbfile.units,i['name']).name for i in full_metadata['Units']]
+        dt_column_names = [getattr(nwbfile.units, i['name']).name for i in full_metadata['Units']]
         for no, unitcol in enumerate(full_metadata['Units']):
             assert unitcol['name'] == dt_column_names[no]
-        assert nwbfile.units.id.shape[0]==unit_data_len
+        assert nwbfile.units.id.shape[0] == unit_data_len
         # test electrode group:
         for group in full_metadata['Ecephys']['ElectrodeGroup']:
             name = group.pop('name')
@@ -145,13 +157,16 @@ def test_nwb_converter(tmp_path, build_converter):
             for i1, j1 in j.items():
                 for j11 in j1:
                     assert i in ephys_datasets.keys()
-                    assert j11['name'] in getattr(ephys_datasets[i], i1).keys()
-                    if i == 'Position':
-                        assert isinstance(getattr(ephys_datasets[i], i1)[j11['name']], SpatialSeries)
-                    else:
-                        assert isinstance(getattr(ephys_datasets[i], i1)[j11['name']], TimeSeries)
+                    if j11['name'] != 'camera_dlc':
+                        assert j11['name'] in getattr(ephys_datasets[i], i1).keys()
+                        if i == 'Position':
+                            assert isinstance(getattr(ephys_datasets[i], i1)[j11['name']], SpatialSeries)
+                        else:
+                            assert isinstance(getattr(ephys_datasets[i], i1)[j11['name']], TimeSeries)
         # test acquisition: test only presence of names of datasets:
         acq_datasets = nwbfile.acquisition
         for i, j in full_metadata['Acquisition'].items():
             for j1 in j:
+                if (i == 'ImageSeries' and not save_camera_raw) or (j1['name'] in raw_file_names and not save_raw):
+                    break
                 assert any([True for h in acq_datasets.keys() if j1['name'] in h])
