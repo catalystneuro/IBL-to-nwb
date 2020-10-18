@@ -164,9 +164,8 @@ def test_nwb_converter(tmp_path, build_converter):
                         else:
                             assert isinstance(getattr(ephys_datasets[i], i1)[j11['name']], TimeSeries)
         # test acquisition: test only presence of names of datasets:
-        acq_datasets = nwbfile.acquisition
-        for i, j in full_metadata['Acquisition'].items():
-            for j1 in j:
-                if (i == 'ImageSeries' and not save_camera_raw) or (j1['name'] in raw_file_names and not save_raw):
-                    break
-                assert any([True for h in acq_datasets.keys() if j1['name'] in h])
+        if save_raw and save_camera_raw:
+            acq_datasets = nwbfile.acquisition
+            for i, j in full_metadata['Acquisition'].items():
+                for j1 in j:
+                    assert any([True for h in acq_datasets.keys() if j1['name'] in h])
