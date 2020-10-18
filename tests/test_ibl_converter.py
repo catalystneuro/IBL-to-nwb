@@ -20,7 +20,7 @@ def build_converter():
     eid_temp = 'da188f2c-553c-4e04-879b-c9ea2d1b9a93'
     try:
         metadata_converter = Alyx2NWBMetadata(eid=eid_temp, one_obj=ONE())
-    except Exception as e:
+    except (requests.exceptions.HTTPError, ConnectionError) as e:
         metadata_converter = e
     yield metadata_converter
 
