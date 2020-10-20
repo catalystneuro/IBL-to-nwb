@@ -140,7 +140,7 @@ def test_nwb_converter(tmp_path, build_converter):
             assert electrode['name'] in nwbfile.electrodes.colnames
         assert nwbfile.electrodes.id.shape[0] == elec_tbl_len
         # test timeseries ephys:
-        ephys_datasets = nwbfile.processing['Ecephys'].data_interfaces
+        ephys_datasets = nwbfile.processing['ecephys'].data_interfaces
         for i, j in full_metadata['Ecephys']['Ecephys'].items():
             for j1 in j:
                 assert j1['data'] in converter_nwb1._data_attrs_dump.keys()
