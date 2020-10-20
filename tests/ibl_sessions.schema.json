@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ibl_sessions.schema.json", "additionalProperties": false,
+  "properties": {
+    "subject": {"type": ["string","null"]},
+    "users": {"type": "array", "items": {"type": ["string","null"]}},
+    "location": {"type": ["string","null"]},
+    "procedures": {"type": "array", "items": {"type": "string"}},
+    "lab": {"type": ["string","null"]},
+    "project": {"type": ["string","null"]},
+    "type": {"type": ["string","null"]},
+    "task_protocol": {"type": ["string","null"]},
+    "number": {"type": "number"},
+    "start_time": {"type": ["string","null"]},
+    "end_time": {"type": ["string","null"]},
+    "narrative": {"type": ["string","null"]},
+    "parent_session": {"type": ["string","null"]},
+    "n_correct_trials": {"type": ["number","boolean"]},
+    "n_trials": {"type": ["number","null"]},
+    "url": {"type": ["string","null"]},
+    "extended_qc": {"type": "object"},
+    "qc": {"type": ["string","null"]},
+    "data_dataset_session_related": {
+      "type": "array", "items": {
+        "required": ["id","name","dataset_type","data_url","url","file_size"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "dataset_type": {"type": "string", "pattern": ".+\\..+"},
+          "data_url": {"type": "string"},
+          "url": {"type": "string"},
+          "file_size": {"type": "number"}
+      }}},
+    "wateradmin_session_related": {"type": "array", "items": {"type": "object"}},
+    "json": {"type": "object"},
+    "probe_insertion": {
+      "type": "array", "items": {
+        "required": ["id","name","model","trajectory_estimate"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "model": {"type": "string"},
+          "trajectory_estimate": {"type": "array", "items": {"type": "object"}}
+      }}},
+    "notes": {"type": "array", "items": {"type": "object"}}
+  }
+}

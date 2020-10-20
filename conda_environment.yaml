@@ -50,7 +50,7 @@ dependencies:
    - opencv-python
    - SimpleITK
    - ndx_ibl_metadata
-   - -e git+https://github.com/catalystneuro/nwb-conversion-tools.git@fb9703f8e86072f04356883975e5dfffa773913e#egg=nwb-conversion-tools
+   - git+https://github.com/catalystneuro/nwb-conversion-tools.git@fb9703f8e86072f04356883975e5dfffa773913e#egg=nwb-conversion-tools
    - ndx-spectrum==0.2.2
    - ndx-icephys-meta==0.1.0
    - ibllib
