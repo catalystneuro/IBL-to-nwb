@@ -165,7 +165,7 @@
         }
       }
     },
-    "Ecephys": {
+    "ecephys": {
       "type": "object",
       "properties": {
         "Device": {"$ref": "#/definitions/Devices"},

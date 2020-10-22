@@ -209,11 +209,11 @@ class Alyx2NWBConverter(NWBConverter):
             return
         if not self.electrode_table_exist:
             self.create_electrode_table_ecephys()
-        if not 'Ecephys' in self.nwbfile.processing:
-            mod = self.nwbfile.create_processing_module('Ecephys', 'Processed electrophysiology data of IBL')
+        if not 'ecephys' in self.nwbfile.processing:
+            mod = self.nwbfile.create_processing_module('ecephys', 'Processed electrophysiology data of IBL')
         else:
-            mod = self.nwbfile.get_processing_module('Ecephys')
-        for func, argmts in self.nwb_metadata['Ecephys']['Ecephys'].items():
+            mod = self.nwbfile.get_processing_module('ecephys')
+        for func, argmts in self.nwb_metadata['ecephys']['ecephys'].items():
             data_retrieve = self._get_data(argmts, probes=self.no_probes)
             for no, i in enumerate(data_retrieve):
                 if 'ElectricalSeries' in func:

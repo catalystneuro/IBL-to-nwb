@@ -112,15 +112,15 @@ class NWBToIBLSession:
                     data_url='units/' + units_keys,
                     file_size=sys.getsizeof(self.nwb_h5file['units/' + units_keys])))
         if 'processing' in self.nwb_h5file:
-            if 'Ecephys' in self.nwb_h5file['processing']:
-                for ecephys_keys in self.nwb_h5file['processing/Ecephys']:
+            if 'ecephys' in self.nwb_h5file['processing']:
+                for ecephys_keys in self.nwb_h5file['processing/ecephys']:
                     out.append(dict(
                         id=str(uuid.uuid1()),
                         name=ecephys_keys,
                         dataset_type='spikes.' + ecephys_keys,
                         url=self.nwbfileloc,
-                        data_url='processing/Ecephys/' + ecephys_keys,
-                        file_size=sys.getsizeof(self.nwb_h5file['processing/Ecephys/' + ecephys_keys])))
+                        data_url='processing/ecephys/' + ecephys_keys,
+                        file_size=sys.getsizeof(self.nwb_h5file['processing/ecephys/' + ecephys_keys])))
         if 'general/extracellular_ephys/electrodes' in self.nwb_h5file:
             for electrode_keys in self.nwb_h5file['general/extracellular_ephys/electrodes']:
                 out.append(dict(

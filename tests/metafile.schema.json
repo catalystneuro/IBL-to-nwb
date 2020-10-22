@@ -210,9 +210,9 @@
         }
       }
     }
-  }, "Ecephys": {
-    "type": "object", "additionalProperties": false, "required": ["Ecephys", "Device"], "properties": {
-      "Ecephys": {
+  }, "ecephys": {
+    "type": "object", "additionalProperties": false, "required": ["ecephys", "Device"], "properties": {
+      "ecephys": {
         "type": "object", "additionalProperties": false, "properties": {
           "ElectricalSeries": {
             "type": "array", "items": {
