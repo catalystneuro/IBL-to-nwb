@@ -662,7 +662,7 @@ class Alyx2NWBMetadata:
         ecephys_objects = ['templates', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']
         container_object_names = ['SpikeEventSeries', 'ElectricalSeries', 'Spectrum']
         custom_attrs_objects = [['waveforms'], ['rms'], ['power']]
-        ecephys_container = self._initialize_container_dict('Ecephys')
+        ecephys_container = self._initialize_container_dict('ecephys')
         kwargs = dict()
         for i, j, k in zip(ecephys_objects, container_object_names, custom_attrs_objects):
             current_ecephys_objects = self._get_current_object_names([i])
@@ -671,7 +671,7 @@ class Alyx2NWBMetadata:
                     kwargs = dict(name=i, power='_iblqc_ephysSpectralDensity.power',
                                   frequencies='_iblqc_ephysSpectralDensity.freqs',
                                   timestamps=None)
-                ecephys_container['Ecephys'].update(self._get_timeseries_object(
+                ecephys_container['ecephys'].update(self._get_timeseries_object(
                     self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
             else:
                 warnings.warn(f'could not find {i} data in eid {self.eid}')
@@ -719,7 +719,7 @@ class Alyx2NWBMetadata:
                          **self.stimulus_metadata,
                          **self.units_metadata,
                          **self.electrodetable_metadata,
-                         'Ecephys': {**self.ecephys_metadata,
+                         'ecephys': {**self.ecephys_metadata,
                                      **self.device_metadata,
                                      **self.electrodegroup_metadata,
                                      },
