@@ -1,8 +1,5 @@
-import json
-from oneibl.one import ONE
-from pynwb import NWBFile, NWBHDF5IO
+from pynwb import NWBHDF5IO
 import uuid
-import h5py
 import sys
 from datetime import datetime
 from .field_map import *

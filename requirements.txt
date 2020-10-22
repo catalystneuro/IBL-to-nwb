@@ -1,0 +1,10 @@
+pynwb
+numpy
+pandas
+scipy>=1.4.1
+tqdm
+tzlocal
+ndx_ibl_metadata
+ndx-spectrum==0.2.2
+ibllib
+lazy_ops

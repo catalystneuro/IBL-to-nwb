@@ -1,8 +1,8 @@
 from .utils import json_iblsession_schema, json_iblsubject_schema
 from oneibl.one import ONE
-from ibl_nwb import Alyx2NWBConverter
-from ibl_nwb import Alyx2NWBMetadata
-from ibl_nwb import NWBToIBLSession
+from ibl_to_nwb import Alyx2NWBConverter
+from ibl_to_nwb import Alyx2NWBMetadata
+from ibl_to_nwb import NWBToIBLSession
 import json
 import pytest
 import jsonschema
