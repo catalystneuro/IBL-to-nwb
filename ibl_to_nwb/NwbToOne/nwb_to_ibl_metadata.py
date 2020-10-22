@@ -1,13 +1,11 @@
-import sys
-import uuid
-from copy import copy, deepcopy
-from datetime import datetime
-
-import h5py
-from ndx_ibl_metadata import IblProbes
 from pynwb import NWBHDF5IO
-
+import uuid
+import sys
+from datetime import datetime
 from .field_map import *
+from ndx_ibl_metadata import IblProbes
+from copy import copy, deepcopy
+import h5py
 
 
 def _convert_numpy_to_python_dtype(dict_to_convert_in):
@@ -89,7 +87,7 @@ class NWBToIBLSession:
                 temp = copy(nwb_data['probe_insertion'][count]['trajectory_estimate'][()])
                 nwb_data['probe_insertion'][count]['trajectory_estimate'] = \
                     [json.loads(ii) for ii in temp]
-                nwb_data['probe_insertion'][count]['name'] = j.name
+                nwb_data['probe_insertion'][count]['name']=j.name
                 count = count + 1
         return nwb_data
 
@@ -114,15 +112,15 @@ class NWBToIBLSession:
                     data_url='units/' + units_keys,
                     file_size=sys.getsizeof(self.nwb_h5file['units/' + units_keys])))
         if 'processing' in self.nwb_h5file:
-            if 'ecephys' in self.nwb_h5file['processing']:
-                for ecephys_keys in self.nwb_h5file['processing/ecephys']:
+            if 'Ecephys' in self.nwb_h5file['processing']:
+                for ecephys_keys in self.nwb_h5file['processing/Ecephys']:
                     out.append(dict(
                         id=str(uuid.uuid1()),
                         name=ecephys_keys,
                         dataset_type='spikes.' + ecephys_keys,
                         url=self.nwbfileloc,
-                        data_url='processing/ecephys/' + ecephys_keys,
-                        file_size=sys.getsizeof(self.nwb_h5file['processing/ecephys/' + ecephys_keys])))
+                        data_url='processing/Ecephys/' + ecephys_keys,
+                        file_size=sys.getsizeof(self.nwb_h5file['processing/Ecephys/' + ecephys_keys])))
         if 'general/extracellular_ephys/electrodes' in self.nwb_h5file:
             for electrode_keys in self.nwb_h5file['general/extracellular_ephys/electrodes']:
                 out.append(dict(
@@ -131,8 +129,7 @@ class NWBToIBLSession:
                     dataset_type='channels.' + electrode_keys,
                     url=self.nwbfileloc,
                     data_url='general/extracellular_ephys/electrodes/' + electrode_keys,
-                    file_size=sys.getsizeof(
-                        self.nwb_h5file['general/extracellular_ephys/electrodes/' + electrode_keys])))
+                    file_size=sys.getsizeof(self.nwb_h5file['general/extracellular_ephys/electrodes/' + electrode_keys])))
         return out
 
     def write_json(self, filename, metadata_type):

@@ -1,0 +1,6 @@
+include LICENSE.txt
+include README.md
+include requirements.txt
+include conda_environment.yaml
+prune old_tests
+prune venv

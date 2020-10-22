@@ -1,8 +1,8 @@
 from pynwb import NWBHDF5IO, TimeSeries
 from .utils import json_schema, raw_file_names, camera_raw_file_names
 from oneibl.one import ONE
-from ibl_nwb import Alyx2NWBConverter
-from ibl_nwb import Alyx2NWBMetadata
+from ibl_to_nwb import Alyx2NWBConverter
+from ibl_to_nwb import Alyx2NWBMetadata
 import json, yaml
 import pytest
 from numpy.testing import assert_array_equal

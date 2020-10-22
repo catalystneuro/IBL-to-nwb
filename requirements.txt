@@ -1,18 +1,10 @@
 pynwb
 numpy
-nwbwidgets
 pandas
-pyarrow
-scipy >= 1.4.1
+scipy>=1.4.1
 tqdm
 tzlocal
-datajoint
-mtscomp
 ndx_ibl_metadata
-git+https://github.com/catalystneuro/nwb-conversion-tools.git@fb9703f8e86072f04356883975e5dfffa773913e#egg=nwb-conversion-tools
 ndx-spectrum==0.2.2
-ndx-icephys-meta==0.1.0
 ibllib
 lazy_ops
-pyrsistent==0.16.0
-pytest_tornasync
