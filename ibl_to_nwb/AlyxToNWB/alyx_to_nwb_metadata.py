@@ -460,20 +460,21 @@ class Alyx2NWBMetadata:
     @property
     def nwbfile_metadata(self):
         nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
-        nwbfile_metadata_dict['NWBFile'].update(
-            session_start_time=self._get_datetime(self.eid_session_info['start_time']),
-            keywords=[','.join(self.eid_session_info['users']), self.eid_session_info['lab'], 'IBL'],
-            experiment_description=self.eid_session_info['project'],
-            session_id=self.eid,
-            experimenter=self.eid_session_info['users'],
-            identifier=self.eid,
-            institution=[i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info['lab']][0]][0],
-            lab=self.eid_session_info['lab'],
-            protocol=self.eid_session_info['task_protocol'],
-            surgery='None',
-            notes=', '.join([f"User:{i['user']}{i['text']}" for i in self.eid_session_info['notes']]),
-            session_description=','.join(self.eid_session_info['procedures'])
-        )
+        nwbfile_metadata_dict['NWBFile']['session_start_time'] = self._get_datetime(self.eid_session_info['start_time'])
+        nwbfile_metadata_dict['NWBFile']['keywords'] = [','.join(self.eid_session_info['users']),
+                                                        self.eid_session_info['lab'], 'IBL']
+        nwbfile_metadata_dict['NWBFile']['experiment_description'] = self.eid_session_info['project']
+        nwbfile_metadata_dict['NWBFile']['session_id'] = self.eid
+        nwbfile_metadata_dict['NWBFile']['experimenter'] = self.eid_session_info['users']
+        nwbfile_metadata_dict['NWBFile']['identifier'] = self.eid
+        nwbfile_metadata_dict['NWBFile']['institution'] = \
+            [i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info['lab']][0]][0]
+        nwbfile_metadata_dict['NWBFile']['lab'] = self.eid_session_info['lab']
+        nwbfile_metadata_dict['NWBFile']['protocol'] = self.eid_session_info['task_protocol']
+        nwbfile_metadata_dict['NWBFile']['surgery'] = 'None'
+        nwbfile_metadata_dict['NWBFile']['notes'] = ', '.join(
+            [f"User:{i['user']}{i['text']}" for i in self.eid_session_info['notes']])
+        nwbfile_metadata_dict['NWBFile']['session_description'] = ','.join(self.eid_session_info['procedures'])
         return nwbfile_metadata_dict
 
     @property
@@ -661,7 +662,7 @@ class Alyx2NWBMetadata:
         ecephys_objects = ['templates', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']
         container_object_names = ['SpikeEventSeries', 'ElectricalSeries', 'Spectrum']
         custom_attrs_objects = [['waveforms'], ['rms'], ['power']]
-        ecephys_container = self._initialize_container_dict('ecephys')
+        ecephys_container = self._initialize_container_dict('Ecephys')
         kwargs = dict()
         for i, j, k in zip(ecephys_objects, container_object_names, custom_attrs_objects):
             current_ecephys_objects = self._get_current_object_names([i])
@@ -670,7 +671,7 @@ class Alyx2NWBMetadata:
                     kwargs = dict(name=i, power='_iblqc_ephysSpectralDensity.power',
                                   frequencies='_iblqc_ephysSpectralDensity.freqs',
                                   timestamps=None)
-                ecephys_container['ecephys'].update(self._get_timeseries_object(
+                ecephys_container['Ecephys'].update(self._get_timeseries_object(
                     self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
             else:
                 warnings.warn(f'could not find {i} data in eid {self.eid}')
@@ -718,7 +719,7 @@ class Alyx2NWBMetadata:
                          **self.stimulus_metadata,
                          **self.units_metadata,
                          **self.electrodetable_metadata,
-                         'ecephys': {**self.ecephys_metadata,
+                         'Ecephys': {**self.ecephys_metadata,
                                      **self.device_metadata,
                                      **self.electrodegroup_metadata,
                                      },

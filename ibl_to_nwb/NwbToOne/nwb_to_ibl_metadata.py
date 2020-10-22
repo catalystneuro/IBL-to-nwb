@@ -1,5 +1,8 @@
-from pynwb import NWBHDF5IO
+import json
+from oneibl.one import ONE
+from pynwb import NWBFile, NWBHDF5IO
 import uuid
+import h5py
 import sys
 from datetime import datetime
 from .field_map import *
@@ -87,7 +90,7 @@ class NWBToIBLSession:
                 temp = copy(nwb_data['probe_insertion'][count]['trajectory_estimate'][()])
                 nwb_data['probe_insertion'][count]['trajectory_estimate'] = \
                     [json.loads(ii) for ii in temp]
-                nwb_data['probe_insertion'][count]['name']=j.name
+                nwb_data['probe_insertion'][count]['name'] = j.name
                 count = count + 1
         return nwb_data
 
@@ -129,7 +132,8 @@ class NWBToIBLSession:
                     dataset_type='channels.' + electrode_keys,
                     url=self.nwbfileloc,
                     data_url='general/extracellular_ephys/electrodes/' + electrode_keys,
-                    file_size=sys.getsizeof(self.nwb_h5file['general/extracellular_ephys/electrodes/' + electrode_keys])))
+                    file_size=sys.getsizeof(
+                        self.nwb_h5file['general/extracellular_ephys/electrodes/' + electrode_keys])))
         return out
 
     def write_json(self, filename, metadata_type):
