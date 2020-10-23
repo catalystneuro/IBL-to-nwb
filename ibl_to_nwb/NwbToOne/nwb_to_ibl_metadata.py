@@ -5,7 +5,8 @@ import uuid
 import h5py
 import sys
 from datetime import datetime
-from .field_map import *
+from .field_map import field_map_nwbfile, field_map_session_data, \
+    field_map_subject,field_map_IBL_subject
 from ndx_ibl_metadata import IblProbes
 from copy import copy, deepcopy
 import h5py
