@@ -112,7 +112,7 @@ class NWBToIBLSession:
                     data_url='units/' + units_keys,
                     file_size=sys.getsizeof(self.nwb_h5file['units/' + units_keys])))
         if 'processing' in self.nwb_h5file:
-            if 'Ecephys' in self.nwb_h5file['processing']:
+            if 'ecephys' in self.nwb_h5file['processing']:
                 for ecephys_keys in self.nwb_h5file['processing/Ecephys']:
                     out.append(dict(
                         id=str(uuid.uuid1()),
