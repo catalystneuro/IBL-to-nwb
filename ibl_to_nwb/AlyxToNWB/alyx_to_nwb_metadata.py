@@ -513,30 +513,30 @@ class Alyx2NWBMetadata:
 
     @property
     def behavior_metadata(self):
-        behavior_metadata_dict = self._initialize_container_dict('Behavior')
+        behavior_metadata_dict = self._initialize_container_dict('behavior')
         behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye', 'camera']
         current_behavior_objects = self._get_current_object_names(behavior_objects)
         for k, u in enumerate(current_behavior_objects):
             if 'wheel' == u:
-                behavior_metadata_dict['Behavior']['BehavioralTimeSeries'] = \
+                behavior_metadata_dict['behavior']['BehavioralTimeSeries'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'wheelMoves' in u:
-                behavior_metadata_dict['Behavior']['BehavioralEpochs'] = \
+                behavior_metadata_dict['behavior']['BehavioralEpochs'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'interval_series')
             if 'lickPiezo' in u:
-                behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
+                behavior_metadata_dict['behavior']['BehavioralTimeSeries']['time_series'].extend(
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
             if 'licks' in u:
-                behavior_metadata_dict['Behavior']['BehavioralEvents'] = \
+                behavior_metadata_dict['behavior']['BehavioralEvents'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'face' in u:
-                behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
+                behavior_metadata_dict['behavior']['BehavioralTimeSeries']['time_series'].extend(
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
             if 'eye' in u:
-                behavior_metadata_dict['Behavior']['PupilTracking'] = \
+                behavior_metadata_dict['behavior']['PupilTracking'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'camera' in u:
-                behavior_metadata_dict['Behavior']['Position'] = \
+                behavior_metadata_dict['behavior']['Position'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series', name='camera_dlc')
         return behavior_metadata_dict
 
@@ -714,8 +714,8 @@ class Alyx2NWBMetadata:
                                      **self.device_metadata,
                                      **self.electrodegroup_metadata,
                                       },
-                         'Ophys': dict(),
-                         'Icephys': dict(),
+                         'ophys': dict(),
+                         'icephys': dict(),
                          **self.acquisition_metadata}
         return metafile_dict
 
