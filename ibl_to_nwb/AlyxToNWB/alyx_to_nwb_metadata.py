@@ -457,21 +457,20 @@ class Alyx2NWBMetadata:
     @property
     def nwbfile_metadata(self):
         nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
-        nwbfile_metadata_dict['NWBFile']['session_start_time'] = self._get_datetime(self.eid_session_info['start_time'])
-        nwbfile_metadata_dict['NWBFile']['keywords'] = [','.join(self.eid_session_info['users']),
-                                                        self.eid_session_info['lab'], 'IBL']
-        nwbfile_metadata_dict['NWBFile']['experiment_description'] = self.eid_session_info['project']
-        nwbfile_metadata_dict['NWBFile']['session_id'] = self.eid
-        nwbfile_metadata_dict['NWBFile']['experimenter'] = self.eid_session_info['users']
-        nwbfile_metadata_dict['NWBFile']['identifier'] = self.eid
-        nwbfile_metadata_dict['NWBFile']['institution'] = \
-            [i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info['lab']][0]][0]
-        nwbfile_metadata_dict['NWBFile']['lab'] = self.eid_session_info['lab']
-        nwbfile_metadata_dict['NWBFile']['protocol'] = self.eid_session_info['task_protocol']
-        nwbfile_metadata_dict['NWBFile']['surgery'] = 'None'
-        nwbfile_metadata_dict['NWBFile']['notes'] = ', '.join(
-            [f"User:{i['user']}{i['text']}" for i in self.eid_session_info['notes']])
-        nwbfile_metadata_dict['NWBFile']['session_description'] = ','.join(self.eid_session_info['procedures'])
+        nwbfile_metadata_dict['NWBFile'].update(
+            session_start_time=self._get_datetime(self.eid_session_info['start_time']),
+            keywords=[','.join(self.eid_session_info['users']),self.eid_session_info['lab'], 'IBL'],
+            experiment_description=self.eid_session_info['project'],
+            session_id=self.eid,
+            experimenter=self.eid_session_info['users'],
+            identifier=self.eid,
+            institution=[i['institution'] for i in self.lab_table if i['name'] == [self.eid_session_info['lab']][0]][0],
+            lab=self.eid_session_info['lab'],
+            protocol=self.eid_session_info['task_protocol'],
+            surgery='none',
+            notes=', '.join([f"User:{i['user']}{i['text']}" for i in self.eid_session_info['notes']]),
+            session_description=','.join(self.eid_session_info['procedures'])
+        )
         return nwbfile_metadata_dict
 
     @property
