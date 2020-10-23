@@ -30,11 +30,32 @@ from .io_tools import iter_datasetview, OneData, get_default_column_ids
 
 class Alyx2NWBConverter:
 
-    def __init__(self, nwbfile=None, saveloc=None,
+    def __init__(self, saveloc=None,
                  nwb_metadata_file=None,
                  metadata_obj: Alyx2NWBMetadata = None,
                  one_object=None, save_raw=False, save_camera_raw=False,
                  complevel=4, shuffle=False):
+        """
+        Retrieve all Alyx session, subject metadata, raw data for eid using the one apis load method
+        Map that to nwb supported datatypes and create an nwb file.
+        Parameters
+        ----------
+        saveloc: str
+            save location of nwbfile
+        nwb_metadata_file: [dict, str]
+            output of Alyx2NWBMetadata as a dict/json location str
+        metadata_obj: Alyx2NWBMetadata
+        one_object: ONE()
+        save_raw: bool
+            will load and save large raw files: ecephys.raw.ap/lf.cbin to nwb
+        save_camera_raw: bool
+            will load and save mice camera movie .mp4: _iblrig_Camera.raw
+        complevel: int
+            level of compression to apply to raw datasets
+            (0-9)>(low,high). https://docs.h5py.org/en/latest/high/dataset.html
+        shuffle: bool
+            Enable shuffle I/O filter. http://docs.h5py.org/en/latest/high/dataset.html#dataset-shuffle
+        """
 
         self.complevel = complevel
         self.shuffle = shuffle
@@ -44,7 +65,6 @@ class Alyx2NWBConverter:
             elif isinstance(nwb_metadata_file, str):
                 with open(nwb_metadata_file, 'r') as f:
                     self.nwb_metadata = json.load(f)
-            # jsonschema.validate(nwb_metadata_file, metafile)
         elif metadata_obj is not None:
             self.nwb_metadata = metadata_obj.complete_metadata
         else:
@@ -80,15 +100,9 @@ class Alyx2NWBConverter:
 
     def initialize_nwbfile(self):
         """
-        This method is called at __init__.
-        This method can be overridden by child classes if necessary.
-        Creates self.nwbfile object.
-
-        Parameters
-        ----------
-        metadata_nwbfile: dict
+        Creates self.nwbfile, devices and electrode group of nwb file.
         """
-        nwbfile_args = dict(identifier=str(uuid.uuid4()),)
+        nwbfile_args = dict(identifier=str(uuid.uuid4()), )
         nwbfile_args.update(**self.nwb_metadata['NWBFile'])
         self.nwbfile = NWBFile(**nwbfile_args)
         # create devices
@@ -154,11 +168,17 @@ class Alyx2NWBConverter:
             return self.nwbfile.create_processing_module(name, description)
 
     def create_stimulus(self):
+        """
+        Creates stimulus data in nwbfile
+        """
         stimulus_list = self._get_data(self.nwb_metadata['Stimulus'].get('time_series'))
         for i in stimulus_list:
             self.nwbfile.add_stimulus(pynwb.TimeSeries(**i))
 
     def create_units(self):
+        """
+        Units table in nwbfile
+        """
         if self.no_probes == 0:
             return
         if not self.electrode_table_exist:
@@ -203,6 +223,9 @@ class Alyx2NWBConverter:
                                          data=unit_table_list[i]['data'])
 
     def create_electrode_table_ecephys(self):
+        """
+        Creates electrode table
+        """
         if self.no_probes == 0:
             return
         if self.electrode_table_exist:
@@ -255,6 +278,9 @@ class Alyx2NWBConverter:
         self.electrode_table_exist = True
 
     def create_timeseries_ecephys(self):
+        """
+        create SpikeEventSeries, ElectricalSeries, Spectrum datatypes within nwbfile>processing>ecephys
+        """
         if self.no_probes == 0:
             return
         if not self.electrode_table_exist:
@@ -287,6 +313,9 @@ class Alyx2NWBConverter:
                     mod.add(pynwb.ecephys.SpikeEventSeries(**i))
 
     def create_behavior(self):
+        """
+        Create behavior processing module
+        """
         self.check_module('behavior')
         for i in self.nwb_metadata['behavior']:
             if i == 'Position':
@@ -442,6 +471,12 @@ class Alyx2NWBConverter:
         return out_dict_trim
 
     def run_conversion(self):
+        """
+        Single method to create all datasets and metadata in nwbfile in one go
+        Returns
+        -------
+
+        """
         execute_list = [self.create_stimulus,
                         self.create_trials,
                         self.create_electrode_table_ecephys,
@@ -459,6 +494,13 @@ class Alyx2NWBConverter:
         print('done converting')
 
     def write_nwb(self, read_check=True):
+        """
+        After run_conversion(), write nwbfile to disk with the loaded nwbfile
+        Parameters
+        ----------
+        read_check: bool
+            Round trip verification
+        """
         print('Saving to file, please wait...')
         with NWBHDF5IO(self.saveloc, 'w') as io:
             io.write(self.nwbfile)

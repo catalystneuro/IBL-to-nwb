@@ -8,10 +8,24 @@ import warnings
 from copy import deepcopy
 from pathlib import Path
 
+
 class Alyx2NWBMetadata:
-    # TODO: add docstrings
 
     def __init__(self, eid=None, one_obj=None, **one_search_kwargs):
+        """
+        Query the sessions, subject, lab tables of the Alyx database using the ONE api.
+        Retrieve a mice experiment's metadata as well as the various data types (ONE format)
+        created during the experiment like: Trials, Behavior, Electrophysiology(raw, spike sorted),
+        Stimulus, Probes used.
+        Parameters
+        ----------
+        eid: str
+            uuid of IBL experiment
+        one_obj: ONE()
+            one object created after user authenticated connection to ALyx servers
+        one_search_kwargs: dict
+            various search terms to retrieve an eid of interest using the ONE api to query Alyx.
+        """
         if one_obj is None:
             self.one_obj = ONE()
         elif not isinstance(one_obj, OneAbstract):
@@ -260,7 +274,7 @@ class Alyx2NWBMetadata:
             # datafiles_names = datafiles_time_name
             # datafiles_desc = datafiles_time_desc
             # datafiles = ['None']
-        timeseries_dict = {ts_name: [None] * len(datafiles)}
+        timeseries_dict = {ts_name: [None]*len(datafiles)}
         for i, j in enumerate(datafiles):
             timeseries_dict[ts_name][i] = {'name': datafiles_names[i],
                                            'description': datafiles_desc[i],
@@ -372,7 +386,7 @@ class Alyx2NWBMetadata:
         """
         custom_keys = list(kwargs.keys())
         custom_data = list(kwargs.values())
-        out_list = [None] * len(custom_data[0])
+        out_list = [None]*len(custom_data[0])
         for ii, jj in enumerate(custom_data[0]):
             out_list[ii] = dict().copy()
             for i, j in enumerate(custom_keys):
@@ -459,7 +473,7 @@ class Alyx2NWBMetadata:
         nwbfile_metadata_dict = self._initialize_container_dict('NWBFile')
         nwbfile_metadata_dict['NWBFile'].update(
             session_start_time=self._get_datetime(self.eid_session_info['start_time']),
-            keywords=[','.join(self.eid_session_info['users']),self.eid_session_info['lab'], 'IBL'],
+            keywords=[','.join(self.eid_session_info['users']), self.eid_session_info['lab'], 'IBL'],
             experiment_description=self.eid_session_info['project'],
             session_id=self.eid,
             experimenter=self.eid_session_info['users'],
@@ -617,8 +631,8 @@ class Alyx2NWBMetadata:
                                                  ))
                 units_metadata_dict['Units'].extend(
                     self._get_dynamictable_array(name=metrics_columns,
-                                                 data=['clusters.metrics'] * len(metrics_columns),
-                                                 description=['metrics_table columns data'] * len(metrics_columns)
+                                                 data=['clusters.metrics']*len(metrics_columns),
+                                                 description=['metrics_table columns data']*len(metrics_columns)
                                                  ))
         return units_metadata_dict
 
@@ -718,7 +732,7 @@ class Alyx2NWBMetadata:
                          'ecephys': {**self.ecephys_metadata,
                                      **self.device_metadata,
                                      **self.electrodegroup_metadata,
-                                      },
+                                     },
                          'ophys': dict(),
                          'icephys': dict(),
                          **self.acquisition_metadata}
