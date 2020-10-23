@@ -152,8 +152,8 @@ def test_nwb_converter(tmp_path, build_converter):
                     else:
                         assert isinstance(ephys_datasets[k], TimeSeries)
         # test behavior:
-        ephys_datasets = nwbfile.processing['Behavior'].data_interfaces
-        for i, j in full_metadata['Behavior'].items():
+        ephys_datasets = nwbfile.processing['behavior'].data_interfaces
+        for i, j in full_metadata['behavior'].items():
             for i1, j1 in j.items():
                 for j11 in j1:
                     assert i in ephys_datasets.keys()

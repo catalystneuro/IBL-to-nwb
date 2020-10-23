@@ -3,10 +3,14 @@ import os
 import warnings
 from copy import deepcopy
 from datetime import datetime
-
+import uuid
 import numpy as np
 import pandas as pd
-import pynwb
+from pynwb import NWBFile, NWBHDF5IO
+from pynwb.ecephys import ElectricalSeries
+from pynwb.misc import DecompositionSeries
+from pynwb import TimeSeries
+from pynwb.image import ImageSeries
 import pynwb.behavior
 import pynwb.ecephys
 from hdmf.backends.hdf5.h5_utils import H5DataIO
@@ -15,7 +19,6 @@ from hdmf.data_utils import DataChunkIterator
 from lazy_ops import DatasetView
 from ndx_ibl_metadata import IblSessionData, IblProbes, IblSubject
 from ndx_spectrum import Spectrum
-from nwb_conversion_tools import NWBConverter
 from oneibl.one import ONE
 from pynwb import TimeSeries
 from tqdm import tqdm
@@ -49,7 +52,7 @@ def _get_default_column_ids(default_namelist, namelist):
     return out_idx
 
 
-class Alyx2NWBConverter(NWBConverter):
+class Alyx2NWBConverter:
 
     def __init__(self, nwbfile=None, saveloc=None,
                  nwb_metadata_file=None,
@@ -90,7 +93,9 @@ class Alyx2NWBConverter(NWBConverter):
             self.nwb_metadata['IBLSubject']['date_of_birth'] = \
                 datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%dT%X').replace(
                     tzinfo=get_localzone())
-        super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
+        # create nwbfile:
+        self.initialize_nwbfile()
+
         self._loaded_datasets = dict()
         self.no_probes = len(self.nwb_metadata['Probes'])
         if self.no_probes == 0:
@@ -100,10 +105,86 @@ class Alyx2NWBConverter(NWBConverter):
         self.save_camera_raw = save_camera_raw
         self._data_attrs_dump = dict()
 
+
+    def initialize_nwbfile(self):
+        """
+        This method is called at __init__.
+        This method can be overridden by child classes if necessary.
+        Creates self.nwbfile object.
+
+        Parameters
+        ----------
+        metadata_nwbfile: dict
+        """
+        nwbfile_args = dict(identifier=str(uuid.uuid4()),)
+        nwbfile_args.update(**self.nwb_metadata['NWBFile'])
+        self.nwbfile = NWBFile(**nwbfile_args)
+        # create devices
+        [self.nwbfile.create_device(**idevice_meta) for idevice_meta in self.nwb_metadata['ecephys']['Device']]
+        if 'ElectrodeGroup' in self.nwb_metadata['ecephys']:
+            self.create_electrode_groups(self.nwb_metadata['ecephys'])
+
+    def create_electrode_groups(self, metadata_ecephys):
+        """
+        This method is called at __init__.
+        Use metadata to create ElectrodeGroup object(s) in the NWBFile
+
+        Parameters
+        ----------
+        metadata_ecephys : dict
+            Dict with key:value pairs for defining the Ecephys group from where this
+            ElectrodeGroup belongs. This should contain keys for required groups
+            such as 'Device', 'ElectrodeGroup', etc.
+        """
+        for metadata_elec_group in metadata_ecephys['ElectrodeGroup']:
+            eg_name = metadata_elec_group['name']
+            # Tests if ElectrodeGroup already exists
+            aux = [i.name == eg_name for i in self.nwbfile.children]
+            if any(aux):
+                print(eg_name + ' already exists in current NWBFile.')
+            else:
+                device_name = metadata_elec_group['device']
+                if device_name in self.nwbfile.devices:
+                    device = self.nwbfile.devices[device_name]
+                else:
+                    print('Device ', device_name, ' for ElectrodeGroup ', eg_name, ' does not exist.')
+                    print('Make sure ', device_name, ' is defined in metadata.')
+
+                eg_description = metadata_elec_group['description']
+                eg_location = metadata_elec_group['location']
+                self.nwbfile.create_electrode_group(
+                    name=eg_name,
+                    location=eg_location,
+                    device=device,
+                    description=eg_description
+                )
+
+    def check_module(self, name, description=None):
+        """
+        Check if processing module exists. If not, create it. Then return module
+
+        Parameters
+        ----------
+        name: str
+        description: str | None (optional)
+
+        Returns
+        -------
+        pynwb.module
+
+        """
+
+        if name in self.nwbfile.processing:
+            return self.nwbfile.processing[name]
+        else:
+            if description is None:
+                description = name
+            return self.nwbfile.create_processing_module(name, description)
+
     def create_stimulus(self):
         stimulus_list = self._get_data(self.nwb_metadata['Stimulus'].get('time_series'))
         for i in stimulus_list:
-            self.nwbfile.add_stimulus(pynwb.TimeSeries(**i))  # TODO: convert timeseries data to starting_time and rate
+            self.nwbfile.add_stimulus(pynwb.TimeSeries(**i))
 
     def create_units(self):
         if self.no_probes == 0:
@@ -113,7 +194,7 @@ class Alyx2NWBConverter(NWBConverter):
         unit_table_list = self._get_data(self.nwb_metadata['Units'], probes=self.no_probes)
         # no required arguments for units table. Below are default columns in the table.
         default_args = ['id', 'waveform_mean', 'electrodes', 'electrode_group', 'spike_times', 'obs_intervals']
-        default_ids = self._get_default_column_ids(default_args, [i['name'] for i in unit_table_list])
+        default_ids = _get_default_column_ids(default_args, [i['name'] for i in unit_table_list])
         if len(default_ids) != len(default_args):
             warnings.warn(f'could not find all of {default_args} clusters')
             # return None
@@ -157,7 +238,7 @@ class Alyx2NWBConverter(NWBConverter):
         electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'], probes=self.no_probes)
         # electrode table has required arguments:
         required_args = ['group', 'x', 'y']
-        default_ids = self._get_default_column_ids(required_args, [i['name'] for i in electrode_table_list])
+        default_ids = _get_default_column_ids(required_args, [i['name'] for i in electrode_table_list])
         non_default_ids = list(set(range(len(electrode_table_list))).difference(set(default_ids)))
         default_dict = dict()
         [default_dict.update({electrode_table_list[i]['name']: electrode_table_list[i]['data']}) for i in default_ids]
@@ -234,11 +315,11 @@ class Alyx2NWBConverter(NWBConverter):
                     mod.add(pynwb.ecephys.SpikeEventSeries(**i))
 
     def create_behavior(self):
-        super(Alyx2NWBConverter, self).check_module('Behavior')
-        for i in self.nwb_metadata['Behavior']:
+        self.check_module('behavior')
+        for i in self.nwb_metadata['behavior']:
             if i == 'Position':
                 position_cont = pynwb.behavior.Position()
-                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['spatial_series'])
+                time_series_list_details = self._get_data(self.nwb_metadata['behavior'][i]['spatial_series'])
                 if len(time_series_list_details) == 0:
                     continue
                 # rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
@@ -257,7 +338,7 @@ class Alyx2NWBConverter(NWBConverter):
                 self.nwbfile.processing['behavior'].add(position_cont)
             elif not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
-                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'])
+                time_series_list_details = self._get_data(self.nwb_metadata['behavior'][i]['time_series'])
                 if len(time_series_list_details) == 0:
                     continue
                 time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
@@ -266,7 +347,7 @@ class Alyx2NWBConverter(NWBConverter):
 
             else:
                 time_series_func = pynwb.misc.IntervalSeries
-                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['interval_series'])
+                time_series_list_details = self._get_data(self.nwb_metadata['behavior'][i]['interval_series'])
                 if len(time_series_list_details) == 0:
                     continue
                 for k in time_series_list_details:
@@ -352,13 +433,6 @@ class Alyx2NWBConverter(NWBConverter):
             self.nwbfile.add_trial_column(name=op_data['name'],
                                           description=op_data['description'],
                                           data=op_data['data'])
-
-    def _get_default_column_ids(self,default_namelist,namelist):
-        out_idx = []
-        for j,i in enumerate(namelist):
-            if i in default_namelist:
-                out_idx.extend([j])
-        return out_idx
 
     def _get_multiple_data(self, datastring, probes):
         """
@@ -571,5 +645,13 @@ class Alyx2NWBConverter(NWBConverter):
             i()
         print('done converting')
 
-    def write_nwb(self):
-        super(Alyx2NWBConverter, self).save(self.saveloc)
+    def write_nwb(self, read_check=True):
+        print('Saving to file, please wait...')
+        with NWBHDF5IO(self.saveloc, 'w') as io:
+            io.write(self.nwbfile)
+            print('File successfully saved at: ', str(self.saveloc))
+
+        if read_check:
+            with NWBHDF5IO(self.saveloc, 'r') as io:
+                io.read()
+                print('Read check: OK')

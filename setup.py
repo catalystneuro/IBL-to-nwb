@@ -29,6 +29,5 @@ setup(
         'ibllib',
         'lazy_ops',
     ],
-    dependency_links=['git+https://github.com/catalystneuro/nwb-conversion-tools.git@fb9703f8e86072f04356883975e5dfffa773913e#egg=nwb-conversion-tools'],
     python_requires='>=3.6'
 )
