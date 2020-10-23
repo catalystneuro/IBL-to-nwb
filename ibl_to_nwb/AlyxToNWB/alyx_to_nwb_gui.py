@@ -17,7 +17,12 @@ class Alyx2NWBGui(Alyx2NWBMetadata, ABC):
 
     def __init__(self, eid=None, one_obj=None, metadata_fileloc=None,
                  nwbfile_saveloc=None, **one_search_kawargs):
-        from nwb_conversion_tools.gui.nwb_conversion_gui import nwb_conversion_gui
+        try:
+            from nwb_conversion_tools.gui.nwb_conversion_gui import nwb_conversion_gui
+        except:
+            raise Exception('installation required: '
+                            "'pip install git+https://github.com/catalystneuro/nwb-conversion-tools.git"
+                      "@fb9703f8e86072f04356883975e5dfffa773913e#egg=nwb-conversion-tools'")
         super(Alyx2NWBGui, self).__init__(eid=eid, one_obj=one_obj, **one_search_kawargs)
 
         self.metadata = dict()

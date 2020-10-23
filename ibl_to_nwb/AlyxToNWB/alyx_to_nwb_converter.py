@@ -93,7 +93,9 @@ class Alyx2NWBConverter:
             self.nwb_metadata['IBLSubject']['date_of_birth'] = \
                 datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%dT%X').replace(
                     tzinfo=get_localzone())
-        super(Alyx2NWBConverter, self).__init__(self.nwb_metadata, nwbfile)
+        # create nwbfile:
+        self.initialize_nwbfile()
+
         self._loaded_datasets = dict()
         self.no_probes = len(self.nwb_metadata['Probes'])
         if self.no_probes == 0:
@@ -102,6 +104,82 @@ class Alyx2NWBConverter:
         self.save_raw = save_raw
         self.save_camera_raw = save_camera_raw
         self._data_attrs_dump = dict()
+
+
+    def initialize_nwbfile(self):
+        """
+        This method is called at __init__.
+        This method can be overridden by child classes if necessary.
+        Creates self.nwbfile object.
+
+        Parameters
+        ----------
+        metadata_nwbfile: dict
+        """
+        nwbfile_args = dict(identifier=str(uuid.uuid4()),)
+        nwbfile_args.update(**self.nwb_metadata['NWBFile'])
+        self.nwbfile = NWBFile(**nwbfile_args)
+        # create devices
+        [self.nwbfile.create_device(**idevice_meta) for idevice_meta in self.nwb_metadata['ecephys']['Device']]
+        if 'ElectrodeGroup' in self.nwb_metadata['ecephys']:
+            self.create_electrode_groups(self.nwb_metadata['ecephys'])
+
+    def create_electrode_groups(self, metadata_ecephys):
+        """
+        This method is called at __init__.
+        Use metadata to create ElectrodeGroup object(s) in the NWBFile
+
+        Parameters
+        ----------
+        metadata_ecephys : dict
+            Dict with key:value pairs for defining the Ecephys group from where this
+            ElectrodeGroup belongs. This should contain keys for required groups
+            such as 'Device', 'ElectrodeGroup', etc.
+        """
+        for metadata_elec_group in metadata_ecephys['ElectrodeGroup']:
+            eg_name = metadata_elec_group['name']
+            # Tests if ElectrodeGroup already exists
+            aux = [i.name == eg_name for i in self.nwbfile.children]
+            if any(aux):
+                print(eg_name + ' already exists in current NWBFile.')
+            else:
+                device_name = metadata_elec_group['device']
+                if device_name in self.nwbfile.devices:
+                    device = self.nwbfile.devices[device_name]
+                else:
+                    print('Device ', device_name, ' for ElectrodeGroup ', eg_name, ' does not exist.')
+                    print('Make sure ', device_name, ' is defined in metadata.')
+
+                eg_description = metadata_elec_group['description']
+                eg_location = metadata_elec_group['location']
+                self.nwbfile.create_electrode_group(
+                    name=eg_name,
+                    location=eg_location,
+                    device=device,
+                    description=eg_description
+                )
+
+    def check_module(self, name, description=None):
+        """
+        Check if processing module exists. If not, create it. Then return module
+
+        Parameters
+        ----------
+        name: str
+        description: str | None (optional)
+
+        Returns
+        -------
+        pynwb.module
+
+        """
+
+        if name in self.nwbfile.processing:
+            return self.nwbfile.processing[name]
+        else:
+            if description is None:
+                description = name
+            return self.nwbfile.create_processing_module(name, description)
 
     def create_stimulus(self):
         stimulus_list = self._get_data(self.nwb_metadata['Stimulus'].get('time_series'))
@@ -567,5 +645,13 @@ class Alyx2NWBConverter:
             i()
         print('done converting')
 
-    def write_nwb(self):
-        super(Alyx2NWBConverter, self).save(self.saveloc)
+    def write_nwb(self, read_check=True):
+        print('Saving to file, please wait...')
+        with NWBHDF5IO(self.saveloc, 'w') as io:
+            io.write(self.nwbfile)
+            print('File successfully saved at: ', str(self.saveloc))
+
+        if read_check:
+            with NWBHDF5IO(self.saveloc, 'r') as io:
+                io.read()
+                print('Read check: OK')
