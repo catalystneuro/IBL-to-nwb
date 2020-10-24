@@ -34,7 +34,7 @@ class Alyx2NWBConverter:
                  nwb_metadata_file=None,
                  metadata_obj: Alyx2NWBMetadata = None,
                  one_object=None, save_raw=False, save_camera_raw=False,
-                 complevel=4, shuffle=False):
+                 complevel=4, shuffle=False, buffer_size=1):
         """
         Retrieve all Alyx session, subject metadata, raw data for eid using the one apis load method
         Map that to nwb supported datatypes and create an nwb file.
@@ -56,7 +56,7 @@ class Alyx2NWBConverter:
         shuffle: bool
             Enable shuffle I/O filter. http://docs.h5py.org/en/latest/high/dataset.html#dataset-shuffle
         """
-
+        self.buffer_size = buffer_size
         self.complevel = complevel
         self.shuffle = shuffle
         if nwb_metadata_file is not None:
@@ -393,7 +393,8 @@ class Alyx2NWBConverter:
                                     name=i['name'] + '_' + self.nwb_metadata['Probes'][j]['name'],
                                     starting_time=i['timestamps'][j][0, 1],
                                     rate=i['data'][j].fs,
-                                    data=H5DataIO(DataChunkIterator(iter_datasetview(i['data'][j])),
+                                    data=H5DataIO(DataChunkIterator(iter_datasetview(i['data'][j]),
+                                                                    buffer_size=self.buffer_size),
                                                   compression=True, shuffle=self.shuffle,
                                                   compression_opts=self.complevel)))
                     elif i['name'] in ['raw.nidq']:

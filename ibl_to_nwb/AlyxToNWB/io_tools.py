@@ -5,8 +5,9 @@ from datetime import datetime
 from tzlocal import get_localzone
 from pathlib import PurePath
 
+
 def iter_datasetview(datasetview_obj):
-    '''
+    """
     Generator to return a row of the array each time it is called.
     This will be wrapped with a DataChunkIterator class.
 
@@ -14,12 +15,13 @@ def iter_datasetview(datasetview_obj):
     ----------
     datasetview_obj: DatasetView
         2-D array to iteratively write to nwb.
-    '''
+    """
 
     for i in range(datasetview_obj.shape[0]//700):
         curr_data = np.squeeze(datasetview_obj[i:i + 1])
         yield curr_data
     return
+
 
 def get_default_column_ids(default_namelist, namelist):
     out_idx = []
@@ -42,7 +44,7 @@ class OneData:
         self.nwb_metadata = nwb_metadata
 
     def download_dataset(self, dataset_to_load, dataset_key):
-        if not isinstance(dataset_to_load,str):  # prevents errors when loading metafile json
+        if not isinstance(dataset_to_load, str):  # prevents errors when loading metafile json
             return
         if dataset_to_load.split('.')[0] == 'ephysData' and not self.save_raw:
             return
@@ -137,7 +139,7 @@ class OneData:
 
             if dataset_to_load.split('.')[0] in ['_iblqc_ephysSpectralDensity', '_iblqc_ephysTimeRms', 'ephysData']:
                 self.data_attrs_dump[dataset_to_load] = [i.name.split('.')[0] + '_' + i.parent.name for i in
-                                                          dataloc]
+                                                         dataloc]
                 return loaded_dataset_
             if dataset_to_load.split('.')[0] in ['camera']:
                 # correcting order of json vs npy files and names loop:
@@ -146,7 +148,7 @@ class OneData:
                 datanames_sorted = sorted(datanames, key=func)
                 if not self.data_attrs_dump.get(dataset_to_load):
                     self.data_attrs_dump[dataset_to_load] = [i.split('.')[0] for i in
-                                                              datanames_sorted[:int(len(datanames_sorted))]]
+                                                             datanames_sorted[:int(len(datanames_sorted))]]
                 loaded_dataset_sorted = [loaded_dataset_[datanames.index(i)] for i in datanames_sorted]
                 if 'time' in dataset_to_load.split('.')[-1]:
                     return loaded_dataset_sorted
@@ -162,11 +164,11 @@ class OneData:
             if not self.data_attrs_dump.get(
                     'unit_table_length') and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                 self.data_attrs_dump['unit_table_length'] = [loaded_dataset_[i].shape[0] for i in
-                                                              range(self.no_probes)]
+                                                             range(self.no_probes)]
             if not self.data_attrs_dump.get(
                     'electrode_table_length') and 'channel' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
                 self.data_attrs_dump['electrode_table_length'] = [loaded_dataset_[i].shape[0] for i in
-                                                                   range(self.no_probes)]
+                                                                  range(self.no_probes)]
             if isinstance(loaded_dataset_[0], pd.DataFrame):  # file is loaded as dataframe when of type .csv
                 if dataset_key in loaded_dataset_[0].columns.values:
                     loaded_dataset_ = [loaded_dataset_[i][dataset_key].to_numpy() for i in range(self.no_probes)]
