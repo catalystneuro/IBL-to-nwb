@@ -168,4 +168,4 @@ def test_nwb_converter(tmp_path, build_converter):
             acq_datasets = nwbfile.acquisition
             for i, j in full_metadata['Acquisition'].items():
                 for j1 in j:
-                    assert any([True for h in acq_datasets if j1['name'] in h])
+                    assert any([True for h in acq_datasets.keys() if j1['name'] in h])

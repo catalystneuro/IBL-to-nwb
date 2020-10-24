@@ -738,10 +738,13 @@ class Alyx2NWBMetadata:
                          **self.acquisition_metadata}
         return metafile_dict
 
-    def write_metadata(self, fileloc, savetype='.json'):
+    def write_metadata(self, fileloc, savetype=None):
+        if savetype is not None:
+            if Path(fileloc).suffix != savetype:
+                raise ValueError(f'{fileloc} should of of type {savetype}')
+        else:
+            savetype = Path(fileloc).suffix
         full_metadata = self.complete_metadata
-        if Path(fileloc).suffix != savetype:
-            raise ValueError(f'fileloc filetype should of of type {savetype}')
         if savetype == '.json':
             full_metadata['NWBFile']['session_start_time'] = datetime.strftime(
                 full_metadata['NWBFile']['session_start_time'], '%Y-%m-%dT%X')
