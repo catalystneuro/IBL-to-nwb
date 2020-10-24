@@ -106,9 +106,9 @@ class Alyx2NWBConverter:
         nwbfile_args.update(**self.nwb_metadata['NWBFile'])
         self.nwbfile = NWBFile(**nwbfile_args)
         # create devices
-        [self.nwbfile.create_device(**idevice_meta) for idevice_meta in self.nwb_metadata['ecephys']['Device']]
-        if 'ElectrodeGroup' in self.nwb_metadata['ecephys']:
-            self.create_electrode_groups(self.nwb_metadata['ecephys'])
+        [self.nwbfile.create_device(**idevice_meta) for idevice_meta in self.nwb_metadata['Ecephys']['Device']]
+        if 'ElectrodeGroup' in self.nwb_metadata['Ecephys']:
+            self.create_electrode_groups(self.nwb_metadata['Ecephys'])
 
     def create_electrode_groups(self, metadata_ecephys):
         """
@@ -195,7 +195,7 @@ class Alyx2NWBConverter:
         [default_dict.update({unit_table_list[i]['name']: unit_table_list[i]['data']}) for i in default_ids]
         for j in range(len(unit_table_list[0]['data'])):
             add_dict = dict()
-            for i in default_dict.keys():
+            for i in default_dict:
                 if i == 'electrodes':
                     add_dict.update({i: [default_dict[i][j]]})
                 if i == 'spike_times':
@@ -237,14 +237,14 @@ class Alyx2NWBConverter:
         non_default_ids = list(set(range(len(electrode_table_list))).difference(set(default_ids)))
         default_dict = dict()
         [default_dict.update({electrode_table_list[i]['name']: electrode_table_list[i]['data']}) for i in default_ids]
-        if 'group' in default_dict.keys():
+        if 'group' in default_dict:
             group_labels = default_dict['group']
         else:  # else fill with probe zero data.
             group_labels = np.concatenate(
                 [np.ones(self.one_data.data_attrs_dump['electrode_table_length'][i], dtype=int)*i for i in
                  range(self.no_probes)])
         for j in range(len(electrode_table_list[0]['data'])):
-            if 'x' in default_dict.keys():
+            if 'x' in default_dict:
                 x = default_dict['x'][j][0]
                 y = default_dict['y'][j][1]
             else:
@@ -289,7 +289,7 @@ class Alyx2NWBConverter:
             mod = self.nwbfile.create_processing_module('ecephys', 'Processed electrophysiology data of IBL')
         else:
             mod = self.nwbfile.get_processing_module('ecephys')
-        for func, argmts in self.nwb_metadata['ecephys']['ecephys'].items():
+        for func, argmts in self.nwb_metadata['Ecephys']['Ecephys'].items():
             data_retrieve = self._get_data(argmts)
             for no, i in enumerate(data_retrieve):
                 if 'ElectricalSeries' in func:
@@ -317,10 +317,10 @@ class Alyx2NWBConverter:
         Create behavior processing module
         """
         self.check_module('behavior')
-        for i in self.nwb_metadata['behavior']:
+        for i in self.nwb_metadata['Behavior']:
             if i == 'Position':
                 position_cont = pynwb.behavior.Position()
-                time_series_list_details = self._get_data(self.nwb_metadata['behavior'][i]['spatial_series'])
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['spatial_series'])
                 if len(time_series_list_details) == 0:
                     continue
                 # rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
@@ -339,16 +339,15 @@ class Alyx2NWBConverter:
                 self.nwbfile.processing['behavior'].add(position_cont)
             elif not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
-                time_series_list_details = self._get_data(self.nwb_metadata['behavior'][i]['time_series'])
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['time_series'])
                 if len(time_series_list_details) == 0:
                     continue
                 time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
                 func = getattr(pynwb.behavior, i)
                 self.nwbfile.processing['behavior'].add(func(time_series=time_series_list_obj))
-
             else:
                 time_series_func = pynwb.misc.IntervalSeries
-                time_series_list_details = self._get_data(self.nwb_metadata['behavior'][i]['interval_series'])
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][i]['interval_series'])
                 if len(time_series_list_details) == 0:
                     continue
                 for k in time_series_list_details:

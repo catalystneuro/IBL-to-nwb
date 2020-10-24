@@ -489,8 +489,8 @@
       "description": "[nch] Each channel's row in its home file (look up via probes.rawFileName), counting from zero. Note some rows don't have a channel, for example if they were sync pulses"
     }
   ],
-  "ecephys": {
-    "ecephys": {
+  "Ecephys": {
+    "Ecephys": {
       "SpikeEventSeries": [],
       "ElectricalSeries1": [
         {

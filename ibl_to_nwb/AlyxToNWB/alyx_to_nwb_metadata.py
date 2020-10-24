@@ -164,7 +164,7 @@ class Alyx2NWBMetadata:
         dataset_details: dict
             self.dataset_details
         object_name: str
-            eg: spikes, clusters, ecephys
+            eg: spikes, clusters, Ecephys
         custom_attrs: list
             attrs to unpack
         match_str: regex
@@ -533,30 +533,30 @@ class Alyx2NWBMetadata:
 
     @property
     def behavior_metadata(self):
-        behavior_metadata_dict = self._initialize_container_dict('behavior')
+        behavior_metadata_dict = self._initialize_container_dict('Behavior')
         behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye', 'camera']
         current_behavior_objects = self._get_current_object_names(behavior_objects)
         for k, u in enumerate(current_behavior_objects):
             if 'wheel' == u:
-                behavior_metadata_dict['behavior']['BehavioralTimeSeries'] = \
+                behavior_metadata_dict['Behavior']['BehavioralTimeSeries'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'wheelMoves' in u:
-                behavior_metadata_dict['behavior']['BehavioralEpochs'] = \
+                behavior_metadata_dict['Behavior']['BehavioralEpochs'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'interval_series')
             if 'lickPiezo' in u:
-                behavior_metadata_dict['behavior']['BehavioralTimeSeries']['time_series'].extend(
+                behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
             if 'licks' in u:
-                behavior_metadata_dict['behavior']['BehavioralEvents'] = \
+                behavior_metadata_dict['Behavior']['BehavioralEvents'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'face' in u:
-                behavior_metadata_dict['behavior']['BehavioralTimeSeries']['time_series'].extend(
+                behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
             if 'eye' in u:
-                behavior_metadata_dict['behavior']['PupilTracking'] = \
+                behavior_metadata_dict['Behavior']['PupilTracking'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
             if 'camera' in u:
-                behavior_metadata_dict['behavior']['Position'] = \
+                behavior_metadata_dict['Behavior']['Position'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series', name='camera_dlc')
         return behavior_metadata_dict
 
@@ -672,7 +672,7 @@ class Alyx2NWBMetadata:
         ecephys_objects = ['templates', '_iblqc_ephysTimeRms', '_iblqc_ephysSpectralDensity']
         container_object_names = ['SpikeEventSeries', 'ElectricalSeries', 'Spectrum']
         custom_attrs_objects = [['waveforms'], ['rms'], ['power']]
-        ecephys_container = self._initialize_container_dict('ecephys')
+        ecephys_container = self._initialize_container_dict('Ecephys')
         kwargs = dict()
         for i, j, k in zip(ecephys_objects, container_object_names, custom_attrs_objects):
             current_ecephys_objects = self._get_current_object_names([i])
@@ -681,7 +681,7 @@ class Alyx2NWBMetadata:
                     kwargs = dict(name=i, power='_iblqc_ephysSpectralDensity.power',
                                   frequencies='_iblqc_ephysSpectralDensity.freqs',
                                   timestamps=None)
-                ecephys_container['ecephys'].update(self._get_timeseries_object(
+                ecephys_container['Ecephys'].update(self._get_timeseries_object(
                     self.dataset_details.copy(), i, j, custom_attrs=k, **kwargs))
             else:
                 warnings.warn(f'could not find {i} data in eid {self.eid}')
@@ -729,12 +729,12 @@ class Alyx2NWBMetadata:
                          **self.stimulus_metadata,
                          **self.units_metadata,
                          **self.electrodetable_metadata,
-                         'ecephys': {**self.ecephys_metadata,
+                         'Ecephys': {**self.ecephys_metadata,
                                      **self.device_metadata,
                                      **self.electrodegroup_metadata,
                                      },
-                         'ophys': dict(),
-                         'icephys': dict(),
+                         'Ophys': dict(),
+                         'Icephys': dict(),
                          **self.acquisition_metadata}
         return metafile_dict
 

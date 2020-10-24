@@ -156,7 +156,7 @@
         }
       }
     }
-  }, "behavior": {
+  }, "Behavior": {
     "type": "object", "properties": {
       "Position": {
         "type": "object", "properties": {
@@ -210,9 +210,9 @@
         }
       }
     }
-  }, "ecephys": {
-    "type": "object", "additionalProperties": false, "required": ["ecephys", "Device", "ElectrodeGroup"], "properties": {
-      "ecephys": {
+  }, "Ecephys": {
+    "type": "object", "additionalProperties": false, "required": ["Ecephys", "Device", "ElectrodeGroup"], "properties": {
+      "Ecephys": {
         "type": "object", "additionalProperties": false, "properties": {
           "ElectricalSeries": {
             "type": "array", "items": {
@@ -293,9 +293,9 @@
         }
       }
     }
-  }, "ophys": {
+  }, "Ophys": {
     "type": "object", "properties": {}
-  }, "icephys": {
+  }, "Icephys": {
     "type": "object", "properties": {}
   }, "Trials": {
     "type": "array", "items": {

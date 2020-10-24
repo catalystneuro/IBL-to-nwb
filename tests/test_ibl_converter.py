@@ -100,8 +100,8 @@ def test_nwb_converter(tmp_path, build_converter):
                 else:
                     assert len(set(j).difference(set(nwbfile.lab_meta_data['Ibl_session_data'].fields.get(i)))) == 0
         # test probes:
-        if full_metadata['ecephys']['ecephys'].get('Device'):
-            device_dict = full_metadata['ecephys']['ecephys']['Device']
+        if full_metadata['Ecephys']['Ecephys'].get('Device'):
+            device_dict = full_metadata['Ecephys']['Ecephys']['Device']
             name = device_dict.pop('name')
             assert name in nwbfile.devices
             assert nwbfile.devices[name].fields == device_dict
@@ -127,7 +127,7 @@ def test_nwb_converter(tmp_path, build_converter):
             assert unitcol['name'] == dt_column_names[no]
         assert nwbfile.units.id.shape[0] == unit_data_len
         # test electrode group:
-        for group in full_metadata['ecephys']['ElectrodeGroup']:
+        for group in full_metadata['Ecephys']['ElectrodeGroup']:
             name = group.pop('name')
             assert name in nwbfile.electrode_groups
             electrode_group_dict = nwbfile.electrode_groups[name].fields
@@ -141,24 +141,24 @@ def test_nwb_converter(tmp_path, build_converter):
         assert nwbfile.electrodes.id.shape[0] == elec_tbl_len
         # test timeseries ephys:
         ephys_datasets = nwbfile.processing['ecephys'].data_interfaces
-        for i, j in full_metadata['ecephys']['ecephys'].items():
+        for i, j in full_metadata['Ecephys']['Ecephys'].items():
             for j1 in j:
                 assert j1['data'] in converter_nwb1.one_data.data_attrs_dump
                 field_names = converter_nwb1.one_data.data_attrs_dump[j1['data']]
                 for k in field_names:
-                    assert k in ephys_datasets.keys()
+                    assert k in ephys_datasets
                     if 'Spectrum' in i:
                         assert isinstance(ephys_datasets[k], Spectrum)
                     else:
                         assert isinstance(ephys_datasets[k], TimeSeries)
         # test behavior:
         ephys_datasets = nwbfile.processing['behavior'].data_interfaces
-        for i, j in full_metadata['behavior'].items():
+        for i, j in full_metadata['Behavior'].items():
             for i1, j1 in j.items():
                 for j11 in j1:
                     assert i in ephys_datasets
                     if j11['name'] != 'camera_dlc':
-                        assert j11['name'] in getattr(ephys_datasets[i], i1).keys()
+                        assert j11['name'] in getattr(ephys_datasets[i], i1)
                         if i == 'Position':
                             assert isinstance(getattr(ephys_datasets[i], i1)[j11['name']], SpatialSeries)
                         else:
