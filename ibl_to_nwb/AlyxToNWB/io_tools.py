@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from tzlocal import get_localzone
-
+from pathlib import PurePath
 
 def iter_datasetview(datasetview_obj):
     '''
@@ -42,13 +42,13 @@ class OneData:
         self.nwb_metadata = nwb_metadata
 
     def download_dataset(self, dataset_to_load, dataset_key):
-        if not type(dataset_to_load) is str:  # prevents errors when loading metafile json
+        if not isinstance(dataset_to_load,str):  # prevents errors when loading metafile json
             return
         if dataset_to_load.split('.')[0] == 'ephysData' and not self.save_raw:
             return
         if dataset_to_load.split('.')[0] == '_iblrig_Camera' and not self.save_camera_raw:
             return
-        if dataset_to_load not in self.loaded_datasets.keys():
+        if dataset_to_load not in self.loaded_datasets:
             if len(dataset_to_load.split(',')) == 1:
                 if 'ephysData.raw' in dataset_to_load and not 'ephysData.raw.meta' in self.loaded_datasets:
                     meta = self.one_object.load(self.eid, dataset_types=['ephysData.raw.meta'])
@@ -82,12 +82,12 @@ class OneData:
             list of length number of probes. Each element is a list > each element is an array of cluster's spike times
         """
         spike_clusters, spike_times = datastring.split(',')
-        if spike_clusters not in self.loaded_datasets.keys():
+        if spike_clusters not in self.loaded_datasets:
             spike_cluster_data = self.one_object.load(self.eid, dataset_types=[spike_clusters])
             self.loaded_datasets.update({spike_clusters: spike_cluster_data})
         else:
             spike_cluster_data = self.loaded_datasets[spike_clusters]
-        if spike_times not in self.loaded_datasets.keys():
+        if spike_times not in self.loaded_datasets:
             spike_times_data = self.one_object.load(self.eid, dataset_types=[spike_times])
             self.loaded_datasets.update({spike_times: spike_times_data})
         else:
@@ -128,7 +128,7 @@ class OneData:
 
         if datatype[-1] in ['.csv', '.npy']:  # csv is for clusters metrics
             # if a windows path is returned despite a npy file:
-            path_ids = [j for j, i in enumerate(loaded_dataset_.data) if 'WindowsPath' in [type(i)]]
+            path_ids = [j for j, i in enumerate(loaded_dataset_.data) if isinstance(i, PurePath)]
             if path_ids:
                 temp = [np.load(str(loaded_dataset_.data[pt])) for pt in path_ids]
                 loaded_dataset_ = temp

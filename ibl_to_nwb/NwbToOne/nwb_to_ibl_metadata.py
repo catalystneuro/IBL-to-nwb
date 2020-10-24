@@ -10,6 +10,7 @@ from .field_map import field_map_nwbfile, field_map_session_data, \
 from ndx_ibl_metadata import IblProbes
 from copy import copy, deepcopy
 import h5py
+import numpy as np
 
 
 def _convert_numpy_to_python_dtype(dict_to_convert_in):
@@ -26,7 +27,7 @@ def _convert_numpy_to_python_dtype(dict_to_convert_in):
     """
     dict_to_convert_out = dict()
     for key, val in dict_to_convert_in.items():
-        if 'numpy' in str(type(val)):
+        if isinstance(val, np.generic):
             dict_to_convert_out[key] = val.item()
         elif isinstance(val, dict):
             dict_to_convert_out[key] = _convert_numpy_to_python_dtype(val)
@@ -52,7 +53,7 @@ def nwb_to_ibl_dict(nwb_dict, key_map):
     """
     out = dict()
     for i, j in key_map.items():
-        if i in nwb_dict.keys():
+        if i in nwb_dict:
             if isinstance(nwb_dict[i], (h5py.Dataset, list)):
                 temp = list()
                 for no, it in enumerate(nwb_dict[i]):

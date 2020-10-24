@@ -143,7 +143,7 @@ def test_nwb_converter(tmp_path, build_converter):
         ephys_datasets = nwbfile.processing['ecephys'].data_interfaces
         for i, j in full_metadata['ecephys']['ecephys'].items():
             for j1 in j:
-                assert j1['data'] in converter_nwb1.one_data.data_attrs_dump.keys()
+                assert j1['data'] in converter_nwb1.one_data.data_attrs_dump
                 field_names = converter_nwb1.one_data.data_attrs_dump[j1['data']]
                 for k in field_names:
                     assert k in ephys_datasets.keys()
@@ -156,7 +156,7 @@ def test_nwb_converter(tmp_path, build_converter):
         for i, j in full_metadata['behavior'].items():
             for i1, j1 in j.items():
                 for j11 in j1:
-                    assert i in ephys_datasets.keys()
+                    assert i in ephys_datasets
                     if j11['name'] != 'camera_dlc':
                         assert j11['name'] in getattr(ephys_datasets[i], i1).keys()
                         if i == 'Position':
@@ -168,4 +168,4 @@ def test_nwb_converter(tmp_path, build_converter):
             acq_datasets = nwbfile.acquisition
             for i, j in full_metadata['Acquisition'].items():
                 for j1 in j:
-                    assert any([True for h in acq_datasets.keys() if j1['name'] in h])
+                    assert any([True for h in acq_datasets if j1['name'] in h])
