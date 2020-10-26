@@ -11,7 +11,7 @@ with open(path.join(here, 'README.md')) as f:
 
 setup(
     name='ibl_to_nwb',
-    version='0.1.2',
+    version='0.1.0',
     description='Tools to convert IBL data to NWB format',
     long_description=long_description,
     long_description_content_type='text/markdown',

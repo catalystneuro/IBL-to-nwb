@@ -1,4 +1,8 @@
 # IBL-to-nwb
+[![PyPI version](https://badge.fury.io/py/ibl-to-nwb.svg)](https://badge.fury.io/py/ibl-to-nwb)
+[![codecov](https://codecov.io/gh/catalystneuro/ibl-to-nwb/branch/master/graph/badge.svg)](https://codecov.io/gh/catalystneuro/ibl-to-nwb)
+[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+
 This repository houses the modules used to convert IBL specific neurophysiology data in the open source [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) format (Alyx + ALF) into NWB data standard.
 
 - __Alyx__: a data base that contains all the metadata associated with an experiment: session details, subject details, probe information etc. This data has a one-to-one mapping to supported metadata of NWB. 
@@ -11,17 +15,20 @@ The figure below shows the mapping from ALF/ALyx to NWB:
  
     1. Installation: 
     
-       ```shell
-       cd desired-path
-       git clone https://github.com/catalystneuro/IBL-to-nwb.git
-       cd IBL-to-nwb
-       ```
-       create virtual environment and install dependencies from requirements.txt: 
+    create virtual environment and install dependencies from requirements.txt: 
        
-       ```shell
-       conda env create -f conda_environment.yaml
-       conda activate IBL2NWB
-       ```
+    ```shell
+    conda env create -n IBL2NWB
+    conda activate IBL2NWB
+    # alternatively create a venv and activate:
+    python -m venv iblvenv
+    activate ~\iblvenv\Scripts\Activate
+    ```
+       
+    ```shell
+    pip install ibl_to_nwb
+    ```
+       
     2. Retrive the id of the experiment of interest using [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) api:
     
        ```python
@@ -35,7 +42,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
      3. Using the eid, generate a json file containing all the collected data/metadata from the servers (Example output [file](https://github.com/catalystneuro/IBL-to-nwb/blob/master/AlyxToNWB/schema/example_metadata_output_file.json)):
      
         ```python
-        from .ibl_nwb import Alyx2NWBMetadata
+        from ibl_to_nwb import Alyx2NWBMetadata
         metadata_object = Alyx2NWBMetadata(eid=eid,one_obj=one)
         # alternatively, you can also provide one search **kwargs directly:
         metadata_obj = Alyx2NWBMetadata(date_range=['2020-03-23', '2020-03-24'],subject='CSH_ZAD_011')
@@ -45,7 +52,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
      4. Generate nwb file using the saved json file:
       
         ```python
-        from .ibl_nwb import Alyx2NWBConverter
+        from ibl_to_nwb import Alyx2NWBConverter
         nwb_saveloc = r'nwb-save-path.nwb'
         save_raw = False # keep as true if you want to add raw (ephysData.raw.* , camera.raw*) files, these are large files and will take time to download and create the nwbfile!!
         converter=Alyx2NWBConverter(nwb_metadata_file=json_save_loc, saveloc=nwb_saveloc, save_raw=save_raw)
@@ -62,7 +69,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
 2. **IBL to NWB conversion (using GUI):** 
 
     ```python
-    from .ibl_nwb import Alyx2NWBGui
+    from ibl_to_nwb import Alyx2NWBGui
     Alyx2NWBGui(eid=eid, nwbfile_saveloc=nwb_saveloc, metadata_fileloc=json_save_loc)
     #alternatively provide the one search kwargs:
     Alyx2NWBGui(nwbfile_saveloc=nwb_saveloc, metadata_fileloc=json_save_loc, dataset_types=['_iblmic_audioSpectrogram.frequencies''])
