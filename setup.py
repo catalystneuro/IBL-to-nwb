@@ -19,7 +19,6 @@ setup(
     author_email='saksham20.sharda@gmail.com',
     url='https://github.com/catalystneuro/IBL-to-nwb',
     keywords=['nwb', 'ibl'],
-    packages=['ibl_to_nwb'],
     package_data={},
     include_package_data=False,
     install_requires=[
