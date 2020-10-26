@@ -1,6 +1,5 @@
 # IBL-to-nwb
 [![PyPI version](https://badge.fury.io/py/ibl-to-nwb.svg)](https://badge.fury.io/py/ibl-to-nwb)
-[![codecov](https://codecov.io/gh/catalystneuro/ibl-to-nwb/branch/master/graph/badge.svg)](https://codecov.io/gh/catalystneuro/ibl-to-nwb)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 This repository houses the modules used to convert IBL specific neurophysiology data in the open source [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) format (Alyx + ALF) into NWB data standard.
