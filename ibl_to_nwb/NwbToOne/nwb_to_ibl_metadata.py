@@ -1,17 +1,33 @@
-from pynwb import NWBHDF5IO
+import json
+from oneibl.one import ONE
+from pynwb import NWBFile, NWBHDF5IO
 import uuid
+import h5py
 import sys
 from datetime import datetime
-from .field_map import *
+from .field_map import field_map_nwbfile, field_map_session_data, \
+    field_map_subject,field_map_IBL_subject
 from ndx_ibl_metadata import IblProbes
 from copy import copy, deepcopy
 import h5py
+import numpy as np
 
 
 def _convert_numpy_to_python_dtype(dict_to_convert_in):
+    """
+    Converts numpy dtypes like np.int*, np.float* to python native int, float
+    Conversion useful to store data in .json format which supports only native
+    datatypes.
+    Parameters
+    ----------
+    dict_to_convert_in: dict
+    Returns
+    -------
+    dict_to_convert_out: dict
+    """
     dict_to_convert_out = dict()
     for key, val in dict_to_convert_in.items():
-        if 'numpy' in str(type(val)):
+        if isinstance(val, np.generic):
             dict_to_convert_out[key] = val.item()
         elif isinstance(val, dict):
             dict_to_convert_out[key] = _convert_numpy_to_python_dtype(val)
@@ -21,9 +37,23 @@ def _convert_numpy_to_python_dtype(dict_to_convert_in):
 
 
 def nwb_to_ibl_dict(nwb_dict, key_map):
+    """
+    Converts nwbfile datatype field names and data to that defined by key_map
+    Parameters
+    ----------
+    nwb_dict: dict
+        dict with keys as field names, values as the nwbfile field data
+    key_map: dict
+        one of the dict from field_map.py
+    Returns
+    -------
+    out: dict
+        keys as key_map keys and values as nwbfile field data converted to
+        kep_map['dtype']
+    """
     out = dict()
     for i, j in key_map.items():
-        if i in nwb_dict.keys():
+        if i in nwb_dict:
             if isinstance(nwb_dict[i], (h5py.Dataset, list)):
                 temp = list()
                 for no, it in enumerate(nwb_dict[i]):
@@ -39,6 +69,16 @@ def nwb_to_ibl_dict(nwb_dict, key_map):
 class NWBToIBLSession:
 
     def __init__(self, nwbfile_loc):
+        """
+        Convert nwbfile format to json files for mice and experiment data mirroring
+        that used by the ONE api after querying the Alyx database for subjects and
+        sessions table values using:
+        ONE().alyx.rest(..)
+        Parameters
+        ----------
+        nwbfile_loc: str
+            path of nwbfile to convert
+        """
         self.nwbfileloc = nwbfile_loc
         self.nwbfile = NWBHDF5IO(nwbfile_loc, 'r', load_namespaces=True).read()
         self.nwb_h5file = h5py.File(nwbfile_loc, 'r')
@@ -50,6 +90,13 @@ class NWBToIBLSession:
         self.session_json['data_dataset_session_related'] = self._get_nwb_data()
 
     def _build_subject_table(self):
+        """
+        Build subject table found using:
+        >>> ONE().alyx.rest('subjects/' + subject_id, 'list')
+        Returns
+        -------
+
+        """
         sub_dict_out = dict()
         if self.nwbfile.subject:
             sub_dict = dict()
@@ -61,6 +108,13 @@ class NWBToIBLSession:
         return sub_dict_out
 
     def _build_sessions_table(self):
+        """
+        Build a json file like the one retrieved using:
+        >>> ONE().alyx.rest('sessions/' + eid, 'list')
+        Returns
+        -------
+
+        """
         nwbdict = dict()
         for i, j in field_map_nwbfile.items():
             nwbdict[i] = getattr(self.nwbfile, i)
@@ -87,11 +141,15 @@ class NWBToIBLSession:
                 temp = copy(nwb_data['probe_insertion'][count]['trajectory_estimate'][()])
                 nwb_data['probe_insertion'][count]['trajectory_estimate'] = \
                     [json.loads(ii) for ii in temp]
-                nwb_data['probe_insertion'][count]['name']=j.name
+                nwb_data['probe_insertion'][count]['name'] = j.name
                 count = count + 1
         return nwb_data
 
     def _get_nwb_data(self):
+        """
+        Retrieve data location and names from nwb file to populate
+        'data_dataset_session_related' key in the sessions table
+        """
         out = []
         if 'intervals' in self.nwb_h5file:
             for trl_keys in self.nwb_h5file['intervals/trials']:
@@ -113,14 +171,14 @@ class NWBToIBLSession:
                     file_size=sys.getsizeof(self.nwb_h5file['units/' + units_keys])))
         if 'processing' in self.nwb_h5file:
             if 'ecephys' in self.nwb_h5file['processing']:
-                for ecephys_keys in self.nwb_h5file['processing/Ecephys']:
+                for ecephys_keys in self.nwb_h5file['processing/ecephys']:
                     out.append(dict(
                         id=str(uuid.uuid1()),
                         name=ecephys_keys,
                         dataset_type='spikes.' + ecephys_keys,
                         url=self.nwbfileloc,
-                        data_url='processing/Ecephys/' + ecephys_keys,
-                        file_size=sys.getsizeof(self.nwb_h5file['processing/Ecephys/' + ecephys_keys])))
+                        data_url='processing/ecephys/' + ecephys_keys,
+                        file_size=sys.getsizeof(self.nwb_h5file['processing/ecephys/' + ecephys_keys])))
         if 'general/extracellular_ephys/electrodes' in self.nwb_h5file:
             for electrode_keys in self.nwb_h5file['general/extracellular_ephys/electrodes']:
                 out.append(dict(
@@ -129,7 +187,8 @@ class NWBToIBLSession:
                     dataset_type='channels.' + electrode_keys,
                     url=self.nwbfileloc,
                     data_url='general/extracellular_ephys/electrodes/' + electrode_keys,
-                    file_size=sys.getsizeof(self.nwb_h5file['general/extracellular_ephys/electrodes/' + electrode_keys])))
+                    file_size=sys.getsizeof(
+                        self.nwb_h5file['general/extracellular_ephys/electrodes/' + electrode_keys])))
         return out
 
     def write_json(self, filename, metadata_type):
