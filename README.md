@@ -76,7 +76,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
     ```
     This opens up a gui which will allow you to edit nwbfile/ibl session related metadata and also convert to nwb using `run_conversion` button. Check the animation       below on how to navigate this gui:
     
-    ![](https://github.com/catalystneuro/IBL-to-nwb/blob/documentation/images/gui_gif.gif)
+    ![](https://github.com/catalystneuro/IBL-to-nwb/blob/master/images/gui_gif.gif)
     
 3. **Visualization of nwbfile using [nwbwigets](https://github.com/NeurodataWithoutBorders/nwb-jupyter-widgets) in a __Jupyter notebook__**:
  
@@ -89,4 +89,5 @@ The figure below shows the mapping from ALF/ALyx to NWB:
     a=nwb2widget(nwb)
     display(a)
     ```
+    ![](https://github.com/catalystneuro/IBL-to-nwb/blob/master/images/nwbwidgets.gif)
 
