@@ -509,7 +509,7 @@ class Alyx2NWBMetadata:
         sub_table_dict = deepcopy(self.subject_table)
         if sub_table_dict:
             subject_metadata_dict['IBLSubject'] = dict(
-                age=str(sub_table_dict.pop('age_weeks')) + ' weeks',
+                age=f'P{sub_table_dict.pop("age_weeks")}W',
                 subject_id=sub_table_dict.pop('id'),
                 description=sub_table_dict.pop('description'),
                 genotype=','.join(sub_table_dict.pop('genotype')),
