@@ -1,6 +1,5 @@
 # IBL-to-nwb
 [![PyPI version](https://badge.fury.io/py/ibl-to-nwb.svg)](https://badge.fury.io/py/ibl-to-nwb)
-[![codecov](https://codecov.io/gh/catalystneuro/ibl-to-nwb/branch/master/graph/badge.svg)](https://codecov.io/gh/catalystneuro/ibl-to-nwb)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 This repository houses the modules used to convert IBL specific neurophysiology data in the open source [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) format (Alyx + ALF) into NWB data standard.
@@ -76,7 +75,7 @@ The figure below shows the mapping from ALF/ALyx to NWB:
     ```
     This opens up a gui which will allow you to edit nwbfile/ibl session related metadata and also convert to nwb using `run_conversion` button. Check the animation       below on how to navigate this gui:
     
-    ![](https://github.com/catalystneuro/IBL-to-nwb/blob/documentation/images/gui_gif.gif)
+    ![](https://github.com/catalystneuro/IBL-to-nwb/blob/master/images/gui_gif.gif)
     
 3. **Visualization of nwbfile using [nwbwigets](https://github.com/NeurodataWithoutBorders/nwb-jupyter-widgets) in a __Jupyter notebook__**:
  
@@ -89,4 +88,5 @@ The figure below shows the mapping from ALF/ALyx to NWB:
     a=nwb2widget(nwb)
     display(a)
     ```
+    ![](https://github.com/catalystneuro/IBL-to-nwb/blob/master/images/nwbwidgets.gif)
 
