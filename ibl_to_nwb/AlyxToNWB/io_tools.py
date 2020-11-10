@@ -15,7 +15,7 @@ def iter_datasetview(datasetview_obj, channel_ids=None):
     ----------
     datasetview_obj: np.array
         2-D array to iteratively write to nwb.
-    channel_ids: np.array
+    channel_ids: np.array of ints, optional
         channel numbers to store
     """
     for i in range(datasetview_obj.shape[0]//700):
