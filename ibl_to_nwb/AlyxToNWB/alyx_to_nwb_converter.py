@@ -264,14 +264,12 @@ class Alyx2NWBConverter:
                                               description=electrode_table_list[i]['description'],
                                               data=electrode_table_list[i]['data'])
         # create probes specific DynamicTableRegion:
-        self.probe_dt_region = [self.nwbfile.create_electrode_table_region(name=i['name'],
-                                                                           region=list(range(self.one_data.data_attrs_dump[
+        self.probe_dt_region = [self.nwbfile.create_electrode_table_region(region=list(range(self.one_data.data_attrs_dump[
                                                                                                  'electrode_table_length'][
                                                                                                  j])),
                                                                            description=i['name'])
                                 for j, i in enumerate(self.nwb_metadata['Probes'])]
-        self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(name='AllProbes',
-                                                                              region=list(range(sum(
+        self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(region=list(range(sum(
                                                                                   self.one_data.data_attrs_dump[
                                                                                       'electrode_table_length']))),
                                                                               description='AllProbes')
@@ -296,10 +294,21 @@ class Alyx2NWBConverter:
                     timestamps_names = self.one_data.data_attrs_dump['_iblqc_ephysTimeRms.timestamps']
                     data_names = self.one_data.data_attrs_dump['_iblqc_ephysTimeRms.rms']
                     for data_idx, data in enumerate(i['data']):
-                        mod.add(TimeSeries(name=data_names[data_idx],
+                        probe_no = [j for j in range(self.no_probes)
+                                    if self.nwb_metadata['Probes'][j]['name'] in data_names[data_idx]][0]
+                        if data.shape[1]>self.one_data.data_attrs_dump['electrode_table_length'][probe_no]:
+                            if 'channels.rawInd' in self.one_data.loaded_datasets:
+                                channel_idx = self.one_data.loaded_datasets['channels.rawInd'][probe_no].data
+                            else:
+                                warnings.warn('could not find channels.rawInd')
+                                break
+                        else:
+                            channel_idx = np.array(range(data.shape[1]))
+                        mod.add(ElectricalSeries(name=data_names[data_idx],
                                            description=i['description'],
                                            timestamps=i['timestamps'][timestamps_names.index(data_names[data_idx])],
-                                           data=data))
+                                           data=data[:,channel_idx],
+                                           electrodes=self.probe_dt_region[probe_no]))
                 elif 'Spectrum' in func:
                     if argmts[no]['data'] in '_iblqc_ephysSpectralDensity.power':
                         freqs_names = self.one_data.data_attrs_dump['_iblqc_ephysSpectralDensity.freqs']
@@ -362,6 +371,8 @@ class Alyx2NWBConverter:
         Acquisition data like audiospectrogram(raw beh data), nidq(raw ephys data), raw camera data.
         These are independent of probe type.
         """
+        if not self.electrode_table_exist:
+            self.create_electrode_table_ecephys()
         for func, argmts in self.nwb_metadata['Acquisition'].items():
             data_retrieve = self._get_data(argmts)
             nwbfunc = eval(func)
@@ -388,15 +399,25 @@ class Alyx2NWBConverter:
                 else:
                     if i['name'] in ['raw.lf', 'raw.ap']:
                         for j, probes in enumerate(range(self.no_probes)):
+                            if i['data'][j].shape[1] > self.one_data.data_attrs_dump['electrode_table_length'][j]:
+                                if 'channels.rawInd' in self.one_data.loaded_datasets:
+                                    channel_idx = self.one_data.loaded_datasets['channels.rawInd'][j].data
+                                else:
+                                    warnings.warn('could not find channels.rawInd')
+                                    break
+                            else:
+                                channel_idx = np.array(range(i['data'][j].shape[1]))
                             self.nwbfile.add_acquisition(
-                                TimeSeries(
+                                ElectricalSeries(
                                     name=i['name'] + '_' + self.nwb_metadata['Probes'][j]['name'],
-                                    starting_time=i['timestamps'][j][0, 1],
+                                    starting_time=np.abs(np.round(i['timestamps'][j][0, 1],2)),
                                     rate=i['data'][j].fs,
-                                    data=H5DataIO(DataChunkIterator(iter_datasetview(i['data'][j]),
+                                    data=H5DataIO(DataChunkIterator(iter_datasetview(i['data'][j],channel_ids=channel_idx),
                                                                     buffer_size=self.buffer_size),
                                                   compression=True, shuffle=self.shuffle,
-                                                  compression_opts=self.complevel)))
+                                                  compression_opts=self.complevel),
+                                    electrodes=self.probe_dt_region[j],
+                                    channel_conversion=i['data'][j].channel_conversion_sample2v[i['data'][j].type][channel_idx]))
                     elif i['name'] in ['raw.nidq']:
                         self.nwbfile.add_acquisition(nwbfunc(**i))
 
