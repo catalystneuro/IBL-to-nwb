@@ -13,13 +13,11 @@ def iter_datasetview(datasetview_obj, channel_ids=None):
 
     Parameters
     ----------
-    datasetview_obj: np.array
+    datasetview_obj: array-like
         2-D array to iteratively write to nwb.
-    channel_ids: np.array
+    channel_ids: np.array of ints, optional
         channel numbers to store
     """
-    if channel_ids is None:
-        channel_ids = np.array(range(datasetview_obj.shape[1]))
     for i in range(datasetview_obj.shape[0]//700):
         curr_data = np.squeeze(datasetview_obj._raw[i][channel_ids])
         yield curr_data
