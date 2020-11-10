@@ -18,8 +18,6 @@ def iter_datasetview(datasetview_obj, channel_ids=None):
     channel_ids: np.array
         channel numbers to store
     """
-    if channel_ids is None:
-        channel_ids = np.array(range(datasetview_obj.shape[1]))
     for i in range(datasetview_obj.shape[0]//700):
         curr_data = np.squeeze(datasetview_obj._raw[i][channel_ids])
         yield curr_data
