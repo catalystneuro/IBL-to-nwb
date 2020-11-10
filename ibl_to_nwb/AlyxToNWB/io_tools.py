@@ -1,9 +1,9 @@
-from lazy_ops import DatasetView
+from datetime import datetime
+from pathlib import PurePath
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
 from tzlocal import get_localzone
-from pathlib import PurePath
 
 
 def iter_datasetview(datasetview_obj, channel_ids=None):
