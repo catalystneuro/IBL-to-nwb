@@ -260,14 +260,12 @@ class Alyx2NWBConverter:
                                               data=electrode_table_list[i]['data'])
         # create probes specific DynamicTableRegion:
         self.probe_dt_region = [
-            self.nwbfile.create_electrode_table_region(region=list(range(self.one_data.data_attrs_dump[
-                                                                             'electrode_table_length'][
-                                                                             j])),
-                                                       description=i['name'])
+            self.nwbfile.create_electrode_table_region(
+                region=list(range(self.one_data.data_attrs_dump['electrode_table_length'][j])),
+                description=i['name'])
             for j, i in enumerate(self.nwb_metadata['Probes'])]
-        self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(region=list(range(sum(
-            self.one_data.data_attrs_dump[
-                'electrode_table_length']))),
+        self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(
+            region=list(range(sum(self.one_data.data_attrs_dump['electrode_table_length']))),
             description='AllProbes')
         self.electrode_table_exist = True
 
