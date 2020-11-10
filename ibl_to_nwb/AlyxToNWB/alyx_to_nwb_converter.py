@@ -299,7 +299,7 @@ class Alyx2NWBConverter:
                                 warnings.warn('could not find channels.rawInd')
                                 break
                         else:
-                            channel_idx = np.arange(data.shape[1]).astype('int')
+                            channel_idx = None
                         mod.add(ElectricalSeries(name=data_names[data_idx],
                                                  description=i['description'],
                                                  timestamps=i['timestamps'][
@@ -403,7 +403,7 @@ class Alyx2NWBConverter:
                                     warnings.warn('could not find channels.rawInd')
                                     break
                             else:
-                                channel_idx = np.arange(i['data'][j].shape[1]))
+                                channel_idx = None
                             self.nwbfile.add_acquisition(
                                 ElectricalSeries(
                                     name=i['name'] + '_' + self.nwb_metadata['Probes'][j]['name'],
