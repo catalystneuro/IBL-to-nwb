@@ -13,7 +13,7 @@ def iter_datasetview(datasetview_obj, channel_ids=None):
 
     Parameters
     ----------
-    datasetview_obj: np.array
+    datasetview_obj: array-like
         2-D array to iteratively write to nwb.
     channel_ids: np.array of ints, optional
         channel numbers to store
