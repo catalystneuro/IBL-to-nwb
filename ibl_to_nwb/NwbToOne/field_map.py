@@ -39,7 +39,7 @@ field_map_subject = {
     'species': {'name': 'species', 'dtype': _str},
     'weight': {'name': 'reference_weight', 'dtype': lambda x: float(x.item()) if 'numpy' in str(type(x)) else float(x)},
     'date_of_birth': {'name': 'birth_date', 'dtype': _str},
-    'age': {'name': 'age_weeks', 'dtype': lambda x: [int(i) for i in x.split() if i.isdigit()][0]}
+    'age': {'name': 'age_weeks', 'dtype': lambda x: int(x.strip('PW'))}
 }
 
 field_map_IBL_subject = {
