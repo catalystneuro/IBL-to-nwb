@@ -294,7 +294,7 @@ class Alyx2NWBConverter:
                                     if self.nwb_metadata['Probes'][j]['name'] in data_names[data_idx]][0]
                         if data.shape[1] > self.one_data.data_attrs_dump['electrode_table_length'][probe_no]:
                             if 'channels.rawInd' in self.one_data.loaded_datasets:
-                                channel_idx = self.one_data.loaded_datasets['channels.rawInd'][probe_no].data
+                                channel_idx = self.one_data.loaded_datasets['channels.rawInd'][probe_no].data.astype('int')
                             else:
                                 warnings.warn('could not find channels.rawInd')
                                 break
@@ -398,7 +398,7 @@ class Alyx2NWBConverter:
                         for j, probes in enumerate(range(self.no_probes)):
                             if i['data'][j].shape[1] > self.one_data.data_attrs_dump['electrode_table_length'][j]:
                                 if 'channels.rawInd' in self.one_data.loaded_datasets:
-                                    channel_idx = self.one_data.loaded_datasets['channels.rawInd'][j].data
+                                    channel_idx = self.one_data.loaded_datasets['channels.rawInd'][j].data.astype('int')
                                 else:
                                     warnings.warn('could not find channels.rawInd')
                                     break
@@ -407,7 +407,7 @@ class Alyx2NWBConverter:
                             self.nwbfile.add_acquisition(
                                 ElectricalSeries(
                                     name=i['name'] + '_' + self.nwb_metadata['Probes'][j]['name'],
-                                    starting_time=np.abs(np.round(i['timestamps'][j][0, 1], 2)),
+                                    starting_time=np.abs(np.round(i['timestamps'][j][0, 1], 2)),# round of starting times near 0
                                     rate=i['data'][j].fs,
                                     data=H5DataIO(
                                         DataChunkIterator(iter_datasetview(i['data'][j], channel_ids=channel_idx),
