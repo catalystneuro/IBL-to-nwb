@@ -455,14 +455,14 @@ class Alyx2NWBMetadata:
     def probe_metadata(self):
         probes_metadata_dict = self._initialize_container_dict('Probes', default_value=[])
         probe_list = self.eid_session_info['probe_insertion']
-        probe_fields = ['id', 'model', 'name', 'trajectory_estimate']
+        probe_dict_keys = ['id', 'model', 'name', 'trajectory_estimate']
         input_dict = dict()
-        for k in probe_fields:
-            if k == 'trajectory_estimate':
+        for key in probe_dict_keys:
+            if key == 'trajectory_estimate':
                 input_dict.update(
-                    {k: [[json.dumps(l) for l in probe_list[i].get(k, ["None"])] for i in range(len(probe_list))]})
+                    {key: [[json.dumps(l) for l in probe_list[i].get(key, ["None"])] for i in range(len(probe_list))]})
             else:
-                input_dict.update({k: [probe_list[i].get(k, "None") for i in range(len(probe_list))]})
+                input_dict.update({key: [probe_list[i].get(key, "None") for i in range(len(probe_list))]})
         probes_metadata_dict['Probes'].extend(
             self._get_dynamictable_array(**input_dict)
         )
@@ -536,28 +536,28 @@ class Alyx2NWBMetadata:
         behavior_metadata_dict = self._initialize_container_dict('Behavior')
         behavior_objects = ['wheel', 'wheelMoves', 'licks', 'lickPiezo', 'face', 'eye', 'camera']
         current_behavior_objects = self._get_current_object_names(behavior_objects)
-        for k, u in enumerate(current_behavior_objects):
-            if 'wheel' == u:
+        for object_name in current_behavior_objects:
+            if 'wheel' == object_name:
                 behavior_metadata_dict['Behavior']['BehavioralTimeSeries'] = \
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
-            if 'wheelMoves' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')
+            if 'wheelMoves' in object_name:
                 behavior_metadata_dict['Behavior']['BehavioralEpochs'] = \
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'interval_series')
-            if 'lickPiezo' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'interval_series')
+            if 'lickPiezo' in object_name:
                 behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
-            if 'licks' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')['time_series'])
+            if 'licks' in object_name:
                 behavior_metadata_dict['Behavior']['BehavioralEvents'] = \
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
-            if 'face' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')
+            if 'face' in object_name:
                 behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
-            if 'eye' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')['time_series'])
+            if 'eye' in object_name:
                 behavior_metadata_dict['Behavior']['PupilTracking'] = \
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
-            if 'camera' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')
+            if 'camera' in object_name:
                 behavior_metadata_dict['Behavior']['Position'] = \
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'spatial_series', name='camera_dlc')
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'spatial_series', name='camera_dlc')
         return behavior_metadata_dict
 
     @property
@@ -565,8 +565,8 @@ class Alyx2NWBMetadata:
         trials_metadata_dict = self._initialize_container_dict('Trials')
         trials_objects = ['trials']
         current_trial_objects = self._get_current_object_names(trials_objects)
-        for k, u in enumerate(current_trial_objects):
-            if 'trial' in u:
+        for object_name in current_trial_objects:
+            if 'trial' in object_name:
                 trials_metadata_dict = self._get_dynamictable_object(
                     self.dataset_details.copy(), 'trials', 'Trials',
                     default_colnames_dict=dict(start_time='intervals', stop_time='intervals'))
@@ -577,22 +577,22 @@ class Alyx2NWBMetadata:
         stimulus_objects = ['sparseNoise', 'passiveBeeps', 'passiveValveClick', 'passiveVisual', 'passiveWhiteNoise']
         stimulus_metadata_dict = self._initialize_container_dict('Stimulus')
         current_stimulus_objects = self._get_current_object_names(stimulus_objects)
-        for k, u in enumerate(current_stimulus_objects):
-            if 'sparseNoise' in u:
+        for object_name in current_stimulus_objects:
+            if 'sparseNoise' in object_name:
                 stimulus_metadata_dict['Stimulus'] = \
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')
-            if 'passiveBeeps' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')
+            if 'passiveBeeps' in object_name:
                 stimulus_metadata_dict['Stimulus']['time_series'].extend(
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
-            if 'passiveValveClick' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')['time_series'])
+            if 'passiveValveClick' in object_name:
                 stimulus_metadata_dict['Stimulus']['time_series'].extend(
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
-            if 'passiveVisual' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')['time_series'])
+            if 'passiveVisual' in object_name:
                 stimulus_metadata_dict['Stimulus']['time_series'].extend(
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
-            if 'passiveWhiteNoise' in u:
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')['time_series'])
+            if 'passiveWhiteNoise' in object_name:
                 stimulus_metadata_dict['Stimulus']['time_series'].extend(
-                    self._get_timeseries_object(self.dataset_details.copy(), u, 'time_series')['time_series'])
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')['time_series'])
         return stimulus_metadata_dict
 
     @property
@@ -613,8 +613,8 @@ class Alyx2NWBMetadata:
 
         units_metadata_dict = self._initialize_container_dict('Units')
         current_units_objects = self._get_current_object_names(units_objects)
-        for k, u in enumerate(current_units_objects):
-            if 'clusters' in u:
+        for object_name in current_units_objects:
+            if 'clusters' in object_name:
                 units_metadata_dict = \
                     self._get_dynamictable_object(self.dataset_details.copy(), 'clusters', 'Units',
                                                   default_colnames_dict=dict(location='brainAcronyms',
