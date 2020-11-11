@@ -86,10 +86,7 @@ class Alyx2NWBMetadata:
             {<dataset-name> : <dataset_description>
         """
         data_url_resp = self.one_obj.alyx.rest('dataset-types', 'list')
-        out_dict = dict()
-        for i in data_url_resp:
-            out_dict.update({i['name']: i['description']})
-        return out_dict
+        return {i['name']: i['description'] for i in data_url_resp}
 
     def _list_eid_metadata(self, list_type):
         """
