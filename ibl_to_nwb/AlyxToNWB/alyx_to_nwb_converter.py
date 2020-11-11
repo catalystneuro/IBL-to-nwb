@@ -297,7 +297,7 @@ class Alyx2NWBConverter:
                                 warnings.warn('could not find channels.rawInd')
                                 break
                         else:
-                            channel_idx = None
+                            channel_idx = slice(None)
                         mod.add(ElectricalSeries(name=data_names[data_idx],
                                                  description=i['description'],
                                                  timestamps=i['timestamps'][
@@ -339,7 +339,7 @@ class Alyx2NWBConverter:
                         data_loop = data_np[:, x_column_id:x_column_id + 2]
                         position_cont.create_spatial_series(name=dataname + colnames[x_column_id][:-2], data=data_loop,
                                                             reference_frame='none', timestamps=timestamps,
-                                                            conversion=1e3)
+                                                            conversion=1e-3)
                 self.nwbfile.processing['behavior'].add(position_cont)
             elif not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
@@ -401,11 +401,11 @@ class Alyx2NWBConverter:
                                     warnings.warn('could not find channels.rawInd')
                                     break
                             else:
-                                channel_idx = None
+                                channel_idx = slice(None)
                             self.nwbfile.add_acquisition(
                                 ElectricalSeries(
                                     name=i['name'] + '_' + self.nwb_metadata['Probes'][j]['name'],
-                                    starting_time=np.abs(np.round(i['timestamps'][j][0, 1], 2)),# round of starting times near 0
+                                    starting_time=np.abs(np.round(i['timestamps'][j][0, 1], 2)),# round starting times of the order of 1e-5
                                     rate=i['data'][j].fs,
                                     data=H5DataIO(
                                         DataChunkIterator(iter_datasetview(i['data'][j], channel_ids=channel_idx),
