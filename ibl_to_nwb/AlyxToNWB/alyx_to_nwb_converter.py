@@ -4,8 +4,15 @@ import uuid
 import warnings
 from copy import deepcopy
 from datetime import datetime
-
+from tqdm import tqdm
+from tzlocal import get_localzone
 import numpy as np
+
+from pynwb import NWBFile, NWBHDF5IO
+from pynwb.ecephys import ElectricalSeries
+from pynwb.misc import DecompositionSeries
+from pynwb import TimeSeries
+from pynwb.image import ImageSeries
 import pynwb.behavior
 import pynwb.ecephys
 from hdmf.backends.hdf5.h5_utils import H5DataIO
@@ -14,10 +21,6 @@ from hdmf.data_utils import DataChunkIterator
 from ndx_ibl_metadata import IblSessionData, IblProbes, IblSubject
 from ndx_spectrum import Spectrum
 from oneibl.one import ONE
-from pynwb import NWBFile, NWBHDF5IO
-from pynwb.ecephys import ElectricalSeries
-from tqdm import tqdm
-from tzlocal import get_localzone
 
 from .alyx_to_nwb_metadata import Alyx2NWBMetadata
 from .io_tools import iter_datasetview, OneData, get_default_column_ids
@@ -389,7 +392,7 @@ class Alyx2NWBConverter:
                     i.update(dict(starting_time=np.float64(starting_time), rate=1/np.mean(np.diff(ts.squeeze())),
                                   unit='sec'))
                     self.nwbfile.add_acquisition(nwbfunc(**i))
-                else:
+                elif func == 'ElectricalSeries':
                     if i['name'] in ['raw.lf', 'raw.ap']:
                         for j, probes in enumerate(range(self.no_probes)):
                             if i['data'][j].shape[1] > self.one_data.data_attrs_dump['electrode_table_length'][j]:

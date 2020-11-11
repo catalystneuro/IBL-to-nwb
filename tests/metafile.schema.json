@@ -346,7 +346,7 @@
       }
     }
   }, "Acquisition": {
-    "type": "object", "properties": {
+    "type": "object", "additionalProperties": false, "properties": {
       "DecompositionSeries": {
         "type": "array", "items": {
           "type": "object", "$ref": "#/definitions/TimeSeries", "properties": {
@@ -357,7 +357,7 @@
             }
           }
         }
-      }, "TimeSeries": {
+      }, "ElectricalSeries": {
         "type": "array", "items": {
           "type": "object", "$ref": "#/definitions/TimeSeries"
         }
