@@ -33,7 +33,7 @@ def _get_default_column_ids(default_namelist, namelist):
     return out_idx
 
 
-class OneData:
+class _OneData:
 
     def __init__(self, one_object: OneAbstract, eid: str, no_probes: int, nwb_metadata: dict, save_raw=False, save_camera_raw=False):
         self.one_object = one_object

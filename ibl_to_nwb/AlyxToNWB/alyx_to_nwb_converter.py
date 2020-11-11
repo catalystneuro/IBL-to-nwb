@@ -23,7 +23,7 @@ from ndx_spectrum import Spectrum
 from oneibl.one import ONE
 
 from .alyx_to_nwb_metadata import Alyx2NWBMetadata
-from .io_tools import _iter_datasetview, OneData, _get_default_column_ids
+from .io_tools import _iter_datasetview, _OneData, _get_default_column_ids
 
 
 class Alyx2NWBConverter:
@@ -93,7 +93,7 @@ class Alyx2NWBConverter:
         if self.no_probes == 0:
             warnings.warn('could not find probe information, will create trials, behavior, acquisition')
         self.electrode_table_exist = False
-        self.one_data = OneData(self.one_object, self.eid, self.no_probes, self.nwb_metadata,
+        self._one_data = _OneData(self.one_object, self.eid, self.no_probes, self.nwb_metadata,
                                 save_raw=save_raw, save_camera_raw=save_camera_raw)
 
     def initialize_nwbfile(self):
@@ -202,8 +202,8 @@ class Alyx2NWBConverter:
                     add_dict.update(
                         {ibl_dataset_name: self.nwbfile.electrode_groups[self.nwb_metadata['Probes'][default_dict[ibl_dataset_name][cluster_no]]['name']]})
                 elif ibl_dataset_name == 'id':
-                    if cluster_no >= self.one_data.data_attrs_dump['unit_table_length'][0]:
-                        add_dict.update({ibl_dataset_name: default_dict[ibl_dataset_name][cluster_no] + self.one_data.data_attrs_dump['unit_table_length'][0]})
+                    if cluster_no >= self._one_data.data_attrs_dump['unit_table_length'][0]:
+                        add_dict.update({ibl_dataset_name: default_dict[ibl_dataset_name][cluster_no] + self._one_data.data_attrs_dump['unit_table_length'][0]})
                     else:
                         add_dict.update({ibl_dataset_name: default_dict[ibl_dataset_name][cluster_no]})
                 elif ibl_dataset_name == 'waveform_mean':
@@ -236,7 +236,7 @@ class Alyx2NWBConverter:
             group_labels = default_dict['group']
         else:  # else fill with probe zero data.
             group_labels = np.concatenate(
-                [np.ones(self.one_data.data_attrs_dump['electrode_table_length'][i], dtype=int)*i for i in
+                [np.ones(self._one_data.data_attrs_dump['electrode_table_length'][i], dtype=int)*i for i in
                  range(self.no_probes)])
         for electrode_no in range(len(electrode_table_list[0]['data'])):
             if 'x' in default_dict:
@@ -260,11 +260,11 @@ class Alyx2NWBConverter:
                                               data=electrode_table_list[id]['data'])
         # create probes specific DynamicTableRegion:
         self.probe_dt_region = [self.nwbfile.create_electrode_table_region(
-                                    region=list(range(self.one_data.data_attrs_dump['electrode_table_length'][j])),
+                                    region=list(range(self._one_data.data_attrs_dump['electrode_table_length'][j])),
                                     description=i['name'])
                                 for j, i in enumerate(self.nwb_metadata['Probes'])]
         self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(
-                                        region=list(range(sum(self.one_data.data_attrs_dump['electrode_table_length']))),
+                                        region=list(range(sum(self._one_data.data_attrs_dump['electrode_table_length']))),
                                         description='AllProbes')
         self.electrode_table_exist = True
 
@@ -285,14 +285,14 @@ class Alyx2NWBConverter:
             for no, neurodata_type_args in enumerate(data_retrieved_args_list):
                 ibl_dataset_name = neurodata_type_args_list[no]['data']
                 if 'ElectricalSeries' in neurodata_type_name:
-                    timestamps_names = self.one_data.data_attrs_dump['_iblqc_ephysTimeRms.timestamps']
-                    data_names = self.one_data.data_attrs_dump['_iblqc_ephysTimeRms.rms']
+                    timestamps_names = self._one_data.data_attrs_dump['_iblqc_ephysTimeRms.timestamps']
+                    data_names = self._one_data.data_attrs_dump['_iblqc_ephysTimeRms.rms']
                     for data_idx, data in enumerate(neurodata_type_args['data']):
                         probe_no = [j for j in range(self.no_probes)
                                     if self.nwb_metadata['Probes'][j]['name'] in data_names[data_idx]][0]
-                        if data.shape[1] > self.one_data.data_attrs_dump['electrode_table_length'][probe_no]:
-                            if 'channels.rawInd' in self.one_data.loaded_datasets:
-                                channel_idx = self.one_data.loaded_datasets['channels.rawInd'][probe_no].data.astype('int')
+                        if data.shape[1] > self._one_data.data_attrs_dump['electrode_table_length'][probe_no]:
+                            if 'channels.rawInd' in self._one_data.loaded_datasets:
+                                channel_idx = self._one_data.loaded_datasets['channels.rawInd'][probe_no].data.astype('int')
                             else:
                                 warnings.warn('could not find channels.rawInd')
                                 break
@@ -305,8 +305,8 @@ class Alyx2NWBConverter:
                                                  electrodes=self.probe_dt_region[probe_no]))
                 elif 'Spectrum' in neurodata_type_name:
                     if ibl_dataset_name in '_iblqc_ephysSpectralDensity.power':
-                        freqs_names = self.one_data.data_attrs_dump['_iblqc_ephysSpectralDensity.freqs']
-                        data_names = self.one_data.data_attrs_dump['_iblqc_ephysSpectralDensity.power']
+                        freqs_names = self._one_data.data_attrs_dump['_iblqc_ephysSpectralDensity.freqs']
+                        data_names = self._one_data.data_attrs_dump['_iblqc_ephysSpectralDensity.power']
                         for data_idx, data in enumerate(neurodata_type_args['data']):
                             mod.add(Spectrum(name=data_names[data_idx],
                                              frequencies=neurodata_type_args['frequencies'][freqs_names.index(data_names[data_idx])],
@@ -327,7 +327,7 @@ class Alyx2NWBConverter:
                 if len(time_series_list_details) == 0:
                     continue
                 # rate_list = [150.0,60.0,60.0] # based on the google doc for _iblrig_body/left/rightCamera.raw,
-                dataname_list = self.one_data.data_attrs_dump['camera.dlc']
+                dataname_list = self._one_data.data_attrs_dump['camera.dlc']
                 data_list = time_series_list_details[0]['data']
                 timestamps_list = time_series_list_details[0]['timestamps']
                 for dataname, data, timestamps in zip(dataname_list, data_list, timestamps_list):
@@ -392,9 +392,9 @@ class Alyx2NWBConverter:
                 elif neurodata_type_name == 'ElectricalSeries':
                     if neurodata_type_args['name'] in ['raw.lf', 'raw.ap']:
                         for probe_no in range(self.no_probes):
-                            if neurodata_type_args['data'][probe_no].shape[1] > self.one_data.data_attrs_dump['electrode_table_length'][probe_no]:
-                                if 'channels.rawInd' in self.one_data.loaded_datasets:
-                                    channel_idx = self.one_data.loaded_datasets['channels.rawInd'][probe_no].data.astype('int')
+                            if neurodata_type_args['data'][probe_no].shape[1] > self._one_data.data_attrs_dump['electrode_table_length'][probe_no]:
+                                if 'channels.rawInd' in self._one_data.loaded_datasets:
+                                    channel_idx = self._one_data.loaded_datasets['channels.rawInd'][probe_no].data.astype('int')
                                 else:
                                     warnings.warn('could not find channels.rawInd')
                                     break
@@ -477,11 +477,11 @@ class Alyx2NWBConverter:
         for count, neurodata_type_args in enumerate(out_dict):
             for alt_names in alt_datatypes:
                 if neurodata_type_args.get(alt_names):  # in case of Decomposotion series, Spectrum
-                    neurodata_type_args[alt_names] = self.one_data.download_dataset(neurodata_type_args[alt_names], neurodata_type_args['name'])
+                    neurodata_type_args[alt_names] = self._one_data.download_dataset(neurodata_type_args[alt_names], neurodata_type_args['name'])
             if neurodata_type_args['name'] == 'id':  # valid in case of units table.
-                neurodata_type_args['data'] = self.one_data.download_dataset(neurodata_type_args['data'], 'cluster_id')
+                neurodata_type_args['data'] = self._one_data.download_dataset(neurodata_type_args['data'], 'cluster_id')
             else:
-                out_dict[count]['data'] = self.one_data.download_dataset(neurodata_type_args['data'], neurodata_type_args['name'])
+                out_dict[count]['data'] = self._one_data.download_dataset(neurodata_type_args['data'], neurodata_type_args['name'])
             if out_dict[count]['data'] is not None:
                 include_idx.extend([count])
         out_dict_trim.extend([out_dict[j0] for j0 in include_idx])

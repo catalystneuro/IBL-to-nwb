@@ -118,10 +118,10 @@ def test_nwb_converter(tmp_path, build_converter):
             dtcol = [nwbfile.trials.columns[no] for no, i in enumerate(nwbfile.trials.colnames)
                      if trlcol['name'] == i and isinstance(nwbfile.trials.columns[no], VectorData)][0]
             if trlcol['data'].split('.')[-1] != 'intervals':
-                data = converter_nwb1.one_data.loaded_datasets.get(trlcol['data']).data[0]
+                data = converter_nwb1._one_data.loaded_datasets.get(trlcol['data']).data[0]
                 assert_array_equal(data, dtcol.data[()])
         # test units:
-        unit_data_len = sum(converter_nwb1.one_data.data_attrs_dump['unit_table_length'])
+        unit_data_len = sum(converter_nwb1._one_data.data_attrs_dump['unit_table_length'])
         dt_column_names = [getattr(nwbfile.units, i['name']).name for i in full_metadata['Units']]
         for no, unitcol in enumerate(full_metadata['Units']):
             assert unitcol['name'] == dt_column_names[no]
@@ -135,7 +135,7 @@ def test_nwb_converter(tmp_path, build_converter):
                 electrode_group_dict['device'] = electrode_group_dict['device'].name
             assert group == electrode_group_dict
         # test electrode table:
-        elec_tbl_len = sum(converter_nwb1.one_data.data_attrs_dump['electrode_table_length'])
+        elec_tbl_len = sum(converter_nwb1._one_data.data_attrs_dump['electrode_table_length'])
         for electrode in full_metadata['ElectrodeTable']:
             assert electrode['name'] in nwbfile.electrodes.colnames
         assert nwbfile.electrodes.id.shape[0] == elec_tbl_len
@@ -143,8 +143,8 @@ def test_nwb_converter(tmp_path, build_converter):
         ephys_datasets = nwbfile.processing['ecephys'].data_interfaces
         for i, j in full_metadata['Ecephys']['Ecephys'].items():
             for j1 in j:
-                assert j1['data'] in converter_nwb1.one_data.data_attrs_dump
-                field_names = converter_nwb1.one_data.data_attrs_dump[j1['data']]
+                assert j1['data'] in converter_nwb1._one_data.data_attrs_dump
+                field_names = converter_nwb1._one_data.data_attrs_dump[j1['data']]
                 for k in field_names:
                     assert k in ephys_datasets
                     if 'Spectrum' in i:
