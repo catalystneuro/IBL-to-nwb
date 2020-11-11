@@ -259,14 +259,13 @@ class Alyx2NWBConverter:
                                               description=electrode_table_list[i]['description'],
                                               data=electrode_table_list[i]['data'])
         # create probes specific DynamicTableRegion:
-        self.probe_dt_region = [
-            self.nwbfile.create_electrode_table_region(
-                region=list(range(self.one_data.data_attrs_dump['electrode_table_length'][j])),
-                description=i['name'])
-            for j, i in enumerate(self.nwb_metadata['Probes'])]
+        self.probe_dt_region = [self.nwbfile.create_electrode_table_region(
+                                    region=list(range(self.one_data.data_attrs_dump['electrode_table_length'][j])),
+                                    description=i['name'])
+                                for j, i in enumerate(self.nwb_metadata['Probes'])]
         self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(
-            region=list(range(sum(self.one_data.data_attrs_dump['electrode_table_length']))),
-            description='AllProbes')
+                                        region=list(range(sum(self.one_data.data_attrs_dump['electrode_table_length']))),
+                                        description='AllProbes')
         self.electrode_table_exist = True
 
     def create_timeseries_ecephys(self):
@@ -300,8 +299,7 @@ class Alyx2NWBConverter:
                             channel_idx = slice(None)
                         mod.add(ElectricalSeries(name=data_names[data_idx],
                                                  description=i['description'],
-                                                 timestamps=i['timestamps'][
-                                                     timestamps_names.index(data_names[data_idx])],
+                                                 timestamps=i['timestamps'][timestamps_names.index(data_names[data_idx])],
                                                  data=data[:, channel_idx],
                                                  electrodes=self.probe_dt_region[probe_no]))
                 elif 'Spectrum' in func:
@@ -408,13 +406,14 @@ class Alyx2NWBConverter:
                                     starting_time=np.abs(np.round(i['timestamps'][j][0, 1], 2)),# round starting times of the order of 1e-5
                                     rate=i['data'][j].fs,
                                     data=H5DataIO(
-                                        DataChunkIterator(iter_datasetview(i['data'][j], channel_ids=channel_idx),
-                                                          buffer_size=self.buffer_size),
-                                        compression=True, shuffle=self.shuffle,
-                                        compression_opts=self.complevel),
+                                            DataChunkIterator(
+                                                iter_datasetview(i['data'][j], channel_ids=channel_idx),
+                                                buffer_size=self.buffer_size),
+                                            compression=True,
+                                            shuffle=self.shuffle,
+                                            compression_opts=self.complevel),
                                     electrodes=self.probe_dt_region[j],
-                                    channel_conversion=i['data'][j].channel_conversion_sample2v[i['data'][j].type][
-                                        channel_idx]))
+                                    channel_conversion=i['data'][j].channel_conversion_sample2v[i['data'][j].type][channel_idx]))
                     elif i['name'] in ['raw.nidq']:
                         self.nwbfile.add_acquisition(nwbfunc(**i))
 
