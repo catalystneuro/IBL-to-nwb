@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 from tzlocal import get_localzone
 from ibllib.io import spikeglx
+from oneibl.one import OneAbstract, SessionDataInfo
 
 
-def iter_datasetview(reader: spikeglx.Reader, channel_ids=None):
+def _iter_datasetview(reader: spikeglx.Reader, channel_ids=None):
     """
     Generator to return a row of the array each time it is called.
     This will be wrapped with a DataChunkIterator class.
@@ -24,7 +25,7 @@ def iter_datasetview(reader: spikeglx.Reader, channel_ids=None):
     return
 
 
-def get_default_column_ids(default_namelist, namelist):
+def _get_default_column_ids(default_namelist, namelist):
     out_idx = []
     for j, i in enumerate(namelist):
         if i in default_namelist:
@@ -32,9 +33,9 @@ def get_default_column_ids(default_namelist, namelist):
     return out_idx
 
 
-class OneData:
+class _OneData:
 
-    def __init__(self, one_object, eid, no_probes, nwb_metadata, save_raw=False, save_camera_raw=False):
+    def __init__(self, one_object: OneAbstract, eid: str, no_probes: int, nwb_metadata: dict, save_raw=False, save_camera_raw=False):
         self.one_object = one_object
         self.eid = eid
         self.no_probes = no_probes
@@ -44,7 +45,7 @@ class OneData:
         self.data_attrs_dump = dict()
         self.nwb_metadata = nwb_metadata
 
-    def download_dataset(self, dataset_to_load, dataset_key):
+    def download_dataset(self, dataset_to_load: str, dataset_key: str):
         if not isinstance(dataset_to_load, str):  # prevents errors when loading metafile json
             return
         if dataset_to_load.split('.')[0] == 'ephysData' and not self.save_raw:
@@ -114,7 +115,7 @@ class OneData:
                 ls_merged.extend(ls_grouped)
             return ls_merged
 
-    def _load_as_array(self, dataset_to_load, dataset_key, loaded_dataset_):
+    def _load_as_array(self, dataset_to_load: str, dataset_key: str, loaded_dataset_: SessionDataInfo):
         """
         Takes variable data formats: .csv, .npy, .bin, .meta, .json and converts them to ndarray.
         Parameters
