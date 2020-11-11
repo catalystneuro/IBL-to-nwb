@@ -690,7 +690,7 @@ class Alyx2NWBMetadata:
     @property
     def acquisition_metadata(self):
         acquisition_objects = ['ephysData', '_iblrig_Camera', '_iblmic_audioSpectrogram']
-        container_name_objects = ['TimeSeries', 'ImageSeries', 'DecompositionSeries']
+        container_name_objects = ['ElectricalSeries', 'ImageSeries', 'DecompositionSeries']
         custom_attrs_objects = [['raw.nidq', 'raw.ap', 'raw.lf'], ['raw'], ['power']]
         acquisition_container = self._initialize_container_dict('Acquisition')
         current_acquisition_objects = self._get_current_object_names(acquisition_objects)

@@ -1,11 +1,13 @@
 import json
 import os
+import uuid
 import warnings
 from copy import deepcopy
 from datetime import datetime
-import uuid
+from tqdm import tqdm
+from tzlocal import get_localzone
 import numpy as np
-import pandas as pd
+
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries
 from pynwb.misc import DecompositionSeries
@@ -16,13 +18,9 @@ import pynwb.ecephys
 from hdmf.backends.hdf5.h5_utils import H5DataIO
 from hdmf.common.table import DynamicTable
 from hdmf.data_utils import DataChunkIterator
-from lazy_ops import DatasetView
 from ndx_ibl_metadata import IblSessionData, IblProbes, IblSubject
 from ndx_spectrum import Spectrum
 from oneibl.one import ONE
-from pynwb import TimeSeries
-from tqdm import tqdm
-from tzlocal import get_localzone
 
 from .alyx_to_nwb_metadata import Alyx2NWBMetadata
 from .io_tools import iter_datasetview, OneData, get_default_column_ids
@@ -95,7 +93,7 @@ class Alyx2NWBConverter:
         if self.no_probes == 0:
             warnings.warn('could not find probe information, will create trials, behavior, acquisition')
         self.electrode_table_exist = False
-        self.one_data = OneData(self.one_object, self.eid, self.no_probes, self.nwb_metadata, 
+        self.one_data = OneData(self.one_object, self.eid, self.no_probes, self.nwb_metadata,
                                 save_raw=save_raw, save_camera_raw=save_camera_raw)
 
     def initialize_nwbfile(self):
@@ -264,15 +262,13 @@ class Alyx2NWBConverter:
                                               description=electrode_table_list[i]['description'],
                                               data=electrode_table_list[i]['data'])
         # create probes specific DynamicTableRegion:
-        self.probe_dt_region = [self.nwbfile.create_electrode_table_region(region=list(range(self.one_data.data_attrs_dump[
-                                                                                                 'electrode_table_length'][
-                                                                                                 j])),
-                                                                           description=i['name'])
+        self.probe_dt_region = [self.nwbfile.create_electrode_table_region(
+                                    region=list(range(self.one_data.data_attrs_dump['electrode_table_length'][j])),
+                                    description=i['name'])
                                 for j, i in enumerate(self.nwb_metadata['Probes'])]
-        self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(region=list(range(sum(
-                                                                                  self.one_data.data_attrs_dump[
-                                                                                      'electrode_table_length']))),
-                                                                              description='AllProbes')
+        self.probe_dt_region_all = self.nwbfile.create_electrode_table_region(
+                                        region=list(range(sum(self.one_data.data_attrs_dump['electrode_table_length']))),
+                                        description='AllProbes')
         self.electrode_table_exist = True
 
     def create_timeseries_ecephys(self):
@@ -296,19 +292,19 @@ class Alyx2NWBConverter:
                     for data_idx, data in enumerate(i['data']):
                         probe_no = [j for j in range(self.no_probes)
                                     if self.nwb_metadata['Probes'][j]['name'] in data_names[data_idx]][0]
-                        if data.shape[1]>self.one_data.data_attrs_dump['electrode_table_length'][probe_no]:
+                        if data.shape[1] > self.one_data.data_attrs_dump['electrode_table_length'][probe_no]:
                             if 'channels.rawInd' in self.one_data.loaded_datasets:
-                                channel_idx = self.one_data.loaded_datasets['channels.rawInd'][probe_no].data
+                                channel_idx = self.one_data.loaded_datasets['channels.rawInd'][probe_no].data.astype('int')
                             else:
                                 warnings.warn('could not find channels.rawInd')
                                 break
                         else:
-                            channel_idx = np.array(range(data.shape[1]))
+                            channel_idx = slice(None)
                         mod.add(ElectricalSeries(name=data_names[data_idx],
-                                           description=i['description'],
-                                           timestamps=i['timestamps'][timestamps_names.index(data_names[data_idx])],
-                                           data=data[:,channel_idx],
-                                           electrodes=self.probe_dt_region[probe_no]))
+                                                 description=i['description'],
+                                                 timestamps=i['timestamps'][timestamps_names.index(data_names[data_idx])],
+                                                 data=data[:, channel_idx],
+                                                 electrodes=self.probe_dt_region[probe_no]))
                 elif 'Spectrum' in func:
                     if argmts[no]['data'] in '_iblqc_ephysSpectralDensity.power':
                         freqs_names = self.one_data.data_attrs_dump['_iblqc_ephysSpectralDensity.freqs']
@@ -344,7 +340,7 @@ class Alyx2NWBConverter:
                         data_loop = data_np[:, x_column_id:x_column_id + 2]
                         position_cont.create_spatial_series(name=dataname + colnames[x_column_id][:-2], data=data_loop,
                                                             reference_frame='none', timestamps=timestamps,
-                                                            conversion=1e3)
+                                                            conversion=1e-3)
                 self.nwbfile.processing['behavior'].add(position_cont)
             elif not (i == 'BehavioralEpochs'):
                 time_series_func = pynwb.TimeSeries
@@ -396,26 +392,29 @@ class Alyx2NWBConverter:
                     i.update(dict(starting_time=np.float64(starting_time), rate=1/np.mean(np.diff(ts.squeeze())),
                                   unit='sec'))
                     self.nwbfile.add_acquisition(nwbfunc(**i))
-                else:
+                elif func == 'ElectricalSeries':
                     if i['name'] in ['raw.lf', 'raw.ap']:
                         for j, probes in enumerate(range(self.no_probes)):
                             if i['data'][j].shape[1] > self.one_data.data_attrs_dump['electrode_table_length'][j]:
                                 if 'channels.rawInd' in self.one_data.loaded_datasets:
-                                    channel_idx = self.one_data.loaded_datasets['channels.rawInd'][j].data
+                                    channel_idx = self.one_data.loaded_datasets['channels.rawInd'][j].data.astype('int')
                                 else:
                                     warnings.warn('could not find channels.rawInd')
                                     break
                             else:
-                                channel_idx = np.array(range(i['data'][j].shape[1]))
+                                channel_idx = slice(None)
                             self.nwbfile.add_acquisition(
                                 ElectricalSeries(
                                     name=i['name'] + '_' + self.nwb_metadata['Probes'][j]['name'],
-                                    starting_time=np.abs(np.round(i['timestamps'][j][0, 1],2)),
+                                    starting_time=np.abs(np.round(i['timestamps'][j][0, 1], 2)),# round starting times of the order of 1e-5
                                     rate=i['data'][j].fs,
-                                    data=H5DataIO(DataChunkIterator(iter_datasetview(i['data'][j],channel_ids=channel_idx),
-                                                                    buffer_size=self.buffer_size),
-                                                  compression=True, shuffle=self.shuffle,
-                                                  compression_opts=self.complevel),
+                                    data=H5DataIO(
+                                            DataChunkIterator(
+                                                iter_datasetview(i['data'][j], channel_ids=channel_idx),
+                                                buffer_size=self.buffer_size),
+                                            compression=True,
+                                            shuffle=self.shuffle,
+                                            compression_opts=self.complevel),
                                     electrodes=self.probe_dt_region[j],
                                     channel_conversion=i['data'][j].channel_conversion_sample2v[i['data'][j].type][channel_idx]))
                     elif i['name'] in ['raw.nidq']:

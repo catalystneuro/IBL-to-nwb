@@ -1,28 +1,26 @@
-from lazy_ops import DatasetView
-import numpy as np
-import pandas as pd
 from datetime import datetime
-from tzlocal import get_localzone
 from pathlib import PurePath
 
+import numpy as np
+import pandas as pd
+from tzlocal import get_localzone
+from ibllib.io import spikeglx
 
-def iter_datasetview(datasetview_obj, channel_ids=None):
+
+def iter_datasetview(reader: spikeglx.Reader, channel_ids=None):
     """
     Generator to return a row of the array each time it is called.
     This will be wrapped with a DataChunkIterator class.
 
     Parameters
     ----------
-    datasetview_obj: np.array
-        2-D array to iteratively write to nwb.
-    channel_ids: np.array
+    reader: spikeglx.Reader
+        to retrieve raw int16 traces using ._raw attribute
+    channel_ids: np.array of ints, optional
         channel numbers to store
     """
-    if channel_ids is None:
-        channel_ids = np.array(range(datasetview_obj.shape[1]))
-    for i in range(datasetview_obj.shape[0]//700):
-        curr_data = np.squeeze(datasetview_obj._raw[i][channel_ids])
-        yield curr_data
+    for i in range(reader.shape[0]):
+        yield reader._raw[i][channel_ids].squeeze()
     return
 
 
