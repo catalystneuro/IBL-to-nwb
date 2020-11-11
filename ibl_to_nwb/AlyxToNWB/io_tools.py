@@ -8,7 +8,7 @@ from ibllib.io import spikeglx
 from oneibl.one import OneAbstract, SessionDataInfo
 
 
-def iter_datasetview(reader: spikeglx.Reader, channel_ids=None):
+def _iter_datasetview(reader: spikeglx.Reader, channel_ids=None):
     """
     Generator to return a row of the array each time it is called.
     This will be wrapped with a DataChunkIterator class.
@@ -25,7 +25,7 @@ def iter_datasetview(reader: spikeglx.Reader, channel_ids=None):
     return
 
 
-def get_default_column_ids(default_namelist, namelist):
+def _get_default_column_ids(default_namelist, namelist):
     out_idx = []
     for j, i in enumerate(namelist):
         if i in default_namelist:

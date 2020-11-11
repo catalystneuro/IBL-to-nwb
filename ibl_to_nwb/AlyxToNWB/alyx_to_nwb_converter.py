@@ -23,7 +23,7 @@ from ndx_spectrum import Spectrum
 from oneibl.one import ONE
 
 from .alyx_to_nwb_metadata import Alyx2NWBMetadata
-from .io_tools import iter_datasetview, OneData, get_default_column_ids
+from .io_tools import _iter_datasetview, OneData, _get_default_column_ids
 
 
 class Alyx2NWBConverter:
@@ -184,12 +184,11 @@ class Alyx2NWBConverter:
         unit_table_list = self._get_data(self.nwb_metadata['Units'])
         # no required arguments for units table. Below are default columns in the table.
         default_args = ['id', 'waveform_mean', 'electrodes', 'electrode_group', 'spike_times', 'obs_intervals']
-        default_ids = get_default_column_ids(default_args, [i['name'] for i in unit_table_list])
+        default_ids = _get_default_column_ids(default_args, [i['name'] for i in unit_table_list])
         if len(default_ids) != len(default_args):
             warnings.warn(f'could not find all of {default_args} clusters')
         non_default_ids = list(set(range(len(unit_table_list))).difference(set(default_ids)))
-        default_dict = dict()
-        [default_dict.update({unit_table_list[i]['name']: unit_table_list[i]['data']}) for i in default_ids]
+        default_dict = {unit_table_list[id]['name']: unit_table_list[id]['data'] for id in default_ids}
         for cluster_no in range(len(unit_table_list[0]['data'])):
             add_dict = dict()
             for ibl_dataset_name in default_dict:
@@ -230,10 +229,9 @@ class Alyx2NWBConverter:
         electrode_table_list = self._get_data(self.nwb_metadata['ElectrodeTable'])
         # electrode table has required arguments:
         required_args = ['group', 'x', 'y']
-        default_ids = get_default_column_ids(required_args, [i['name'] for i in electrode_table_list])
+        default_ids = _get_default_column_ids(required_args, [i['name'] for i in electrode_table_list])
         non_default_ids = list(set(range(len(electrode_table_list))).difference(set(default_ids)))
-        default_dict = dict()
-        [default_dict.update({electrode_table_list[i]['name']: electrode_table_list[i]['data']}) for i in default_ids]
+        default_dict = {electrode_table_list[id]['name']: electrode_table_list[id]['data'] for id in default_ids}
         if 'group' in default_dict:
             group_labels = default_dict['group']
         else:  # else fill with probe zero data.
@@ -371,7 +369,6 @@ class Alyx2NWBConverter:
             self.create_electrode_table_ecephys()
         for neurodata_type_name, neurodata_type_args_list in self.nwb_metadata['Acquisition'].items():
             data_retrieved_args_list = self._get_data(neurodata_type_args_list)
-            neurodata_type = eval(neurodata_type_name)
             for neurodata_type_args in data_retrieved_args_list:
                 if neurodata_type_name == 'ImageSeries':
                     for types, times in zip(neurodata_type_args['data'], neurodata_type_args['timestamps']):
@@ -379,7 +376,7 @@ class Alyx2NWBConverter:
                                           external_file=[str(types)],
                                           format='external',
                                           timestamps=times)
-                        self.nwbfile.add_acquisition(neurodata_type(**customargs))
+                        self.nwbfile.add_acquisition(ImageSeries(**customargs))
                 elif neurodata_type_name == 'DecompositionSeries':
                     neurodata_type_args['bands'] = np.squeeze(neurodata_type_args['bands'])
                     freqs = DynamicTable('frequencies', 'spectogram frequencies', id=np.arange(neurodata_type_args['bands'].shape[0]))
@@ -391,7 +388,7 @@ class Alyx2NWBConverter:
                     starting_time = ts[0][0] if isinstance(ts[0], np.ndarray) else ts[0]
                     neurodata_type_args.update(dict(starting_time=np.float64(starting_time), rate=1/np.mean(np.diff(ts.squeeze())),
                                   unit='sec'))
-                    self.nwbfile.add_acquisition(neurodata_type(**neurodata_type_args))
+                    self.nwbfile.add_acquisition(DecompositionSeries(**neurodata_type_args))
                 elif neurodata_type_name == 'ElectricalSeries':
                     if neurodata_type_args['name'] in ['raw.lf', 'raw.ap']:
                         for probe_no in range(self.no_probes):
@@ -410,7 +407,7 @@ class Alyx2NWBConverter:
                                     rate=neurodata_type_args['data'][probe_no].fs,
                                     data=H5DataIO(
                                             DataChunkIterator(
-                                                iter_datasetview(neurodata_type_args['data'][probe_no], channel_ids=channel_idx),
+                                                _iter_datasetview(neurodata_type_args['data'][probe_no], channel_ids=channel_idx),
                                                 buffer_size=self.buffer_size),
                                             compression=True,
                                             shuffle=self.shuffle,
@@ -418,7 +415,7 @@ class Alyx2NWBConverter:
                                     electrodes=self.probe_dt_region[probe_no],
                                     channel_conversion=neurodata_type_args['data'][probe_no].channel_conversion_sample2v[neurodata_type_args['data'][probe_no].type][channel_idx]))
                     elif neurodata_type_args['name'] in ['raw.nidq']:
-                        self.nwbfile.add_acquisition(neurodata_type(**neurodata_type_args))
+                        self.nwbfile.add_acquisition(ElectricalSeries(**neurodata_type_args))
 
     def create_probes(self):
         """
