@@ -273,11 +273,12 @@ class Alyx2NWBMetadata:
             # datafiles = ['None']
         timeseries_dict = {ts_name: [None]*len(datafiles)}
         for i, j in enumerate(datafiles):
-            timeseries_dict[ts_name][i] = {'name': datafiles_names[i],
-                                           'description': datafiles_desc[i],
-                                           'timestamps': datafiles_timedata[0],
-                                           'data': datafiles[i]}
-            timeseries_dict[ts_name][i].update(**kwargs)
+            original = {'name': datafiles_names[i],
+                        'description': datafiles_desc[i],
+                        'timestamps': datafiles_timedata[0],
+                        'data': datafiles[i]}
+            original.update(**kwargs)
+            timeseries_dict[ts_name][i] = {k: v for k, v in original.items() if v is not None}
         return timeseries_dict
 
     @staticmethod
@@ -495,9 +496,11 @@ class Alyx2NWBMetadata:
         sessions_metadata_dict['IBLSessionsData']['extended_qc'] = json.dumps(self.eid_session_info['extended_qc'])
         sessions_metadata_dict['IBLSessionsData']['json'] = json.dumps(self.eid_session_info['json'])
         sessions_metadata_dict['IBLSessionsData']['wateradmin_session_related'] = \
-            [json.dumps(i) for i in self.eid_session_info['wateradmin_session_related']]
+            [json.dumps(i) for i in self.eid_session_info['wateradmin_session_related']]\
+                if len(self.eid_session_info['wateradmin_session_related']) > 0 else ['None']
         sessions_metadata_dict['IBLSessionsData']['notes'] = \
-            [json.dumps(i) for i in self.eid_session_info['notes']]
+            [json.dumps(i) for i in self.eid_session_info['notes']]\
+                if len(self.eid_session_info['notes']) > 0 else ['None']
         return sessions_metadata_dict
 
     @property
@@ -516,11 +519,11 @@ class Alyx2NWBMetadata:
                 date_of_birth=self._get_datetime(sub_table_dict.pop('birth_date')),
                 **sub_table_dict
             )
-
+            water_admin_data = [json.dumps(i) for i in subject_metadata_dict['IBLSubject']['water_administrations']]\
+                    if len(subject_metadata_dict['IBLSubject']['water_administrations']) > 0 else ['None']
             subject_metadata_dict['IBLSubject'].update(
                 weighings=[json.dumps(i) for i in subject_metadata_dict['IBLSubject']['weighings']],
-                water_administrations=[json.dumps(i)
-                                       for i in subject_metadata_dict['IBLSubject']['water_administrations']]
+                water_administrations=water_admin_data
             )
         return subject_metadata_dict
 
@@ -555,6 +558,10 @@ class Alyx2NWBMetadata:
             if 'camera' in object_name:
                 behavior_metadata_dict['Behavior']['Position'] = \
                     self._get_timeseries_object(self.dataset_details.copy(), object_name, 'spatial_series', name='camera_dlc')
+                if len(behavior_metadata_dict['Behavior']['Position']['spatial_series']) > 0 and \
+                        behavior_metadata_dict['Behavior']['Position']['spatial_series'][0]['data']== \
+                        behavior_metadata_dict['Behavior']['Position']['spatial_series'][0]['timestamps']:
+                    behavior_metadata_dict['Behavior']['Position']['spatial_series'][0]['timestamps']='_iblrig_Camera.timestamps'
         return behavior_metadata_dict
 
     @property
@@ -691,10 +698,11 @@ class Alyx2NWBMetadata:
         custom_attrs_objects = [['raw.nidq', 'raw.ap', 'raw.lf'], ['raw'], ['power']]
         acquisition_container = self._initialize_container_dict('Acquisition')
         current_acquisition_objects = self._get_current_object_names(acquisition_objects)
-        # if current_acquisition_objects != acquisition_objects:
-        #     return dict()
+        idx = [no for no,i in enumerate(acquisition_objects) if i in current_acquisition_objects]
+        current_container_name_objects = [container_name_objects[i] for i in idx]
+        current_custom_attrs_objects = [custom_attrs_objects[i] for i in idx]
         kwargs = dict()
-        for i, j, k in zip(current_acquisition_objects, container_name_objects, custom_attrs_objects):
+        for i, j, k in zip(current_acquisition_objects, current_container_name_objects, current_custom_attrs_objects):
             if j == 'DecompositionSeries':
                 kwargs = dict(name=i, metric='power', bands='_iblmic_audioSpectrogram.frequencies')
             acquisition_container['Acquisition'].update(self._get_timeseries_object(

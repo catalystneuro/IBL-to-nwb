@@ -50,8 +50,14 @@ class _OneData:
             return
         if dataset_to_load.split('.')[0] == 'ephysData' and not self.save_raw:
             return
-        if dataset_to_load.split('.')[0] == '_iblrig_Camera' and not self.save_camera_raw:
-            return
+        if 'Camera.raw' in dataset_to_load:
+            sess_info=self.one_object.alyx.rest('sessions/' + self.eid, 'list')
+            camraw = [i for i in sess_info['data_dataset_session_related'] if 'Camera.raw' in i['name']]
+            if not self.save_camera_raw and len(camraw)==1:
+                self.loaded_datasets.update({dataset_to_load: camraw[0]['data_url']})
+                return [camraw[0]['data_url']]
+            else:
+                return
         if dataset_to_load not in self.loaded_datasets:
             if len(dataset_to_load.split(',')) == 1:
                 if 'ephysData.raw' in dataset_to_load and not 'ephysData.raw.meta' in self.loaded_datasets:
@@ -188,19 +194,28 @@ class _OneData:
             return loaded_dataset_.data
         elif datatype[0] in ['.mp4'] and self.save_camera_raw:
             return [str(i) for i in loaded_dataset_.data]
-        elif datatype[0] in ['.ssv'] and self.save_camera_raw:  # when camera timestamps
+        elif datatype[0] in ['.ssv']:  # when camera timestamps
+            if loaded_dataset_.data[0].shape[0]==0:
+                return
             print('converting camera timestamps..')
             if isinstance(self.nwb_metadata['NWBFile']['session_start_time'], datetime):
                 dt_start = self.nwb_metadata['NWBFile']['session_start_time']
             else:
                 dt_start = datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'],
                                              '%Y-%m-%d %X').replace(tzinfo=get_localzone())
-            dt_func = lambda x: ((datetime.strptime('-'.join(x.split('-')[:-1])[:-1],
+            dt_start = dt_start.replace(tzinfo=None)
+            dt_func = lambda x: ((datetime.strptime(x[:26],
                                                     '%Y-%m-%dT%H:%M:%S.%f')) - dt_start).total_seconds()
-            dt_list = [dt.iloc[:, 0].apply(dt_func).to_numpy() for dt in
-                       loaded_dataset_.data]  # find difference in seconds from session start
+            #find col with datetime obj:
+            col_no = [no for no, i in enumerate(loaded_dataset_.data[0].iloc[1,:]) if isinstance(i,str)][0]
+            # add columnname:
+            data_dt_list = []
+            for i in loaded_dataset_.data:
+                col_series = pd.concat([pd.Series([i.columns[col_no]]),i.iloc[:,col_no]])
+                data_dt_list.append(col_series.apply(dt_func).to_numpy())
+            # dt_list = [dt.iloc[:].apply(dt_func).to_numpy() for dt in data_dt_list]  # find difference in seconds from session start
             print('done')
-            return dt_list
+            return data_dt_list
         elif datatype[0] == '.pqt':
             datanames = [i.name for i in dataloc]
             func = lambda x: (x.split('.')[-1], x.split('.')[0])  # json>npy, and sort the names also

@@ -7,7 +7,7 @@ from datetime import datetime
 from tqdm import tqdm
 from tzlocal import get_localzone
 import numpy as np
-
+import pytz
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries
 from pynwb.misc import DecompositionSeries
@@ -83,10 +83,10 @@ class Alyx2NWBConverter:
         if not isinstance(self.nwb_metadata['NWBFile']['session_start_time'], datetime):
             self.nwb_metadata['NWBFile']['session_start_time'] = \
                 datetime.strptime(self.nwb_metadata['NWBFile']['session_start_time'], '%Y-%m-%dT%X').replace(
-                    tzinfo=get_localzone())
+                    tzinfo=pytz.utc)
             self.nwb_metadata['IBLSubject']['date_of_birth'] = \
                 datetime.strptime(self.nwb_metadata['IBLSubject']['date_of_birth'], '%Y-%m-%dT%X').replace(
-                    tzinfo=get_localzone())
+                    tzinfo=pytz.utc)
         # create nwbfile:
         self.initialize_nwbfile()
         self.no_probes = len(self.nwb_metadata['Probes'])
@@ -372,7 +372,7 @@ class Alyx2NWBConverter:
             for neurodata_type_args in data_retrieved_args_list:
                 if neurodata_type_name == 'ImageSeries':
                     for types, times in zip(neurodata_type_args['data'], neurodata_type_args['timestamps']):
-                        customargs = dict(name=os.path.basename(str(types)),
+                        customargs = dict(name='camera_raw',
                                           external_file=[str(types)],
                                           format='external',
                                           timestamps=times)
@@ -474,15 +474,17 @@ class Alyx2NWBConverter:
             out_dict = deepcopy(list(sub_metadata))
         else:
             return []
+        req_datatypes = ['data']
         for count, neurodata_type_args in enumerate(out_dict):
             for alt_names in alt_datatypes:
                 if neurodata_type_args.get(alt_names):  # in case of Decomposotion series, Spectrum
                     neurodata_type_args[alt_names] = self._one_data.download_dataset(neurodata_type_args[alt_names], neurodata_type_args['name'])
+                    req_datatypes.append(alt_names)
             if neurodata_type_args['name'] == 'id':  # valid in case of units table.
                 neurodata_type_args['data'] = self._one_data.download_dataset(neurodata_type_args['data'], 'cluster_id')
             else:
                 out_dict[count]['data'] = self._one_data.download_dataset(neurodata_type_args['data'], neurodata_type_args['name'])
-            if out_dict[count]['data'] is not None:
+            if all([out_dict[count][i] is not None for i in req_datatypes]):
                 include_idx.extend([count])
         out_dict_trim.extend([out_dict[j0] for j0 in include_idx])
         return out_dict_trim
