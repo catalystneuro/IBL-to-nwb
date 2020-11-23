@@ -525,6 +525,10 @@ class Alyx2NWBMetadata:
                 weighings=[json.dumps(i) for i in subject_metadata_dict['IBLSubject']['weighings']],
                 water_administrations=water_admin_data
             )
+            temp_metadatadict = deepcopy(subject_metadata_dict['IBLSubject'])
+            for key, val in temp_metadatadict.items():
+                if isinstance(val, list) and len(val) == 0:
+                    _ = subject_metadata_dict['IBLSubject'].pop(key)
         return subject_metadata_dict
 
     @property
@@ -542,7 +546,7 @@ class Alyx2NWBMetadata:
                     self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')
             if 'wheelMoves' in object_name:
                 behavior_metadata_dict['Behavior']['BehavioralEpochs'] = \
-                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'interval_series')
+                    self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_intervals')
             if 'lickPiezo' in object_name:
                 behavior_metadata_dict['Behavior']['BehavioralTimeSeries']['time_series'].extend(
                     self._get_timeseries_object(self.dataset_details.copy(), object_name, 'time_series')['time_series'])
