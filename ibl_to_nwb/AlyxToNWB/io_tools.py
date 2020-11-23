@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import PurePath
-
+import warnings
 import numpy as np
 import pandas as pd
 from tzlocal import get_localzone
@@ -136,7 +136,7 @@ class _OneData:
         datatype = [i.suffix for i in loaded_dataset_.local_path]
         dataloc = [i for i in loaded_dataset_.local_path]
 
-        if datatype[-1] in ['.csv', '.npy']:  # csv is for clusters metrics
+        if all([dtype in ['.csv', '.npy', '.json'] for dtype in datatype]):  # csv is for clusters metrics
             # if a windows path is returned despite a npy file:
             path_ids = [j for j, i in enumerate(loaded_dataset_.data) if isinstance(i, PurePath)]
             if path_ids:
@@ -163,11 +163,11 @@ class _OneData:
                 df_out = []
                 filetype_change_id = int(len(loaded_dataset_sorted)/2)
                 for no, fields in enumerate(loaded_dataset_sorted[:filetype_change_id]):
-                    df = pd.DataFrame(data=loaded_dataset_sorted[no + 3],
+                    df = pd.DataFrame(data=loaded_dataset_sorted[no + len(loaded_dataset_sorted)//2],
                                       columns=loaded_dataset_sorted[no]['columns'])
                     df_out.append(df)
                 return df_out
-            if 'audioSpectrogram.times' in dataset_to_load:
+            if 'audioSpectrogram.times' in dataset_to_load or 'trials.interval' in dataset_to_load:# ignore trials.intervals_bpod if present
                 return loaded_dataset_[0] if isinstance(loaded_dataset_, list) else loaded_dataset_
             if not self.data_attrs_dump.get(
                     'unit_table_length') and 'cluster' in dataset_to_load:  # capture total number of clusters for each probe, used in spikes.times
@@ -184,7 +184,7 @@ class _OneData:
                     return None
             return np.concatenate(loaded_dataset_)
 
-        elif datatype[0] in ['.cbin'] and self.save_raw:
+        elif all([dtype in ['.cbin'] for dtype in datatype]) and self.save_raw:
             from ibllib.io import spikeglx
             for j, i in enumerate(loaded_dataset_.local_path):
                 try:
@@ -192,9 +192,9 @@ class _OneData:
                 except:
                     return None
             return loaded_dataset_.data
-        elif datatype[0] in ['.mp4'] and self.save_camera_raw:
+        elif all([dtype in ['.mp4'] for dtype in datatype]) and self.save_camera_raw:
             return [str(i) for i in loaded_dataset_.data]
-        elif datatype[0] in ['.ssv']:  # when camera timestamps
+        elif all([dtype in ['.ssv'] for dtype in datatype]):  # when camera timestamps
             if loaded_dataset_.data[0].shape[0]==0:
                 return
             print('converting camera timestamps..')
@@ -207,16 +207,25 @@ class _OneData:
             dt_func = lambda x: ((datetime.strptime(x[:26],
                                                     '%Y-%m-%dT%H:%M:%S.%f')) - dt_start).total_seconds()
             #find col with datetime obj:
-            col_no = [no for no, i in enumerate(loaded_dataset_.data[0].iloc[1,:]) if isinstance(i,str)][0]
+            warning_str = "requires iblrigcamera.timestamps in datetime format: '%Y-%m-%dT%H:%M:%S.%f'"
+            try:
+                col_no = [no for no, i in enumerate(loaded_dataset_.data[0].iloc[1,:]) if isinstance(i,str)][0]
+            except:
+                warnings.warn(warning_str)
+                return
             # add columnname:
             data_dt_list = []
             for i in loaded_dataset_.data:
                 col_series = pd.concat([pd.Series([i.columns[col_no]]),i.iloc[:,col_no]])
-                data_dt_list.append(col_series.apply(dt_func).to_numpy())
+                try:
+                    data_dt_list.append(col_series.apply(dt_func).to_numpy())
+                except Exception as e:
+                    warnings.warn(warning_str)
+                    return
             # dt_list = [dt.iloc[:].apply(dt_func).to_numpy() for dt in data_dt_list]  # find difference in seconds from session start
             print('done')
             return data_dt_list
-        elif datatype[0] == '.pqt':
+        elif all([dtype in ['.pqt'] for dtype in datatype]):
             datanames = [i.name for i in dataloc]
             func = lambda x: (x.split('.')[-1], x.split('.')[0])  # json>npy, and sort the names also
             datanames_sorted = sorted(datanames, key=func)
