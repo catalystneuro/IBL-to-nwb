@@ -345,28 +345,29 @@ class Alyx2NWBConverter:
                 time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][behavior_datatype]['time_series'])
                 if len(time_series_list_details) == 0:
                     continue
-                time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
+                time_series_list_obj = []
+                for i in time_series_list_details:
+                    unit = 'radians/sec' if 'velocity' in i['name'] else 'radians'
+                    time_series_list_obj.append(time_series_func(**i, unit=unit))
                 func = getattr(pynwb.behavior, behavior_datatype)
                 self.nwbfile.processing['behavior'].add(func(time_series=time_series_list_obj))
             else:
-                time_series_func = pynwb.misc.IntervalSeries
-                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][behavior_datatype]['interval_series'])
+                time_series_func = pynwb.epoch.TimeIntervals
+                time_series_list_details = self._get_data(self.nwb_metadata['Behavior'][behavior_datatype]['time_intervals'])
                 if len(time_series_list_details) == 0:
                     continue
                 for k in time_series_list_details:
-                    k['timestamps'] = k['timestamps'].flatten()
-                    k['data'] = np.vstack((k['data'], -1*np.ones(k['data'].shape, dtype=float))).flatten()
-                time_series_list_obj = [time_series_func(**i) for i in time_series_list_details]
-                func = getattr(pynwb.behavior, behavior_datatype)
-                self.nwbfile.processing['behavior'].add(func(interval_series=time_series_list_obj))
+                    time_intervals = time_series_func('BehavioralEpochs')
+                    for time_interval in k['timestamps']:
+                        time_intervals.add_interval(start_time=time_interval[0], stop_time=time_interval[1])
+                    time_intervals.add_column(k['name'],k['description'],data=k['data'])
+                    self.nwbfile.processing['behavior'].add(time_intervals)
 
     def create_acquisition(self):
         """
         Acquisition data like audiospectrogram(raw beh data), nidq(raw ephys data), raw camera data.
         These are independent of probe type.
         """
-        if not self.electrode_table_exist:
-            self.create_electrode_table_ecephys()
         for neurodata_type_name, neurodata_type_args_list in self.nwb_metadata['Acquisition'].items():
             data_retrieved_args_list = self._get_data(neurodata_type_args_list)
             for neurodata_type_args in data_retrieved_args_list:
@@ -375,12 +376,13 @@ class Alyx2NWBConverter:
                         customargs = dict(name='camera_raw',
                                           external_file=[str(types)],
                                           format='external',
-                                          timestamps=times)
+                                          timestamps=times,
+                                          unit='n.a.')
                         self.nwbfile.add_acquisition(ImageSeries(**customargs))
                 elif neurodata_type_name == 'DecompositionSeries':
                     neurodata_type_args['bands'] = np.squeeze(neurodata_type_args['bands'])
-                    freqs = DynamicTable('frequencies', 'spectogram frequencies', id=np.arange(neurodata_type_args['bands'].shape[0]))
-                    freqs.add_column('bands', 'frequency value', data=neurodata_type_args['bands'])
+                    freqs = DynamicTable('bands', 'spectogram frequencies', id=np.arange(neurodata_type_args['bands'].shape[0]))
+                    freqs.add_column('freq', 'frequency value', data=neurodata_type_args['bands'])
                     neurodata_type_args.update(dict(bands=freqs))
                     temp = neurodata_type_args['data'][:, :, np.newaxis]
                     neurodata_type_args['data'] = np.moveaxis(temp, [0, 1, 2], [0, 2, 1])
@@ -390,6 +392,8 @@ class Alyx2NWBConverter:
                                   unit='sec'))
                     self.nwbfile.add_acquisition(DecompositionSeries(**neurodata_type_args))
                 elif neurodata_type_name == 'ElectricalSeries':
+                    if not self.electrode_table_exist:
+                        self.create_electrode_table_ecephys()
                     if neurodata_type_args['name'] in ['raw.lf', 'raw.ap']:
                         for probe_no in range(self.no_probes):
                             if neurodata_type_args['data'][probe_no].shape[1] > self._one_data.data_attrs_dump['electrode_table_length'][probe_no]:
