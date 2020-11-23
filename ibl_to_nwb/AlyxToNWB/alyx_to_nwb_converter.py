@@ -448,9 +448,12 @@ class Alyx2NWBConverter:
         for start_time, stop_time in zip(required_data[0]['data'][:, 0], required_data[1]['data'][:, 1]):
             self.nwbfile.add_trial(start_time=start_time, stop_time=stop_time)
         for op_data in optional_data:
-            self.nwbfile.add_trial_column(name=op_data['name'],
-                                          description=op_data['description'],
-                                          data=op_data['data'])
+            if op_data['data'].shape[0]==required_data[0]['data'].shape[0]:
+                self.nwbfile.add_trial_column(name=op_data['name'],
+                                              description=op_data['description'],
+                                              data=op_data['data'])
+            else:
+                warnings.warn(f'shape of trials.{op_data["name"]} does not match other trials.* datasets')
 
     def _get_data(self, sub_metadata):
         """
