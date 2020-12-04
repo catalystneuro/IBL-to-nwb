@@ -21,7 +21,7 @@ from hdmf.data_utils import DataChunkIterator
 from ndx_ibl_metadata import IblSessionData, IblProbes, IblSubject
 from ndx_spectrum import Spectrum
 from oneibl.one import ONE
-
+from pathlib import Path
 from .alyx_to_nwb_metadata import Alyx2NWBMetadata
 from .io_tools import _iter_datasetview, _OneData, _get_default_column_ids
 
@@ -38,7 +38,7 @@ class Alyx2NWBConverter:
         Map that to nwb supported datatypes and create an nwb file.
         Parameters
         ----------
-        saveloc: str
+        saveloc: str, Path
             save location of nwbfile
         nwb_metadata_file: [dict, str]
             output of Alyx2NWBMetadata as a dict/json location str
@@ -76,9 +76,9 @@ class Alyx2NWBConverter:
             self.one_object = ONE()
         if saveloc is None:
             Warning('saving nwb file in current working directory')
-            self.saveloc = os.getcwd()
+            self.saveloc = str(Path.cwd())
         else:
-            self.saveloc = saveloc
+            self.saveloc = str(saveloc)
         self.eid = self.nwb_metadata["eid"]
         if not isinstance(self.nwb_metadata['NWBFile']['session_start_time'], datetime):
             self.nwb_metadata['NWBFile']['session_start_time'] = \

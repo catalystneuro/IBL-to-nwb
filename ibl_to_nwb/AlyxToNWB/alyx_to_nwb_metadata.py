@@ -619,7 +619,7 @@ class Alyx2NWBMetadata:
                            'presence_ratio_std', 'isi_viol', 'amplitude_cutoff', 'amplitude_std', 'epoch_name',
                            'ks2_contamination_pct', 'ks2_label']
 
-        units_metadata_dict = self._initialize_container_dict('Units')
+        units_metadata_dict = self._initialize_container_dict('Units',default_value=list())
         current_units_objects = self._get_current_object_names(units_objects)
         for object_name in current_units_objects:
             if 'clusters' in object_name:
