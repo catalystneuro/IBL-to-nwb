@@ -89,4 +89,32 @@ The figure below shows the mapping from ALF/ALyx to NWB:
     display(a)
     ```
     ![](https://github.com/catalystneuro/IBL-to-nwb/blob/master/images/nwbwidgets.gif)
+    
+4. **Parallization of a large batch of eids:** Retrieve a list of eids based on a search criteria.
 
+    ```python
+   from joblib import Parallel, delayed
+   from oneibl.one import ONE
+   from ibl_to_nwb.AlyxToNWB.alyx_to_nwb_metadata import Alyx2NWBMetadata
+   from ibl_to_nwb.AlyxToNWB.alyx_to_nwb_converter import Alyx2NWBConverter
+   one=ONE()
+   eid_list = ['0963537d-9c46-4245-9cbf-de1d42a49c02',
+               'b2727b3b-6ed2-486d-a283-a5970a48d471'] # define a list of eids to convert
+   
+   # define a conversion function
+   def eid_convert_nwb(eid):
+       nwbfile_saveloc = f'nwbfile{eid}.nwb'#define a save location for each eid
+       metadata_saveloc = f'metadata{eid}.json'#define a save location for metadata file
+       converter_metadata = Alyx2NWBMetadata(eid=eid, one_obj=one)
+       converter_metadata.write_metadata(metadata_saveloc)
+   
+       converter_nwb = Alyx2NWBConverter(one_object=one, 
+                                         nwb_metadata_file=metadata_saveloc, 
+                                         saveloc=nwbfile_saveloc,
+                                         save_raw=False)
+       converter_nwb.run_conversion()
+       converter_nwb.write_nwb()
+   
+   # use parallelization
+   Parallel(n_jobs=-1)(delayed(eid_convert_nwb)(eid) for eid in eid_list)
+``
