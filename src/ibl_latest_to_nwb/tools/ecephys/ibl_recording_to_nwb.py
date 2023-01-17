@@ -68,11 +68,6 @@ def add_electrodes(file_streamer: Streamer, nwbfile: NWBFile):
         for electrode_ind in range(len(electrodes_geometry["ind"])):
             nwbfile.add_electrode(
                 group=electrode_group,
-                filtering="unknown",  # TODO: access from metadata (not sure if available)
-                imp=None,  # TODO: Where to pull impedance from?
-                x=np.nan,
-                y=np.nan,
-                z=np.nan,
                 rel_x=electrodes_geometry["x"][electrode_ind],
                 rel_y=electrodes_geometry["y"][electrode_ind],
                 rel_z=np.nan,
@@ -83,7 +78,6 @@ def add_electrodes(file_streamer: Streamer, nwbfile: NWBFile):
                 sample_shift=electrodes_geometry["sample_shift"][electrode_ind],
                 adc=electrodes_geometry["adc"][electrode_ind],
                 ind_in_probe=electrodes_geometry["ind"][electrode_ind],
-                location="unknown",  # TODO: pull from metadata?
             )
 
 
