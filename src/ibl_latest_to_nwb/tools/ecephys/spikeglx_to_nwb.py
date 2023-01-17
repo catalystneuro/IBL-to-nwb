@@ -9,10 +9,10 @@ from one.api import ONE
 from pynwb import NWBFile
 from pynwb.ecephys import LFP, ElectricalSeries
 
-from ibl_to_nwb.tools.ecephys.spikeglxstreamerdatachunkiterator import (
+from ibl_latest_to_nwb.tools.ecephys.spikeglxstreamerdatachunkiterator import (
     SpikeGLXStreamerDataChunkIterator,
 )
-from ibl_to_nwb.tools.one_api.helpers import (
+from ibl_latest_to_nwb.tools.one_api.helpers import (
     get_num_probes,
     session_to_probe_id_mapping,
 )
