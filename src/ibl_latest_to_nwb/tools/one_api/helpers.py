@@ -14,7 +14,7 @@ def session_to_probe_id_mapping(one: ONE):
     The dictionary with session identifiers mapped to probe identifiers.
     """
     # get an iterable with all probe identifiers
-    probe_insertions = one.alyx.rest('insertions', 'list')
+    probe_insertions = one.alyx.rest("insertions", "list")
 
     session_to_probe_id = dict()
     for probe_entry in probe_insertions:

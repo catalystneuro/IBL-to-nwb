@@ -197,7 +197,9 @@ def write_recording(
 
         for probe_index, probe_id in enumerate(probe_ids):
             for type in ["ap", "lf"]:
-                file_streamer = Streamer(pid=probe_id, one=one, remove_cached=True, typ=type)
+                file_streamer = Streamer(
+                    pid=probe_id, one=one, remove_cached=True, typ=type
+                )
                 add_electrical_series(
                     file_streamer=file_streamer,
                     probe_index=probe_index,
