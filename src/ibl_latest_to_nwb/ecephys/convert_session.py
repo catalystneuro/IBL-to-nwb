@@ -1,5 +1,5 @@
-from ibl_latest_to_nwb.tools.ecephys.spikeglx_to_nwb import write_recording
-from ibl_latest_to_nwb.tools.ecephys.spikeglx_to_nwb import IBL_CONFIG
+from ibl_latest_to_nwb.tools.ecephys.ibl_recording_to_nwb import write_recording
+from ibl_latest_to_nwb.tools.ecephys.ibl_recording_to_nwb import IBL_CONFIG
 
 
 cache_path = "/Volumes/t7-ssd/ibl_cache/"
