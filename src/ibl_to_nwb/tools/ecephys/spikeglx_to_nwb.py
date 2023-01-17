@@ -9,8 +9,12 @@ from one.api import ONE
 from pynwb import NWBFile
 from pynwb.ecephys import LFP, ElectricalSeries
 
-from src.ibl_to_nwb.tools.ecephys.spikeglxstreamerdatachunkiterator import (
+from ibl_to_nwb.tools.ecephys.spikeglxstreamerdatachunkiterator import (
     SpikeGLXStreamerDataChunkIterator,
+)
+from ibl_to_nwb.tools.one_api.helpers import (
+    get_num_probes,
+    session_to_probe_id_mapping,
 )
 
 IBL_CONFIG = (
@@ -95,6 +99,7 @@ def get_electrodes_mapping(nwbfile: NWBFile):
 
 def add_electrical_series(
     file_streamer: Streamer,
+    probe_index: int,
     nwbfile: Optional[NWBFile] = None,
     stub_test: bool = False,
     iterator_options: Optional[dict] = None,
@@ -104,11 +109,14 @@ def add_electrical_series(
 
     add_device(file_streamer=file_streamer, nwbfile=nwbfile)
 
+    # TODO: fix it for multiple probes
     if nwbfile.electrodes is None:
         add_electrodes(file_streamer=file_streamer, nwbfile=nwbfile)
 
     modality_signature = "Raw" if file_streamer.type == "ap" else "LFP"
-    default_name = f"ElectricalSeries{modality_signature}"
+    num_probes = get_num_probes(file_streamer.one, file_streamer.pid)
+    segment_signature = "" if num_probes == 1 else probe_index
+    default_name = f"ElectricalSeries{modality_signature}{segment_signature}"
     default_description = dict(Raw="Raw acquired data", LFP="Processed data - LFP")
 
     electrical_series_kwargs = dict(
@@ -163,7 +171,7 @@ def add_electrical_series(
 
 
 def write_recording(
-    pid: str,
+    session_id: str,
     nwbfile_path: OptionalFilePathType = None,
     nwbfile: Optional[NWBFile] = None,
     metadata: Optional[dict] = None,
@@ -184,11 +192,16 @@ def write_recording(
 
         one = ONE(silent=True, **IBL_CONFIG)
 
-        for type in ["ap", "lf"]:
-            file_streamer = Streamer(pid=pid, one=one, remove_cached=True, typ=type)
-            add_electrical_series(
-                file_streamer=file_streamer,
-                nwbfile=nwbfile_out,
-                stub_test=stub_test,
-                iterator_options=iterator_options,
-            )
+        probe_mapping = session_to_probe_id_mapping(one=one)
+        probe_ids = probe_mapping[session_id]
+
+        for probe_index, probe_id in enumerate(probe_ids):
+            for type in ["ap", "lf"]:
+                file_streamer = Streamer(pid=probe_id, one=one, remove_cached=True, typ=type)
+                add_electrical_series(
+                    file_streamer=file_streamer,
+                    probe_index=probe_index,
+                    nwbfile=nwbfile_out,
+                    stub_test=stub_test,
+                    iterator_options=iterator_options,
+                )
