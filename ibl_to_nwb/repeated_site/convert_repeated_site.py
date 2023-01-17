@@ -7,7 +7,7 @@ from neuroconv import ConverterPipe
 from ibl_to_nwb.repeated_site.datainterfaces import (
     StreamingIblRecordingInterface, StreamingIblLfpInterface, RepeatedSiteBehaviorInterface
 )
-from ibl_to_nwb.repeated_site.iblconverter import IBLConverter
+from ibl_to_nwb.repeated_site.iblconverter import RepeatedSiteConverter
 
 one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
 
@@ -31,7 +31,7 @@ def convert_session(session: str, nwbfile_path: str):
 
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
-    session_converter = IBLConverter(session=session, data_interfaces=data_interfaces)
+    session_converter = RepeatedSiteConverter(session=session, data_interfaces=data_interfaces)
     session_converter.run_conversion(nwbfile_path=nwbfile_path, metadata=session_converter.get_metadata())
 
 

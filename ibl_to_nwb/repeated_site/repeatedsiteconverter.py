@@ -3,7 +3,7 @@ from datetime import datetime
 from one.api import ONE
 from neuroconv import ConverterPipe
 
-class IblConverter(ConverterPipe):
+class RepeatedSiteConverter(ConverterPipe):
     def __init__(self, session: str, data_interfaces: list):
         self.session = session
         super().__init__(data_interfaces=data_interfaces)
@@ -22,7 +22,7 @@ class IblConverter(ConverterPipe):
         metadata["NWBFile"]["lab"] = session_metadata["lab"]  # might need to strip "_ucla" from churchland, other looks OK
         # metadata["NWBFile"]["institution"] = ...  # Need to form a mapping from unique lab names to institution
         metadata["NWBFile"]["experiment_description"] = "..."  # Hardcode paper abstract
-        metadata["NWBFile"]["related_publications"] = "..." # Hardcore paper DOI for these sessions
+        metadata["NWBFile"]["related_publications"] = "..." # Hardcode paper DOI for these sessions
 
 
         subject_metadata = one.alyx.rest(url='subjects', action='list', field_filter1=session_metadata["subject"])
