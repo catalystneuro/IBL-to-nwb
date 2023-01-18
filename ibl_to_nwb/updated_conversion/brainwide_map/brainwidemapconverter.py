@@ -1,12 +1,11 @@
 from one.api import ONE
-from neuroconv import ConverterPipe
 
-class IblConverter(ConverterPipe):
-    def __init__(self, session: str, data_interfaces: list):
-        self.session = session
-        super().__init__(data_interfaces=data_interfaces)
-  
+from ..iblconverter import IblConverter
+
+
+class BrainwideMapConverter(IblConverter):
+
     def get_metadata(self):
         one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
-        
+
         # TODO: fetch session and subject-level metadata, including comments/notes
