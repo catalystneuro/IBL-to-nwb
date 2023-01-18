@@ -13,14 +13,15 @@ one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="inter
 
 sessions = one.alyx.rest(url="sessions", action="list", tag="2022_Q2_IBL_et_al_RepeatedSite")
 
+
 def convert_session(session: str, nwbfile_path: str):
     # Download behavior and spike sorted data for this session
     session_path = base_path / session
-  
+
     # Get stream names from SI
     ap_stream_names = StreamingIblRecordingInterface.get_stream_names(session=session)
     lf_stream_names = StreamingIblLfpInterface.get_stream_names(session=session)
-    
+
     # Initialize as many of each interface as we need across the streams
     data_interfaces = list()
     for stream_name in ap_stream_names:
