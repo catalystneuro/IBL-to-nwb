@@ -35,7 +35,7 @@ class RepeatedSiteConverter(ConverterPipe):
         subject_species = subject_metadata["species"] or ""
         metadata["Subject"]["species"] = subject_species
         metadata["Subject"]["subject_id"] = 1
-        metadata["Subject"]["weight"] = subject_metadata["reference_weight"]
+        metadata["Subject"]["weight"] = subject_metadata["reference_weight"]  # TODO: need to check units
         metadata["Subject"]["date_of_birth"] = datetime.strptime(subject_metadata["date"], "%Y-%m-%d") # TODO: check if this is same format string all the time
         if subject_metadata["strain"]:  # TODO: there's also 'line', how to reconcile?
             metadata["Subject"]["strain"] = subject_metadata["strain"] # TODO: check if this is ever not None
