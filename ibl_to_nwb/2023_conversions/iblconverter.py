@@ -42,7 +42,6 @@ class IblConverter(ConverterPipe):
         metadata["Subject"]["species"] = "Mus musculus"  # Though it's a field in their schema, it's never specified
         metadata["Subject"]["weight"] = subject_metadata["reference_weight"] * 1e-3  # Convert from grams to kilograms
         metadata["Subject"]["date_of_birth"] = datetime.strptime(subject_metadata["date"], "%Y-%m-%d")
+        # There's also 'age_weeks' but I'm excluding that based on existence of DOB
 
-        # TODO: extra metadata includes 'litter', 'source', 'responsible_user' (anonymous hash), a UUID 'id', 'alive'
-        # and water-related things  'last_water_restriction', 'expected_water', 'remaining_water'
-        # There's also 'age_weeks' but I'm excluding that based on existence of DOB (need to check if always present though)
+        # TODO: extra metadata that is always specified includes 'responsible_user' (anonymous hash), a UUID 'id'
