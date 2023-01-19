@@ -14,7 +14,6 @@ class IblConverter(ConverterPipe):
 
         one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
 
-        # TODO: fetch session and subject-level metadata, including comments/notes
         session_metadata = one.alyx.rest(url='sessions', action='list', id=self.session)[0]
         lab_metadata = next(lab for lab in one.alyx.rest('labs', 'list') if lab["name"] == session_metadata["lab"])
 
