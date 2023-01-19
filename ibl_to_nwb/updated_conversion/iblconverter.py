@@ -16,6 +16,7 @@ class IblConverter(ConverterPipe):
 
         # TODO: fetch session and subject-level metadata, including comments/notes
         session_metadata = one.alyx.rest(url='sessions', action='list', id=self.session)[0]
+        lab_metadata = next(lab for lab in one.alyx.rest('labs', 'list') if lab["name"] == session_metadata["lab"])
 
         session_description = ""
         session_description += f"Task protocal: {session_metadata['task_protocol']}"
@@ -24,8 +25,8 @@ class IblConverter(ConverterPipe):
 
         metadata["NWBFile"]["session_id"] = f"{metadata['NWBFile']['session_start_time']}_session_metadata['number']"
         metadata["NWBFile"]["identifier"] = session_metadata["id"]  # The eid is more appropriate in place of a UUID
-        metadata["NWBFile"]["lab"] = session_metadata["lab"]  # might need to strip "_ucla" from churchland, other looks OK
-        # metadata["NWBFile"]["institution"] = ...  # Need to form a mapping from unique lab names to institution
+        metadata["NWBFile"]["lab"] = session_metadata["lab"]
+        metadata["NWBFile"]["institution"] = lab_metadata["institution"]
 
         subject_metadata = one.alyx.rest(url='subjects', action='list', field_filter1=session_metadata["subject"])
 
