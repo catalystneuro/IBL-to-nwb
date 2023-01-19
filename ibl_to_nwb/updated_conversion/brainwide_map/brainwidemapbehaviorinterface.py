@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from one.api import ONE
 from pynwb import NWBFile
 from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import BaseDataInterface
+from neuroconv.utils import load_dict_from_file
 
 
 class BrainwideMapTrialsInterface(BaseDataInterface):
@@ -11,7 +14,8 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
-        metadata["Trials"] = dict()  # TODO: fill with descriptions
+        trial_metadata = load_dict_from_file(file_path=Path(__file__) / "metadata" / "trials.yml")
+        metadata.update(trial_metadata)
         return metadata
 
     def run_conversion(self, nwbfile: NWBFile, metadata: dict):
@@ -19,15 +23,15 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
           TODO="TODO"
         )  # TODO
 
-        column_ordering = []  # TODO
+        column_ordering = []  # TODO, using the IBL keys
 
         for start_time, stop_time in self.trials["intervals"]:
             nwbfile.add_trial(start_time=start_time, stop_time=stop_time)
 
-        for column_name in column_ordering:
+        for ibl_key in column_ordering:
             nwbfile.add_trial_column(
-                name=column_name,
-                description=metadata["Trials"][column_name]["description"],
-                data=self.trials[column_name],  # TODO: just wrap this step in H5DataIO if below does not work
+                name=column_name_mapping[ibl_key]["name"],
+                description=metadata["Trials"][ibl_key]["description"],
+                data=self.trials[ibl_key],  # TODO: just wrap this step in H5DataIO if below does not work
             )
         # TODO: would like to compress these columns if set_dataio can work
