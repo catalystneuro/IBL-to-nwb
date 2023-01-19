@@ -18,7 +18,7 @@ class IblConverter(ConverterPipe):
         session_metadata = one.alyx.rest(url='sessions', action='list', id=self.session)[0]
 
         session_description = ""
-        session_description += f"Task protocal: {session_metadata['task_protocol']}"
+        session_description += f"Task protocol: {session_metadata['task_protocol']}"
         # Might need to append more after this
         metadata["NWBFile"]["session_description"] = session_description
 
