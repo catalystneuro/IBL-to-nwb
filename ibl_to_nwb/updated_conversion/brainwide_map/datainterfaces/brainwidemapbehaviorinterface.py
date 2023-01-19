@@ -14,7 +14,7 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
-        trial_metadata = load_dict_from_file(file_path=Path(__file__) / "metadata" / "trials.yml")
+        trial_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "trials.yml")
         metadata.update(trial_metadata)
         return metadata
 

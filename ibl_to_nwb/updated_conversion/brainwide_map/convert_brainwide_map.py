@@ -3,7 +3,7 @@ from pathlib import Path
 from one.api import ONE
 
 from ibl_to_nwb.updated_conversions import StreamingIblRecordingInterface, StreamingIblLfpInterface
-from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter
+from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter, BrainwideMapTrialsInterface
 
 one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
 
@@ -24,7 +24,9 @@ def convert_session(session: str, nwbfile_path: str):
         data_interfaces.append(StreamingIblRecordingInterface(session=session, stream_name=stream_name))
     for stream_name in lf_stream_names:
         data_interfaces.append(StreamingIblLfpInterface(session=session, stream_name=stream_name))
+
     # TODO: initialize behavior and spike sorting interfaces
+    data_interfaces.append(BrainwideMapTrialsInterface(session=session))
 
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
