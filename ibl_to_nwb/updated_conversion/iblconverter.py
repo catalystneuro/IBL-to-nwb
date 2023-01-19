@@ -19,7 +19,7 @@ class IblConverter(ConverterPipe):
         lab_metadata = next(lab for lab in one.alyx.rest('labs', 'list') if lab["name"] == session_metadata["lab"])
 
         session_description = ""
-        session_description += f"Task protocal: {session_metadata['task_protocol']}"
+        session_description += f"Task protocol: {session_metadata['task_protocol']}"
         # Might need to append more after this
         metadata["NWBFile"]["session_description"] = session_description
 
