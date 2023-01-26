@@ -1,8 +1,4 @@
 Trials:
-  goCueTrigger_times:
-    name: go_cue_trigger_time
-    description: |
-?? # TODO
   stimOff_times:
     name: stim_off_time
     description: |
