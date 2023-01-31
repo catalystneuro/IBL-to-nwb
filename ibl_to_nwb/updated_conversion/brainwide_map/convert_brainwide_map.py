@@ -4,6 +4,7 @@ from one.api import ONE
 
 from ibl_to_nwb.updated_conversions import StreamingIblRecordingInterface, StreamingIblLfpInterface
 from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter
+from ibl_to_nwb.updated_conversions.datainterfaces import PupilTrackingInterface
 
 one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
 
@@ -25,6 +26,13 @@ def convert_session(session: str, nwbfile_path: str):
     for stream_name in lf_stream_names:
         data_interfaces.append(StreamingIblLfpInterface(session=session, stream_name=stream_name))
     # TODO: initialize behavior and spike sorting interfaces
+
+    roi_motion_energy_files = one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
+    for roi_motion_energy_file in roi_motion_energy_files:
+        camera_name = roi_motion_energy_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
+        data_interfaces.append(
+            PupilTrackingInterface(session=session, cache_folder=cache_folder, camera_name=camera_name)
+        )
 
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
