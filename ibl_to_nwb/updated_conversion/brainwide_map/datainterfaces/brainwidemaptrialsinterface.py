@@ -1,15 +1,14 @@
 from pathlib import Path
 
 from one.api import ONE
-from pydantic import FilePath
 from pynwb import NWBFile, H5DataIO
 from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import BaseDataInterface
 from neuroconv.utils import load_dict_from_file
 
 
 class BrainwideMapTrialsInterface(BaseDataInterface):
-    def __init__(self, session: str, cache_folder: FilePath):
-        self.cache_folder = cache_folder
+    def __init__(self, one: ONE, session: str):
+        self.one = one
         self.session = session
 
     def get_metadata(self) -> dict:
@@ -19,13 +18,7 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         return metadata
 
     def run_conversion(self, nwbfile: NWBFile, metadata: dict):
-        one = ONE(
-            base_url="https://openalyx.internationalbrainlab.org",
-            password="international",
-            silent=True,
-            cache_dir=self.cache_folder,
-        )
-        trials = one.load_object(id=self.session, obj="trials", collection="alf")
+        trials = self.one.load_object(id=self.session, obj="trials", collection="alf")
 
         column_ordering = [
             "choice",
