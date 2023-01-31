@@ -4,6 +4,7 @@ from one.api import ONE
 
 from ibl_to_nwb.updated_conversions import StreamingIblRecordingInterface, StreamingIblLfpInterface
 from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter
+from ibl_to_nwb.updated_conversions.datainterfaces import RoiMotionEnergyInterface
 
 one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
 
@@ -13,6 +14,7 @@ sessions = one.alyx.rest(url="sessions", action="list", tag="2022_Q2_IBL_et_al_R
 def convert_session(session: str, nwbfile_path: str):
     # Download behavior and spike sorted data for this session
     session_path = base_path / session
+    cache_folder = base_path / session / "cache"
 
     # Get stream names from SI
     ap_stream_names = StreamingIblRecordingInterface.get_stream_names(session=session)
@@ -25,6 +27,13 @@ def convert_session(session: str, nwbfile_path: str):
     for stream_name in lf_stream_names:
         data_interfaces.append(StreamingIblLfpInterface(session=session, stream_name=stream_name))
     # TODO: initialize behavior and spike sorting interfaces
+
+    roi_motion_energy_files = one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
+    for roi_motion_energy_file in roi_motion_energy_files:
+        camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
+        data_interfaces.append(
+            RoiMotionEnergyInterface(session=session, cache_folder=cache_folder, camera_name=camera_name)
+        )
 
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
