@@ -2,31 +2,23 @@ from datetime import datetime
 
 import numpy as np
 from one.api import ONE
-from pydantic import DirectoryPath
 from pynwb import H5DataIO
 from neuroconv.basedatainterface import BaseDataInterface
 from ndx_pose import PoseEstimationSeries, PoseEstimation
 
 
 class AlfDlcInterface(BaseDataInterface):
-    def __init__(self, session: str, cache_folder: DirectoryPath, camera_name: str):
+    def __init__(self, one: ONE, session: str, camera_name: str):
+        self.one = one
         self.session = session
-        self.cache_folder = cache_folder
         self.camera_name = camera_name
 
     def run_conversion(self, nwbfile, metadata: dict):
-        one = ONE(
-            base_url='https://openalyx.internationalbrainlab.org',
-            password='international',
-            silent=True,
-            cache_folder=self.cache_folder,
-        )
-
-        original_video_file = one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*")
+        original_video_file = self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*")
 
         # Sometimes the DLC data has been revised, possibly multiple times
         # Always use the most recent revision available
-        session_files = one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
+        session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
         revision_datetime_format = "%Y-%m-%d"
         revisions = [
             datetime.strptime(session_file.split("#")[1], revision_datetime_format)
@@ -37,7 +29,7 @@ class AlfDlcInterface(BaseDataInterface):
             most_recent = max(revisions)
             revision = most_recent.strftime("%Y-%m-%d")
 
-        camera_data = one.load_object(id=self.session, obj=self.camera_name, collection="alf", revision=revision)
+        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf", revision=revision)
         dlc_data = camera_data["dlc"]
         timestamps = camera_data["times"]
         number_of_frames = len(timestamps)
