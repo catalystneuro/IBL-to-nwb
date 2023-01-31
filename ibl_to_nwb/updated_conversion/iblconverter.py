@@ -5,29 +5,24 @@ from neuroconv import ConverterPipe
 
 
 class IblConverter(ConverterPipe):
-    def __init__(self, session: str, data_interfaces: list):
-        self.session = session
+    def __init__(self, one: ONE, data_interfaces: list):
+        self.one = one
         super().__init__(data_interfaces=data_interfaces)
 
     def get_metadata(self):
         metadata = super().get_metadata()  # Aggregates from the interfaces
 
-        one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
+        session_metadata = self.one.alyx.rest(url='sessions', action='list', id=self.session)[0]
+        lab_metadata = next(lab for lab in self.one.alyx.rest('labs', 'list') if lab["name"] == session_metadata["lab"])
 
-        session_metadata = one.alyx.rest(url='sessions', action='list', id=self.session)[0]
-        lab_metadata = next(lab for lab in one.alyx.rest('labs', 'list') if lab["name"] == session_metadata["lab"])
-
-        session_description = ""
-        # Might need to append more after this
-        metadata["NWBFile"]["session_description"] = session_description
-
-        metadata["NWBFile"]["session_id"] = f"{metadata['NWBFile']['session_start_time']}_session_metadata['number']"
+        metadata["NWBFile"]["session_description"] = "A session from the Brain Wide Map data release from the IBL."
+        metadata["NWBFile"]["session_id"] = f"{metadata['NWBFile']['session_start_time']}_{session_metadata['number']}"
         metadata["NWBFile"]["identifier"] = session_metadata["id"]  # The eid is more appropriate in place of a UUID
         metadata["NWBFile"]["lab"] = session_metadata["lab"]
         metadata["NWBFile"]["institution"] = lab_metadata["institution"]
         metadata["NWBFile"]["protocol"] = session_metadata['task_protocol']
 
-        subject_metadata = one.alyx.rest(url='subjects', action='list', field_filter1=session_metadata["subject"])
+        subject_metadata = self.one.alyx.rest(url='subjects', action='list', field_filter1=session_metadata["subject"])
 
         subject_description = ""
         if subject_metadata["last_water_restriction"]:
@@ -43,5 +38,3 @@ class IblConverter(ConverterPipe):
         metadata["Subject"]["weight"] = subject_metadata["reference_weight"] * 1e-3  # Convert from grams to kilograms
         metadata["Subject"]["date_of_birth"] = datetime.strptime(subject_metadata["date"], "%Y-%m-%d")
         # There's also 'age_weeks' but I'm excluding that based on existence of DOB
-
-        # TODO: extra metadata that is always specified includes 'responsible_user' (anonymous hash), a UUID 'id'
