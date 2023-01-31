@@ -5,6 +5,7 @@ import numpy as np
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import TimeSeries, H5DataIO
+from pynwb.behavior import PupilTracking
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
@@ -35,12 +36,16 @@ class PupilTrackingInterface(BaseDataInterface):
         camera_data = one.load_object(id=self.session, obj=self.camera_name, collection="alf")
 
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="processed behavioral data")
+        pupil_time_series = list()
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:
-            pupil_diameter = TimeSeries(
-                name=left_or_right + metadata["Pupils"][ibl_key]["name"],
-                description=metadata["Pupils"][ibl_key]["description"],
-                data=H5DataIO(np.array(camera_data["features"][ibl_key]), compression=True),
-                timestamps=camera_data["times"],
-                unit="px",
+            pupil_time_series.append(
+                TimeSeries(
+                    name=left_or_right + metadata["Pupils"][ibl_key]["name"],
+                    description=metadata["Pupils"][ibl_key]["description"],
+                    data=H5DataIO(np.array(camera_data["features"][ibl_key]), compression=True),
+                    timestamps=camera_data["times"],
+                    unit="px",
+                )
             )
-            behavior_module.add(pupil_diameter)
+        pupil_tracking = PupilTracking(time_series=pupil_time_series)
+        behavior_module.add(pupil_tracking)
