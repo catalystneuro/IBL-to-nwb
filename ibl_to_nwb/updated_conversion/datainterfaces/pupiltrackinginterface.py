@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 from one.api import ONE
-from pydantic import DirectoryPath
 from pynwb import TimeSeries, H5DataIO
 from pynwb.behavior import PupilTracking
 from neuroconv.basedatainterface import BaseDataInterface
@@ -12,9 +11,9 @@ from neuroconv.utils import load_dict_from_file
 
 
 class PupilTrackingInterface(BaseDataInterface):
-    def __init__(self, session: str, cache_folder: DirectoryPath, camera_name: str):
+    def __init__(self, one: ONE, session: str, camera_name: str):
+        self.one = one
         self.session = session
-        self.cache_folder = cache_folder
         self.camera_name = camera_name
 
     def get_metadata(self) -> dict:
