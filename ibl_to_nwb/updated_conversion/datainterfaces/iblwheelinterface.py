@@ -2,7 +2,8 @@ from pathlib import Path
 
 from one.api import ONE
 from pydantic import DirectoryPath
-from pynwb import H5DataIO, TimeSeries
+from pynwb import H5DataIO
+from pynwb.behavior import SpatialSeries, CompassDirection
 from pynwb.epoch import TimeIntervals
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
@@ -29,8 +30,10 @@ class IblWheelInterface(BaseDataInterface):
 
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="")  # TODO match description
 
-        wheel_moves = one.load_object(id=self.session_id, obj="wheelMoves", collection="alf", cach_folder=cach_folder)
-        wheel = one.load_object(id=self.session_id, obj="wheel", collection="alf", cach_folder=cach_folder)
+        wheel_moves = one.load_object(
+            id=self.session_id, obj="wheelMoves", collection="alf", cach_folder=self.cache_folder
+        )
+        wheel = one.load_object(id=self.session_id, obj="wheel", collection="alf", cach_folder=self.cache_folder)
 
         # Wheel intervals of movement
         wheel_movement_intervals = TimeIntervals(
@@ -47,11 +50,13 @@ class IblWheelInterface(BaseDataInterface):
         behavior_module.add(wheel_movement_intervals)
 
         # Wheel position over time
-        wheel_position_series = TimeSeries(
-            name=metadata["WheelPosition"]["name"],
-            description=metadata["WheelPosition"]["description"],
-            data=H5DataIO(wheel["position"], compression=True),
-            timestamps=H5DataIO(wheel["timestamps"], compression=True),
-            unit="rads",
+        compass_direction = CompassDirection(
+          spatial_series=SpatialSeries(
+                name=metadata["WheelPosition"]["name"],
+                description=metadata["WheelPosition"]["description"],
+                data=H5DataIO(wheel["position"], compression=True),
+                timestamps=H5DataIO(wheel["timestamps"], compression=True),
+                unit="rads",
+            )
         )
-        behavior_module.add(wheel_position_series)
+        behavior_module.add(compass_direction)
