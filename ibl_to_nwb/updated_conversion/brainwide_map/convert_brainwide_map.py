@@ -79,4 +79,4 @@ session_retrieval_one = ONE()
 sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q2_IBL_et_al_RepeatedSite")
 
 for session in sessions:
-    convert_session(base_path=base_path, session=session["id"], base_path=base_path)
+    convert_session(base_path=base_path, session=session["id"])
