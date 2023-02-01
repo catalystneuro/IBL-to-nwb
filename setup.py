@@ -3,7 +3,7 @@ from pathlib import Path
 from setuptools import setup
 
 
-root = Path(__file__)
+root = Path(__file__).parent
 
 
 with open(root / "README.md") as file:
