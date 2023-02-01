@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from one.api import ONE
-from pydantic import DirectoryPath
-from pynwb import H5DataIO
-from pynwb.behavior import SpatialSeries, CompassDirection
-from pynwb.epoch import TimeIntervals
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
+from one.api import ONE
+from pydantic import DirectoryPath
+from pynwb import H5DataIO
+from pynwb.behavior import CompassDirection, SpatialSeries
+from pynwb.epoch import TimeIntervals
 
 
 class IblWheelInterface(BaseDataInterface):
@@ -22,10 +22,10 @@ class IblWheelInterface(BaseDataInterface):
 
     def run_conversion(self, nwbfile, metadata: dict):
         one = ONE(
-            base_url='https://openalyx.internationalbrainlab.org',
-            password='international',
+            base_url="https://openalyx.internationalbrainlab.org",
+            password="international",
             silent=True,
-            cache_folder=self.cache_folder
+            cache_folder=self.cache_folder,
         )
 
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="")  # TODO match description
@@ -51,7 +51,7 @@ class IblWheelInterface(BaseDataInterface):
 
         # Wheel position over time
         compass_direction = CompassDirection(
-          spatial_series=SpatialSeries(
+            spatial_series=SpatialSeries(
                 name=metadata["WheelPosition"]["name"],
                 description=metadata["WheelPosition"]["description"],
                 data=H5DataIO(wheel["position"], compression=True),
