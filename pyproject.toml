@@ -4,9 +4,9 @@ target-version = ['py38']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  \.toml
-  |\.yml
+  |\.toml
   |\.txt
+  |\.yml
   |\.sh
   |\.git
   |\.ini
@@ -20,7 +20,6 @@ extend-exclude = '''
 '''
 force-exclude = '''
 /(
-   /*.txt
    /docs
    /docs/*
 )\
