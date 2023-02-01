@@ -3,7 +3,7 @@ from pathlib import Path
 from one.api import ONE
 
 from ibl_to_nwb.updated_conversions import StreamingIblRecordingInterface, StreamingIblLfpInterface
-from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter
+from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter, BrainwideMapTrialsInterface
 from ibl_to_nwb.updated_conversions.datainterfaces import PupilTrackingInterface
 
 
@@ -28,6 +28,7 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
             StreamingIblLfpInterface(session=session, stream_name=stream_name, cache_folder=cache_folder)
         )
     # TODO: initialize behavior and spike sorting interfaces
+    data_interfaces.append(BrainwideMapTrialsInterface(session=session))
 
     roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
     for roi_motion_energy_file in roi_motion_energy_files:
