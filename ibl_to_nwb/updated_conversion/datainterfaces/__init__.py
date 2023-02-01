@@ -1,1 +1,3 @@
 from .streamingiblinterface import StreamingIblRecordingInterface, StreamingIblLfpInterface
+from .roimotionenergyinterface import RoiMotionEnergyInterface
+from .pupiltrackinginterface import PupilTrackingInterface
