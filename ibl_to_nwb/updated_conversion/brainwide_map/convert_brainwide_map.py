@@ -1,10 +1,15 @@
 from pathlib import Path
 
 from one.api import ONE
-
 from ibl_to_nwb.updated_conversions import StreamingIblRecordingInterface, StreamingIblLfpInterface
 from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter, BrainwideMapTrialsInterface
-from ibl_to_nwb.updated_conversions.datainterfaces import PupilTrackingInterface, RoiMotionEnergyInterface
+from ibl_to_nwb.updated_conversions.datainterfaces import (
+    StreamingIblRecordingInterface,
+    StreamingIblLfpInterface,
+    IblLickInterface,
+    PupilTrackingInterface,
+    RoiMotionEnergyInterface
+)
 
 
 def convert_session(base_path: Path, session: str, nwbfile_path: str):
@@ -27,10 +32,10 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
         data_interfaces.append(
             StreamingIblLfpInterface(session=session, stream_name=stream_name, cache_folder=cache_folder)
         )
-    # TODO: initialize behavior and spike sorting interfaces
+
     data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
 
-    roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
+    roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*features*")
     for roi_motion_energy_file in roi_motion_energy_files:
         camera_name = roi_motion_energy_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
         data_interfaces.append(
@@ -44,9 +49,13 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
             RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name)
         )
 
+    if one.list_datasets(eid=session, collection="alf", filename="licks*"):
+        data_interfaces.append(IblLickInterface(one=session_one, session=session))
+
+
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
-    session_converter = BrainwideMapConverter(session=session, data_interfaces=data_interfaces)
+    session_converter = BrainwideMapConverter(cache_folder=cache_folder, data_interfaces=data_interfaces)
     session_converter.run_conversion(nwbfile_path=nwbfile_path, metadata=session_converter.get_metadata())
 
 
