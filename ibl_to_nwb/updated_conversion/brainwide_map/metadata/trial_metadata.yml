@@ -2,48 +2,48 @@ Trials:
   stimOff_times:
     name: stim_off_time
     description: |
-Time in seconds, relative to the session start, of the stimulus offset, as recorded by an external photodiode.
+      Time in seconds, relative to the session start, of the stimulus offset, as recorded by an external photodiode.
   goCue_times:
     name: go_cue_time
     description: |
-The start time of the go cue tone. This is the time the sound is actually played, that is, the command sent through soundcard sync was fed back into Bpod.  The go cue tone is a 100ms 5 kHz sine wave and occurs approximately at the time of stimulus onset.
+      The start time of the go cue tone. This is the time the sound is actually played, that is, the command sent through soundcard sync was fed back into Bpod.  The go cue tone is a 100ms 5 kHz sine wave and occurs approximately at the time of stimulus onset.
   response_times:
     name: response_time
     description: |
-The time at which a response was recorded.  This marks the end of the closed loop state in Bpod and occurs when either 60 seconds have elapsed since the go cue, or the rotary encoder reaches a position equivalent to the stimulus on the screen reaching + or - 35º azimuth.
+      The time at which a response was recorded.  This marks the end of the closed loop state in Bpod and occurs when either 60 seconds have elapsed since the go cue, or the rotary encoder reaches a position equivalent to the stimulus on the screen reaching + or - 35º azimuth.
   choice:
     name: choice
     description: |
-The response type registered for each trial where -1 corresponds to turning the wheel CCW, +1 turning CW, and 0 being a timeout (‘no-go’) where the wheel wasn’t moved to threshold within the 60 second time window.
+      The response type registered for each trial where -1 corresponds to turning the wheel CCW, +1 turning CW, and 0 being a timeout (‘no-go’) where the wheel wasn’t moved to threshold within the 60 second time window.
   stimOn_times:
     name: stim_on_time
     description: |
-The time at which the visual stimulus appears on the screen, as detected by the photodiode which is placed over the sync square that flips colour each time the screen is redrawn.
+      The time at which the visual stimulus appears on the screen, as detected by the photodiode which is placed over the sync square that flips colour each time the screen is redrawn.
   contrastLeft:
     name: contrast_left
     description: |
-The contrast of the stimulus that appears on the left side of the screen (-35º azimuth).  When there is a non-zero contrast on the right, contrastLeft == 0, when there is no contrast on either side (a ‘catch’ trial), contrastLeft == NaN.
+      The contrast of the stimulus that appears on the left side of the screen (-35º azimuth).  When there is a non-zero contrast on the right, contrastLeft == 0, when there is no contrast on either side (a ‘catch’ trial), contrastLeft == NaN.
   contrastRight:
     name: contrast_right
     description: |
-The contrast of the stimulus that appears on the right side of the screen (35º azimuth).  When there is a non-zero contrast on the left, contrastRight == 0, when there is no contrast on either side (a ‘catch’ trial), contrastRight == NaN.
+      The contrast of the stimulus that appears on the right side of the screen (35º azimuth).  When there is a non-zero contrast on the left, contrastRight == 0, when there is no contrast on either side (a ‘catch’ trial), contrastRight == NaN.
   probabilityLeft:
     name: probability_left
     description: |
-Probability that the stimulus will be on the left-hand side for the current trial. The probability of right is 1 minus this.  For repeat trials (trainingChoiceWorld) the probability is N(bias,4), where bias is calculated using responses from the last 10 trials.  During biased blocks (biasedChoiceWorld) the probability may be 0.5, 0.8, or 0.2.
+      Probability that the stimulus will be on the left-hand side for the current trial. The probability of right is 1 minus this.  For repeat trials (trainingChoiceWorld) the probability is N(bias,4), where bias is calculated using responses from the last 10 trials.  During biased blocks (biasedChoiceWorld) the probability may be 0.5, 0.8, or 0.2.
   feedback_times:
     name: feedback_time
     description: |
-The time of feedback delivery. For correct trials this is the time of the valve TTL trigger command, for incorrect trials this is the time of the white noise output trigger.
+      The time of feedback delivery. For correct trials this is the time of the valve TTL trigger command, for incorrect trials this is the time of the white noise output trigger.
   feedbackType:
     name: feedback_type
     description: |
-Whether the feedback was positive (+1) or negative (-1).  Positive feedback indicates a correct response rewarded with sugar water.  Negative feedback indicates a trial timeout or incorrect response followed by a white noise burst.
+      Whether the feedback was positive (+1) or negative (-1).  Positive feedback indicates a correct response rewarded with sugar water.  Negative feedback indicates a trial timeout or incorrect response followed by a white noise burst.
   rewardVolume:
     name: reward_volume
     description: |
-The volume of reward delivered on each trial.  On trials where feedbackType == -1, rewardVolume == 0.  The reward volume is typically within the range of 1.5 to 3 and should not change within a session.
+      The volume of reward delivered on each trial.  On trials where feedbackType == -1, rewardVolume == 0.  The reward volume is typically within the range of 1.5 to 3 and should not change within a session.
   firstMovement_times:
     name: first_movement_time
     description: |
-The time of the first detected movement of the trial with a sufficiently large amplitude.  To be counted, the movement must occur between go cue and before feedback time.  The movement onset is sometimes just before the cue (occurring in the gap between quiescence end and cue start, or during the quiescence period but sub-threshold).  The movement is sufficiently large if it is greater than or equal to .1 radians.
+      The time of the first detected movement of the trial with a sufficiently large amplitude.  To be counted, the movement must occur between go cue and before feedback time.  The movement onset is sometimes just before the cue (occurring in the gap between quiescence end and cue start, or during the quiescence period but sub-threshold).  The movement is sufficiently large if it is greater than or equal to .1 radians.
