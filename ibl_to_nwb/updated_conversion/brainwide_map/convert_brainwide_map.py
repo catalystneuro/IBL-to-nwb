@@ -28,11 +28,11 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
     data_interfaces = list()
     for stream_name in ap_stream_names:
         data_interfaces.append(
-            StreamingIblRecordingInterface(session=session, stream_name=stream_name, cache_folder=cache_folder)
+            StreamingIblRecordingInterface(session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings")
         )
     for stream_name in lf_stream_names:
         data_interfaces.append(
-            StreamingIblLfpInterface(session=session, stream_name=stream_name, cache_folder=cache_folder)
+            StreamingIblLfpInterface(session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings")
         )
 
     # These interfaces should always be present in source data
@@ -40,16 +40,16 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
     data_interfaces.append(IblWheelInterface(one=session_one, session=session))
 
     # These interfaces may not be present; check if they are before adding to list
-    roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*.dlc*")
-    for roi_motion_energy_file in roi_motion_energy_files:
-        camera_name = roi_motion_energy_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
+    pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
+    for pose_estimation_file in pose_estimation_files:
+        camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
         data_interfaces.append(AlfDlcInterface(one=session_one, session=session, camera_name=camera_name))
 
-    roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*features*")
-    for roi_motion_energy_file in roi_motion_energy_files:
-        camera_name = roi_motion_energy_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
+    pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
+    for pupil_tracking_file in pupil_tracking_files:
+        camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
         data_interfaces.append(
-            PupilTrackingInterface(one=session_one, session=session, cache_folder=cache_folder, camera_name=camera_name)
+            PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name)
         )
 
     roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
