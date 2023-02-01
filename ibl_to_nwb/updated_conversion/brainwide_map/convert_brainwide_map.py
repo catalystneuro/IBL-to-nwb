@@ -8,7 +8,8 @@ from ibl_to_nwb.updated_conversions.datainterfaces import (
     StreamingIblLfpInterface,
     IblLickInterface,
     PupilTrackingInterface,
-    RoiMotionEnergyInterface
+    RoiMotionEnergyInterface,
+    IblWheelInterface,
 )
 
 
@@ -52,6 +53,9 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
     if one.list_datasets(eid=session, collection="alf", filename="licks*"):
         data_interfaces.append(IblLickInterface(one=session_one, session=session))
 
+
+    wheel_interface = IblWheelInterface(session=session, cache_folder=cache_folder)
+    data_interfaces.append(wheel_interface)
 
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
