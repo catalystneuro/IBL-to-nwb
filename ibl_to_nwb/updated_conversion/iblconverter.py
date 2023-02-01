@@ -1,8 +1,11 @@
 from datetime import datetime
+from shutil import rmtree
+from typing import Optional
 
+from pynwb import NWBFile
+from pydantic import DirectoryPath
 from one.api import ONE
 from neuroconv import ConverterPipe
-
 
 class IblConverter(ConverterPipe):
     def __init__(self, one: ONE, data_interfaces: list):
@@ -38,3 +41,21 @@ class IblConverter(ConverterPipe):
         metadata["Subject"]["weight"] = subject_metadata["reference_weight"] * 1e-3  # Convert from grams to kilograms
         metadata["Subject"]["date_of_birth"] = datetime.strptime(subject_metadata["date"], "%Y-%m-%d")
         # There's also 'age_weeks' but I'm excluding that based on existence of DOB
+
+    def run_conversion(
+        self,
+        nwbfile_path: Optional[str] = None,
+        nwbfile: Optional[NWBFile] = None,
+        metadata: Optional[dict] = None,
+        overwrite: bool = False,
+        conversion_options: Optional[dict] = None,
+    ):
+        super().run_conversion(
+            nwbfile_path=nwbfile_path,
+            nwbfile=nwbfile,
+            metadata=metadata,
+            overwrite=overwrite,
+            conversion_options=conversion_options
+        )
+
+        rmtree(self.cache_folder)
