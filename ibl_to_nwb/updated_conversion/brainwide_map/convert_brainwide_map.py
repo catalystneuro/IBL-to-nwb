@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from one.api import ONE
+
 from ibl_to_nwb.updated_conversions.brainwidemap import (
     BrainwideMapConverter,
     BrainwideMapTrialsInterface,
@@ -8,12 +9,12 @@ from ibl_to_nwb.updated_conversions.brainwidemap import (
 from ibl_to_nwb.updated_conversions.datainterfaces import (
     AlfDlcInterface,
     IblLickInterface,
+    IblSortingInterface,
     IblWheelInterface,
     PupilTrackingInterface,
     RoiMotionEnergyInterface,
     StreamingIblLfpInterface,
     StreamingIblRecordingInterface,
-    IblSortingInterface,
 )
 
 

@@ -1,10 +1,10 @@
 """The interface for loadding spike sorted data via ONE access."""
-from typing import Optional, Union, Dict
 from collections import defaultdict
+from typing import Dict, Optional, Union
 
 import numpy as np
-from spikeinterface import BaseSorting, BaseSortingSegment
 from pydantic import DirectoryPath
+from spikeinterface import BaseSorting, BaseSortingSegment
 
 
 class IblSortingExtractor(BaseSorting):
@@ -14,10 +14,19 @@ class IblSortingExtractor(BaseSorting):
     installation_mesg = ""
     name = "iblsorting"
 
+<<<<<<< HEAD
     def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None):
         from one.api import ONE
+=======
+    def __init__(
+        self,
+        session: str,
+        cache_folder: Optional[DirectoryPath] = None,
+    ):
+>>>>>>> 30b9a5392b209c28f249b00c368856db0608a008
         from brainbox.io.one import SpikeSortingLoader
         from ibllib.atlas import AllenAtlas
+        from one.api import ONE
 
         one = ONE(cache_dir=cache_folder)
         atlas = AllenAtlas()

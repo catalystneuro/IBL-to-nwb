@@ -20,8 +20,8 @@ class IblConverter(ConverterPipe):
         session_metadata = self.one.alyx.rest(url="sessions", action="list", id=self.session)[0]
         lab_metadata = next(lab for lab in self.one.alyx.rest("labs", "list") if lab["name"] == session_metadata["lab"])
 
-        metadata["NWBFile"]["session_id"] = f"{metadata['NWBFile']['session_start_time']}_{session_metadata['number']}"
-        metadata["NWBFile"]["identifier"] = session_metadata["id"]  # The eid is more appropriate in place of a UUID
+        # TODO: include session_metadata['number'] in the extension attributes
+        metadata["NWBFile"]["session_id"] = session_metadata["id"]
         metadata["NWBFile"]["lab"] = session_metadata["lab"]
         metadata["NWBFile"]["institution"] = lab_metadata["institution"]
         metadata["NWBFile"]["protocol"] = session_metadata["task_protocol"]
