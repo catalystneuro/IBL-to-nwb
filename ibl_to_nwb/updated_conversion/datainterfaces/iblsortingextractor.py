@@ -15,11 +15,11 @@ class IblSortingExtractor(BaseSorting):
     name = "iblsorting"
 
     def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None):
-        from one.api import ONE
         from brainbox.io.one import SpikeSortingLoader
         from ibllib.atlas import AllenAtlas
+        from one.api import ONE
 
-        one = ONE(cache_dir=cache_folder)
+        one = ONE()  # cache_dir=cache_folder)
         atlas = AllenAtlas()
 
         dataset_contents = one.list_datasets(eid=session, collection="raw_ephys_data/*")
@@ -34,7 +34,7 @@ class IblSortingExtractor(BaseSorting):
             sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
             sorting_loaders.update({probe_name: sorting_loader})
             spikes, clusters, channels = sorting_loader.load_spike_sorting()
-            number_of_units = len(spikes["clusters"])
+            number_of_units = len(np.unique(spikes["clusters"]))
 
             # TODO - compare speed against iterating over unique cluster IDs + vector index search
             for spike_cluster, spike_time in zip(spikes["clusters"], spikes["times"]):
@@ -49,6 +49,7 @@ class IblSortingExtractor(BaseSorting):
         sampling_frequency = 30000.0  # Hard-coded to match SpikeGLX probe
         BaseSorting.__init__(self, sampling_frequency=sampling_frequency, unit_ids=list(spike_times_by_id.keys()))
         sorting_segment = IblSortingSegment(
+            sampling_frequency=sampling_frequency,
             spike_times_by_id=spike_times_by_id,
         )
         self.add_sorting_segment(sorting_segment)

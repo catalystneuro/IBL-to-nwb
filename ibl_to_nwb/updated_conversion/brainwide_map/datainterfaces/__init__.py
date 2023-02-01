@@ -1,2 +1,1 @@
-from .brainwidemapbehaviorinterface import BrainwideMapTrialsInterface
-from .datainterfaces import BrainwideMapTrialsInterface
+from .brainwidemaptrialsinterface import BrainwideMapTrialsInterface

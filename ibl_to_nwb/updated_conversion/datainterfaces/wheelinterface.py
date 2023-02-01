@@ -4,16 +4,15 @@ from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
-from pydantic import DirectoryPath
 from pynwb import H5DataIO
 from pynwb.behavior import CompassDirection, SpatialSeries
 from pynwb.epoch import TimeIntervals
 
 
 class WheelInterface(BaseDataInterface):
-    def __init__(self, session: str, cache_folder: DirectoryPath):
+    def __init__(self, one: ONE, session: str):
+        self.one = one
         self.session = session
-        self.cache_folder = cache_folder
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -21,19 +20,12 @@ class WheelInterface(BaseDataInterface):
         return metadata
 
     def run_conversion(self, nwbfile, metadata: dict):
-        one = ONE(
-            base_url="https://openalyx.internationalbrainlab.org",
-            password="international",
-            silent=True,
-            cache_folder=self.cache_folder,
-        )
-
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="")  # TODO match description
 
-        wheel_moves = one.load_object(
+        wheel_moves = self.one.load_object(
             id=self.session_id, obj="wheelMoves", collection="alf", cach_folder=self.cache_folder
         )
-        wheel = one.load_object(id=self.session_id, obj="wheel", collection="alf", cach_folder=self.cache_folder)
+        wheel = self.one.load_object(id=self.session_id, obj="wheel", collection="alf", cach_folder=self.cache_folder)
 
         # Wheel intervals of movement
         wheel_movement_intervals = TimeIntervals(

@@ -1,8 +1,6 @@
 from pathlib import Path
 
-from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import (
-    BaseDataInterface,
-)
+from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import H5DataIO, NWBFile
