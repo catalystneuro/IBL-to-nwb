@@ -1,8 +1,9 @@
 """Data Interface for the special data type of ROI Motion Energy."""
+from neuroconv.basedatainterface import BaseDataInterface
 from one.api import ONE
 from pydantic import DirectoryPath
-from pynwb import TimeSeries, H5DataIO
-from neuroconv.basedatainterface import BaseDataInterface
+from pynwb import H5DataIO, TimeSeries
+
 
 class RoiMotionEnergyInterface(BaseDataInterface):
     def __init__(self, session: str, cache_folder: DirectoryPath, camera_name: str):
@@ -12,8 +13,8 @@ class RoiMotionEnergyInterface(BaseDataInterface):
 
     def run_conversion(self, nwbfile, metadata: dict):
         one = ONE(
-            base_url='https://openalyx.internationalbrainlab.org',
-            password='international',
+            base_url="https://openalyx.internationalbrainlab.org",
+            password="international",
             silent=True,
             cache_folder=self.cache_folder,
         )

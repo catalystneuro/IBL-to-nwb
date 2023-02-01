@@ -1,10 +1,10 @@
 from datetime import datetime
 
 import numpy as np
+from ndx_pose import PoseEstimation, PoseEstimationSeries
+from neuroconv.basedatainterface import BaseDataInterface
 from one.api import ONE
 from pynwb import H5DataIO
-from neuroconv.basedatainterface import BaseDataInterface
-from ndx_pose import PoseEstimationSeries, PoseEstimation
 
 
 class AlfDlcInterface(BaseDataInterface):
@@ -22,7 +22,8 @@ class AlfDlcInterface(BaseDataInterface):
         revision_datetime_format = "%Y-%m-%d"
         revisions = [
             datetime.strptime(session_file.split("#")[1], revision_datetime_format)
-            for session_file in session_files if "#" in session_file
+            for session_file in session_files
+            if "#" in session_file
         ]
         revision = None
         if any(revisions):
@@ -48,13 +49,13 @@ class AlfDlcInterface(BaseDataInterface):
 
             pose_estimation_series = PoseEstimationSeries(
                 name=body_part_name,
-                #description='Marker placed around fingers of front left paw.',  # TODO
+                # description='Marker placed around fingers of front left paw.',  # TODO
                 data=H5DataIO(body_part_data, compression=True),
                 unit="px",
-                #reference_frame='(0,0,0) corresponds to ...',  # TODO
+                # reference_frame='(0,0,0) corresponds to ...',  # TODO
                 timestamps=reused_timestamps or H5DataIO(timestamps, compression=True),
                 confidence=np.array(dlc_data[f"{body_part}_likelihood"]),
-                #confidence_definition='Softmax output of the deep neural network.',  # TODO
+                # confidence_definition='Softmax output of the deep neural network.',  # TODO
             )
             all_pose_estimation_series.append(pose_estimation_series)
 
@@ -64,12 +65,12 @@ class AlfDlcInterface(BaseDataInterface):
             pose_estimation_series=all_pose_estimation_series,
             description="Estimated positions of body parts using DeepLabCut.",
             original_videos=original_video_file if any(original_video_file) else None,
-            #dimensions=np.array([[640, 480], [1024, 768]], dtype='uint8'),  # TODO
-            #scorer='DLC_resnet50_openfieldOct30shuffle1_1600',  # TODO
+            # dimensions=np.array([[640, 480], [1024, 768]], dtype='uint8'),  # TODO
+            # scorer='DLC_resnet50_openfieldOct30shuffle1_1600',  # TODO
             source_software="DeepLabCut",
-            #source_software_version='2.2b8',  # TODO?
+            # source_software_version='2.2b8',  # TODO?
             nodes=body_parts,
-            #edges=np.array([[0, 1]], dtype='uint8'),  # TODO?
+            # edges=np.array([[0, 1]], dtype='uint8'),  # TODO?
         )
 
         behavior_module = nwbfile.create_processing_module(name="behavior", description="processed behavioral data")

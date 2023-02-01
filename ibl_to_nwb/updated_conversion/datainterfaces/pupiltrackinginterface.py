@@ -2,12 +2,12 @@
 from pathlib import Path
 
 import numpy as np
-from one.api import ONE
-from pynwb import TimeSeries, H5DataIO
-from pynwb.behavior import PupilTracking
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
+from one.api import ONE
+from pynwb import H5DataIO, TimeSeries
+from pynwb.behavior import PupilTracking
 
 
 class PupilTrackingInterface(BaseDataInterface):
@@ -24,8 +24,8 @@ class PupilTrackingInterface(BaseDataInterface):
 
     def run_conversion(self, nwbfile, metadata: dict):
         one = ONE(
-            base_url='https://openalyx.internationalbrainlab.org',
-            password='international',
+            base_url="https://openalyx.internationalbrainlab.org",
+            password="international",
             silent=True,
             cache_folder=self.cache_folder,
         )
