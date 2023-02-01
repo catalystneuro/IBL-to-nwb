@@ -1,11 +1,10 @@
 from shutil import rmtree
-
 from typing import Optional
 
-from pynwb import NWBFile
-from pydantic import DirectoryPath
-from one.api import ONE
 from neuroconv import ConverterPipe
+from one.api import ONE
+from pydantic import DirectoryPath
+from pynwb import NWBFile
 
 
 class IblConverter(ConverterPipe):
@@ -30,7 +29,7 @@ class IblConverter(ConverterPipe):
             nwbfile=nwbfile,
             metadata=metadata,
             overwrite=overwrite,
-            conversion_options=conversion_options
+            conversion_options=conversion_options,
         )
 
         rmtree(self.cache_folder)

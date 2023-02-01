@@ -2,7 +2,10 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ibl_to_nwb.updated_conversions import StreamingIblRecordingInterface, StreamingIblLfpInterface
+from ibl_to_nwb.updated_conversions import (
+    StreamingIblLfpInterface,
+    StreamingIblRecordingInterface,
+)
 from ibl_to_nwb.updated_conversions.repeatedsites import RepeatedSitesConverter
 
 one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)

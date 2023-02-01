@@ -1,13 +1,12 @@
 from pathlib import Path
 
-from one.api import ONE
 from neuroconv.utils import load_dict_from_file
+from one.api import ONE
 
 from ..iblconverter import IblConverter
 
 
 class BrainwideMapConverter(IblConverter):
-
     def get_metadata(self):
         metadata = super().get_metadata()
 

@@ -1,8 +1,8 @@
+from neuroconv.basedatainterface import BaseDataInterface
+from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import DynamicTable, H5DataIO
-from neuroconv.basedatainterface import BaseDataInterface
-from neuroconv.tools.nwb_helpers import get_module
 
 
 class IblLickInterface(BaseDataInterface):
@@ -12,10 +12,10 @@ class IblLickInterface(BaseDataInterface):
 
     def run_conversion(self, nwbfile, metadata: dict):
         one = ONE(
-            base_url='https://openalyx.internationalbrainlab.org',
-            password='international',
+            base_url="https://openalyx.internationalbrainlab.org",
+            password="international",
             silent=True,
-            cache_folder=self.cache_folder
+            cache_folder=self.cache_folder,
         )
 
         licks = one.load_object(id=self.session_id, obj="licks", collection="alf")
@@ -32,6 +32,6 @@ class IblLickInterface(BaseDataInterface):
         lick_events_table.add_column(
             name="lick_time",
             description="Time stamps of licks as detected from tongue dlc traces",
-            data=H5DataIO(licks["times"], compression=True)
+            data=H5DataIO(licks["times"], compression=True),
         )
         behavior_module.add(lick_events_table)

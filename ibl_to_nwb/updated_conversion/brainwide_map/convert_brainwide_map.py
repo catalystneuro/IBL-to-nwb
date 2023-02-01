@@ -2,15 +2,19 @@ from pathlib import Path
 
 from one.api import ONE
 from pydantic import DirectoryPath
-from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter, BrainwideMapTrialsInterface
+
+from ibl_to_nwb.updated_conversions.brainwidemap import (
+    BrainwideMapConverter,
+    BrainwideMapTrialsInterface,
+)
 from ibl_to_nwb.updated_conversions.datainterfaces import (
-    StreamingIblRecordingInterface,
-    StreamingIblLfpInterface,
+    AlfDlcInterface,
     IblLickInterface,
+    IblWheelInterface,
     PupilTrackingInterface,
     RoiMotionEnergyInterface,
-    IblWheelInterface,
-    AlfDlcInterface,
+    StreamingIblLfpInterface,
+    StreamingIblRecordingInterface,
 )
 
 
@@ -28,11 +32,15 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
     data_interfaces = list()
     for stream_name in ap_stream_names:
         data_interfaces.append(
-            StreamingIblRecordingInterface(session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings")
+            StreamingIblRecordingInterface(
+                session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
+            )
         )
     for stream_name in lf_stream_names:
         data_interfaces.append(
-            StreamingIblLfpInterface(session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings")
+            StreamingIblLfpInterface(
+                session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
+            )
         )
 
     # These interfaces should always be present in source data
@@ -48,16 +56,12 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
     pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
     for pupil_tracking_file in pupil_tracking_files:
         camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
-        data_interfaces.append(
-            PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name)
-        )
+        data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name))
 
     roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
     for roi_motion_energy_file in roi_motion_energy_files:
         camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
-        data_interfaces.append(
-            RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name)
-        )
+        data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name))
 
     if session_one.list_datasets(eid=session, collection="alf", filename="licks*"):
         data_interfaces.append(IblLickInterface(one=session_one, session=session))
