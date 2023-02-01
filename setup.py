@@ -12,6 +12,13 @@ with open(root / "README.md") as file:
 with open(root / "requirements.txt") as f:
     install_requires = f.readlines()
 
+with open(root / "updated_conversion" / "requirements.txt") as f:
+    brainwide_map_requires = f.readlines()
+
+extras_require = dict(
+    brainwide_map=brainwide_map_requires
+)
+
 setup(
     name='ibl_to_nwb',
     version='0.2.0',
@@ -25,5 +32,6 @@ setup(
     package_data={},
     include_package_data=False,
     install_requires=install_requires,
+    extras_require=extras_require,
     python_requires='>=3.8'
 )
