@@ -1,10 +1,11 @@
-from .alfdlcinterface import AlfDlcInterface
+from .iblstreaminginterface import (
+    IblStreamingLfpInterface,
+    IblStreamingRecordingInterface
+)
 from .iblsortingextractor import IblSortingExtractor
 from .iblsortinginterface import IblSortingInterface
-from .iblwheelinterface import IblWheelInterface
+from .alfdlcinterface import AlfDlcInterface
+from .wheelinterface import WheelInterface
 from .pupiltrackinginterface import PupilTrackingInterface
 from .roimotionenergyinterface import RoiMotionEnergyInterface
-from .streamingiblinterface import (
-    StreamingIblLfpInterface,
-    StreamingIblRecordingInterface,
-)
+from .lickinterface import LickInterface

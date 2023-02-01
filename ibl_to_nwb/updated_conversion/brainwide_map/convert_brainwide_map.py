@@ -2,11 +2,7 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ibl_to_nwb.updated_conversions.brainwidemap import (
-    BrainwideMapConverter,
-    BrainwideMapTrialsInterface,
-)
-from ibl_to_nwb.updated_conversions.datainterfaces import (
+from ibl_to_nwb.updated_conversion.datainterfaces import (
     AlfDlcInterface,
     IblLickInterface,
     IblSortingInterface,
@@ -15,6 +11,11 @@ from ibl_to_nwb.updated_conversions.datainterfaces import (
     RoiMotionEnergyInterface,
     StreamingIblLfpInterface,
     StreamingIblRecordingInterface,
+)
+from ibl_to_nwb.updated_conversion.brainwide_map import BrainwideMapConverter
+from ibl_to_nwb.updated_conversion.brainwide_map.datainterfaces import (
+    BrainwideMapConverter,
+    BrainwideMapTrialsInterface,
 )
 
 
@@ -70,7 +71,14 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
     session_converter = BrainwideMapConverter(cache_folder=cache_folder, data_interfaces=data_interfaces)
-    session_converter.run_conversion(nwbfile_path=nwbfile_path, metadata=session_converter.get_metadata())
+    
+    conversion_options = dict()
+    if stub_test:
+        for data_interface_name in session_converter.data_interface_objects:
+            if "Recording" in data_interface_name:
+                conversion_options.update({data_interface_name: dict(stub_test=True)})
+    
+    session_converter.run_conversion(nwbfile_path=nwbfile_path, metadata=session_converter.get_metadata(), conversion_options=conversion_options)
 
 
 base_path = Path("/home/jovyan/IBL/ibl_conversion")  # prototype on DANDI Hub for now

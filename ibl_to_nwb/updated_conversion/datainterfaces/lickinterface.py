@@ -2,10 +2,11 @@ from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pydantic import DirectoryPath
-from pynwb import DynamicTable, H5DataIO
+from pynwb import H5DataIO
+from pynwb.file import DynamicTable
 
 
-class IblLickInterface(BaseDataInterface):
+class LickInterface(BaseDataInterface):
     def __init__(self, session: str, cache_folder: DirectoryPath):
         self.session = session
         self.cache_folder = cache_folder

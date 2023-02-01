@@ -10,7 +10,7 @@ from pynwb.behavior import CompassDirection, SpatialSeries
 from pynwb.epoch import TimeIntervals
 
 
-class IblWheelInterface(BaseDataInterface):
+class WheelInterface(BaseDataInterface):
     def __init__(self, session: str, cache_folder: DirectoryPath):
         self.session = session
         self.cache_folder = cache_folder

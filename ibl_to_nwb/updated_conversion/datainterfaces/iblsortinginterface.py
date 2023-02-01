@@ -3,7 +3,7 @@ from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
     BaseSortingExtractorInterface,
 )
 
-from .sortingiblextractor import IblSortingExtractor
+from .iblsortingextractor import IblSortingExtractor
 
 
 class IblSortingInterface(BaseSortingExtractorInterface):

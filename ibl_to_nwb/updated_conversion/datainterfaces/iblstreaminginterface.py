@@ -6,8 +6,7 @@ from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import (
 )
 
 
-class StreamingIblRecordingInterface(BaseRecordingExtractorInterface):
-    ExtractorName = "StreamingIblExtractor"
+class IblStreamingRecordingInterface(BaseRecordingExtractorInterface):
 
     @classmethod
     def get_stream_names(cls):
@@ -17,8 +16,8 @@ class StreamingIblRecordingInterface(BaseRecordingExtractorInterface):
         pass  # TODO: add descriptions for all those custom properties
 
 
-class StreamingIblLfpInterface(BaseLFPExtractorInterface):
-    ExtractorName = "StreamingIblExtractor"
+class IblStreamingLfpInterface(BaseLFPExtractorInterface):
+    ExtractorName = "IblStreamingRecordingExtractor"
 
     @classmethod
     def get_stream_names(cls):
