@@ -4,12 +4,12 @@ target-version = ['py38']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  |*.toml
-  |*.txt
-  |*.yml
-  |*.sh
-  |*.git
-  |*.ini
+  |\.toml
+  |\.txt
+  |\.yml
+  |\.sh
+  |\.git
+  |\.ini
   | \.hg
   | \.mypy_cache
   | \.tox
