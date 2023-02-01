@@ -6,3 +6,5 @@ from .streamingiblinterface import (
     StreamingIblLfpInterface,
     StreamingIblRecordingInterface,
 )
+from .iblsortingextractor import IblSortingExtractor
+from .iblsortinginterface import IblSortingInterface
