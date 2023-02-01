@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from one.api import ONE
-from ibl_to_nwb.updated_conversions import StreamingIblRecordingInterface, StreamingIblLfpInterface
+from pydantic import DirectoryPath
 from ibl_to_nwb.updated_conversions.brainwidemap import BrainwideMapConverter, BrainwideMapTrialsInterface
 from ibl_to_nwb.updated_conversions.datainterfaces import (
     StreamingIblRecordingInterface,
@@ -10,6 +10,7 @@ from ibl_to_nwb.updated_conversions.datainterfaces import (
     PupilTrackingInterface,
     RoiMotionEnergyInterface,
     IblWheelInterface,
+    AlfDlcInterface,
 )
 
 
@@ -34,7 +35,15 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
             StreamingIblLfpInterface(session=session, stream_name=stream_name, cache_folder=cache_folder)
         )
 
+    # These interfaces should always be present in source data
     data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
+    data_interfaces.append(IblWheelInterface(one=session_one, session=session))
+
+    # These interfaces may not be present; check if they are before adding to list
+    roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*.dlc*")
+    for roi_motion_energy_file in roi_motion_energy_files:
+        camera_name = roi_motion_energy_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
+        data_interfaces.append(AlfDlcInterface(one=session_one, session=session, camera_name=camera_name))
 
     roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*features*")
     for roi_motion_energy_file in roi_motion_energy_files:
@@ -43,19 +52,15 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
             PupilTrackingInterface(one=session_one, session=session, cache_folder=cache_folder, camera_name=camera_name)
         )
 
-    roi_motion_energy_files = one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
+    roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
     for roi_motion_energy_file in roi_motion_energy_files:
         camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
         data_interfaces.append(
             RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name)
         )
 
-    if one.list_datasets(eid=session, collection="alf", filename="licks*"):
+    if session_one.list_datasets(eid=session, collection="alf", filename="licks*"):
         data_interfaces.append(IblLickInterface(one=session_one, session=session))
-
-
-    wheel_interface = IblWheelInterface(session=session, cache_folder=cache_folder)
-    data_interfaces.append(wheel_interface)
 
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
@@ -69,4 +74,4 @@ session_retrieval_one = ONE()
 sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q2_IBL_et_al_RepeatedSite")
 
 for session in sessions:
-    convert_session(base_path=base_path, session=session, base_path=base_path)
+    convert_session(base_path=base_path, session=session["id"], base_path=base_path)
