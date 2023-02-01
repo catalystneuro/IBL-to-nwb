@@ -16,5 +16,6 @@ class BrainwideMapConverter(IblConverter):
         # TODO: fetch session and subject-level metadata, including comments/notes
         experiment_metadata = load_dict_from_file(file_path=Path(__file__) / "experiment_metadata.yml")
 
+        metadata["NWBFile"]["session_description"] = "A session from the Brain Wide Map data release from the IBL."
         metadata["NWBFile"]["experiment_description"] = experiment_metadata["experiment_description"]
         metadata["NWBFile"]["related_publications"] = experiment_metadata["related_publications"]
