@@ -73,10 +73,10 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
     session_converter.run_conversion(nwbfile_path=nwbfile_path, metadata=session_converter.get_metadata())
 
 
-base_path = Path("/home/jovyan/ibl_conversion")  # prototype on DANDI Hub for now
+base_path = Path("/home/jovyan/IBL/ibl_conversion")  # prototype on DANDI Hub for now
 
 session_retrieval_one = ONE()
-sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q2_IBL_et_al_RepeatedSite")
+sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
 
 for session in sessions:
     convert_session(base_path=base_path, session=session["id"])
