@@ -17,9 +17,6 @@ class IblSortingExtractor(BaseSorting):
     def __init__(
         self,
         session: str,
-        electrical_series_name: str = None,
-        samples_for_rate_estimation: int = 100000,
-        stream_mode: str = None,
         cache_folder: Optional[DirectoryPath] = None,
     ):
         from one.api import ONE

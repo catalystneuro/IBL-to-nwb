@@ -13,7 +13,7 @@ from ibl_to_nwb.updated_conversions.datainterfaces import (
     RoiMotionEnergyInterface,
     StreamingIblLfpInterface,
     StreamingIblRecordingInterface,
-    SortingIblInterface,
+    IblSortingInterface,
 )
 
 
@@ -43,7 +43,7 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
             )
 
     # These interfaces should always be present in source data
-    data_interfaces.append(SortingIblInterface(session=session, cache_folder=cache_folder / "sorting"))
+    data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
     data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
     data_interfaces.append(IblWheelInterface(one=session_one, session=session))
 
