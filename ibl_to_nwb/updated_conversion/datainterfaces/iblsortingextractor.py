@@ -14,35 +14,36 @@ class IblSortingExtractor(BaseSorting):
     installation_mesg = ""
     name = "iblsorting"
 
-    def __init__(
-        self,
-        session: str,
-        cache_folder: Optional[DirectoryPath] = None,
-    ):
+    def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None):
         from one.api import ONE
         from brainbox.io.one import SpikeSortingLoader
         from ibllib.atlas import AllenAtlas
 
         one = ONE(cache_dir=cache_folder)
         atlas = AllenAtlas()
+
+        dataset_contents = one.list_datasets(eid=session, collection="raw_ephys_data/*")
+        raw_contents = [dataset_content for dataset_content in dataset_contents if not dataset_content.endswith(".npy")]
+        probe_names = set([raw_content.split("/")[1] for raw_content in raw_contents])
+
         sorting_loaders = dict()
         spike_times_by_id = defaultdict(list)  # Cast lists per key as arrays after assembly
         unit_id_probe_property = list()
-        probe_names = list()  # TODO: fetch per session
         unit_id_per_probe_shift = 0
-        for probe_name in probe_names.items():
+        for probe_name in probe_names:
             sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
             sorting_loaders.update({probe_name: sorting_loader})
             spikes, clusters, channels = sorting_loader.load_spike_sorting()
             number_of_units = len(spikes["clusters"])
 
+            # TODO - compare speed against iterating over unique cluster IDs + vector index search
             for spike_cluster, spike_time in zip(spikes["clusters"], spikes["times"]):
                 unit_id = unit_id_per_probe_shift + spike_cluster
                 spike_times_by_id[unit_id].append(spike_time)
 
             unit_id_per_probe_shift += number_of_units
             unit_id_probe_property.extend([probe_name] * number_of_units)
-        for unit_id in spike_times_by_id:
+        for unit_id in spike_times_by_id:  # Cast as arrays for fancy indexing
             spike_times_by_id[unit_id] = np.array(spike_times_by_id[unit_id])
 
         sampling_frequency = 30000.0  # Hard-coded to match SpikeGLX probe
