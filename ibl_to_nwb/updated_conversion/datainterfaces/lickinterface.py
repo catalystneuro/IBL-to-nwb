@@ -1,25 +1,17 @@
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
-from pydantic import DirectoryPath
 from pynwb import H5DataIO
 from pynwb.file import DynamicTable
 
 
 class LickInterface(BaseDataInterface):
-    def __init__(self, session: str, cache_folder: DirectoryPath):
+    def __init__(self, one: ONE, session: str):
+        self.one = one
         self.session = session
-        self.cache_folder = cache_folder
 
     def run_conversion(self, nwbfile, metadata: dict):
-        one = ONE(
-            base_url="https://openalyx.internationalbrainlab.org",
-            password="international",
-            silent=True,
-            cache_folder=self.cache_folder,
-        )
-
-        licks = one.load_object(id=self.session_id, obj="licks", collection="alf")
+        licks = self.one.load_object(id=self.session_id, obj="licks", collection="alf")
 
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="")  # TODO match description
 

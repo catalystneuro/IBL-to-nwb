@@ -10,8 +10,6 @@ class BrainwideMapConverter(IblConverter):
     def get_metadata(self):
         metadata = super().get_metadata()
 
-        one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
-
         # TODO: fetch session and subject-level metadata, including comments/notes
         experiment_metadata = load_dict_from_file(file_path=Path(__file__) / "experiment_metadata.yml")
 

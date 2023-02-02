@@ -19,7 +19,12 @@ class IblSortingExtractor(BaseSorting):
         from ibllib.atlas import AllenAtlas
         from one.api import ONE
 
-        one = ONE()  # cache_dir=cache_folder)
+        one = ONE(
+            base_url="https://openalyx.internationalbrainlab.org",
+            password="international",
+            silent=True,
+            cache_dir=cache_folder,
+        )  # cache_dir=cache_folder)
         atlas = AllenAtlas()
 
         dataset_contents = one.list_datasets(eid=session, collection="raw_ephys_data/*")

@@ -18,11 +18,16 @@ from ibl_to_nwb.updated_conversion.datainterfaces import (
 )
 
 
-def convert_session(base_path: Path, session: str, nwbfile_path: str):
+def convert_session(base_path: Path, session: str, nwbfile_path: str, stub_test: bool = False):
     # Download behavior and spike sorted data for this session
     session_path = base_path / session
     cache_folder = base_path / session / "cache"
-    session_one = ONE(cache_dir=str(cache_folder))
+    session_one = ONE(
+        base_url="https://openalyx.internationalbrainlab.org",
+        password="international",
+        silent=True,
+        cache_dir=cache_folder,
+    )
 
     # Get stream names from SI
     ap_stream_names = IblStreamingRecordingInterface.get_stream_names(session=session)
@@ -69,7 +74,7 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
 
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
-    session_converter = BrainwideMapConverter(cache_folder=cache_folder, data_interfaces=data_interfaces)
+    session_converter = BrainwideMapConverter(one=session_one, data_interfaces=data_interfaces)
 
     conversion_options = dict()
     if stub_test:
@@ -87,7 +92,9 @@ base_path = Path("/home/jovyan/IBL/")  # prototype on DANDI Hub for now
 session_retrieval_one = ONE()
 sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
 
-for session in sessions:
+for session in sessions[:2]:
     print(f"Converting session '{session['id']}'")
     nwbfile_path = base_path / "nwbfiles" / f"{session}.nwb"
-    convert_session(base_path=base_path / "ibl_conversion", session=session["id"], nwbfile_path=nwbfile_path)
+    convert_session(
+        base_path=base_path / "ibl_conversion", session=session["id"], nwbfile_path=nwbfile_path, stub_test=True
+    )
