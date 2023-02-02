@@ -16,16 +16,14 @@ class WheelInterface(BaseDataInterface):
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
-        metadata.update(load_dict_from_file(file_path=Path(__file__).parent.parent / "wheel.yml"))
+
+        metadata.update(load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "wheel.yml"))
+
         return metadata
 
     def run_conversion(self, nwbfile, metadata: dict):
-        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="")  # TODO match description
-
-        wheel_moves = self.one.load_object(
-            id=self.session_id, obj="wheelMoves", collection="alf", cach_folder=self.cache_folder
-        )
-        wheel = self.one.load_object(id=self.session_id, obj="wheel", collection="alf", cach_folder=self.cache_folder)
+        wheel_moves = self.one.load_object(id=self.session, obj="wheelMoves", collection="alf")
+        wheel = self.one.load_object(id=self.session, obj="wheel", collection="alf")
 
         # Wheel intervals of movement
         wheel_movement_intervals = TimeIntervals(
@@ -39,7 +37,6 @@ class WheelInterface(BaseDataInterface):
             description=metadata["WheelMovement"]["columns"]["peakAmplitude"]["description"],
             data=H5DataIO(wheel_moves["peakAmplitude"], compression=True),
         )
-        behavior_module.add(wheel_movement_intervals)
 
         # Wheel position over time
         compass_direction = CompassDirection(
@@ -49,6 +46,10 @@ class WheelInterface(BaseDataInterface):
                 data=H5DataIO(wheel["position"], compression=True),
                 timestamps=H5DataIO(wheel["timestamps"], compression=True),
                 unit="rads",
+                reference_frame="Initial angle at start time is zero. Counter-clockwise is positive.",
             )
         )
+
+        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
+        behavior_module.add(wheel_movement_intervals)
         behavior_module.add(compass_direction)

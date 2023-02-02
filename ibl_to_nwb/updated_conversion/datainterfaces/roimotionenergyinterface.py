@@ -1,5 +1,6 @@
 """Data Interface for the special data type of ROI Motion Energy."""
 from neuroconv.basedatainterface import BaseDataInterface
+from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import H5DataIO, TimeSeries
@@ -36,5 +37,6 @@ class RoiMotionEnergyInterface(BaseDataInterface):
             timestamps=H5DataIO(camera_data["times"]),
             unit="a.u.",
         )
-        behavior_module = nwbfile.create_processing_module(name="behavior", description="processed behavioral data")
+
+        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
         behavior_module.add(motion_energy_series)

@@ -9,5 +9,5 @@ from .iblsortingextractor import IblSortingExtractor
 class IblSortingInterface(BaseSortingExtractorInterface):
     Extractor = IblSortingExtractor
 
-    def get_metadata(self):
-        pass  # TODO: add descriptions for all those custom properties
+    # def get_metadata(self):
+    #    pass  # TODO: add descriptions for all those custom properties

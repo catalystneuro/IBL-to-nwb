@@ -18,23 +18,17 @@ class PupilTrackingInterface(BaseDataInterface):
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
+
         pupils_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "pupils.yml")
         metadata.update(pupils_metadata)
+
         return metadata
 
     def run_conversion(self, nwbfile, metadata: dict):
-        one = ONE(
-            base_url="https://openalyx.internationalbrainlab.org",
-            password="international",
-            silent=True,
-            cache_folder=self.cache_folder,
-        )
-
         left_or_right = self.camera_name[:5].rstrip("C")
 
-        camera_data = one.load_object(id=self.session, obj=self.camera_name, collection="alf")
+        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf")
 
-        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="processed behavioral data")
         pupil_time_series = list()
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:
             pupil_time_series.append(
@@ -46,5 +40,9 @@ class PupilTrackingInterface(BaseDataInterface):
                     unit="px",
                 )
             )
-        pupil_tracking = PupilTracking(time_series=pupil_time_series)
+        # Normally best practice convention would be PupilTrackingLeft or PupilTrackingRight but
+        # in this case I'd say LeftPupilTracking and RightPupilTracking reads bettter
+        pupil_tracking = PupilTracking(name=f"{left_or_right.capitalize()}PupilTracking", time_series=pupil_time_series)
+
+        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
         behavior_module.add(pupil_tracking)

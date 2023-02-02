@@ -32,11 +32,10 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
             "stimOff_times",
             "stimOn_times",
             "goCue_times",
-            "goCueTrigger_times",
             "firstMovement_times",
         ]
 
-        for start_time, stop_time in self.trials["intervals"]:
+        for start_time, stop_time in trials["intervals"]:
             nwbfile.add_trial(start_time=start_time, stop_time=stop_time)
 
         for ibl_key in column_ordering:

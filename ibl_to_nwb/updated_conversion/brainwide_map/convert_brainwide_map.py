@@ -1,4 +1,5 @@
 from pathlib import Path
+from shutil import rmtree
 
 from one.api import ONE
 
@@ -9,8 +10,8 @@ from ibl_to_nwb.updated_conversion.brainwide_map.datainterfaces import (
 from ibl_to_nwb.updated_conversion.datainterfaces import (
     AlfDlcInterface,
     IblSortingInterface,
-    IblStreamingLfpInterface,
-    IblStreamingRecordingInterface,
+    IblStreamingApInterface,
+    IblStreamingLfInterface,
     LickInterface,
     PupilTrackingInterface,
     RoiMotionEnergyInterface,
@@ -30,20 +31,20 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str, stub_test:
     )
 
     # Get stream names from SI
-    ap_stream_names = IblStreamingRecordingInterface.get_stream_names(session=session)
-    lf_stream_names = IblStreamingLfpInterface.get_stream_names(session=session)
+    ap_stream_names = IblStreamingApInterface.get_stream_names(session=session)
+    lf_stream_names = IblStreamingLfInterface.get_stream_names(session=session)
 
     # Initialize as many of each interface as we need across the streams
     data_interfaces = list()
     for stream_name in ap_stream_names:
         data_interfaces.append(
-            IblStreamingRecordingInterface(
+            IblStreamingApInterface(
                 session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
             )
         )
     for stream_name in lf_stream_names:
         data_interfaces.append(
-            IblStreamingLfpInterface(
+            IblStreamingLfInterface(
                 session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
             )
         )
@@ -74,7 +75,7 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str, stub_test:
 
     # Run conversion
     nwbfile_path = session_path / f"{session}.nwb"
-    session_converter = BrainwideMapConverter(one=session_one, data_interfaces=data_interfaces)
+    session_converter = BrainwideMapConverter(one=session_one, session=session, data_interfaces=data_interfaces)
 
     conversion_options = dict()
     if stub_test:
@@ -85,6 +86,7 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str, stub_test:
     session_converter.run_conversion(
         nwbfile_path=nwbfile_path, metadata=session_converter.get_metadata(), conversion_options=conversion_options
     )
+    rmtree(cache_folder)
 
 
 base_path = Path("/home/jovyan/IBL/")  # prototype on DANDI Hub for now
