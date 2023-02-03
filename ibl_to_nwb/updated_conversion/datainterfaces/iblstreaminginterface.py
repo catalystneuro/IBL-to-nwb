@@ -6,8 +6,10 @@ from neuroconv.datainterfaces.ecephys.baselfpextractorinterface import (
 from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import (
     BaseRecordingExtractorInterface,
 )
+from neuroconv.utils import get_schema_from_hdmf_class
 from one.api import ONE
 from pydantic import DirectoryPath
+from pynwb.ecephys import ElectricalSeries
 
 
 class IblStreamingApInterface(BaseRecordingExtractorInterface):
@@ -21,6 +23,13 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         self.session = kwargs["session"]
         self.stream_name = kwargs["stream_name"]
         super().__init__(**kwargs)
+
+    def get_metadata_schema(self) -> dict:
+        metadata_schema = super().get_metadata_schema()
+        metadata_schema["properties"]["Ecephys"]["properties"].update(
+            ElectricalSeriesAp=get_schema_from_hdmf_class(ElectricalSeries)
+        )
+        return metadata_schema
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -55,6 +64,13 @@ class IblStreamingLfInterface(IblStreamingApInterface):
     def get_stream_names(cls, session: str):
         return [stream_name for stream_name in cls.Extractor.get_stream_names(session=session) if "lf" in stream_name]
 
+    def get_metadata_schema(self) -> dict:
+        metadata_schema = super().get_metadata_schema()
+        metadata_schema["properties"]["Ecephys"]["properties"].update(
+            ElectricalSeriesLf=get_schema_from_hdmf_class(ElectricalSeries)
+        )
+        return metadata_schema
+
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
@@ -79,5 +95,5 @@ class IblStreamingLfInterface(IblStreamingApInterface):
                 progress_bar_options=dict(desc=f"Converting stream '{self.stream_name}' session '{self.session}'..."),
             )
         )
-        kwargs.update(es_key="ElectricalSerieslf")
-        super().run_conversion(**kwargs)
+        kwargs.update(es_key="ElectricalSeriesLf")
+        super(IblStreamingApInterface, self).run_conversion(**kwargs)
