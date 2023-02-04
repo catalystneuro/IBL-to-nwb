@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from one.api import ONE
-from pydantic import DirectoryPath
 
 from ibl_to_nwb.updated_conversions.brainwidemap import (
     BrainwideMapConverter,
@@ -10,6 +9,7 @@ from ibl_to_nwb.updated_conversions.brainwidemap import (
 from ibl_to_nwb.updated_conversions.datainterfaces import (
     AlfDlcInterface,
     IblLickInterface,
+    IblSortingInterface,
     IblWheelInterface,
     PupilTrackingInterface,
     RoiMotionEnergyInterface,
@@ -25,25 +25,26 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str):
     session_one = ONE(cache_dic=cache_folder)
 
     # Get stream names from SI
-    ap_stream_names = StreamingIblRecordingInterface.get_stream_names(session=session)
-    lf_stream_names = StreamingIblLfpInterface.get_stream_names(session=session)
+    stream_names = StreamingIblRecordingInterface.get_stream_names(session=session)
 
     # Initialize as many of each interface as we need across the streams
     data_interfaces = list()
-    for stream_name in ap_stream_names:
-        data_interfaces.append(
-            StreamingIblRecordingInterface(
-                session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
+    for stream_name in stream_names:
+        if "ap" in stream_name:
+            data_interfaces.append(
+                StreamingIblRecordingInterface(
+                    session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
+                )
             )
-        )
-    for stream_name in lf_stream_names:
-        data_interfaces.append(
-            StreamingIblLfpInterface(
-                session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
+        elif "lf" in stream_name:
+            data_interfaces.append(
+                StreamingIblLfpInterface(
+                    session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
+                )
             )
-        )
 
     # These interfaces should always be present in source data
+    data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
     data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
     data_interfaces.append(IblWheelInterface(one=session_one, session=session))
 
