@@ -1,15 +1,14 @@
-from typing import Optional
-
-from neuroconv.datainterfaces.ecephys.baselfpextractorinterface import (
-    BaseLFPExtractorInterface,
-)
+"""Data interface wrapper around the SpikeInterface extractor - also sets atlas information."""
+import numpy as np
 from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import (
     BaseRecordingExtractorInterface,
 )
 from neuroconv.utils import get_schema_from_hdmf_class
-from one.api import ONE
-from pydantic import DirectoryPath
 from pynwb.ecephys import ElectricalSeries
+from one.api import ONE
+from brainbox.io.one import SpikeSortingLoader
+from ibllib.atlas import AllenAtlas
+from ibllib.atlas.regions import BrainRegions
 
 
 class IblStreamingApInterface(BaseRecordingExtractorInterface):
@@ -23,6 +22,43 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         self.session = kwargs["session"]
         self.stream_name = kwargs["stream_name"]
         super().__init__(**kwargs)
+
+        one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
+        atlas = AllenAtlas()
+        brain_regions = BrainRegions()
+        spike_sorting_loader = SpikeSortingLoader(
+            eid=self.session, one=one, pname=self.stream_name.split(".")[0], atlas=atlas
+        )
+        _, _, channels = spike_sorting_loader.load_spike_sorting()
+
+        self.has_histology = False
+        if spike_sorting_loader.histology not in ["alf", "resolved"]:
+            return
+
+        self.has_histology = True
+        ibl_coords = np.empty(shape=(384, 3))
+        ibl_coords[:, 0] = channels["x"]
+        ibl_coords[:, 1] = channels["y"]
+        ibl_coords[:, 2] = channels["z"]
+
+        try:
+            ccf_coords = atlas.xyz2ccf(ibl_coords)  # Sometimes this can fail to map and raises an error
+            self.recording_extractor.set_property(key="x", values=ccf_coords[:, 0])
+            self.recording_extractor.set_property(key="y", values=ccf_coords[:, 1])
+            self.recording_extractor.set_property(key="z", values=ccf_coords[:, 2])
+        finally:
+            self.recording_extractor.set_property(key="ibl_x", values=ccf_coords[:, 0])
+            self.recording_extractor.set_property(key="ibl_y", values=ccf_coords[:, 1])
+            self.recording_extractor.set_property(key="ibl_z", values=ccf_coords[:, 2])
+            self.recording_extractor.set_property(
+                key="allen_location", values=channels["acronym"]
+            )  # Acronyms are symmetric, do not differentiate hemisphere to be consistent with their usage
+            self.recording_extractor.set_property(
+                key="beryl_location", values=brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Beryl")
+            )
+            self.recording_extractor.set_property(
+                key="cosmos_location", values=brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Cosmos")
+            )
 
     def get_metadata_schema(self) -> dict:
         metadata_schema = super().get_metadata_schema()
@@ -39,6 +75,35 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
                 name="ElectricalSeriesAp", description="Raw acquisition traces for the high-pass (ap) SpikeGLX data."
             )
         )
+        if self.has_histology:
+            metadata["Ecephys"].update(
+                Electrodes=[
+                    dict(
+                        name="ibl_x",
+                        description="Medio-lateral coordinate relative to Bregma, left negative, in micrometers.",
+                    ),
+                    dict(
+                        name="ibl_y",
+                        description="Antero-posterior coordinate relative to Bregma, back negative, in micrometers.",
+                    ),
+                    dict(
+                        name="ibl_z",
+                        description="Dorso-ventral coordinate relative to Bregma, ventral negative, in micrometers.",
+                    ),
+                    dict(
+                        name="allen_location",
+                        description="Brain region reference in the Allen Mouse Brain Atlas.",
+                    ),
+                    dict(
+                        name="beryl_location",
+                        description="Brain region reference in the Allen Mouse Brain Atlas.",
+                    ),
+                    dict(
+                        name="cosmos_location",
+                        description="Brain region reference in the Allen Mouse Brain Atlas.",
+                    ),
+                ]
+            )
 
         return metadata
 
