@@ -8,7 +8,7 @@ from one.api import ONE
 from pynwb import H5DataIO
 
 
-class AlfDlcInterface(BaseDataInterface):
+class IblPoseEstimationInterface(BaseDataInterface):
     def __init__(self, one: ONE, session: str, camera_name: str):
         self.one = one
         self.session = session

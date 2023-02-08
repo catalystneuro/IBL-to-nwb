@@ -9,7 +9,7 @@ from ibl_to_nwb.updated_conversion.brainwide_map.datainterfaces import (
     BrainwideMapTrialsInterface,
 )
 from ibl_to_nwb.updated_conversion.datainterfaces import (
-    AlfDlcInterface,
+    IblPoseEstimationInterface,
     IblSortingInterface,
     IblStreamingApInterface,
     IblStreamingLfInterface,
@@ -59,7 +59,7 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str, stub_test:
     pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
     for pose_estimation_file in pose_estimation_files:
         camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
-        data_interfaces.append(AlfDlcInterface(one=session_one, session=session, camera_name=camera_name))
+        data_interfaces.append(IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name))
 
     pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
     for pupil_tracking_file in pupil_tracking_files:

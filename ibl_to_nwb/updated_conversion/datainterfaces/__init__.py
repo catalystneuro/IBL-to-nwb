@@ -1,4 +1,4 @@
-from .alfdlcinterface import AlfDlcInterface
+from .iblposeestimationinterface import IblPoseEstimationInterface
 from .iblsortingextractor import IblSortingExtractor
 from .iblsortinginterface import IblSortingInterface
 from .iblstreaminginterface import IblStreamingApInterface, IblStreamingLfInterface
