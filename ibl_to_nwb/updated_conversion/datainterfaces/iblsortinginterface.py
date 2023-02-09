@@ -1,11 +1,11 @@
 """The interface for loading spike sorted data via ONE access."""
+from brainbox.io.one import SpikeSortingLoader
+from ibllib.atlas import AllenAtlas
+from ibllib.atlas.regions import BrainRegions
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
     BaseSortingExtractorInterface,
 )
 from one.api import ONE
-from brainbox.io.one import SpikeSortingLoader
-from ibllib.atlas import AllenAtlas
-from ibllib.atlas.regions import BrainRegions
 
 from .iblsortingextractor import IblSortingExtractor
 

@@ -1,14 +1,14 @@
 """Data interface wrapper around the SpikeInterface extractor - also sets atlas information."""
 import numpy as np
+from brainbox.io.one import SpikeSortingLoader
+from ibllib.atlas import AllenAtlas
+from ibllib.atlas.regions import BrainRegions
 from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import (
     BaseRecordingExtractorInterface,
 )
 from neuroconv.utils import get_schema_from_hdmf_class
-from pynwb.ecephys import ElectricalSeries
 from one.api import ONE
-from brainbox.io.one import SpikeSortingLoader
-from ibllib.atlas import AllenAtlas
-from ibllib.atlas.regions import BrainRegions
+from pynwb.ecephys import ElectricalSeries
 
 
 class IblStreamingApInterface(BaseRecordingExtractorInterface):
