@@ -95,7 +95,9 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str, stub_test:
 
 base_path = Path("/home/jovyan/IBL/")  # prototype on DANDI Hub for now
 
-session_retrieval_one = ONE()
+session_retrieval_one = ONE(
+    base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
+)
 sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
 
 for session in sessions[:1]:
