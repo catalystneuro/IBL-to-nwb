@@ -1,10 +1,7 @@
 """The interface for loading spike sorted data via ONE access."""
-from pathlib import Path
-
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
     BaseSortingExtractorInterface,
 )
-from neuroconv.utils import load_dict_from_file
 
 from .iblsortingextractor import IblSortingExtractor
 
@@ -15,16 +12,33 @@ class IblSortingInterface(BaseSortingExtractorInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
+        if "Ecephys" not in metadata:
+            metadata.update(Ecephys=dict())
 
-        metadata.update(ecephys_metadata)
+        metadata["Ecephys"].update(
+            UnitProperties=[
+                dict(
+                    name="maximum_amplitude_channel",
+                    description="Channel which has the largest amplitude for this cluster.",
+                )
+            ]
+        )
 
         if "allen_location" in self.sorting_extractor.get_property_keys():
             metadata["Ecephys"]["UnitProperties"].extend(
                 [
-                    column
-                    for column in ecephys_metadata["Ecephys"]["Electrodes"]
-                    if column["name"] in ["allen_location", "beryl_location", "cosmos_location"]
+                    dict(
+                        name="allen_location",
+                        description="Brain region reference in the Allen Mouse Brain Atlas.",
+                    ),
+                    dict(
+                        name="beryl_location",
+                        description="Brain region reference in the IBL Beryll Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.",
+                    ),
+                    dict(
+                        name="cosmos_location",
+                        description="Brain region reference in the IBL Cosmos Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.",
+                    ),
                 ]
             )
 

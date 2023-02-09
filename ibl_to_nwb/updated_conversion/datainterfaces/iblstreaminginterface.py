@@ -77,7 +77,7 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
 
         ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
 
-        metadata["Ecephys"].update(ElectricalSeriesLf=ecephys_metadata["Ecephys"]["ElectricalSeriesLf"])
+        metadata["Ecephys"].update(ElectricalSeriesAp=ecephys_metadata["Ecephys"]["ElectricalSeriesAp"])
         if self.has_histology:
             metadata["Ecephys"].update(Electrodes=ecephys_metadata["Ecephys"]["Electrodes"])
 
