@@ -34,8 +34,8 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         self.has_histology = False
         if spike_sorting_loader.histology not in ["alf", "resolved"]:
             return
-
         self.has_histology = True
+
         ibl_coords = np.empty(shape=(384, 3))
         ibl_coords[:, 0] = channels["x"]
         ibl_coords[:, 1] = channels["y"]
