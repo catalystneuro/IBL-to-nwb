@@ -38,6 +38,9 @@ class IblSortingInterface(BaseSortingExtractorInterface):
         unit_id_to_cosmos_regions = brain_regions.id2acronym(atlas_id=channel_id_to_atlas_id, mapping="cosmos")
 
         self.recording_extractor.set_property(
+            key="maximum_amplitude_channel", values=unit_id_to_channel_id
+        )  # Acronyms are symmetric, do not differentiate hemisphere to be consistent with their usage
+        self.recording_extractor.set_property(
             key="allen_location", values=unit_id_to_allen_regions
         )  # Acronyms are symmetric, do not differentiate hemisphere to be consistent with their usage
         self.recording_extractor.set_property(key="beryl_location", values=unit_id_to_beryl_regions)
@@ -49,6 +52,10 @@ class IblSortingInterface(BaseSortingExtractorInterface):
         if self.has_histology:
             metadata["Ecephys"].update(
                 UnitProperties=[
+                    dict(
+                        name="maximum_amplitude_channel",
+                        description="Channel which has the largest amplitude for this cluster.",
+                    ),
                     dict(
                         name="allen_location",
                         description="Brain region reference in the Allen Mouse Brain Atlas.",
