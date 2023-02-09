@@ -1,0 +1,25 @@
+Ecephys:
+  ElectricalSeriesAp:
+    name: ElectricalSeriesAp
+    description: Raw acquisition traces for the high-pass (ap) SpikeGLX.
+  ElectricalSeriesLf:
+    name: ElectricalSeriesLf
+    description: Raw acquisition traces for the high-pass (lf) SpikeGLX.
+  Electrodes:
+    - name: ibl_x
+      description: Medio-lateral coordinate relative to Bregma, left negative, in micrometers.
+    - name: ibl_y
+      description: Antero-posterior coordinate relative to Bregma, back negative, in micrometers.
+    - name: ibl_z
+      description: Dorso-ventral coordinate relative to Bregma, ventral negative, in micrometers.
+    - name: allen_location
+      description: Brain region reference in the Allen Mouse Brain Atlas.
+    - name: beryl_location
+      description: |
+        Brain region reference in the IBL Beryll Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.
+    - name: cosmos_location
+      description: |
+        Brain region reference in the IBL Cosmos Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.
+  UnitProperties:
+    - name: maximum_amplitude_channel
+      description: Channel which has the largest amplitude for this cluster.

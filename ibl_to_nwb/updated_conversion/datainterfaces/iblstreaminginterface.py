@@ -1,4 +1,6 @@
 """Data interface wrapper around the SpikeInterface extractor - also sets atlas information."""
+from pathlib import Path
+
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
 from ibllib.atlas import AllenAtlas
@@ -6,7 +8,7 @@ from ibllib.atlas.regions import BrainRegions
 from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import (
     BaseRecordingExtractorInterface,
 )
-from neuroconv.utils import get_schema_from_hdmf_class
+from neuroconv.utils import get_schema_from_hdmf_class, load_dict_from_file
 from one.api import ONE
 from pynwb.ecephys import ElectricalSeries
 
@@ -73,40 +75,11 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        metadata["Ecephys"].update(
-            ElectricalSeriesAp=dict(
-                name="ElectricalSeriesAp", description="Raw acquisition traces for the high-pass (ap) SpikeGLX data."
-            )
-        )
+        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
+
+        metadata["Ecephys"].update(ElectricalSeriesLf=ecephys_metadata["Ecephys"]["ElectricalSeriesLf"])
         if self.has_histology:
-            metadata["Ecephys"].update(
-                Electrodes=[
-                    dict(
-                        name="ibl_x",
-                        description="Medio-lateral coordinate relative to Bregma, left negative, in micrometers.",
-                    ),
-                    dict(
-                        name="ibl_y",
-                        description="Antero-posterior coordinate relative to Bregma, back negative, in micrometers.",
-                    ),
-                    dict(
-                        name="ibl_z",
-                        description="Dorso-ventral coordinate relative to Bregma, ventral negative, in micrometers.",
-                    ),
-                    dict(
-                        name="allen_location",
-                        description="Brain region reference in the Allen Mouse Brain Atlas.",
-                    ),
-                    dict(
-                        name="beryl_location",
-                        description="Brain region reference in the IBL Beryll Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.",
-                    ),
-                    dict(
-                        name="cosmos_location",
-                        description="Brain region reference in the IBL Cosmos Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.",
-                    ),
-                ]
-            )
+            metadata["Ecephys"].update(Electrodes=ecephys_metadata["Ecephys"]["Electrodes"])
 
         return metadata
 
@@ -142,11 +115,9 @@ class IblStreamingLfInterface(IblStreamingApInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        metadata["Ecephys"].update(
-            ElectricalSeriesLf=dict(
-                name="ElectricalSeriesLf", description="Raw acquisition traces for the high-pass (lf) SpikeGLX data."
-            )
-        )
+        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
+
+        metadata["Ecephys"].update(ElectricalSeriesLf=ecephys_metadata["Ecephys"]["ElectricalSeriesLf"])
 
         return metadata
 
