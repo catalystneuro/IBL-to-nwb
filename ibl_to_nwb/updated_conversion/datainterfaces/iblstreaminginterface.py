@@ -26,6 +26,7 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
         atlas = AllenAtlas()
         brain_regions = BrainRegions()
+
         spike_sorting_loader = SpikeSortingLoader(
             eid=self.session, one=one, pname=self.stream_name.split(".")[0], atlas=atlas
         )
@@ -47,17 +48,19 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
             self.recording_extractor.set_property(key="y", values=ccf_coords[:, 1])
             self.recording_extractor.set_property(key="z", values=ccf_coords[:, 2])
         finally:
-            self.recording_extractor.set_property(key="ibl_x", values=ccf_coords[:, 0])
-            self.recording_extractor.set_property(key="ibl_y", values=ccf_coords[:, 1])
-            self.recording_extractor.set_property(key="ibl_z", values=ccf_coords[:, 2])
+            self.recording_extractor.set_property(key="ibl_x", values=ibl_coords[:, 0])
+            self.recording_extractor.set_property(key="ibl_y", values=ibl_coords[:, 1])
+            self.recording_extractor.set_property(key="ibl_z", values=ibl_coords[:, 2])
             self.recording_extractor.set_property(
-                key="allen_location", values=channels["acronym"]
+                key="allen_location", values=list(channels["acronym"])
             )  # Acronyms are symmetric, do not differentiate hemisphere to be consistent with their usage
             self.recording_extractor.set_property(
-                key="beryl_location", values=brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Beryl")
+                key="beryl_location",
+                values=list(brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Beryl")),
             )
             self.recording_extractor.set_property(
-                key="cosmos_location", values=brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Cosmos")
+                key="cosmos_location",
+                values=list(brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Cosmos")),
             )
 
     def get_metadata_schema(self) -> dict:
@@ -96,11 +99,11 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
                     ),
                     dict(
                         name="beryl_location",
-                        description="Brain region reference in the Allen Mouse Brain Atlas.",
+                        description="Brain region reference in the IBL Beryll Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.",
                     ),
                     dict(
                         name="cosmos_location",
-                        description="Brain region reference in the Allen Mouse Brain Atlas.",
+                        description="Brain region reference in the IBL Cosmos Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.",
                     ),
                 ]
             )

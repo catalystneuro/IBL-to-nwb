@@ -89,7 +89,8 @@ def convert_session(base_path: Path, session: str, nwbfile_path: str, stub_test:
         conversion_options=conversion_options,
         overwrite=True,
     )
-    automatic_dandi_upload(dandiset_id="000409", nwb_folder_path=nwbfile_path.parent, cleanup=True)
+    if not stub_test:
+        automatic_dandi_upload(dandiset_id="000409", nwb_folder_path=nwbfile_path.parent, cleanup=True)
     rmtree(cache_folder)
 
 
@@ -104,8 +105,10 @@ for session in sessions[:1]:
     session_id = session["id"]
     print(f"Converting session '{session_id}'")
     nwbfile_path = base_path / "nwbfiles" / session_id / f"{session_id}.nwb"
+    nwbfile_path.parent.mkdir(exist_ok=True)
     convert_session(
         base_path=base_path / "ibl_conversion",
         session=session_id,
-        nwbfile_path=nwbfile_path,  # stub_test=True
+        nwbfile_path=nwbfile_path,
+        stub_test=True,
     )
