@@ -22,4 +22,42 @@ Ecephys:
         Brain region reference in the IBL Cosmos Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.
   UnitProperties:
     - name: maximum_amplitude_channel
-      description: Channel which has the largest amplitude for this cluster.
+      description: Channel which has the largest amplitude for each unit.
+    - name: mean_relative_depth
+      description: Relative mean depth of each unit in micrometers. 0 is the deepest site, positive values are above this.
+    # Cluster metrics start below here
+    - name: maximum_amplitude
+      description: Maximum amplitude of the waveforms for each unit in volts.
+    - name: minimum_amplitude
+      description: Minimum amplitude of the waveforms for each unit in volts.
+    - name: median_amplitude
+      description: Median amplitude of the waveforms for each unit in volts.
+    - name: standard_deviation_amplitude
+      description: TODO
+    - name: contamination
+      description: TODO
+    - name: alternative_contamination
+      description: TODO
+    - name: drift
+      description: TODO
+    - name: missed_spikes_estimate
+      description: TODO
+    - name: noise_cutoff
+      description: TODO
+    - name: presence_ratio
+      description: TODO
+    - name: presence_ratio_standard_deviation
+      description: TODO
+    - name: slidingRP_violation  # RP?
+      description: TODO
+    - name: spike_count
+      description: TODO
+    - name: firing_rate
+      description: TODO
+    - name: label
+      description: TODO
+    - name: spike_amplitudes
+      description: Peak amplitude of each spike for each unit.
+    - name: spike_relative_depths
+      description: |
+        Relative depth along the probe used to detect each spike in micrometers, computed from the waveform center of mass. 0 is the deepest site, positive values are above this.
