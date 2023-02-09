@@ -56,24 +56,25 @@ class IblSortingExtractor(BaseSorting):
             all_unit_properties["maximum_amplitude_channel"].extend(unit_id_to_channel_id)
             all_unit_properties["mean_relative_depth"].extend(clusters["depths"])
 
-            for metric_name in [
-                "amp_max",
-                "amp_min",
-                "amp_median",
-                "amp_std_dB",
-                "contamination",
-                "contamination_alt",
-                "drift",
-                "missed_spikes_est",
-                "noise_cutoff",
-                "presence_ratio",
-                "presence_ratio_std",
-                "slidingRP_viol",
-                "spike_count",
-                "firing_rate",
-                "label",
-            ]:
-                all_unit_properties[metric_name].extend(clusters["metrics"][metric_name])
+            ibl_metric_key_to_property_name = dict(
+                amp_max="maximum_amplitude_channel",
+                amp_min="minimum_amplitude",
+                amp_median="median_amplitude",
+                amp_std_dB="standard_deviation_amplitude",
+                contamination="contamination",
+                contamination_alt="alternative_contamination",
+                drift="drift",
+                missed_spikes_est="missed_spikes_estimate",
+                noise_cutoff="noise_cutoff",
+                presence_ratio="presence_ratio",
+                presence_ratio_std="presence_ratio_standard_deviation",
+                slidingRP_viol="slidingRP_viol",
+                spike_count="spike_count",
+                firing_rate="firing_rate",
+                label="label",
+            )
+            for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
+                all_unit_properties[property_name].extend(clusters["metrics"][ibl_metric_key])
 
             if sorting_loader.histology in ["alf", "resolved"]:  # Assume if one probe has histology, the other does too
                 channel_id_to_allen_regions = channels["acronym"]
