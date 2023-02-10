@@ -57,7 +57,7 @@ class IblSortingExtractor(BaseSorting):
             all_unit_properties["mean_relative_depth"].extend(clusters["depths"])
 
             ibl_metric_key_to_property_name = dict(
-                amp_max="maximum_amplitude_channel",
+                amp_max="maximum_amplitude",
                 amp_min="minimum_amplitude",
                 amp_median="median_amplitude",
                 amp_std_dB="standard_deviation_amplitude",
@@ -74,7 +74,7 @@ class IblSortingExtractor(BaseSorting):
                 label="label",
             )
             for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
-                all_unit_properties[property_name].extend(clusters["metrics"][ibl_metric_key])
+                all_unit_properties[property_name].extend(list(clusters["metrics"][ibl_metric_key]))
 
             if sorting_loader.histology in ["alf", "resolved"]:  # Assume if one probe has histology, the other does too
                 channel_id_to_allen_regions = channels["acronym"]
@@ -108,7 +108,7 @@ class IblSortingExtractor(BaseSorting):
         self.add_sorting_segment(sorting_segment)
 
         for property_name, values in all_unit_properties.items():
-            self.set_property(key=property_name, values=np.array(values))
+            self.set_property(key=property_name, values=values)
 
 
 class IblSortingSegment(BaseSortingSegment):

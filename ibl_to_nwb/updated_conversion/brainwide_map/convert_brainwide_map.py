@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from shutil import rmtree
 
@@ -21,6 +22,9 @@ from ibl_to_nwb.updated_conversion.datainterfaces import (
 
 
 def convert_session(base_path: Path, session: str, nwbfile_path: str, stub_test: bool = False):
+    if not stub_test:
+        assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
+
     # Download behavior and spike sorted data for this session
     session_path = base_path / session
     cache_folder = base_path / session / "cache"
@@ -101,7 +105,7 @@ session_retrieval_one = ONE(
 )
 sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
 
-for session in sessions[:1]:
+for session in sessions[1:2]:
     session_id = session["id"]
     print(f"Converting session '{session_id}'")
     nwbfile_path = base_path / "nwbfiles" / session_id / f"{session_id}.nwb"

@@ -16,10 +16,13 @@ class IblSortingInterface(BaseSortingExtractorInterface):
         metadata = super().get_metadata()
 
         ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
-        metadata.update(ecephys_metadata)
 
+        metadata.update(Ecephys=dict())
+        metadata["Ecephys"].update(UnitProperties=ecephys_metadata["Ecephys"]["UnitProperties"])
         if "allen_location" in self.sorting_extractor.get_property_keys():
             for column_name in ["allen_location", "beryl_location", "cosmos_location"]:
-                metadata["Ecephys"]["UnitProperties"].extend(ecephys_metadata["Ecephys"][column_name])
+                metadata["Ecephys"]["UnitProperties"].extend(
+                    [column for column in ecephys_metadata["Ecephys"]["Electrodes"] if column["name"] == column_name]
+                )
 
         return metadata

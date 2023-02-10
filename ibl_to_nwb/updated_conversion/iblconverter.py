@@ -27,8 +27,13 @@ class IblConverter(ConverterPipe):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()  # Aggregates from the interfaces
 
-        session_metadata = self.one.alyx.rest(url="sessions", action="list", id=self.session)[0]
-        lab_metadata = next(lab for lab in self.one.alyx.rest("labs", "list") if lab["name"] == session_metadata["lab"])
+        session_metadata_list = one.alyx.rest(url="sessions", action="list", id=session_id)
+        assert len(session_metadata_list) == 1, "More than one session metadata returned by query."
+        session_metadata = session_metadata_list[0]
+
+        lab_metadata_list = one.alyx.rest("labs", "list", name=session_metadata["lab"])
+        assert len(lab_metadata_list) == 1, "More than one lab metadata returned by query."
+        lab_metadata = lab_metadata_list[0]
 
         # TODO: include session_metadata['number'] in the extension attributes
         session_start_time = datetime.fromisoformat(session_metadata["start_time"])
@@ -40,9 +45,9 @@ class IblConverter(ConverterPipe):
         metadata["NWBFile"]["institution"] = lab_metadata["institution"]
         metadata["NWBFile"]["protocol"] = session_metadata["task_protocol"]
 
-        subject_metadata = self.one.alyx.rest(url="subjects", action="list", field_filter1=session_metadata["subject"])[
-            0
-        ]
+        subject_metadata_list = one.alyx.rest("subjects", "list", nickname=session_metadata["subject"])
+        assert len(subject_metadata_list) == 1, "More than one subject metadata returned by query."
+        subject_metadata = subject_metadata_list[0]
 
         subject_extra_metadata = dict()
         subject_extra_metadata_name_mapping = dict(
