@@ -56,11 +56,7 @@ Ecephys:
         The standard deviation of the presence ratio of spike counts over non-empty bins of width of 10 seconds.
     - name: sliding_refractory_period_violation
       description: |
-        A binary metric which determines whether there is an acceptable level of refractory period violations by using a sliding refractory period.
-
-This takes into account the firing rate of the neuron and computes a maximum acceptable level of contamination at different possible values of the refractory period. If the unit has less than the maximum contamination at any of the possible values of the refractory period, the unit passes.
-
-A neuron will always fail this metric for very low firing rates, and thus this metric takes into account both firing rate and refractory period violations.
+        "A binary metric which determines whether there is an acceptable level of refractory period violations by using a sliding refractory period.\nThis takes into account the firing rate of the neuron and computes a maximum acceptable level of contamination at different possible values of the refractory period. If the unit has less than the maximum contamination at any of the possible values of the refractory period, the unit passes.\nA neuron will always fail this metric for very low firing rates, and thus this metric takes into account both firing rate and refractory period violations."
     - name: spike_count
       description: Total number of spikes for each unit.
     - name: firing_rate
