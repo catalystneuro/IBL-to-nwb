@@ -27,35 +27,46 @@ Ecephys:
       description: Relative mean depth of each unit in micrometers. 0 is the deepest site, positive values are above this.
     # Cluster metrics start below here
     - name: maximum_amplitude
-      description: Maximum amplitude of the waveforms for each unit in volts.
+      description: Maximum amplitude of the waveforms for each unit in microvolts.
     - name: minimum_amplitude
-      description: Minimum amplitude of the waveforms for each unit in volts.
+      description: Minimum amplitude of the waveforms for each unit in microvolts.
     - name: median_amplitude
-      description: Median amplitude of the waveforms for each unit in volts.
+      description: Median amplitude of the waveforms for each unit in microvolts.
     - name: standard_deviation_amplitude
-      description: TODO
+      description: Standard deviation of the log-amplitude of the waveforms for each unit in decibels.
     - name: contamination
-      description: TODO
+      description: |
+        "An estimate of the contamination of the unit (i.e. a pseudo false positive measure) based on the number of spikes, number of ISI violations, and time between the first and last spike. See Hill et al. (2011) J Neurosci 31: 8699-8705) for more details."
     - name: alternative_contamination
-      description: TODO
+      description: |
+        "A modified estimate of the contamination of the unit (i.e. a pseudo false positive measure) based on the number of spikes, number of ISI violations, and time between the first and last spike. See Hill et al. (2011) J Neurosci 31: 8699-8705) for more details."
     - name: drift
-      description: TODO
+      description: Average drift of the unit in micrometers.
     - name: missed_spikes_estimate
-      description: TODO
+      description: |
+        "Computes the approximate fraction of spikes missing from a spike feature distribution for a given unit, assuming the distribution is symmetric. Inspired by metrics described in Hill et al. (2011) J Neurosci 31: 8699-8705."
     - name: noise_cutoff
-      description: TODO
+      description: |
+        A new metric to determine whether the amplitude distribution for each unit is cut off (at floor), without assuming a Gaussian distribution. This metric takes the amplitude distribution, computes the mean and standard deviation of an upper quartile of the distribution, and determines how many standard deviations away from that mean a lower quartile lies.
     - name: presence_ratio
-      description: TODO
+      description: |
+        The average presence ratio of spike counts; the number of bins where there is at least one spike, over the total number of bins, given a specified bin width.
     - name: presence_ratio_standard_deviation
-      description: TODO
-    - name: slidingRP_violation  # RP?
-      description: TODO
+      description: |
+        The standard deviation of the presence ratio of spike counts over non-empty bins of width of 10 seconds.
+    - name: sliding_refractory_period_violation
+      description: |
+        A binary metric which determines whether there is an acceptable level of refractory period violations by using a sliding refractory period.
+
+This takes into account the firing rate of the neuron and computes a maximum acceptable level of contamination at different possible values of the refractory period. If the unit has less than the maximum contamination at any of the possible values of the refractory period, the unit passes.
+
+A neuron will always fail this metric for very low firing rates, and thus this metric takes into account both firing rate and refractory period violations.
     - name: spike_count
-      description: TODO
+      description: Total number of spikes for each unit.
     - name: firing_rate
-      description: TODO
+      description: Average firing rate of each unit in Hz.
     - name: label
-      description: TODO
+      description: Proportion of quality metrics passed.
     - name: spike_amplitudes
       description: Peak amplitude of each spike for each unit.
     - name: spike_relative_depths
