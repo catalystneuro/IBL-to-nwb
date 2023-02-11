@@ -25,7 +25,7 @@ class IblSortingExtractor(BaseSorting):
             password="international",
             silent=True,
             cache_dir=cache_folder,
-        )  # cache_dir=cache_folder)
+        )
         atlas = AllenAtlas()
         brain_regions = BrainRegions()
 

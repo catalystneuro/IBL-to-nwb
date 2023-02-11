@@ -10,10 +10,10 @@ from pynwb import NWBFile
 
 
 class IblConverter(ConverterPipe):
-    def __init__(self, one: ONE, session: str, data_interfaces: list):
+    def __init__(self, one: ONE, session: str, data_interfaces: list, verbose: bool = True):
         self.one = one
         self.session = session
-        super().__init__(data_interfaces=data_interfaces)
+        super().__init__(data_interfaces=data_interfaces, verbose=verbose)
 
     def get_metadata_schema(self) -> dict:
         metadata_schema = super().get_metadata_schema()
@@ -27,11 +27,11 @@ class IblConverter(ConverterPipe):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()  # Aggregates from the interfaces
 
-        session_metadata_list = one.alyx.rest(url="sessions", action="list", id=session_id)
+        session_metadata_list = self.one.alyx.rest(url="sessions", action="list", id=self.session)
         assert len(session_metadata_list) == 1, "More than one session metadata returned by query."
         session_metadata = session_metadata_list[0]
 
-        lab_metadata_list = one.alyx.rest("labs", "list", name=session_metadata["lab"])
+        lab_metadata_list = self.one.alyx.rest("labs", "list", name=session_metadata["lab"])
         assert len(lab_metadata_list) == 1, "More than one lab metadata returned by query."
         lab_metadata = lab_metadata_list[0]
 
@@ -45,7 +45,7 @@ class IblConverter(ConverterPipe):
         metadata["NWBFile"]["institution"] = lab_metadata["institution"]
         metadata["NWBFile"]["protocol"] = session_metadata["task_protocol"]
 
-        subject_metadata_list = one.alyx.rest("subjects", "list", nickname=session_metadata["subject"])
+        subject_metadata_list = self.one.alyx.rest("subjects", "list", nickname=session_metadata["subject"])
         assert len(subject_metadata_list) == 1, "More than one subject metadata returned by query."
         subject_metadata = subject_metadata_list[0]
 

@@ -32,8 +32,8 @@ def convert_session(
             assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
 
         # Download behavior and spike sorted data for this session
-        session_path = base_path / session
-        cache_folder = base_path / session / "cache"
+        session_path = base_path / "ibl_conversion" / session
+        cache_folder = base_path / "ibl_conversion" / session / "cache"
         session_one = ONE(
             base_url="https://openalyx.internationalbrainlab.org",
             password="international",
@@ -87,7 +87,9 @@ def convert_session(
             data_interfaces.append(LickInterface(one=session_one, session=session))
 
         # Run conversion
-        session_converter = BrainwideMapConverter(one=session_one, session=session, data_interfaces=data_interfaces)
+        session_converter = BrainwideMapConverter(
+            one=session_one, session=session, data_interfaces=data_interfaces, verbose=False
+        )
 
         conversion_options = dict()
         if stub_test:
@@ -111,19 +113,22 @@ def convert_session(
 
         return 1
     except Exception as exception:
-        error_file_path = Path(__file__) / f"{session}_error.txt"
+        error_file_path = base_path / "errors" / f"{session}_error.txt"
+        error_file_path.parent.mkdir(exist_ok=True)
         with open(file=error_file_path, mode="w") as file:
             file.write(f"{type(exception)}: {str(exception)}\n{traceback.format_exc()}")
         return 0
 
 
 number_of_parallel_jobs = 3
-base_path = Path("/home/jovyan/IBL/")  # prototype on DANDI Hub for now
+base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 
 session_retrieval_one = ONE(
     base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
 )
-brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")[:5]
+brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")[
+    :number_of_parallel_jobs
+]
 
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
     with tqdm(total=len(brain_wide_sessions), position=0, desc="Converting sessions...") as main_progress_bar:

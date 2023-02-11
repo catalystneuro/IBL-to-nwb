@@ -12,8 +12,6 @@ Ecephys:
       description: Antero-posterior coordinate relative to Bregma, back negative, in micrometers.
     - name: ibl_z
       description: Dorso-ventral coordinate relative to Bregma, ventral negative, in micrometers.
-    - name: allen_location
-      description: Brain region reference in the Allen Mouse Brain Atlas.
     - name: beryl_location
       description: |
         Brain region reference in the IBL Beryll Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.
@@ -21,6 +19,8 @@ Ecephys:
       description: |
         Brain region reference in the IBL Cosmos Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.
   UnitProperties:
+    - name: allen_location
+      description: Brain region reference in the Allen Mouse Brain Atlas.
     - name: maximum_amplitude_channel
       description: Channel which has the largest amplitude for each unit.
     - name: mean_relative_depth

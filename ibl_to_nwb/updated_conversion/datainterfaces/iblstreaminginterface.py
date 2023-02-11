@@ -32,7 +32,12 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         else:
             self.es_key = "ElectricalSeriesAp"
 
-        one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
+        one = ONE(
+            base_url="https://openalyx.internationalbrainlab.org",
+            password="international",
+            silent=True,
+            cache_dir=kwargs.get("cache_folder", None),
+        )
         atlas = AllenAtlas()
         brain_regions = BrainRegions()
 
@@ -60,9 +65,9 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
             self.recording_extractor.set_property(key="ibl_x", values=ibl_coords[:, 0])
             self.recording_extractor.set_property(key="ibl_y", values=ibl_coords[:, 1])
             self.recording_extractor.set_property(key="ibl_z", values=ibl_coords[:, 2])
-            self.recording_extractor.set_property(
-                key="location", values=list(channels["acronym"])
-            )  # Acronyms are symmetric, do not differentiate hemisphere to be consistent with their usage
+            self.recording_extractor.set_property(  # SpikeInterface refers to this as 'brain_area'
+                key="brain_area", values=list(channels["acronym"])  # NeuroConv remaps to 'location', a required field
+            )  # Acronyms are symmetric, do not differentiate hemisphere
             self.recording_extractor.set_property(
                 key="beryl_location",
                 values=list(brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Beryl")),
@@ -110,6 +115,8 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
                 ),
             )
         )
+        if "progress_position" in kwargs:
+            kwargs.pop("progress_position")
         kwargs.update(es_key=self.es_key)
         super().run_conversion(**kwargs)
 
@@ -141,18 +148,18 @@ class IblStreamingLfInterface(IblStreamingApInterface):
 
         return metadata
 
-    def run_conversion(self, **kwargs):
-        # The buffer and chunk shapes must be set explicitly for good performance with the streaming
-        # Otherwise, the default buffer/chunk shapes might re-request the same data packet multiple times
-        chunk_frames = 100 if kwargs.get("stub_test", False) else 30_000
-        buffer_frames = 100 if kwargs.get("stub_test", False) else 5 * 30_000
-        kwargs.update(
-            iterator_opts=dict(
-                display_progress=True,
-                chunk_shape=(chunk_frames, 16),  # ~1 MB
-                buffer_shape=(buffer_frames, 384),  # 100 MB
-                progress_bar_options=dict(desc=f"Converting stream '{self.stream_name}' session '{self.session}'..."),
-            )
-        )
-        kwargs.update(es_key=self.es_key)
-        super(IblStreamingApInterface, self).run_conversion(**kwargs)
+    # def run_conversion(self, **kwargs):
+    #    # The buffer and chunk shapes must be set explicitly for good performance with the streaming
+    #    # Otherwise, the default buffer/chunk shapes might re-request the same data packet multiple times
+    #    chunk_frames = 100 if kwargs.get("stub_test", False) else 30_000
+    #    buffer_frames = 100 if kwargs.get("stub_test", False) else 5 * 30_000
+    #    kwargs.update(
+    #        iterator_opts=dict(
+    #            display_progress=True,
+    #            chunk_shape=(chunk_frames, 16),  # ~1 MB
+    #            buffer_shape=(buffer_frames, 384),  # 100 MB
+    #            progress_bar_options=dict(desc=f"Converting stream '{self.stream_name}' session '{self.session}'..."),
+    #        )
+    #    )
+    #    kwargs.update(es_key=self.es_key)
+    #    super(IblStreamingApInterface, self).run_conversion(**kwargs)
