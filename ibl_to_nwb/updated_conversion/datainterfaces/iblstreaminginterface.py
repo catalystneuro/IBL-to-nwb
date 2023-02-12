@@ -25,13 +25,27 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         self.stream_name = kwargs["stream_name"]
         super().__init__(**kwargs)
 
+        # Determine es_key and ElectrodeGroup
         self.available_streams = self.get_stream_names(session=self.session)
         if len(self.available_streams) > 1:
-            probe_number = self.stream_name[5:7]
-            self.es_key = f"ElectricalSeriesAp{probe_number}"
+            self.probe_number = self.stream_name[5:7]
+            self.es_key = f"ElectricalSeriesAp{self.probe_number}"
         else:
             self.es_key = "ElectricalSeriesAp"
 
+        # Remove 'shank' property is all zero
+        shank_property = self.recording_extractor.get_property(key="shank")
+        if not any(shank_property):
+            self.recording_extractor.delete_property(key="shank")
+
+        # Correct channel groups when multi-probe
+        if len(self.available_streams) > 1:
+            # set_channel_groups removes probe
+            self.recording_extractor.set_property(
+                key="group", values=np.array([int(self.probe_number)] * self.recording_extractor.get_num_channels())
+            )
+
+        # Set Atlas info
         one = ONE(
             base_url="https://openalyx.internationalbrainlab.org",
             password="international",
@@ -61,6 +75,9 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
             self.recording_extractor.set_property(key="x", values=ccf_coords[:, 0])
             self.recording_extractor.set_property(key="y", values=ccf_coords[:, 1])
             self.recording_extractor.set_property(key="z", values=ccf_coords[:, 2])
+        except ValueError as exception:
+            if str(exception).endswith("value lies outside of the atlas volume."):
+                pass
         finally:
             self.recording_extractor.set_property(key="ibl_x", values=ibl_coords[:, 0])
             self.recording_extractor.set_property(key="ibl_y", values=ibl_coords[:, 1])
@@ -130,13 +147,6 @@ class IblStreamingLfInterface(IblStreamingApInterface):
         super().__init__(**kwargs)
         self.es_key = self.es_key.replace("Ap", "Lf")
 
-    def get_metadata_schema(self) -> dict:
-        metadata_schema = super().get_metadata_schema()
-        metadata_schema["properties"]["Ecephys"]["properties"].update(
-            {self.es_key: get_schema_from_hdmf_class(ElectricalSeries)}
-        )
-        return metadata_schema
-
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
@@ -147,19 +157,3 @@ class IblStreamingLfInterface(IblStreamingApInterface):
             metadata["Ecephys"][self.es_key].update(name=self.es_key)
 
         return metadata
-
-    # def run_conversion(self, **kwargs):
-    #    # The buffer and chunk shapes must be set explicitly for good performance with the streaming
-    #    # Otherwise, the default buffer/chunk shapes might re-request the same data packet multiple times
-    #    chunk_frames = 100 if kwargs.get("stub_test", False) else 30_000
-    #    buffer_frames = 100 if kwargs.get("stub_test", False) else 5 * 30_000
-    #    kwargs.update(
-    #        iterator_opts=dict(
-    #            display_progress=True,
-    #            chunk_shape=(chunk_frames, 16),  # ~1 MB
-    #            buffer_shape=(buffer_frames, 384),  # 100 MB
-    #            progress_bar_options=dict(desc=f"Converting stream '{self.stream_name}' session '{self.session}'..."),
-    #        )
-    #    )
-    #    kwargs.update(es_key=self.es_key)
-    #    super(IblStreamingApInterface, self).run_conversion(**kwargs)

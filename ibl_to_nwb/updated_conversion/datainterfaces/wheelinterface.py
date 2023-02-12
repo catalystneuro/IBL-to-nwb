@@ -1,10 +1,11 @@
 from pathlib import Path
 
+from brainbox.behavior import wheel as wheel_methods
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
-from pynwb import H5DataIO
+from pynwb import H5DataIO, TimeSeries
 from pynwb.behavior import CompassDirection, SpatialSeries
 from pynwb.epoch import TimeIntervals
 
@@ -24,6 +25,15 @@ class WheelInterface(BaseDataInterface):
     def run_conversion(self, nwbfile, metadata: dict):
         wheel_moves = self.one.load_object(id=self.session, obj="wheelMoves", collection="alf")
         wheel = self.one.load_object(id=self.session, obj="wheel", collection="alf")
+
+        # Estimate velocity and acceleration
+        interpolation_frequency = 1000.0  # Hz
+        interpolated_position, interpolated_timestamps = wheel_methods.interpolate_position(
+            re_ts=wheel["timestamps"], re_pos=wheel["position"], freq=interpolation_frequency
+        )
+        velocity, acceleration = wheel_methods.velocity_smoothed(
+            pos=interpolated_position, freq=interpolation_frequency
+        )
 
         # Wheel intervals of movement
         wheel_movement_intervals = TimeIntervals(
@@ -45,11 +55,27 @@ class WheelInterface(BaseDataInterface):
                 description=metadata["WheelPosition"]["description"],
                 data=H5DataIO(wheel["position"], compression=True),
                 timestamps=H5DataIO(wheel["timestamps"], compression=True),
-                unit="rads",
+                unit="rad",
                 reference_frame="Initial angle at start time is zero. Counter-clockwise is positive.",
             )
+        )
+        velocity_series = TimeSeries(
+            name=metadata["WheelVelocity"]["name"],
+            description=metadata["WheelVelocity"]["description"],
+            data=H5DataIO(velocity, compression=True),
+            timestamps=H5DataIO(interpolated_timestamps, compression=True),
+            unit="rad/s",
+        )
+        acceleration_series = TimeSeries(
+            name=metadata["WheelAcceleration"]["name"],
+            description=metadata["WheelAcceleration"]["description"],
+            data=H5DataIO(velocity, compression=True),
+            timestamps=H5DataIO(interpolated_timestamps, compression=True),
+            unit="rad/s^2",
         )
 
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
         behavior_module.add(wheel_movement_intervals)
         behavior_module.add(compass_direction)
+        behavior_module.add(velocity_series)
+        behavior_module.add(acceleration_series)

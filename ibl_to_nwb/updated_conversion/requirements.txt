@@ -1,4 +1,5 @@
-neuroconv[spikeglx]==0.2.3
+neuroconv[spikeglx]==0.2.4
+spikeinterface>=0.97.0
 ONE-api>=1.16.3
 ibllib>=2.19.0
 ndx-pose>=0.1.1

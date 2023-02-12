@@ -68,7 +68,7 @@ class IblSortingExtractor(BaseSorting):
                 noise_cutoff="noise_cutoff",
                 presence_ratio="presence_ratio",
                 presence_ratio_std="presence_ratio_standard_deviation",
-                slidingRP_viol="slidingRP_viol",
+                slidingRP_viol="sliding_refractory_period_violation",
                 spike_count="spike_count",
                 firing_rate="firing_rate",
                 label="label",

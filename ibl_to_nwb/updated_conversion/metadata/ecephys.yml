@@ -18,6 +18,20 @@ Ecephys:
     - name: cosmos_location
       description: |
         Brain region reference in the IBL Cosmos Atlas, which is a reduced mapping of functionally related regions from the Allen Mouse Brain Atlas.
+    - name: gain_to_uV
+      description: Scaling factor for converting the samples from this channel to microvolts (may require shifting by the corresponding offset).
+    - name: offset_to_uV
+      description: The offset factor for translating the gain-scaled samples from this channel to microvolts.
+    - name: adc
+      description: TODO
+    - name: inter_sample_shift
+      description: Time-delay of each channel sampling in proportion of the global sampling period.
+    - name: shank_row
+      description: The row index of the channel on its shank.
+    - name: shank_col
+      description: The column index of the channel on its shank.
+    - name: index_on_probe
+      description: The global index of the channel on the probe.
   UnitProperties:
     - name: allen_location
       description: Brain region reference in the Allen Mouse Brain Atlas.

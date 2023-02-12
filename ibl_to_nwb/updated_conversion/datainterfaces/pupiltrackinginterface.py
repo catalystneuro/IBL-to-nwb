@@ -33,7 +33,7 @@ class PupilTrackingInterface(BaseDataInterface):
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:
             pupil_time_series.append(
                 TimeSeries(
-                    name=left_or_right + metadata["Pupils"][ibl_key]["name"],
+                    name=left_or_right.capitalize() + metadata["Pupils"][ibl_key]["name"],
                     description=metadata["Pupils"][ibl_key]["description"],
                     data=H5DataIO(np.array(camera_data["features"][ibl_key]), compression=True),
                     timestamps=camera_data["times"],
