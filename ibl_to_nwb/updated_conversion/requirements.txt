@@ -3,3 +3,4 @@ spikeinterface>=0.97.0
 ONE-api>=1.16.3
 ibllib>=2.19.0
 ndx-pose>=0.1.1
+ndx-ibl-metadata @ git+https://github.com/catalystneuro/ndx-ibl-metadata.git@update_subject_schema

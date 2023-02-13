@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from dateutil import tz
+from ndx_ibl_metadata import IblSubject
 from neuroconv import ConverterPipe
 from one.api import ONE
 from pynwb import NWBFile
@@ -18,9 +19,8 @@ class IblConverter(ConverterPipe):
     def get_metadata_schema(self) -> dict:
         metadata_schema = super().get_metadata_schema()
 
-        metadata_schema[
-            "additionalProperties"
-        ] = True  # way of manually overriding custom metadata for interfaces we don't care about validating
+        # way of manually overriding custom metadata for interfaces we don't care about validating
+        metadata_schema["additionalProperties"] = True
 
         return metadata_schema
 
@@ -44,12 +44,15 @@ class IblConverter(ConverterPipe):
         metadata["NWBFile"]["lab"] = session_metadata["lab"]
         metadata["NWBFile"]["institution"] = lab_metadata["institution"]
         metadata["NWBFile"]["protocol"] = session_metadata["task_protocol"]
+        # Setting publication and experiment description at project-specific converter level
 
         subject_metadata_list = self.one.alyx.rest("subjects", "list", nickname=session_metadata["subject"])
         assert len(subject_metadata_list) == 1, "More than one subject metadata returned by query."
         subject_metadata = subject_metadata_list[0]
 
-        subject_extra_metadata = dict()
+        if "Subject" not in metadata:
+            metadata.update(Subject=dict())
+
         subject_extra_metadata_name_mapping = dict(
             last_water_restriction="last_water_restriction",  # ISO
             remaining_water="remaining_water_ml",
@@ -59,13 +62,9 @@ class IblConverter(ConverterPipe):
         for ibl_key, nwb_name in subject_extra_metadata_name_mapping.items():
             if ibl_key not in subject_metadata:
                 continue
-            subject_extra_metadata.update({nwb_name: subject_metadata[ibl_key]})
+            metadata["Subject"].update({nwb_name: subject_metadata[ibl_key]})
 
-        if "Subject" not in metadata:
-            metadata.update(Subject=dict())
-
-        metadata["Subject"]["description"] = json.dumps(subject_extra_metadata)
-
+        # Subject description set at project-specific converter level
         metadata["Subject"]["subject_id"] = subject_metadata["nickname"]
         metadata["Subject"]["sex"] = subject_metadata["sex"]
         metadata["Subject"]["species"] = "Mus musculus"  # Though it's a field in their schema, it's never specified
@@ -76,3 +75,66 @@ class IblConverter(ConverterPipe):
         # There's also 'age_weeks' but I'm excluding that based on existence of DOB
 
         return metadata
+
+    def run_conversion(
+        self,
+        nwbfile_path: Optional[str] = None,
+        nwbfile: Optional[NWBFile] = None,
+        metadata: Optional[dict] = None,
+        overwrite: bool = False,
+        conversion_options: Optional[dict] = None,
+    ) -> NWBFile:
+        """
+        Run the NWB conversion over all the instantiated data interfaces.
+
+        Parameters
+        ----------
+        nwbfile_path: FilePathType
+            Path for where to write or load (if overwrite=False) the NWBFile.
+            If specified, the context will always write to this location.
+        nwbfile: NWBFile, optional
+            An in-memory NWBFile object to write to the location.
+        metadata: dict, optional
+            Metadata dictionary with information used to create the NWBFile when one does not exist or overwrite=True.
+        overwrite: bool, optional
+            Whether or not to overwrite the NWBFile if one exists at the nwbfile_path.
+            The default is False (append mode).
+        verbose: bool, optional
+            If 'nwbfile_path' is specified, informs user after a successful write operation.
+            The default is True.
+        conversion_options: dict, optional
+            Similar to source_data, a dictionary containing keywords for each interface for which non-default
+            conversion specification is requested.
+
+        Returns
+        -------
+        nwbfile: NWBFile
+            The in-memory NWBFile object after all conversion operations are complete.
+        """
+        subject_metadata = metadata.pop("Subject")
+        ibl_subject = IblSubject(**subject_metadata)
+
+        if metadata is None:
+            metadata = self.get_metadata()
+        self.validate_metadata(metadata=metadata)
+
+        if conversion_options is None:
+            conversion_options = dict()
+        default_conversion_options = self.get_conversion_options()
+        conversion_options_to_run = dict_deep_update(default_conversion_options, conversion_options)
+        self.validate_conversion_options(conversion_options=conversion_options_to_run)
+
+        with make_or_load_nwbfile(
+            nwbfile_path=nwbfile_path,
+            nwbfile=nwbfile,
+            metadata=metadata,
+            overwrite=overwrite,
+            verbose=self.verbose,
+        ) as nwbfile_out:
+            nwbfile_out = ibl_subject
+            for interface_name, data_interface in self.data_interface_objects.items():
+                data_interface.run_conversion(
+                    nwbfile=nwbfile_out, metadata=metadata, **conversion_options_to_run.get(interface_name, dict())
+                )
+
+        return nwbfile_out

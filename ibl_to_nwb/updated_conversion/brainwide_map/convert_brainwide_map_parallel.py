@@ -146,7 +146,7 @@ def automatic_dandi_upload(
             warn("Unable to clean up source files and dandiset! Please manually delete them.", stacklevel=2)
 
 
-def convert_session(
+def convert_and_upload_session(
     base_path: Path, session: str, nwbfile_path: str, stub_test: bool = False, progress_position: int = 0
 ):
     try:
@@ -231,8 +231,10 @@ def convert_session(
             conversion_options=conversion_options,
             overwrite=True,
         )
-        automatic_dandi_upload(dandiset_id="000409", nwb_folder_path=nwbfile_path.parent, cleanup=False)
-        # rmtree(cache_folder)
+        automatic_dandi_upload(dandiset_id="000409", nwb_folder_path=nwbfile_path.parent, cleanup=cleanup)
+        if cleanup:
+            rmtree(cache_folder)
+            rmtree(nwbfile_path.parent)
 
         return 1
     except Exception as exception:
@@ -243,14 +245,14 @@ def convert_session(
         return 0
 
 
-number_of_parallel_jobs = 4
+number_of_parallel_jobs = 2
 base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 
 session_retrieval_one = ONE(
     base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
 )
 brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")[
-    2 : (2 + number_of_parallel_jobs)
+    0 : (0 + number_of_parallel_jobs)
 ]
 
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
@@ -262,7 +264,7 @@ with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
             nwbfile_path.parent.mkdir(exist_ok=True)
             futures.append(
                 executor.submit(
-                    convert_session,
+                    convert_and_upload_session,
                     base_path=base_path,
                     session=session,
                     nwbfile_path=nwbfile_path,

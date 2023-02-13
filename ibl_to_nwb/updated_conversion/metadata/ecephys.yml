@@ -23,7 +23,7 @@ Ecephys:
     - name: offset_to_uV
       description: The offset factor for translating the gain-scaled samples from this channel to microvolts.
     - name: adc
-      description: TODO
+      description: Each channel is hardwired to a specific analog digital converter (ADC) and has a specific order in the sampling lineup. This column is the index of the ADC unit for a given channel.
     - name: inter_sample_shift
       description: Time-delay of each channel sampling in proportion of the global sampling period.
     - name: shank_row
