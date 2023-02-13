@@ -77,7 +77,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
             )
             nwbfile.add_acquisition(
                 ImageSeries(
-                    name=f"OriginalVideo{self.camera_name.capitalize()}",
+                    name=f"OriginalVideo{left_right_or_body.capitalize()}Camera",
                     description="The original video each pose was estimated from.",
                     unit="n.a.",
                     external_file=[str(original_video_file)],

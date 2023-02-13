@@ -147,11 +147,15 @@ def automatic_dandi_upload(
 
 
 def convert_and_upload_session(
-    base_path: Path, session: str, nwbfile_path: str, stub_test: bool = False, progress_position: int = 0
+    base_path: Path,
+    session: str,
+    nwbfile_path: str,
+    stub_test: bool = False,
+    progress_position: int = 0,
+    cleanup: bool = False,
 ):
     try:
-        if not stub_test:
-            assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
+        assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
 
         # Download behavior and spike sorted data for this session
         session_path = base_path / "ibl_conversion" / session
@@ -169,21 +173,21 @@ def convert_and_upload_session(
 
         # Initialize as many of each interface as we need across the streams
         data_interfaces = list()
-        for stream_name in ap_stream_names:
-            data_interfaces.append(
-                IblStreamingApInterface(
-                    session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
-                )
-            )
-        for stream_name in lf_stream_names:
-            data_interfaces.append(
-                IblStreamingLfInterface(
-                    session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
-                )
-            )
+        # for stream_name in ap_stream_names:
+        #    data_interfaces.append(
+        #        IblStreamingApInterface(
+        #            session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
+        #        )
+        #    )
+        # for stream_name in lf_stream_names:
+        #    data_interfaces.append(
+        #        IblStreamingLfInterface(
+        #            session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
+        #        )
+        #    )
 
         # These interfaces should always be present in source data
-        data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
+        # data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
         data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
         data_interfaces.append(WheelInterface(one=session_one, session=session))
 
@@ -245,7 +249,7 @@ def convert_and_upload_session(
         return 0
 
 
-number_of_parallel_jobs = 2
+number_of_parallel_jobs = 1
 base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 
 session_retrieval_one = ONE(
@@ -270,6 +274,7 @@ with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
                     nwbfile_path=nwbfile_path,
                     progress_position=1 + progress_position,
                     stub_test=True,
+                    cleanup=False,
                 )
             )
         for future in as_completed(futures):

@@ -6,6 +6,8 @@ from typing import Optional
 from dateutil import tz
 from ndx_ibl_metadata import IblSubject
 from neuroconv import ConverterPipe
+from neuroconv.tools.nwb_helpers import make_or_load_nwbfile
+from neuroconv.utils import dict_deep_update
 from one.api import ONE
 from pynwb import NWBFile
 
@@ -41,7 +43,7 @@ class IblConverter(ConverterPipe):
         session_start_time = session_start_time.replace(tzinfo=tzinfo)
         metadata["NWBFile"]["session_start_time"] = session_start_time
         metadata["NWBFile"]["session_id"] = session_metadata["id"]
-        metadata["NWBFile"]["lab"] = session_metadata["lab"]
+        metadata["NWBFile"]["lab"] = session_metadata["lab"].replace("lab", "")
         metadata["NWBFile"]["institution"] = lab_metadata["institution"]
         metadata["NWBFile"]["protocol"] = session_metadata["task_protocol"]
         # Setting publication and experiment description at project-specific converter level
@@ -131,7 +133,7 @@ class IblConverter(ConverterPipe):
             overwrite=overwrite,
             verbose=self.verbose,
         ) as nwbfile_out:
-            nwbfile_out = ibl_subject
+            nwbfile_out.subject = ibl_subject
             for interface_name, data_interface in self.data_interface_objects.items():
                 data_interface.run_conversion(
                     nwbfile=nwbfile_out, metadata=metadata, **conversion_options_to_run.get(interface_name, dict())

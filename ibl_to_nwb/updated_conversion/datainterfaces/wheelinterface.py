@@ -69,7 +69,7 @@ class WheelInterface(BaseDataInterface):
         acceleration_series = TimeSeries(
             name=metadata["WheelAcceleration"]["name"],
             description=metadata["WheelAcceleration"]["description"],
-            data=H5DataIO(velocity, compression=True),
+            data=H5DataIO(acceleration, compression=True),
             timestamps=H5DataIO(interpolated_timestamps, compression=True),
             unit="rad/s^2",
         )
