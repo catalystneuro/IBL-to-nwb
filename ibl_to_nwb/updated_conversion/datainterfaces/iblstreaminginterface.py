@@ -78,6 +78,8 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         except ValueError as exception:
             if str(exception).endswith("value lies outside of the atlas volume."):
                 pass
+            else:
+                raise exception
         finally:
             self.recording_extractor.set_property(key="ibl_x", values=ibl_coords[:, 0])
             self.recording_extractor.set_property(key="ibl_y", values=ibl_coords[:, 1])
