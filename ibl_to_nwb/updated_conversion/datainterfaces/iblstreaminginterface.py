@@ -1,14 +1,15 @@
-from typing import Optional
+"""Data interface wrapper around the SpikeInterface extractor - also sets atlas information."""
+from pathlib import Path
 
-from neuroconv.datainterfaces.ecephys.baselfpextractorinterface import (
-    BaseLFPExtractorInterface,
-)
+import numpy as np
+from brainbox.io.one import SpikeSortingLoader
+from ibllib.atlas import AllenAtlas
+from ibllib.atlas.regions import BrainRegions
 from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import (
     BaseRecordingExtractorInterface,
 )
-from neuroconv.utils import get_schema_from_hdmf_class
+from neuroconv.utils import get_schema_from_hdmf_class, load_dict_from_file
 from one.api import ONE
-from pydantic import DirectoryPath
 from pynwb.ecephys import ElectricalSeries
 
 
@@ -24,6 +25,51 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         self.stream_name = kwargs["stream_name"]
         super().__init__(**kwargs)
 
+        one = ONE(base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True)
+        atlas = AllenAtlas()
+        brain_regions = BrainRegions()
+
+        spike_sorting_loader = SpikeSortingLoader(
+            eid=self.session, one=one, pname=self.stream_name.split(".")[0], atlas=atlas
+        )
+        _, _, channels = spike_sorting_loader.load_spike_sorting()
+
+        self.has_histology = False
+        if spike_sorting_loader.histology not in ["alf", "resolved"]:
+            return
+        self.has_histology = True
+
+        ibl_coords = np.empty(shape=(384, 3))
+        ibl_coords[:, 0] = channels["x"]
+        ibl_coords[:, 1] = channels["y"]
+        ibl_coords[:, 2] = channels["z"]
+
+        try:
+            ccf_coords = atlas.xyz2ccf(ibl_coords)  # Sometimes this can fail to map and raises an error
+            self.recording_extractor.set_property(key="x", values=ccf_coords[:, 0])
+            self.recording_extractor.set_property(key="y", values=ccf_coords[:, 1])
+            self.recording_extractor.set_property(key="z", values=ccf_coords[:, 2])
+        except ValueError as exception:
+            if str(exception).endswith("value lies outside of the atlas volume."):
+                pass
+            else:
+                raise exception
+        finally:
+            self.recording_extractor.set_property(key="ibl_x", values=ibl_coords[:, 0])
+            self.recording_extractor.set_property(key="ibl_y", values=ibl_coords[:, 1])
+            self.recording_extractor.set_property(key="ibl_z", values=ibl_coords[:, 2])
+            self.recording_extractor.set_property(
+                key="allen_location", values=list(channels["acronym"])
+            )  # Acronyms are symmetric, do not differentiate hemisphere to be consistent with their usage
+            self.recording_extractor.set_property(
+                key="beryl_location",
+                values=list(brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Beryl")),
+            )
+            self.recording_extractor.set_property(
+                key="cosmos_location",
+                values=list(brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Cosmos")),
+            )
+
     def get_metadata_schema(self) -> dict:
         metadata_schema = super().get_metadata_schema()
         metadata_schema["properties"]["Ecephys"]["properties"].update(
@@ -34,11 +80,11 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        metadata["Ecephys"].update(
-            ElectricalSeriesAp=dict(
-                name="ElectricalSeriesAp", description="Raw acquisition traces for the high-pass (ap) SpikeGLX data."
-            )
-        )
+        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
+
+        metadata["Ecephys"].update(ElectricalSeriesAp=ecephys_metadata["Ecephys"]["ElectricalSeriesAp"])
+        if self.has_histology:
+            metadata["Ecephys"].update(Electrodes=ecephys_metadata["Ecephys"]["Electrodes"])
 
         return metadata
 
@@ -74,11 +120,9 @@ class IblStreamingLfInterface(IblStreamingApInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        metadata["Ecephys"].update(
-            ElectricalSeriesLf=dict(
-                name="ElectricalSeriesLf", description="Raw acquisition traces for the high-pass (lf) SpikeGLX data."
-            )
-        )
+        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
+
+        metadata["Ecephys"].update(ElectricalSeriesLf=ecephys_metadata["Ecephys"]["ElectricalSeriesLf"])
 
         return metadata
 
