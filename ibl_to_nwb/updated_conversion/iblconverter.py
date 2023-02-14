@@ -43,7 +43,7 @@ class IblConverter(ConverterPipe):
         session_start_time = session_start_time.replace(tzinfo=tzinfo)
         metadata["NWBFile"]["session_start_time"] = session_start_time
         metadata["NWBFile"]["session_id"] = session_metadata["id"]
-        metadata["NWBFile"]["lab"] = session_metadata["lab"].replace("lab", "")
+        metadata["NWBFile"]["lab"] = session_metadata["lab"].replace("lab", "").capitalize()
         metadata["NWBFile"]["institution"] = lab_metadata["institution"]
         metadata["NWBFile"]["protocol"] = session_metadata["task_protocol"]
         # Setting publication and experiment description at project-specific converter level

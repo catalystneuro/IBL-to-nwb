@@ -153,6 +153,7 @@ def convert_and_upload_session(
     stub_test: bool = False,
     progress_position: int = 0,
     cleanup: bool = False,
+    files_mode: str = "move",
 ):
     try:
         assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
@@ -173,21 +174,21 @@ def convert_and_upload_session(
 
         # Initialize as many of each interface as we need across the streams
         data_interfaces = list()
-        # for stream_name in ap_stream_names:
-        #    data_interfaces.append(
-        #        IblStreamingApInterface(
-        #            session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
-        #        )
-        #    )
-        # for stream_name in lf_stream_names:
-        #    data_interfaces.append(
-        #        IblStreamingLfInterface(
-        #            session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
-        #        )
-        #    )
+        for stream_name in ap_stream_names:
+            data_interfaces.append(
+                IblStreamingApInterface(
+                    session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
+                )
+            )
+        for stream_name in lf_stream_names:
+            data_interfaces.append(
+                IblStreamingLfInterface(
+                    session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
+                )
+            )
 
         # These interfaces should always be present in source data
-        # data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
+        data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
         data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
         data_interfaces.append(WheelInterface(one=session_one, session=session))
 
@@ -235,7 +236,9 @@ def convert_and_upload_session(
             conversion_options=conversion_options,
             overwrite=True,
         )
-        automatic_dandi_upload(dandiset_id="000409", nwb_folder_path=nwbfile_path.parent, cleanup=cleanup)
+        automatic_dandi_upload(
+            dandiset_id="000409", nwb_folder_path=nwbfile_path.parent, cleanup=cleanup, files_mode=files_mode
+        )
         if cleanup:
             rmtree(cache_folder)
             rmtree(nwbfile_path.parent)
@@ -274,6 +277,7 @@ with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
                     nwbfile_path=nwbfile_path,
                     progress_position=1 + progress_position,
                     stub_test=True,
+                    files_mode="copy",  # useful when debugging
                     cleanup=False,
                 )
             )

@@ -11,6 +11,6 @@ class BrainwideMapConverter(IblConverter):
         metadata = super().get_metadata()
 
         experiment_metadata = load_dict_from_file(file_path=Path(__file__).parent / "brainwide_map_metadata.yml")
-        dict_deep_update(metadata, experiment_metadata)
+        metadata = dict_deep_update(metadata, experiment_metadata)
 
         return metadata
