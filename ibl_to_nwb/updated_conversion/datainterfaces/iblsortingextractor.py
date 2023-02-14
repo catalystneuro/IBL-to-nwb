@@ -35,11 +35,7 @@ class IblSortingExtractor(BaseSorting):
 
         sorting_loaders = dict()
         spike_times_by_id = defaultdict(list)  # Cast lists per key as arrays after assembly
-        unit_id_probe_property = list()
-        maximum_amplitude_channel = list()
-        allen_location = list()
-        beryl_location = list()
-        cosmos_location = list()
+        all_unit_properties = defaultdict(list)
         unit_id_per_probe_shift = 0
         for probe_name in probe_names:
             sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
@@ -53,25 +49,46 @@ class IblSortingExtractor(BaseSorting):
                 spike_times_by_id[unit_id].append(spike_time)
 
             unit_id_per_probe_shift += number_of_units
-            unit_id_probe_property.extend([probe_name] * number_of_units)
+            all_unit_properties["probe_name"].extend([probe_name] * number_of_units)
 
             # Maximum amplitude channel and locations
             unit_id_to_channel_id = clusters["channels"]
-            maximum_amplitude_channel.extend(unit_id_to_channel_id)
+            all_unit_properties["maximum_amplitude_channel"].extend(unit_id_to_channel_id)
+            all_unit_properties["mean_relative_depth"].extend(clusters["depths"])
+
+            ibl_metric_key_to_property_name = dict(
+                amp_max="maximum_amplitude_channel",
+                amp_min="minimum_amplitude",
+                amp_median="median_amplitude",
+                amp_std_dB="standard_deviation_amplitude",
+                contamination="contamination",
+                contamination_alt="alternative_contamination",
+                drift="drift",
+                missed_spikes_est="missed_spikes_estimate",
+                noise_cutoff="noise_cutoff",
+                presence_ratio="presence_ratio",
+                presence_ratio_std="presence_ratio_standard_deviation",
+                slidingRP_viol="slidingRP_viol",
+                spike_count="spike_count",
+                firing_rate="firing_rate",
+                label="label",
+            )
+            for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
+                all_unit_properties[property_name].extend(clusters["metrics"][ibl_metric_key])
 
             if sorting_loader.histology in ["alf", "resolved"]:  # Assume if one probe has histology, the other does too
                 channel_id_to_allen_regions = channels["acronym"]
                 channel_id_to_atlas_id = channels["atlas_id"]
 
-                allen_location.extend(list(channel_id_to_allen_regions[unit_id_to_channel_id]))
-                beryl_location.extend(
+                all_unit_properties["allen_location"].extend(list(channel_id_to_allen_regions[unit_id_to_channel_id]))
+                all_unit_properties["beryl_location"].extend(
                     list(
                         brain_regions.id2acronym(
                             atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Beryl"
                         )
                     )
                 )
-                cosmos_location.extend(
+                all_unit_properties["cosmos_location"].extend(
                     list(
                         brain_regions.id2acronym(
                             atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Cosmos"
@@ -90,13 +107,7 @@ class IblSortingExtractor(BaseSorting):
         )
         self.add_sorting_segment(sorting_segment)
 
-        # TODO: add more properties
-        properties = dict(probe_name=unit_id_probe_property, maximum_amplitude_channel=maximum_amplitude_channel)
-        if allen_location:
-            properties.update(
-                allen_location=allen_location, beryl_location=beryl_location, cosmos_location=cosmos_location
-            )
-        for property_name, values in properties.items():
+        for property_name, values in all_unit_properties.items():
             self.set_property(key=property_name, values=np.array(values))
 
 
