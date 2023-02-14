@@ -20,6 +20,6 @@ class IblSortingInterface(BaseSortingExtractorInterface):
 
         if "allen_location" in self.sorting_extractor.get_property_keys():
             for column_name in ["allen_location", "beryl_location", "cosmos_location"]:
-                metadata["Ecephys"]["UnitProperties"].extend(ecephys_metadata["Ecephys"][column_name])
+                metadata["Ecephys"]["UnitProperties"].extend(ecephys_metadata["Ecephys"]["Electrodes"][column_name])
 
         return metadata
