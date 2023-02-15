@@ -193,12 +193,12 @@ def convert_and_upload_session(
         data_interfaces.append(WheelInterface(one=session_one, session=session))
 
         # These interfaces may not be present; check if they are before adding to list
-        pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
-        for pose_estimation_file in pose_estimation_files:
-            camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
-            data_interfaces.append(
-                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
-            )
+        # pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
+        # for pose_estimation_file in pose_estimation_files:
+        #    camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
+        #    data_interfaces.append(
+        #        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
+        #    )
 
         pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
         for pupil_tracking_file in pupil_tracking_files:
@@ -252,7 +252,7 @@ def convert_and_upload_session(
         return 0
 
 
-number_of_parallel_jobs = 1
+number_of_parallel_jobs = 6
 base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 
 session_retrieval_one = ONE(
@@ -277,8 +277,8 @@ with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
                     nwbfile_path=nwbfile_path,
                     progress_position=1 + progress_position,
                     stub_test=True,
-                    files_mode="copy",  # useful when debugging
-                    cleanup=False,
+                    # files_mode="copy",  # useful when debugging
+                    # cleanup=False,
                 )
             )
         for future in as_completed(futures):

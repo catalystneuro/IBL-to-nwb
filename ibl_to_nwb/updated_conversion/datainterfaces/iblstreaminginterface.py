@@ -38,13 +38,6 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         if not any(shank_property):
             self.recording_extractor.delete_property(key="shank")
 
-        # Correct channel groups when multi-probe
-        if len(self.available_streams) > 1:
-            # set_channel_groups removes probe
-            self.recording_extractor.set_property(
-                key="group", values=np.array([int(self.probe_number)] * self.recording_extractor.get_num_channels())
-            )
-
         # Set Atlas info
         one = ONE(
             base_url="https://openalyx.internationalbrainlab.org",
@@ -116,6 +109,32 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         if self.has_histology:
             metadata["Ecephys"].update(Electrodes=ecephys_metadata["Ecephys"]["Electrodes"])
 
+        # Add custom devices and groups
+        if len(self.available_streams) > 1:
+            device_name = f"NeuropixelsProbe{self.probe_number}"
+            group_name = f"NeuropixelsShank{self.probe_number}"
+        else:
+            device_name = f"NeuropixelsProbe"
+            group_name = f"NeuropixelsShank"
+        # set_channel_groups removes probe
+        self.recording_extractor.set_property(
+            key="group_name", values=np.array([group_name] * self.recording_extractor.get_num_channels())
+        )
+
+        metadata["Ecephys"].update(
+            Device=[dict(name=device_name, description="A Neuropixels probe.", manufacturer="IMEC")]
+        )
+        metadata["Ecephys"].update(
+            ElectrodeGroup=[
+                dict(
+                    name=group_name,
+                    description="The electrode group on the Neuropixels probe.",
+                    location=", ".join(list(np.unique(self.recording_extractor.get_property(key="brain_area")))),
+                    device=device_name,
+                )
+            ]
+        )
+
         return metadata
 
     def run_conversion(self, **kwargs):
@@ -151,6 +170,7 @@ class IblStreamingLfInterface(IblStreamingApInterface):
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
+        metadata["Ecephys"].pop("ElectrodeGroup")
 
         ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
 
