@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from dateutil import tz
-from ndx_ibl_metadata import IblSubject
+from ndx_ibl import IblSubject
 from neuroconv import ConverterPipe
 from neuroconv.tools.nwb_helpers import make_or_load_nwbfile
 from neuroconv.utils import dict_deep_update
