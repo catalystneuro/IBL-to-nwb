@@ -189,8 +189,8 @@ def convert_and_upload_session(
 
         # These interfaces should always be present in source data
         data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
-        data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
-        data_interfaces.append(WheelInterface(one=session_one, session=session))
+        # data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
+        # data_interfaces.append(WheelInterface(one=session_one, session=session))
 
         # These interfaces may not be present; check if they are before adding to list
         # pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
@@ -200,15 +200,15 @@ def convert_and_upload_session(
         #        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
         #    )
 
-        pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
-        for pupil_tracking_file in pupil_tracking_files:
-            camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
-            data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name))
+        # pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
+        # for pupil_tracking_file in pupil_tracking_files:
+        #    camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
+        #    data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name))
 
-        roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
-        for roi_motion_energy_file in roi_motion_energy_files:
-            camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
-            data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name))
+        # roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
+        # for roi_motion_energy_file in roi_motion_energy_files:
+        #    camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
+        #    data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name))
 
         if session_one.list_datasets(eid=session, collection="alf", filename="licks*"):
             data_interfaces.append(LickInterface(one=session_one, session=session))
@@ -252,14 +252,14 @@ def convert_and_upload_session(
         return 0
 
 
-number_of_parallel_jobs = 6
+number_of_parallel_jobs = 1
 base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 
 session_retrieval_one = ONE(
     base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
 )
 brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")[
-    0 : (0 + number_of_parallel_jobs)
+    1 : (1 + number_of_parallel_jobs)
 ]
 
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:

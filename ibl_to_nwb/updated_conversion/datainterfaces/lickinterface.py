@@ -11,6 +11,15 @@ class LickInterface(BaseDataInterface):
         self.one = one
         self.session = session
 
+    def get_original_timestamps(self):
+        pass
+
+    def get_timestamps(self):
+        pass
+
+    def align_timestamps(self):
+        pass
+
     def run_conversion(self, nwbfile, metadata: dict):
         licks = self.one.load_object(id=self.session, obj="licks", collection="alf")
 
