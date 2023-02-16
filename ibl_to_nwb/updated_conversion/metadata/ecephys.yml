@@ -33,8 +33,11 @@ Ecephys:
     - name: index_on_probe
       description: The global index of the channel on the probe.
   UnitProperties:
-    - name: allen_location
-      description: Brain region reference in the Allen Mouse Brain Atlas.
+    - name: spike_amplitudes
+      description: Peak amplitude of each spike for each unit.
+    - name: spike_relative_depths
+      description: |
+        Relative depth along the probe used to detect each spike in micrometers, computed from the waveform center of mass. 0 is the deepest site, positive values are above this.
     - name: maximum_amplitude_channel
       description: Channel which has the largest amplitude for each unit.
     - name: mean_relative_depth
@@ -77,8 +80,5 @@ Ecephys:
       description: Average firing rate of each unit in Hz.
     - name: label
       description: Proportion of quality metrics passed.
-    - name: spike_amplitudes
-      description: Peak amplitude of each spike for each unit.
-    - name: spike_relative_depths
-      description: |
-        Relative depth along the probe used to detect each spike in micrometers, computed from the waveform center of mass. 0 is the deepest site, positive values are above this.
+    - name: allen_location
+      description: Brain region reference in the Allen Mouse Brain Atlas.

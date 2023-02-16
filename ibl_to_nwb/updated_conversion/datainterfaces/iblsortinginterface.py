@@ -20,7 +20,7 @@ class IblSortingInterface(BaseSortingExtractorInterface):
         metadata.update(Ecephys=dict())
         metadata["Ecephys"].update(UnitProperties=ecephys_metadata["Ecephys"]["UnitProperties"])
         if "allen_location" in self.sorting_extractor.get_property_keys():
-            for column_name in ["allen_location", "beryl_location", "cosmos_location"]:
+            for column_name in ["beryl_location", "cosmos_location"]:
                 metadata["Ecephys"]["UnitProperties"].extend(
                     [column for column in ecephys_metadata["Ecephys"]["Electrodes"] if column["name"] == column_name]
                 )

@@ -46,7 +46,7 @@ class IblSortingExtractor(BaseSorting):
             number_of_units = len(np.unique(spikes["clusters"]))
 
             # TODO - compare speed against iterating over unique cluster IDs + vector index search
-            for spike_cluster, spike_times, spike_amplitudes in zip(
+            for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
                 spikes["clusters"], spikes["times"], spikes["amps"], spikes["depths"]
             ):
                 unit_id = unit_id_per_probe_shift + spike_cluster
@@ -116,7 +116,7 @@ class IblSortingExtractor(BaseSorting):
 
         # I know it looks weird, but it's the only way I could find
         self.set_property(key="spike_amplitudes", values=np.array(list(spike_amplitudes_by_id.values()), dtype=object))
-        self.set_property(key="spike_depths", values=np.array(list(spike_depths_by_id.values()), dtype=object))
+        self.set_property(key="spike_relative_depths", values=np.array(list(spike_depths_by_id.values()), dtype=object))
 
         for property_name, values in all_unit_properties.items():
             self.set_property(key=property_name, values=values)

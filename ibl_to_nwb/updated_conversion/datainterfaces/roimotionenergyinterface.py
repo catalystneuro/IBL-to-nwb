@@ -12,6 +12,15 @@ class RoiMotionEnergyInterface(BaseDataInterface):
         self.session = session
         self.camera_name = camera_name
 
+    def get_original_timestamps(self):
+        pass
+
+    def get_timestamps(self):
+        pass
+
+    def align_timestamps(self):
+        pass
+
     def run_conversion(self, nwbfile, metadata: dict):
         left_right_or_body = self.camera_name[:5].rstrip("C")
 

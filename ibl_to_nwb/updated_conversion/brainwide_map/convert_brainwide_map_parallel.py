@@ -128,14 +128,11 @@ def automatic_dandi_upload(
                         this_external_file = image_folder / Path(str(object.external_file[0])).name
                         corrected_name = "_".join(dandi_stem_split[:2]) + f"_{object.name}{this_external_file.suffix}"
                         this_external_file = this_external_file.rename(this_external_file.parent / corrected_name)
-                        object.external_file[0] = str(this_external_file)
-
-            # and update in the NWB file
+                        object.external_file[0] = "./" + str(this_external_file.relative_to(organized_nwbfile.parent))
 
     assert len(list(dandiset_path.iterdir())) > 1, "DANDI organize failed!"
 
     dandi_instance = "dandi-staging" if staging else "dandi"
-    # dandi_upload(paths=[str(x) for x in organized_nwbfiles], dandi_instance=dandi_instance)
     dandi_upload(paths=[dandiset_folder_path / dandiset_id], dandi_instance=dandi_instance)
 
     # Cleanup should be confirmed manually; Windows especially can complain
@@ -189,26 +186,26 @@ def convert_and_upload_session(
 
         # These interfaces should always be present in source data
         data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
-        # data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
-        # data_interfaces.append(WheelInterface(one=session_one, session=session))
+        data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
+        data_interfaces.append(WheelInterface(one=session_one, session=session))
 
         # These interfaces may not be present; check if they are before adding to list
-        # pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
-        # for pose_estimation_file in pose_estimation_files:
-        #    camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
-        #    data_interfaces.append(
-        #        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
-        #    )
+        pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
+        for pose_estimation_file in pose_estimation_files:
+            camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
+            data_interfaces.append(
+                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
+            )
 
-        # pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
-        # for pupil_tracking_file in pupil_tracking_files:
-        #    camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
-        #    data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name))
+        pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
+        for pupil_tracking_file in pupil_tracking_files:
+            camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
+            data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name))
 
-        # roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
-        # for roi_motion_energy_file in roi_motion_energy_files:
-        #    camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
-        #    data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name))
+        roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
+        for roi_motion_energy_file in roi_motion_energy_files:
+            camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
+            data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name))
 
         if session_one.list_datasets(eid=session, collection="alf", filename="licks*"):
             data_interfaces.append(LickInterface(one=session_one, session=session))
@@ -277,8 +274,8 @@ with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
                     nwbfile_path=nwbfile_path,
                     progress_position=1 + progress_position,
                     stub_test=True,
-                    # files_mode="copy",  # useful when debugging
-                    # cleanup=False,
+                    files_mode="copy",  # useful when debugging
+                    cleanup=False,
                 )
             )
         for future in as_completed(futures):

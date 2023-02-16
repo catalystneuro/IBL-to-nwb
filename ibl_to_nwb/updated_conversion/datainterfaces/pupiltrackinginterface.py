@@ -24,6 +24,15 @@ class PupilTrackingInterface(BaseDataInterface):
 
         return metadata
 
+    def get_original_timestamps(self):
+        pass
+
+    def get_timestamps(self):
+        pass
+
+    def align_timestamps(self):
+        pass
+
     def run_conversion(self, nwbfile, metadata: dict):
         left_or_right = self.camera_name[:5].rstrip("C")
 

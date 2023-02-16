@@ -22,6 +22,15 @@ class WheelInterface(BaseDataInterface):
 
         return metadata
 
+    def get_original_timestamps(self):
+        pass
+
+    def get_timestamps(self):
+        pass
+
+    def align_timestamps(self):
+        pass
+
     def run_conversion(self, nwbfile, metadata: dict):
         wheel_moves = self.one.load_object(id=self.session, obj="wheelMoves", collection="alf")
         wheel = self.one.load_object(id=self.session, obj="wheel", collection="alf")
@@ -63,14 +72,16 @@ class WheelInterface(BaseDataInterface):
             name=metadata["WheelVelocity"]["name"],
             description=metadata["WheelVelocity"]["description"],
             data=H5DataIO(velocity, compression=True),
-            timestamps=H5DataIO(interpolated_timestamps, compression=True),
+            starting_time=interpolated_timestamps[0],
+            rate=interpolated_timestamps[1] - interpolated_timestamps[0],  # deterministically regular
             unit="rad/s",
         )
         acceleration_series = TimeSeries(
             name=metadata["WheelAcceleration"]["name"],
             description=metadata["WheelAcceleration"]["description"],
             data=H5DataIO(acceleration, compression=True),
-            timestamps=H5DataIO(interpolated_timestamps, compression=True),
+            starting_time=interpolated_timestamps[0],
+            rate=interpolated_timestamps[1] - interpolated_timestamps[0],  # deterministically regular
             unit="rad/s^2",
         )
 

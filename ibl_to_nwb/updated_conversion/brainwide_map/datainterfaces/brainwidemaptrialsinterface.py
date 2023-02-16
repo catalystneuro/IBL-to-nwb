@@ -19,6 +19,15 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         metadata.update(trial_metadata)
         return metadata
 
+    def get_original_timestamps(self):
+        pass
+
+    def get_timestamps(self):
+        pass
+
+    def align_timestamps(self):
+        pass
+
     def run_conversion(self, nwbfile: NWBFile, metadata: dict):
         trials = self.one.load_object(id=self.session, obj="trials", collection="alf")
 
