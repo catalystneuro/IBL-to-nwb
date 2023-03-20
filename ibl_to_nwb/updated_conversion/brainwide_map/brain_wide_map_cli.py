@@ -3,13 +3,7 @@ import click
 from one.api import ONE
 
 from ibl_to_nwb.updated_conversion.brainwide_map import BrainwideMapConverter
-from ibl_to_nwb.updated_conversion.brainwide_map.datainterfaces import (
-    BrainwideMapTrialsInterface,
-)
-from ibl_to_nwb.updated_conversion.datainterfaces import (
-    IblStreamingApInterface,
-    IblStreamingLfInterface,
-)
+from ibl_to_nwb.updated_conversion.datainterfaces import IblStreamingApInterface, IblStreamingLfInterface
 
 @click.command()
 @click.argument("session")
