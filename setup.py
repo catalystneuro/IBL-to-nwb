@@ -32,4 +32,5 @@ setup(
     install_requires=install_requires,
     extras_require=extras_require,
     python_requires=">=3.8",
+    entry_points={"console_scripts": ["brainwidemap_convertandupload_rawsession=ibl_to_nwb.updated_conversion.brainwide_map.brain_wide_map_cli:convert_raw_session_cli"]},
 )
