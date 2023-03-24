@@ -44,6 +44,10 @@ class WheelInterface(BaseDataInterface):
             pos=interpolated_position, freq=interpolation_frequency
         )
 
+        # Deterministically regular
+        interpolated_starting_time = interpolated_timestamps[0]
+        interpolated_rate = 1 / (interpolated_timestamps[1] - interpolated_timestamps[0])
+
         # Wheel intervals of movement
         wheel_movement_intervals = TimeIntervals(
             name="WheelMovementIntervals",
@@ -72,16 +76,16 @@ class WheelInterface(BaseDataInterface):
             name=metadata["WheelVelocity"]["name"],
             description=metadata["WheelVelocity"]["description"],
             data=H5DataIO(velocity, compression=True),
-            starting_time=interpolated_timestamps[0],
-            rate=interpolated_timestamps[1] - interpolated_timestamps[0],  # deterministically regular
+            starting_time=interpolated_starting_time,
+            rate=interpolated_rate,
             unit="rad/s",
         )
         acceleration_series = TimeSeries(
             name=metadata["WheelAcceleration"]["name"],
             description=metadata["WheelAcceleration"]["description"],
             data=H5DataIO(acceleration, compression=True),
-            starting_time=interpolated_timestamps[0],
-            rate=interpolated_timestamps[1] - interpolated_timestamps[0],  # deterministically regular
+            starting_time=interpolated_starting_time,
+            rate=interpolated_rate,
             unit="rad/s^2",
         )
 

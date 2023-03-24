@@ -249,15 +249,13 @@ def convert_and_upload_session(
         return 0
 
 
-number_of_parallel_jobs = 1
+number_of_parallel_jobs = 8
 base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 
 session_retrieval_one = ONE(
     base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
 )
-brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")[
-    1 : (1 + number_of_parallel_jobs)
-]
+brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
 
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
     with tqdm(total=len(brain_wide_sessions), position=0, desc="Converting sessions...") as main_progress_bar:
@@ -273,9 +271,9 @@ with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
                     session=session,
                     nwbfile_path=nwbfile_path,
                     progress_position=1 + progress_position,
-                    stub_test=True,
-                    files_mode="copy",  # useful when debugging
-                    cleanup=False,
+                    # stub_test=True,
+                    # files_mode="copy",  # useful when debugging
+                    # cleanup=False,
                 )
             )
         for future in as_completed(futures):
