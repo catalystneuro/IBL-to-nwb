@@ -1,5 +1,5 @@
 FROM amazonlinux:latest
-RUN yum -y install which unzip python3 pip
+RUN yum -y install which unzip python3 pip git
 RUN pip install boto3
 ADD /IBL-to-nwb /usr/local/bin/IBL-to-nwb
 RUN cd /usr/local/bin/IBL-to-nwb \
