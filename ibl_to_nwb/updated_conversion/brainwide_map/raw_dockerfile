@@ -1,8 +1,9 @@
 FROM amazonlinux:latest
 RUN yum -y install which unzip python3 pip
 RUN pip install boto3
-RUN pip -e install .[brainwide_map]
-ADD brain_wide_map_raw_only_docker_entrypoint.py /usr/local/bin/brain_wide_map_raw_only_docker_entrypoint.py
+ADD /IBL-to-nwb /usr/local/bin/IBL-to-nwb
+RUN cd /usr/local/bin/IBL-to-nwb \
+  && pip install -e .[brainwide_map]
 WORKDIR /tmp
 USER nobody
-ENTRYPOINT ["/usr/local/bin/brain_wide_map_raw_only_docker_entrypoint.py"]
+ENTRYPOINT ["/usr/local/bin/IBL-to-nwb/ibl_to_nwb/updated_conversion/brainwide_map/brain_wide_map_raw_only_docker_entrypoint.py"]
