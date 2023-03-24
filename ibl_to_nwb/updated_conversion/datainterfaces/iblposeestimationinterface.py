@@ -24,7 +24,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
     def align_timestamps(self):
         pass
 
-    def run_conversion(self, nwbfile, metadata: dict):
+    def run_conversion(self, nwbfile, metadata: dict, write_raw_videos: bool = True):
         # Sometimes the DLC data has been revised, possibly multiple times
         # Always use the most recent revision available
         session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
@@ -76,20 +76,22 @@ class IblPoseEstimationInterface(BaseDataInterface):
             source_software="DeepLabCut",
             nodes=body_parts,
         )
-        if self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"):
-            original_video_file = self.one.load_dataset(
-                id=self.session, dataset=f"raw_video_data/*{self.camera_name}*", download_only=True
-            )
-            image_series = ImageSeries(
-                name=f"OriginalVideo{left_right_or_body.capitalize()}Camera",
-                description="The original video each pose was estimated from.",
-                unit="n.a.",
-                external_file=[str(original_video_file)],
-                format="external",
-                timestamps=reused_timestamps or H5DataIO(timestamps, compression=True),
-            )
-            # pose_estimation_kwargs.update(original_videos_series=[image_series])  # For future version of ndx-pose
-            nwbfile.add_acquisition(image_series)
+
+        if write_raw_videos:
+            if self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"):
+                original_video_file = self.one.load_dataset(
+                    id=self.session, dataset=f"raw_video_data/*{self.camera_name}*", download_only=True
+                )
+                image_series = ImageSeries(
+                    name=f"OriginalVideo{left_right_or_body.capitalize()}Camera",
+                    description="The original video each pose was estimated from.",
+                    unit="n.a.",
+                    external_file=[str(original_video_file)],
+                    format="external",
+                    timestamps=reused_timestamps or H5DataIO(timestamps, compression=True),
+                )
+                # pose_estimation_kwargs.update(original_videos_series=[image_series])  # For future version of ndx-pose
+                nwbfile.add_acquisition(image_series)
 
         pose_estimation_container = PoseEstimation(**pose_estimation_kwargs)
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")

@@ -1,0 +1,8 @@
+FROM amazonlinux:latest
+RUN yum -y install which unzip python3 pip3
+RUN pip3 install boto3
+RUN pip3 -e install .[brainwide_map]
+ADD brain_wide_map_processed_only_docker_entrypoint.py /usr/local/bin/brain_wide_map_processed_only_docker_entrypoint.py
+WORKDIR /tmp
+USER nobody
+ENTRYPOINT ["/usr/local/bin/brain_wide_map_processed_only_docker_entrypoint.py"]
