@@ -40,7 +40,7 @@ class WheelInterface(BaseDataInterface):
         interpolated_position, interpolated_timestamps = wheel_methods.interpolate_position(
             re_ts=wheel["timestamps"], re_pos=wheel["position"], freq=interpolation_frequency
         )
-        velocity, acceleration = wheel_methods.velocity_smoothed(
+        velocity, acceleration = wheel_methods.velocity_filtered(
             pos=interpolated_position, freq=interpolation_frequency
         )
 
