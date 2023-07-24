@@ -46,7 +46,7 @@ class IblSortingExtractor(BaseSorting):
             spikes, clusters, channels = sorting_loader.load_spike_sorting()
             cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
             number_of_units = len(np.unique(spikes["clusters"]))
-            
+
             print(f"{spikes['clusters']}=")
             print(f"{len(set(spikes['clusters']))}=")
             print(f"{clusters['metrics']['cluster_id']}=")
@@ -122,8 +122,16 @@ class IblSortingExtractor(BaseSorting):
         self.add_sorting_segment(sorting_segment)
 
         # I know it looks weird, but it's the only way I could find
-        self.set_property(key="spike_amplitudes", values=np.array(list(spike_amplitudes_by_id.values()), dtype=object), ids=cluster_ids)
-        self.set_property(key="spike_relative_depths", values=np.array(list(spike_depths_by_id.values()), dtype=object), ids=cluster_ids)
+        self.set_property(
+            key="spike_amplitudes",
+            values=np.array(list(spike_amplitudes_by_id.values()), dtype=object),
+            ids=cluster_ids,
+        )
+        self.set_property(
+            key="spike_relative_depths",
+            values=np.array(list(spike_depths_by_id.values()), dtype=object),
+            ids=cluster_ids,
+        )
 
         for property_name, values in all_unit_properties.items():
             self.set_property(key=property_name, values=values, ids=cluster_ids)
