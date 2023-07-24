@@ -38,12 +38,19 @@ class IblSortingExtractor(BaseSorting):
         spike_amplitudes_by_id = defaultdict(list)
         spike_depths_by_id = defaultdict(list)
         all_unit_properties = defaultdict(list)
+        cluster_ids = list()
         unit_id_per_probe_shift = 0
         for probe_name in probe_names:
             sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
             sorting_loaders.update({probe_name: sorting_loader})
             spikes, clusters, channels = sorting_loader.load_spike_sorting()
+            cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
             number_of_units = len(np.unique(spikes["clusters"]))
+            
+            print(f"{spikes['clusters']}=")
+            print(f"{len(set(spikes['clusters']))}=")
+            print(f"{clusters['metrics']['cluster_id']}=")
+            print(f"{clusters['metrics']}=")
 
             # TODO - compare speed against iterating over unique cluster IDs + vector index search
             for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
@@ -52,7 +59,7 @@ class IblSortingExtractor(BaseSorting):
                 unit_id = unit_id_per_probe_shift + spike_cluster
                 spike_times_by_id[unit_id].append(spike_times)
                 spike_amplitudes_by_id[unit_id].append(spike_amplitudes)
-                spike_depths_by_id[unit_id].append(spike_amplitudes)
+                spike_depths_by_id[unit_id].append(spike_depths)
 
             unit_id_per_probe_shift += number_of_units
             all_unit_properties["probe_name"].extend([probe_name] * number_of_units)
@@ -115,11 +122,11 @@ class IblSortingExtractor(BaseSorting):
         self.add_sorting_segment(sorting_segment)
 
         # I know it looks weird, but it's the only way I could find
-        self.set_property(key="spike_amplitudes", values=np.array(list(spike_amplitudes_by_id.values()), dtype=object))
-        self.set_property(key="spike_relative_depths", values=np.array(list(spike_depths_by_id.values()), dtype=object))
+        self.set_property(key="spike_amplitudes", values=np.array(list(spike_amplitudes_by_id.values()), dtype=object), ids=cluster_ids)
+        self.set_property(key="spike_relative_depths", values=np.array(list(spike_depths_by_id.values()), dtype=object), ids=cluster_ids)
 
         for property_name, values in all_unit_properties.items():
-            self.set_property(key=property_name, values=values)
+            self.set_property(key=property_name, values=values, ids=cluster_ids)
 
 
 class IblSortingSegment(BaseSortingSegment):
