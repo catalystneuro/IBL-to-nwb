@@ -31,7 +31,7 @@ class WheelInterface(BaseDataInterface):
     def align_timestamps(self):
         pass
 
-    def run_conversion(self, nwbfile, metadata: dict):
+    def add_to_nwbfile(self, nwbfile, metadata: dict):
         wheel_moves = self.one.load_object(id=self.session, obj="wheelMoves", collection="alf")
         wheel = self.one.load_object(id=self.session, obj="wheel", collection="alf")
 
@@ -40,9 +40,7 @@ class WheelInterface(BaseDataInterface):
         interpolated_position, interpolated_timestamps = wheel_methods.interpolate_position(
             re_ts=wheel["timestamps"], re_pos=wheel["position"], freq=interpolation_frequency
         )
-        velocity, acceleration = wheel_methods.velocity_filtered(
-            pos=interpolated_position, freq=interpolation_frequency
-        )
+        velocity, acceleration = wheel_methods.velocity_filtered(pos=interpolated_position, fs=interpolation_frequency)
 
         # Deterministically regular
         interpolated_starting_time = interpolated_timestamps[0]

@@ -137,7 +137,7 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
 
         return metadata
 
-    def run_conversion(self, **kwargs):
+    def add_to_nwbfile(self, **kwargs):
         # The buffer and chunk shapes must be set explicitly for good performance with the streaming
         # Otherwise, the default buffer/chunk shapes might re-request the same data packet multiple times
         chunk_frames = 100 if kwargs.get("stub_test", False) else 30_000
@@ -156,7 +156,7 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         if "progress_position" in kwargs:
             kwargs.pop("progress_position")
         kwargs.update(es_key=self.es_key)
-        super().run_conversion(**kwargs)
+        super().add_to_nwbfile(**kwargs)
 
 
 class IblStreamingLfInterface(IblStreamingApInterface):

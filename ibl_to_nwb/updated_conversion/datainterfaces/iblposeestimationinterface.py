@@ -10,10 +10,11 @@ from pynwb.image import ImageSeries
 
 
 class IblPoseEstimationInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str, camera_name: str):
+    def __init__(self, one: ONE, session: str, camera_name: str, include_video: bool):
         self.one = one
         self.session = session
         self.camera_name = camera_name
+        self.include_video = include_video
 
     def get_original_timestamps(self):
         pass
@@ -24,7 +25,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
     def align_timestamps(self):
         pass
 
-    def run_conversion(self, nwbfile, metadata: dict):
+    def add_to_nwbfile(self, nwbfile, metadata: dict):
         # Sometimes the DLC data has been revised, possibly multiple times
         # Always use the most recent revision available
         session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
@@ -76,7 +77,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
             source_software="DeepLabCut",
             nodes=body_parts,
         )
-        if self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"):
+        if self.include_video and self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"):
             original_video_file = self.one.load_dataset(
                 id=self.session, dataset=f"raw_video_data/*{self.camera_name}*", download_only=True
             )

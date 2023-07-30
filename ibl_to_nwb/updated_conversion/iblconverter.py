@@ -120,11 +120,8 @@ class IblConverter(ConverterPipe):
             metadata = self.get_metadata()
         self.validate_metadata(metadata=metadata)
 
-        if conversion_options is None:
-            conversion_options = dict()
-        default_conversion_options = self.get_conversion_options()
-        conversion_options_to_run = dict_deep_update(default_conversion_options, conversion_options)
-        self.validate_conversion_options(conversion_options=conversion_options_to_run)
+        conversion_options = conversion_options or dict()
+        self.validate_conversion_options(conversion_options=conversion_options)
 
         with make_or_load_nwbfile(
             nwbfile_path=nwbfile_path,
@@ -135,8 +132,8 @@ class IblConverter(ConverterPipe):
         ) as nwbfile_out:
             nwbfile_out.subject = ibl_subject
             for interface_name, data_interface in self.data_interface_objects.items():
-                data_interface.run_conversion(
-                    nwbfile=nwbfile_out, metadata=metadata, **conversion_options_to_run.get(interface_name, dict())
+                data_interface.add_to_nwbfile(
+                    nwbfile=nwbfile_out, metadata=metadata, **conversion_options.get(interface_name, dict())
                 )
 
         return nwbfile_out
