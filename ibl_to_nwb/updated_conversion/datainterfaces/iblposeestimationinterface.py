@@ -77,7 +77,9 @@ class IblPoseEstimationInterface(BaseDataInterface):
             source_software="DeepLabCut",
             nodes=body_parts,
         )
-        if self.include_video and self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"):
+        if self.include_video and self.one.list_datasets(
+            eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"
+        ):
             original_video_file = self.one.load_dataset(
                 id=self.session, dataset=f"raw_video_data/*{self.camera_name}*", download_only=True
             )
