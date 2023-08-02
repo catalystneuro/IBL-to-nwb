@@ -28,7 +28,7 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
     def align_timestamps(self):
         pass
 
-    def run_conversion(self, nwbfile: NWBFile, metadata: dict):
+    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
         trials = self.one.load_object(id=self.session, obj="trials", collection="alf")
 
         column_ordering = [
@@ -73,6 +73,7 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
             )
         )
 
+        # compression only works using the method above; method below fails
         # for start_time, stop_time in trials["intervals"]:
         #    nwbfile.add_trial(start_time=start_time, stop_time=stop_time)
 

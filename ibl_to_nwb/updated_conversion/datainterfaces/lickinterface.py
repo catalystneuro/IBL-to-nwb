@@ -20,7 +20,7 @@ class LickInterface(BaseDataInterface):
     def align_timestamps(self):
         pass
 
-    def run_conversion(self, nwbfile, metadata: dict):
+    def add_to_nwbfile(self, nwbfile, metadata: dict):
         licks = self.one.load_object(id=self.session, obj="licks", collection="alf")
 
         lick_events_table = DynamicTable(

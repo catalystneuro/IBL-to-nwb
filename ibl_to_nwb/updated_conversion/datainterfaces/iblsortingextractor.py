@@ -47,11 +47,6 @@ class IblSortingExtractor(BaseSorting):
             cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
             number_of_units = len(np.unique(spikes["clusters"]))
 
-            print(f"{spikes['clusters']}=")
-            print(f"{len(set(spikes['clusters']))}=")
-            print(f"{clusters['metrics']['cluster_id']}=")
-            print(f"{clusters['metrics']}=")
-
             # TODO - compare speed against iterating over unique cluster IDs + vector index search
             for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
                 spikes["clusters"], spikes["times"], spikes["amps"], spikes["depths"]
