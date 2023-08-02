@@ -2,7 +2,18 @@
 [![PyPI version](https://badge.fury.io/py/ibl-to-nwb.svg)](https://badge.fury.io/py/ibl-to-nwb)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
-This repository houses the modules used to convert IBL specific neurophysiology data in the open source [ONE](https://docs.internationalbrainlab.org/en/stable/03_tutorial.html) format (Alyx + ALF) into NWB data standard.
+This repository houses conversion piplines for the IBL data releases, including the Brain Wide Map project.
 
-- __Alyx__: a data base that contains all the metadata associated with an experiment: session details, subject details, probe information etc. This data has a one-to-one mapping to supported metadata of NWB.
-- __ALF__: format for storage of all the experimental data: electrophysiology time series (raw + processed), trials data, sorted spikes data, behavior (raw + processed), stimulus.
+
+
+# How to convert processed-only data for BWM
+
+From the first level of the repo as the working directory,
+
+```
+python ibl_to_nwb/updated_conversion/brainwide_map/convert_brainwide_map_processed_only_parallel.py
+```
+
+The script contains some values that might want to be changed, such as `number_of_parallel_jobs`, or `base_path` if not running on the DANDI Hub.
+
+The block about skipping sessions already on DANDI would need to be commented out if a 'patch' conversion + new release is being performed.
