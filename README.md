@@ -6,6 +6,20 @@ This repository houses conversion piplines for the IBL data releases, including 
 
 
 
+# Installation
+
+For Brain Wide Map,
+
+```
+git clone https:/github.com/catalystneuro/IBL-to-nwb
+cd IBL-to-nwb
+pip install -e .[brainwide_map]
+```
+
+(not tested on all platforms or Python environments)
+
+
+
 # How to convert processed-only data for BWM
 
 From the first level of the repo as the working directory,
