@@ -201,7 +201,7 @@ pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*"
 for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
     data_interfaces.append(
-        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
+        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=True)
     )
 
 pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")

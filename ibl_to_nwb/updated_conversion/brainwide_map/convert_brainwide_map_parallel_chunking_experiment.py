@@ -194,7 +194,7 @@ def convert_and_upload_session(
         for pose_estimation_file in pose_estimation_files:
             camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
             data_interfaces.append(
-                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
+                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=True)
             )
 
         pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
@@ -256,7 +256,7 @@ def convert_and_upload_session(
 
         return 1
     except Exception as exception:
-        error_file_path = base_path / "errors" / "8-7-23" / f"{session}_error.txt"
+        error_file_path = base_path / "errors" / "8-7-23" / f"{session}_{progress_position}_error.txt"
         error_file_path.parent.mkdir(exist_ok=True)
         with open(file=error_file_path, mode="w") as file:
             file.write(f"{type(exception)}: {str(exception)}\n{traceback.format_exc()}")
@@ -277,8 +277,7 @@ brain_wide_sessions = [
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
     with tqdm(total=len(brain_wide_sessions), position=0, desc="Converting sessions...") as main_progress_bar:
         futures = []
-        for progress_position, session_info in enumerate(brain_wide_sessions):
-            session = session_info["id"]
+        for progress_position, session in enumerate(brain_wide_sessions):
             nwbfile_path = base_path / "nwbfiles" / session / f"{session}.nwb"
             nwbfile_path.parent.mkdir(exist_ok=True)
             futures.append(
