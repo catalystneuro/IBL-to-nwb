@@ -1,4 +1,4 @@
-#neuroconv[spikeglx]==0.2.4
+neuroconv[spikeglx]>=0.4.1
 spikeinterface>=0.97.0  # Actually need to use the streaming IBL fix for maximum efficiency
 ONE-api>=1.16.3
 ibllib>=2.21.0
