@@ -137,7 +137,7 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
 
         return metadata
 
-    def add_to_nwbfile(self, **kwargs):
+    def add_to_nwbfile(self, iterator_opts: dict, progress_position: int, **kwargs):
         # The buffer and chunk shapes must be set explicitly for good performance with the streaming
         # Otherwise, the default buffer/chunk shapes might re-request the same data packet multiple times
         chunk_frames = 100 if kwargs.get("stub_test", False) else 30_000

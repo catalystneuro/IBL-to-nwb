@@ -4,4 +4,4 @@ ONE-api>=1.16.3
 ibllib>=2.21.0
 ndx-pose>=0.1.1
 ndx-ibl==0.1.0
-#probeinterface==0.2.15  # v0.2.16 causes issue in this environment only (likely combo of past numpy and Python 3.8)
+probeinterface @ git+https://github.com/catalystneuro/probeinterface.git@ibl_fix
