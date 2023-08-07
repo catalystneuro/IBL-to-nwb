@@ -155,7 +155,6 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         )
         if "progress_position" in kwargs:
             kwargs.pop("progress_position")
-        kwargs.update(es_key=self.es_key)
         super().add_to_nwbfile(**kwargs)
 
 
