@@ -18,7 +18,7 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
 
     @classmethod
     def get_stream_names(cls, session: str):
-        return [stream_name for stream_name in cls.Extractor.get_stream_names(session=session) if "ap" in stream_name]
+        return [stream_name for stream_name in cls.get_extractor().get_stream_names(session=session) if "ap" in stream_name]
 
     def __init__(self, **kwargs):
         self.session = kwargs["session"]

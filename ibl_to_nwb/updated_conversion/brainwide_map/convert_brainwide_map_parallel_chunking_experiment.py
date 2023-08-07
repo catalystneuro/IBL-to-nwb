@@ -156,8 +156,8 @@ def convert_and_upload_session(
         assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
 
         # Download behavior and spike sorted data for this session
-        session_path = base_path / "ibl_conversion" / session
-        cache_folder = base_path / "ibl_conversion" / session / "cache"
+        session_path = base_path / "ibl_conversion" / f"{session}_{progress_position}"
+        cache_folder = base_path / "ibl_conversion" / f"{session}_{progress_position}" / "cache"
         session_one = ONE(
             base_url="https://openalyx.internationalbrainlab.org",
             password="international",
@@ -214,6 +214,10 @@ def convert_and_upload_session(
         session_converter = BrainwideMapConverter(
             one=session_one, session=session, data_interfaces=data_interfaces, verbose=False
         )
+
+        incr = (progress_position + 1) * 2
+        x = int(round(13653 * incr))
+        y = int(round(384 / incr))
         
         conversion_options = dict()
         if stub_test:
@@ -223,6 +227,7 @@ def convert_and_upload_session(
                         {data_interface_name: dict(
                             progress_position=progress_position,
                             stub_test=True,
+                            iterator_opts=dict(chunk_shape=(x,y)),
                         )}
                     )
         else:
@@ -230,9 +235,11 @@ def convert_and_upload_session(
                 if "Ap" in data_interface_name or "Lf" in data_interface_name:
                     conversion_options.update({data_interface_name: dict(
                         progress_position=progress_position,
+                        iterator_opts=dict(chunk_shape=(x,y)),
                     )})
 
         metadata = session_converter.get_metadata()
+        metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"] + f"chunking_{x}_{y}"
                     
         session_converter.run_conversion(
             nwbfile_path=nwbfile_path,
@@ -262,7 +269,10 @@ base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 session_retrieval_one = ONE(
     base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
 )
-brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
+#brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
+brain_wide_sessions = [
+    "3e7ae7c0-fe8b-487c-9354-036236fa1010"
+] * 8
 
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
     with tqdm(total=len(brain_wide_sessions), position=0, desc="Converting sessions...") as main_progress_bar:
