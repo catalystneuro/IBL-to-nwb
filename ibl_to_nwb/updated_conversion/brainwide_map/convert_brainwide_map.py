@@ -227,12 +227,8 @@ if stub_test:
     for data_interface_name in session_converter.data_interface_objects:
         if "Ap" in data_interface_name or "Lf" in data_interface_name:
             conversion_options.update(
-                {data_interface_name: dict(progress_position=progress_position, stub_test=True)}
+                {data_interface_name: dict(stub_test=True)}
             )
-else:
-    for data_interface_name in session_converter.data_interface_objects:
-        if "Ap" in data_interface_name or "Lf" in data_interface_name:
-            conversion_options.update({data_interface_name: dict(progress_position=progress_position)})
 
 session_converter.run_conversion(
     nwbfile_path=nwbfile_path,

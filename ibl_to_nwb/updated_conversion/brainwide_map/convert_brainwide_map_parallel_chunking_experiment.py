@@ -177,12 +177,12 @@ def convert_and_upload_session(
                     session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
                 )
             )
-        for stream_name in lf_stream_names:
-            data_interfaces.append(
-                IblStreamingLfInterface(
-                    session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
-                )
-            )
+        #for stream_name in lf_stream_names:
+        #    data_interfaces.append(
+        #        IblStreamingLfInterface(
+        #            session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
+        #        )
+        #    )
 
         # These interfaces should always be present in source data
         data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
@@ -194,7 +194,7 @@ def convert_and_upload_session(
         for pose_estimation_file in pose_estimation_files:
             camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
             data_interfaces.append(
-                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=True)
+                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=False)
             )
 
         pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
@@ -215,14 +215,21 @@ def convert_and_upload_session(
             one=session_one, session=session, data_interfaces=data_interfaces, verbose=False
         )
 
-        incr = (progress_position + 1) * 2
-        x = int(round(13653 * incr))
-        y = int(round(384 / incr))
-        
+        chunks = [
+            (54613, 96),
+            (27307, 192),
+            (13653, 384),
+            (81920, 64),
+            (163840, 32),
+            (327680, 16),
+        ]
+        x = chunks[progress_position][0]
+        y = chunks[progress_position][1]
+
         conversion_options = dict()
         if stub_test:
             for data_interface_name in session_converter.data_interface_objects:
-                if "Ap" in data_interface_name or "Lf" in data_interface_name:
+                if "Ap" in data_interface_name in data_interface_name:
                     conversion_options.update(
                         {data_interface_name: dict(
                             progress_position=progress_position,
@@ -232,15 +239,15 @@ def convert_and_upload_session(
                     )
         else:
             for data_interface_name in session_converter.data_interface_objects:
-                if "Ap" in data_interface_name or "Lf" in data_interface_name:
+                if "Ap" in data_interface_name in data_interface_name:
                     conversion_options.update({data_interface_name: dict(
                         progress_position=progress_position,
                         iterator_opts=dict(chunk_shape=(x,y)),
                     )})
 
         metadata = session_converter.get_metadata()
-        metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"] + f"chunking_{x}_{y}"
-                    
+        metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"] + f"-chunking-{x}-{y}"
+
         session_converter.run_conversion(
             nwbfile_path=nwbfile_path,
             metadata=metadata,
@@ -256,14 +263,14 @@ def convert_and_upload_session(
 
         return 1
     except Exception as exception:
-        error_file_path = base_path / "errors" / "8-7-23" / f"{session}_{progress_position}_error.txt"
+        error_file_path = base_path / "errors" / "8-8-23" / f"{session}_{progress_position}_error.txt"
         error_file_path.parent.mkdir(exist_ok=True)
         with open(file=error_file_path, mode="w") as file:
             file.write(f"{type(exception)}: {str(exception)}\n{traceback.format_exc()}")
         return 0
 
 
-number_of_parallel_jobs = 8
+number_of_parallel_jobs = 6
 base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 
 session_retrieval_one = ONE(
@@ -272,13 +279,13 @@ session_retrieval_one = ONE(
 #brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
 brain_wide_sessions = [
     "3e7ae7c0-fe8b-487c-9354-036236fa1010"
-] * 8
+] * 6
 
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
     with tqdm(total=len(brain_wide_sessions), position=0, desc="Converting sessions...") as main_progress_bar:
         futures = []
         for progress_position, session in enumerate(brain_wide_sessions):
-            nwbfile_path = base_path / "nwbfiles" / session / f"{session}.nwb"
+            nwbfile_path = base_path / "nwbfiles" / f"{session}_{progress_position}" / f"{session}_{progress_position}.nwb"
             nwbfile_path.parent.mkdir(exist_ok=True)
             futures.append(
                 executor.submit(
@@ -286,7 +293,7 @@ with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
                     base_path=base_path,
                     session=session,
                     nwbfile_path=nwbfile_path,
-                    progress_position=1 + progress_position,
+                    progress_position=progress_position,
                     # stub_test=True,
                     # files_mode="copy",  # useful when debugging
                     # cleanup=False,
