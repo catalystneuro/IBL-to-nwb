@@ -13,11 +13,11 @@ from dandi.download import download as dandi_download
 from dandi.organize import organize as dandi_organize
 from dandi.upload import upload as dandi_upload
 from neuroconv.tools.data_transfers import automatic_dandi_upload
+from nwbinspector.tools import get_s3_urls_and_dandi_paths
 from one.api import ONE
 from pynwb import NWBHDF5IO
 from pynwb.image import ImageSeries
 from tqdm import tqdm
-from nwbinspector.tools import get_s3_urls_and_dandi_paths
 
 from ibl_to_nwb.updated_conversion.brainwide_map import BrainwideMapConverter
 from ibl_to_nwb.updated_conversion.brainwide_map.datainterfaces import (
@@ -48,7 +48,7 @@ def convert_and_upload_parallel_processed_only(
         assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
 
         nwbfile_path.parent.mkdir(exist_ok=True)
-        
+
         # Download behavior and spike sorted data for this session
         session_path = base_path / "ibl_conversion" / session
         cache_folder = base_path / "ibl_conversion" / session / "cache"
@@ -72,7 +72,9 @@ def convert_and_upload_parallel_processed_only(
         for pose_estimation_file in pose_estimation_files:
             camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
             data_interfaces.append(
-                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=False)
+                IblPoseEstimationInterface(
+                    one=session_one, session=session, camera_name=camera_name, include_video=False
+                )
             )
 
         pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
@@ -95,14 +97,16 @@ def convert_and_upload_parallel_processed_only(
 
         metadata = session_converter.get_metadata()
         metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"] + "-processed-only"
-                    
+
         session_converter.run_conversion(
             nwbfile_path=nwbfile_path,
             metadata=metadata,
             overwrite=True,
         )
         automatic_dandi_upload(
-            dandiset_id="000409", nwb_folder_path=nwbfile_path.parent, cleanup=cleanup, #files_mode=files_mode
+            dandiset_id="000409",
+            nwb_folder_path=nwbfile_path.parent,
+            cleanup=cleanup,  # files_mode=files_mode
         )
         if cleanup:
             rmtree(cache_folder)
@@ -152,7 +156,7 @@ with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
                     progress_position=1 + progress_position,
                     # stub_test=True,
                     # files_mode="copy",  # useful when debugging
-                    #cleanup=True,  # causing shutil error ATM
+                    # cleanup=True,  # causing shutil error ATM
                 )
             )
         for future in as_completed(futures):

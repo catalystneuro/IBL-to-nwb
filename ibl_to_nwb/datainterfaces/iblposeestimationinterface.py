@@ -84,6 +84,10 @@ class IblPoseEstimationInterface(BaseDataInterface):
             behavior_module.add(pose_estimation_container)
         
         if self.include_video and self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"):
+            all_pose_estimation_series.append(pose_estimation_series)
+
+            reused_timestamps = all_pose_estimation_series[0]  # trick for linking timestamps across series
+
             original_video_file = self.one.load_dataset(
                 id=self.session, dataset=f"raw_video_data/*{self.camera_name}*", download_only=True
             )
