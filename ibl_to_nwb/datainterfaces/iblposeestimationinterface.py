@@ -82,8 +82,10 @@ class IblPoseEstimationInterface(BaseDataInterface):
             pose_estimation_container = PoseEstimation(**pose_estimation_kwargs)
             behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
             behavior_module.add(pose_estimation_container)
-        
-        if self.include_video and self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"):
+
+        if self.include_video and self.one.list_datasets(
+            eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"
+        ):
             all_pose_estimation_series.append(pose_estimation_series)
 
             reused_timestamps = all_pose_estimation_series[0]  # trick for linking timestamps across series

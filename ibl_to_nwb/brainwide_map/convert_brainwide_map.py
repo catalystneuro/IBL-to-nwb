@@ -145,13 +145,13 @@ def automatic_dandi_upload(
 
 base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 
-#session_retrieval_one = ONE(
+# session_retrieval_one = ONE(
 #    base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
-#)
-#brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
+# )
+# brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
 
-#session = session_info["id"]
-session="3e7ae7c0-fe8b-487c-9354-036236fa1010"
+# session = session_info["id"]
+session = "3e7ae7c0-fe8b-487c-9354-036236fa1010"
 
 nwbfile_path = base_path / "nwbfiles" / session / f"{session}.nwb"
 nwbfile_path.parent.mkdir(exist_ok=True)
@@ -180,15 +180,11 @@ lf_stream_names = IblStreamingLfInterface.get_stream_names(session=session)
 data_interfaces = list()
 for stream_name in ap_stream_names:
     data_interfaces.append(
-        IblStreamingApInterface(
-            session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
-        )
+        IblStreamingApInterface(session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings")
     )
 for stream_name in lf_stream_names:
     data_interfaces.append(
-        IblStreamingLfInterface(
-            session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
-        )
+        IblStreamingLfInterface(session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings")
     )
 
 # These interfaces should always be present in source data
@@ -226,9 +222,7 @@ conversion_options = dict()
 if stub_test:
     for data_interface_name in session_converter.data_interface_objects:
         if "Ap" in data_interface_name or "Lf" in data_interface_name:
-            conversion_options.update(
-                {data_interface_name: dict(stub_test=True)}
-            )
+            conversion_options.update({data_interface_name: dict(stub_test=True)})
 
 session_converter.run_conversion(
     nwbfile_path=nwbfile_path,
