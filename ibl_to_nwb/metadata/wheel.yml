@@ -1,0 +1,18 @@
+WheelMovement:
+  name: WheelMovementIntervals
+  description: |
+    The onset and offset times of all detected movements. Movements are defined as a wheel movement of at least 0.012 rad over 200ms. For a rotary encoder of resolution 1024 in X4 encoding, this is equivalent to around 8 ticks. Movements below 50ms are discarded and two detected movements within 100ms of one another are considered as a single movement. For the onsets a lower threshold is used to find a more precise onset time. The wheel diameter is 6.2 cm and the number of ticks is 4096 per revolution.
+  columns:
+    peakAmplitude:
+      name: peak_amplitude
+      description: The absolute maximum amplitude of each detected wheel movement, relative to onset position.
+WheelPosition:
+  name: WheelPositionSeries
+  description: |
+    Absolute unwrapped angle of the wheel from session start. The sign from the subject perspective corresponds to mathematical convention; counter-clockwise is positive. The wheel diameter is 6.2 cm and the number of ticks is 4096 per revolution.
+WheelVelocity:
+  name: WheelVelocity
+  description: The velocity estimated from the position interpolated at a frequency of 1000 Hz and passed through an 8th order lowpass Butterworth filter.
+WheelAcceleration:
+  name: WheelAcceleration
+  description: The acceleration estimated from the position interpolated at a frequency of 1000 Hz and passed through an 8th order lowpass Butterworth filter.

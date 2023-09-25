@@ -1,1 +1,0 @@
-from .brainwidemaptrialsinterface import BrainwideMapTrialsInterface

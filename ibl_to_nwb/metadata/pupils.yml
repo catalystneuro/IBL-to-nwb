@@ -1,0 +1,8 @@
+Pupils:
+  pupilDiameter_raw:
+    name: RawPupilDiameter
+    description: |
+      Estimates pupil diameter by taking the median of different computations. The two most straightforward estimates are d1 = top - bottom, d2 = left - right. In addition, assume the pupil is a circle and estimate diameter from other pairs of points.
+  pupilDiameter_smooth:
+    name: SmoothedPupilDiameter
+    description: Smoothed and interpolated version of the RawPupilDiameter.

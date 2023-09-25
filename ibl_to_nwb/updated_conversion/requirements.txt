@@ -1,7 +1,0 @@
-neuroconv[spikeglx] @ git+https://github.com/catalystneuro/neuroconv.git@fix_for_ibl
-spikeinterface>=0.98.2  # Actually need to use the streaming IBL fix for maximum efficiency
-ONE-api>=1.16.3
-ibllib>=2.21.0
-ndx-pose>=0.1.1
-ndx-ibl==0.1.0
-#probeinterface==0.2.15  # v0.2.16 causes issue in DANDI Hub environment only (likely combo of past numpy and Python 3.8)
