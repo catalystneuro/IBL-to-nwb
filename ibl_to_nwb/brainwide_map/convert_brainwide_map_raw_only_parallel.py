@@ -189,7 +189,9 @@ def convert_and_upload_session(
         for pose_estimation_file in pose_estimation_files:
             camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
             data_interfaces.append(
-                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=True, include_pose=False)
+                IblPoseEstimationInterface(
+                    one=session_one, session=session, camera_name=camera_name, include_video=True, include_pose=False
+                )
             )
 
         # Run conversion
@@ -204,19 +206,25 @@ def convert_and_upload_session(
             for data_interface_name in session_converter.data_interface_objects:
                 if "Ap" in data_interface_name or "Lf" in data_interface_name:
                     conversion_options.update(
-                        {data_interface_name: dict(
-                            progress_position=progress_position,
-                            stub_test=True,
-                            iterator_opts=dict(chunk_shape=chunk_shape),
-                        )}
+                        {
+                            data_interface_name: dict(
+                                progress_position=progress_position,
+                                stub_test=True,
+                                iterator_opts=dict(chunk_shape=chunk_shape),
+                            )
+                        }
                     )
         else:
             for data_interface_name in session_converter.data_interface_objects:
                 if "Ap" in data_interface_name or "Lf" in data_interface_name:
-                    conversion_options.update({data_interface_name: dict(
-                        progress_position=progress_position,
-                        iterator_opts=dict(chunk_shape=chunk_shape),
-                    )})
+                    conversion_options.update(
+                        {
+                            data_interface_name: dict(
+                                progress_position=progress_position,
+                                iterator_opts=dict(chunk_shape=chunk_shape),
+                            )
+                        }
+                    )
 
         metadata = session_converter.get_metadata()
         metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"] + f"-raw-only"
@@ -249,16 +257,16 @@ base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 session_retrieval_one = ONE(
     base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
 )
-#brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
-brain_wide_sessions = [
-    "c51f34d8-42f6-4c9c-bb5b-669fd9c42cd9"
-]
+# brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
+brain_wide_sessions = ["c51f34d8-42f6-4c9c-bb5b-669fd9c42cd9"]
 
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
     with tqdm(total=len(brain_wide_sessions), position=0, desc="Converting sessions...") as main_progress_bar:
         futures = []
         for progress_position, session in enumerate(brain_wide_sessions):
-            nwbfile_path = base_path / "nwbfiles" / f"{session}_{progress_position}" / f"{session}_{progress_position}.nwb"
+            nwbfile_path = (
+                base_path / "nwbfiles" / f"{session}_{progress_position}" / f"{session}_{progress_position}.nwb"
+            )
             nwbfile_path.parent.mkdir(exist_ok=True)
             futures.append(
                 executor.submit(

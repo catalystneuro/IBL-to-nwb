@@ -214,26 +214,32 @@ def convert_and_upload_session(
         session_converter = BrainwideMapConverter(
             one=session_one, session=session, data_interfaces=data_interfaces, verbose=False
         )
-        
+
         conversion_options = dict()
         if stub_test:
             for data_interface_name in session_converter.data_interface_objects:
                 if "Ap" in data_interface_name or "Lf" in data_interface_name:
                     conversion_options.update(
-                        {data_interface_name: dict(
-                            progress_position=progress_position,
-                            stub_test=True,
-                        )}
+                        {
+                            data_interface_name: dict(
+                                progress_position=progress_position,
+                                stub_test=True,
+                            )
+                        }
                     )
         else:
             for data_interface_name in session_converter.data_interface_objects:
                 if "Ap" in data_interface_name or "Lf" in data_interface_name:
-                    conversion_options.update({data_interface_name: dict(
-                        progress_position=progress_position,
-                    )})
+                    conversion_options.update(
+                        {
+                            data_interface_name: dict(
+                                progress_position=progress_position,
+                            )
+                        }
+                    )
 
         metadata = session_converter.get_metadata()
-                    
+
         session_converter.run_conversion(
             nwbfile_path=nwbfile_path,
             metadata=metadata,

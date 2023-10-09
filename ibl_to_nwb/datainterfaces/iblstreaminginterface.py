@@ -18,7 +18,9 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
 
     @classmethod
     def get_stream_names(cls, session: str):
-        return [stream_name for stream_name in cls.get_extractor().get_stream_names(session=session) if "ap" in stream_name]
+        return [
+            stream_name for stream_name in cls.get_extractor().get_stream_names(session=session) if "ap" in stream_name
+        ]
 
     def __init__(self, **kwargs):
         self.session = kwargs["session"]
@@ -145,8 +147,8 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         kwargs.update(
             iterator_opts=dict(
                 display_progress=True,
-                #chunk_shape=(chunk_frames, 16),  # ~1 MB
-                #buffer_shape=(buffer_frames, 384),  # 100 MB
+                # chunk_shape=(chunk_frames, 16),  # ~1 MB
+                # buffer_shape=(buffer_frames, 384),  # 100 MB
                 buffer_gb=0.1,
                 progress_bar_options=dict(
                     desc=f"Converting stream '{self.stream_name}' session '{self.session}'...",
