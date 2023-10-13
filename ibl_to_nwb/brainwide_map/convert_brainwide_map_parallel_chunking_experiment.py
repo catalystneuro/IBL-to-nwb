@@ -177,7 +177,7 @@ def convert_and_upload_session(
                     session=session, stream_name=stream_name, cache_folder=cache_folder / "ap_recordings"
                 )
             )
-        #for stream_name in lf_stream_names:
+        # for stream_name in lf_stream_names:
         #    data_interfaces.append(
         #        IblStreamingLfInterface(
         #            session=session, stream_name=stream_name, cache_folder=cache_folder / "lf_recordings"
@@ -194,7 +194,9 @@ def convert_and_upload_session(
         for pose_estimation_file in pose_estimation_files:
             camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
             data_interfaces.append(
-                IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=False)
+                IblPoseEstimationInterface(
+                    one=session_one, session=session, camera_name=camera_name, include_video=False
+                )
             )
 
         pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
@@ -231,19 +233,25 @@ def convert_and_upload_session(
             for data_interface_name in session_converter.data_interface_objects:
                 if "Ap" in data_interface_name in data_interface_name:
                     conversion_options.update(
-                        {data_interface_name: dict(
-                            progress_position=progress_position,
-                            stub_test=True,
-                            iterator_opts=dict(chunk_shape=(x,y)),
-                        )}
+                        {
+                            data_interface_name: dict(
+                                progress_position=progress_position,
+                                stub_test=True,
+                                iterator_opts=dict(chunk_shape=(x, y)),
+                            )
+                        }
                     )
         else:
             for data_interface_name in session_converter.data_interface_objects:
                 if "Ap" in data_interface_name in data_interface_name:
-                    conversion_options.update({data_interface_name: dict(
-                        progress_position=progress_position,
-                        iterator_opts=dict(chunk_shape=(x,y)),
-                    )})
+                    conversion_options.update(
+                        {
+                            data_interface_name: dict(
+                                progress_position=progress_position,
+                                iterator_opts=dict(chunk_shape=(x, y)),
+                            )
+                        }
+                    )
 
         metadata = session_converter.get_metadata()
         metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"] + f"-chunking-{x}-{y}"
@@ -276,16 +284,16 @@ base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 session_retrieval_one = ONE(
     base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
 )
-#brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
-brain_wide_sessions = [
-    "3e7ae7c0-fe8b-487c-9354-036236fa1010"
-] * 6
+# brain_wide_sessions = session_retrieval_one.alyx.rest(url="sessions", action="list", tag="2022_Q4_IBL_et_al_BWM")
+brain_wide_sessions = ["3e7ae7c0-fe8b-487c-9354-036236fa1010"] * 6
 
 with ProcessPoolExecutor(max_workers=number_of_parallel_jobs) as executor:
     with tqdm(total=len(brain_wide_sessions), position=0, desc="Converting sessions...") as main_progress_bar:
         futures = []
         for progress_position, session in enumerate(brain_wide_sessions):
-            nwbfile_path = base_path / "nwbfiles" / f"{session}_{progress_position}" / f"{session}_{progress_position}.nwb"
+            nwbfile_path = (
+                base_path / "nwbfiles" / f"{session}_{progress_position}" / f"{session}_{progress_position}.nwb"
+            )
             nwbfile_path.parent.mkdir(exist_ok=True)
             futures.append(
                 executor.submit(
