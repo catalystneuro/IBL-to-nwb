@@ -1,7 +1,7 @@
-neuroconv @ git+https://github.com/catalystneuro/neuroconv.git@fix_for_ibl
+neuroconv
 spikeinterface>=0.97.0  # Actually need to use the streaming IBL fix for maximum efficiency
 ONE-api>=1.16.3
 ibllib>=2.21.0
 ndx-pose>=0.1.1
 ndx-ibl==0.1.0
-probeinterface @ git+https://github.com/catalystneuro/probeinterface.git@ibl_fix
+probeinterface
