@@ -34,8 +34,9 @@ from ibl_to_nwb.datainterfaces import (
     WheelInterface,
 )
 
-base_path = Path(Path.home() / "IBL")  # prototype on DANDI Hub for now
+base_path = Path.home() / "ibl_scratch"  # prototype on DANDI Hub for now
 session = "d32876dd-8303-4720-8e7e-20678dc2fd71"
+session = 'caa5dddc-9290-4e27-9f5e-575ba3598614' # dual probe!
 
 # session_retrieval_one = ONE(
 #    base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True

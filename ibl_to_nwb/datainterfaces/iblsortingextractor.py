@@ -84,6 +84,7 @@ class IblSortingExtractor(BaseSorting):
                 firing_rate="firing_rate",
                 label="label",
                 uuid="uuid",
+                cluster_id="cluster_id",
             )
             
             cluster_metrics = clusters['metrics'].reset_index(drop=True).join(pd.DataFrame(clusters['uuids']))
