@@ -16,8 +16,8 @@ class IblSortingExtractor(BaseSorting):
 
     def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None):
         from brainbox.io.one import SpikeSortingLoader
-        from ibllib.atlas import AllenAtlas
-        from ibllib.atlas.regions import BrainRegions
+        from iblatlas.atlas import AllenAtlas
+        from iblatlas.regions import BrainRegions
         from one.api import ONE
 
         one = ONE(

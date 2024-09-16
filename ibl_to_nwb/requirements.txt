@@ -5,3 +5,4 @@ ibllib>=2.21.0
 ndx-pose>=0.1.1
 ndx-ibl==0.1.0
 probeinterface
+iblatlas
