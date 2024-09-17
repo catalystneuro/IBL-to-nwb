@@ -19,11 +19,11 @@ from pynwb import NWBHDF5IO
 from pynwb.image import ImageSeries
 from tqdm import tqdm
 
-from ibl_to_nwb.updated_conversion.brainwide_map import BrainwideMapConverter
-from ibl_to_nwb.updated_conversion.brainwide_map.datainterfaces import (
+from ibl_to_nwb.brainwide_map import BrainwideMapConverter
+from ibl_to_nwb.brainwide_map.datainterfaces import (
     BrainwideMapTrialsInterface,
 )
-from ibl_to_nwb.updated_conversion.datainterfaces import (
+from ibl_to_nwb.datainterfaces import (
     IblPoseEstimationInterface,
     IblSortingInterface,
     IblStreamingApInterface,

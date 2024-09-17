@@ -6,6 +6,8 @@ import numpy as np
 from pydantic import DirectoryPath
 from spikeinterface import BaseSorting, BaseSortingSegment
 
+import pandas as pd
+
 
 class IblSortingExtractor(BaseSorting):
     extractor_name = "IblSorting"
@@ -16,8 +18,8 @@ class IblSortingExtractor(BaseSorting):
 
     def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None):
         from brainbox.io.one import SpikeSortingLoader
-        from ibllib.atlas import AllenAtlas
-        from ibllib.atlas.regions import BrainRegions
+        from iblatlas.atlas import AllenAtlas
+        from iblatlas.regions import BrainRegions
         from one.api import ONE
 
         one = ONE(
@@ -44,9 +46,10 @@ class IblSortingExtractor(BaseSorting):
             sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
             sorting_loaders.update({probe_name: sorting_loader})
             spikes, clusters, channels = sorting_loader.load_spike_sorting()
-            cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
+            # cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
             number_of_units = len(np.unique(spikes["clusters"]))
-
+            cluster_ids.extend(list(np.arange(number_of_units).astype('int32') + unit_id_per_probe_shift))
+            
             # TODO - compare speed against iterating over unique cluster IDs + vector index search
             for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
                 spikes["clusters"], spikes["times"], spikes["amps"], spikes["depths"]
@@ -80,9 +83,15 @@ class IblSortingExtractor(BaseSorting):
                 spike_count="spike_count",
                 firing_rate="firing_rate",
                 label="label",
+                uuid="uuid",
+                cluster_id="cluster_id",
             )
+            
+            cluster_metrics = clusters['metrics'].reset_index(drop=True).join(pd.DataFrame(clusters['uuids']))
+            cluster_metrics.rename(columns={'uuids':'uuid'},inplace=True)
+            
             for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
-                all_unit_properties[property_name].extend(list(clusters["metrics"][ibl_metric_key]))
+                all_unit_properties[property_name].extend(list(cluster_metrics[ibl_metric_key]))
 
             if sorting_loader.histology in ["alf", "resolved"]:  # Assume if one probe has histology, the other does too
                 channel_id_to_allen_regions = channels["acronym"]
