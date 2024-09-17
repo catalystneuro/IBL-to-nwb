@@ -9,21 +9,21 @@ from pathlib import Path
 from shutil import rmtree
 from tempfile import mkdtemp
 
-# from dandi.download import download as dandi_download
-# from dandi.organize import organize as dandi_organize
-# from dandi.upload import upload as dandi_upload
+from dandi.download import download as dandi_download
+from dandi.organize import organize as dandi_organize
+from dandi.upload import upload as dandi_upload
 from neuroconv.tools.data_transfers import automatic_dandi_upload
-# from nwbinspector.tools import get_s3_urls_and_dandi_paths
+from nwbinspector.tools import get_s3_urls_and_dandi_paths
 from one.api import ONE
 from pynwb import NWBHDF5IO
 from pynwb.image import ImageSeries
 from tqdm import tqdm
 
-from ibl_to_nwb.brainwide_map import BrainwideMapConverter
-from ibl_to_nwb.brainwide_map.datainterfaces import (
+from ibl_to_nwb.updated_conversion.brainwide_map import BrainwideMapConverter
+from ibl_to_nwb.updated_conversion.brainwide_map.datainterfaces import (
     BrainwideMapTrialsInterface,
 )
-from ibl_to_nwb.datainterfaces import (
+from ibl_to_nwb.updated_conversion.datainterfaces import (
     IblPoseEstimationInterface,
     IblSortingInterface,
     IblStreamingApInterface,
@@ -34,9 +34,8 @@ from ibl_to_nwb.datainterfaces import (
     WheelInterface,
 )
 
-base_path = Path.home() / "ibl_scratch"  # prototype on DANDI Hub for now
+base_path = Path("/home/jovyan/IBL")  # prototype on DANDI Hub for now
 session = "d32876dd-8303-4720-8e7e-20678dc2fd71"
-session = 'caa5dddc-9290-4e27-9f5e-575ba3598614' # dual probe!
 
 # session_retrieval_one = ONE(
 #    base_url="https://openalyx.internationalbrainlab.org", password="international", silent=True
@@ -61,7 +60,7 @@ nwbfile_path.parent.mkdir(exist_ok=True)
 stub_test: bool = False
 cleanup: bool = False
 
-# assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
+assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
 
 nwbfile_path.parent.mkdir(exist_ok=True)
 
@@ -88,7 +87,7 @@ pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*"
 for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
     data_interfaces.append(
-        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_pose=True, include_video=False)
+        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=False)
     )
 
 pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
@@ -117,11 +116,11 @@ session_converter.run_conversion(
     metadata=metadata,
     overwrite=True,
 )
-# automatic_dandi_upload(
-#     dandiset_id="000409",
-#     nwb_folder_path=nwbfile_path.parent,
-#     cleanup=cleanup,
-# )
+automatic_dandi_upload(
+    dandiset_id="000409",
+    nwb_folder_path=nwbfile_path.parent,
+    cleanup=cleanup,
+)
 if cleanup:
     rmtree(cache_folder)
     rmtree(nwbfile_path.parent)
