@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
-from ibllib.atlas import AllenAtlas
-from ibllib.atlas.regions import BrainRegions
+from iblatlas.atlas import AllenAtlas
+from iblatlas.regions import BrainRegions
 from neuroconv.datainterfaces.ecephys.baserecordingextractorinterface import (
     BaseRecordingExtractorInterface,
 )
