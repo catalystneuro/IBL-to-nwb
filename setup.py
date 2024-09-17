@@ -12,7 +12,7 @@ with open(root / "README.md") as file:
 with open(root / "requirements.txt") as f:
     install_requires = f.readlines()
 
-with open(root / "ibl_to_nwb" / "updated_conversion" / "requirements.txt") as f:
+with open(root / "ibl_to_nwb" / "requirements.txt") as f:
     brainwide_map_requires = f.readlines()
 
 extras_require = dict(brainwide_map=brainwide_map_requires)
