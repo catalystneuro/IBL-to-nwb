@@ -83,12 +83,12 @@ class IblSortingExtractor(BaseSorting):
                 spike_count="spike_count",
                 firing_rate="firing_rate",
                 label="label",
-                uuid="uuid",
+                cluster_uuid="cluster_uuid",
                 cluster_id="cluster_id",
             )
             
             cluster_metrics = clusters['metrics'].reset_index(drop=True).join(pd.DataFrame(clusters['uuids']))
-            cluster_metrics.rename(columns={'uuids':'uuid'},inplace=True)
+            cluster_metrics.rename(columns={'uuids':'cluster_uuid'}, inplace=True)
             
             for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
                 all_unit_properties[property_name].extend(list(cluster_metrics[ibl_metric_key]))
