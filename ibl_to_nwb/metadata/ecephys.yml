@@ -82,3 +82,7 @@ Ecephys:
       description: Proportion of quality metrics passed.
     - name: allen_location
       description: Brain region reference in the Allen Mouse Brain Atlas.
+    - name: uuid
+      description: Unique identifier given to each cluster after spike sorting. Enables comparison of each cluster in this .nwb file to its counterpart in ONE (see https://int-brain-lab.github.io/ONE/index.html)
+    - name: cluster_id
+      description: The original id given to each cluster after spike sorting. Note that as spike sorting is computed per probe, cluster_ids are only unique per probe insertion, experiments with dual insertions can have clusters with the same id.
