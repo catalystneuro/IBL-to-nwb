@@ -56,18 +56,20 @@ session = 'caa5dddc-9290-4e27-9f5e-575ba3598614' # a BWM sesssion with dual prob
 # sessions_to_run = list(set(brain_wide_sessions) - set(already_written_processed_sessions))
 
 nwbfile_path = base_path / "nwbfiles" / session / f"{session}.nwb"
-nwbfile_path.parent.mkdir(exist_ok=True)
+os.makedirs(nwbfile_path.parent, exist_ok=True)
+# nwbfile_path.parent.mkdir(exist_ok=True)
 
 stub_test: bool = False
 cleanup: bool = False
 
 # assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
 
-nwbfile_path.parent.mkdir(exist_ok=True)
-
 # Download behavior and spike sorted data for this session
 session_path = base_path / "ibl_conversion" / session
 cache_folder = base_path / "ibl_conversion" / session / "cache"
+os.makedirs(session_path, exist_ok=True)
+os.makedirs(cache_folder, exist_ok=True)
+
 session_one = ONE(
     base_url="https://openalyx.internationalbrainlab.org",
     password="international",
