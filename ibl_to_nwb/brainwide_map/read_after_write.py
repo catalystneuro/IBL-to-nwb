@@ -20,10 +20,10 @@ def check_arrays(array_a: np.ndarray, array_b: np.ndarray, full_check: bool = Fa
 
     # check shapes
     assert array_a.shape == array_b.shape
-    
+
     # check if NaNs are the same
     assert np.all(pd.isna(array_a) == pd.isna(array_b))
-    
+
     # subset to non-NaN values
     ix = ~pd.isna(array_a)
     array_a = array_a[ix]
@@ -158,14 +158,14 @@ def test_RoiMotionEnergyInterface(
     for view in camera_views:
         # data
         data_nwb = nwbfile.processing["behavior"].data_interfaces["%sCameraMotionEnergy" % view.capitalize()].data[:]
-        data_one = one.load_dataset(eid, "%sCamera.ROIMotionEnergy" % view, collection='alf')
+        data_one = one.load_dataset(eid, "%sCamera.ROIMotionEnergy" % view, collection="alf")
         check_arrays(data_nwb, data_one, full_check=full_check)
 
         # timestamps
         data_nwb = (
             nwbfile.processing["behavior"].data_interfaces["%sCameraMotionEnergy" % view.capitalize()].timestamps[:]
         )
-        data_one = one.load_dataset(eid, "_ibl_%sCamera.times" % view, collection='alf')
+        data_one = one.load_dataset(eid, "_ibl_%sCamera.times" % view, collection="alf")
         check_arrays(data_nwb, data_one, full_check=full_check)
 
 
@@ -194,7 +194,7 @@ def test_IblPoseEstimationInterface(
                 .pose_estimation_series[node]
                 .data[:][:, 0]
             )
-            data_one = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection='alf')["%s_x" % node].values
+            data_one = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")["%s_x" % node].values
             check_arrays(data_nwb, data_one, full_check=full_check)
 
             # y
@@ -204,7 +204,7 @@ def test_IblPoseEstimationInterface(
                 .pose_estimation_series[node]
                 .data[:][:, 1]
             )
-            data_one = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection='alf')["%s_y" % node].values
+            data_one = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")["%s_y" % node].values
             check_arrays(data_nwb, data_one, full_check=full_check)
 
             # confidence
@@ -214,7 +214,9 @@ def test_IblPoseEstimationInterface(
                 .pose_estimation_series[node]
                 .confidence[:]
             )
-            data_one = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection='alf')["%s_likelihood" % node].values
+            data_one = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")[
+                "%s_likelihood" % node
+            ].values
             check_arrays(data_nwb, data_one, full_check=full_check)
 
             # timestamps
@@ -224,7 +226,7 @@ def test_IblPoseEstimationInterface(
                 .pose_estimation_series[node]
                 .timestamps[:]
             )
-            data_one = one.load_dataset(eid, "_ibl_%sCamera.times" % view, collection='alf')
+            data_one = one.load_dataset(eid, "_ibl_%sCamera.times" % view, collection="alf")
             check_arrays(data_nwb, data_one, full_check=full_check)
 
 
@@ -290,7 +292,7 @@ def test_PupilTrackingInterface(
         ].values
 
         check_arrays(data_nwb, data_one, full_check=full_check)
-        
+
         # smooth
         data_nwb = (
             nwbfile.processing["behavior"]
