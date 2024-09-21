@@ -358,4 +358,4 @@ def test_IblSortingInterface(
         # one_spike_times = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
         
         # testing
-        np.testing.assert_array_less(np.max((one_spike_times - nwb_spike_times) * 30000), 1)
+        testing.assert_array_less(np.max((one_spike_times - nwb_spike_times) * 30000), 1)
