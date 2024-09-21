@@ -7,7 +7,7 @@ from pynwb import NWBHDF5IO, NWBFile
 from one.api import ONE
 import logging
 from typing import Optional
-
+from numpy import testing
 
 def check_arrays(array_a: np.ndarray, array_b: np.ndarray, full_check: bool = False):
     """checks if two arrays contain the same numerical values
@@ -18,25 +18,15 @@ def check_arrays(array_a: np.ndarray, array_b: np.ndarray, full_check: bool = Fa
         full_check (bool, optional): If True, compares all values of the arrays. If False, checks a small subsample only. Defaults to False.
     """
 
-    # check shapes
-    assert array_a.shape == array_b.shape
-
-    # check if NaNs are the same
-    assert np.all(pd.isna(array_a) == pd.isna(array_b))
-
-    # subset to non-NaN values
-    ix = ~pd.isna(array_a)
-    array_a = array_a[ix]
-    array_b = array_b[ix]
-
     # if full check, check all samples
     if full_check:
-        assert np.all(array_a == array_b)
+        testing.assert_allclose(array_a, array_b)
 
     # check just a random subset of samples
     else:
-        inds = np.random.randint(0, array_a.shape[0], size=10)
-        assert np.all(array_a[inds] == array_b[inds])
+        inds = np.random.randint(0, np.prod(array_a.shape), size=10)
+        testing.assert_allclose(np.ravel(array_a)[inds], np.ravel(array_b)[inds])
+        
 
 
 def check_series(series_a: pd.Series, series_b: pd.Series, full_check: bool = False):
@@ -48,12 +38,9 @@ def check_series(series_a: pd.Series, series_b: pd.Series, full_check: bool = Fa
         full_check (bool, optional): _description_. Defaults to False.
     """
 
-    # if it has NaNs, check if all NaN-indices are the same
-    assert np.all(pd.isna(series_a) == pd.isna(series_b).values)
-
-    # and if they are, use only non-NaN values for comparison
-    # ix = ~pd.isna(series_a)
-    # check_arrays(series_a.loc[ix].values, series_b.loc[ix].values, full_check=full_check)
+    # -> all of this functionality is now moved to check_arrays()
+    # this function as of now is obsolete but kept for potential future integration
+    
     check_arrays(series_a.values, series_b.values, full_check=full_check)
 
 
@@ -369,5 +356,6 @@ def test_IblSortingInterface(
 
         # more verbose but slower for more than ~20 checks
         # one_spike_times = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
-
-        assert np.max((one_spike_times - nwb_spike_times) * 30000) < 1
+        
+        # testing
+        np.testing.assert_array_less(np.max((one_spike_times - nwb_spike_times) * 30000), 1)
