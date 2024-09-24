@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 import numpy as np
 from ndx_pose import PoseEstimation, PoseEstimationSeries
@@ -17,20 +18,19 @@ class IblPoseEstimationInterface(BaseDataInterface):
         self.include_video = include_video
         self.include_pose = include_pose
 
-    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        # Sometimes the DLC data has been revised, possibly multiple times
-        # Always use the most recent revision available
-        session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
-        revision_datetime_format = "%Y-%m-%d"
-        revisions = [
-            datetime.strptime(session_file.split("#")[1], revision_datetime_format)
-            for session_file in session_files
-            if "#" in session_file
-        ]
-        revision = None
-        if any(revisions):
-            most_recent = max(revisions)
-            revision = most_recent.strftime("%Y-%m-%d")
+    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict, revision: Optional[str] = None):
+        if revision is None:
+            session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
+            revision_datetime_format = "%Y-%m-%d"
+            revisions = [
+                datetime.strptime(session_file.split("#")[1], revision_datetime_format)
+                for session_file in session_files
+                if "#" in session_file
+            ]
+
+            if any(revisions):
+                most_recent = max(revisions)
+                revision = most_recent.strftime("%Y-%m-%d")
 
         camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf", revision=revision)
         dlc_data = camera_data["dlc"]
