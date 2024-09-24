@@ -35,5 +35,8 @@ jobs:
       - name: Test import
         run: python -c "import ibl_to_nwb"
 
-      - name: Test import
-        run: python -c "import ibl_to_nwb.brainwide_map"
+      - name: Test data interface imports
+        run: python -c "import ibl_to_nwb.datainterface"
+
+      - name: Test converters imports
+        run: python -c "import ibl_to_nwb.converters"

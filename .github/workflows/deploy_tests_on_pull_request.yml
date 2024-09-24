@@ -9,4 +9,4 @@ concurrency:  # Cancel previous workflows on the same pull request
 
 jobs:
   TestInstallation:
-    uses: ./.github/workflows/installation.yml
+    uses: ./.github/workflows/test_installation.yml
