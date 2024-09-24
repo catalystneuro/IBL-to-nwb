@@ -4,9 +4,9 @@ on:
 
 jobs:
   run:
-    # Will read on PR dashboard as 'Deploy / Test Installation / {python-version} on {os}'
+    # Will read on PR dashboard as 'Deploy / TestInstallation / {python-version} on {os}'
     # Action dashboard identified by 'Dev tests'
-    # Requirement settings identified as 'Test Installation / Python {python-version} on {os}'
+    # Requirement settings identified as 'TestInstallation / Python {python-version} on {os}'
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
