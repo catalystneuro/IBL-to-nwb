@@ -2,7 +2,7 @@
 [![PyPI version](https://badge.fury.io/py/ibl-to-nwb.svg)](https://badge.fury.io/py/ibl-to-nwb)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
-This repository houses conversion piplines for the IBL data releases, including the Brain Wide Map project.
+This repository houses conversion pipelines for the IBL data releases, including the Brain Wide Map project.
 
 
 
