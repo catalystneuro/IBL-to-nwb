@@ -1,14 +1,9 @@
-import os
-
-os.environ["JUPYTER_PLATFORM_DIRS"] = "1"  # Annoying
-
-import os
 from pathlib import Path
 
 from one.api import ONE
 
-from ibl_to_nwb import (
-    BrainwideMapConverter,
+from ibl_to_nwb.converters import BrainwideMapConverter
+from ibl_to_nwb.datainterfaces import (
     BrainwideMapTrialsInterface,
     IblPoseEstimationInterface,
     IblSortingInterface,
@@ -25,6 +20,7 @@ session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
 revision = None
 
 base_path = Path("E:/IBL")
+base_path.mkdir(exist_ok=True)
 nwbfiles_folder_path = base_path / "nwbfiles"
 nwbfiles_folder_path.mkdir(exist_ok=True)
 
@@ -51,7 +47,12 @@ for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
     data_interfaces.append(
         IblPoseEstimationInterface(
-            one=ibl_client, session=session_id, camera_name=camera_name, include_video=False, revision=revision
+            one=ibl_client,
+            session=session_id,
+            camera_name=camera_name,
+            include_video=False,
+            include_pose=True,
+            revision=revision,
         )
     )
 
@@ -77,7 +78,8 @@ metadata = session_converter.get_metadata()
 subject_id = metadata["Subject"]["subject_id"]
 
 subject_folder_path = nwbfiles_folder_path / f"sub-{subject_id}"
-nwbfile_path = nwbfiles_folder_path / f"sub-{subject_id}_ses-{session_id}_desc-processed_behavior+ecephys.nwb"
+subject_folder_path.mkdir(exist_ok=True)
+nwbfile_path = subject_folder_path / f"sub-{subject_id}_ses-{session_id}_desc-processed_behavior+ecephys.nwb"
 
 session_converter.run_conversion(
     nwbfile_path=nwbfile_path,
