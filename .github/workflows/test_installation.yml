@@ -36,7 +36,7 @@ jobs:
         run: python -c "import ibl_to_nwb"
 
       - name: Test data interface imports
-        run: python -c "import ibl_to_nwb.datainterface"
+        run: python -c "import ibl_to_nwb.datainterfaces"
 
       - name: Test converters imports
         run: python -c "import ibl_to_nwb.converters"
