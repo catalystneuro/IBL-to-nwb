@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 source = "vcs"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ibl-to-nwb"]
+packages = ["src/ibl_to_nwb"]
 
 [project]
 name = "ibl_to_nwb"
