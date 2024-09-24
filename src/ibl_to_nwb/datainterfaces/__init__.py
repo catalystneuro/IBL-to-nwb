@@ -6,8 +6,10 @@ from ._lick_times import LickInterface
 from ._pupil_tracking import PupilTrackingInterface
 from ._roi_motion_energy import RoiMotionEnergyInterface
 from ._wheel_movement import WheelInterface
+from ._brainwide_map_trials import BrainwideMapTrialsInterface
 
 __all__ = [
+    "BrainwideMapTrialsInterface",
     "IblPoseEstimationInterface",
     "IblSortingExtractor",
     "IblSortingInterface",

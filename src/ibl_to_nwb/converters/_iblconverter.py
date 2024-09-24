@@ -144,7 +144,7 @@ class IblConverter(ConverterPipe):
                 )
 
             if backend_configuration is None:
-                backend_configuration = self.get_default_backend_configuration(nwbfile=nwbfile_out, backend=backend)
+                backend_configuration = self.get_default_backend_configuration(nwbfile=nwbfile_out, backend="hdf5")
 
             configure_backend(nwbfile=nwbfile_out, backend_configuration=backend_configuration)
 
