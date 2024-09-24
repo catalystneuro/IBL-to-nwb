@@ -1,4 +1,5 @@
 """Setup and package the ibl-to-nwb project."""
+
 from pathlib import Path
 
 from setuptools import setup
