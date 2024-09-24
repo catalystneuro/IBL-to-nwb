@@ -1,4 +1,5 @@
 """Data Interface for the pupil tracking."""
+
 from pathlib import Path
 
 import numpy as np
@@ -50,7 +51,7 @@ class PupilTrackingInterface(BaseDataInterface):
                 )
             )
         # Normally best practice convention would be PupilTrackingLeft or PupilTrackingRight but
-        # in this case I'd say LeftPupilTracking and RightPupilTracking reads bettter
+        # in this case I'd say LeftPupilTracking and RightPupilTracking reads better
         pupil_tracking = PupilTracking(name=f"{left_or_right.capitalize()}PupilTracking", time_series=pupil_time_series)
 
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")

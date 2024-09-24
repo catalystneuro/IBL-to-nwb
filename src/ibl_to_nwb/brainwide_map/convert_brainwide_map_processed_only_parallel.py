@@ -7,27 +7,19 @@ import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from shutil import rmtree
-from tempfile import mkdtemp
 
-from dandi.download import download as dandi_download
-from dandi.organize import organize as dandi_organize
-from dandi.upload import upload as dandi_upload
 from neuroconv.tools.data_transfers import automatic_dandi_upload
 from nwbinspector.tools import get_s3_urls_and_dandi_paths
 from one.api import ONE
-from pynwb import NWBHDF5IO
-from pynwb.image import ImageSeries
 from tqdm import tqdm
 
-from ibl_to_nwb.brainwide_map import BrainwideMapConverter
-from ibl_to_nwb.brainwide_map.datainterfaces import (
+from src.ibl_to_nwb.brainwide_map import BrainwideMapConverter
+from src.ibl_to_nwb.brainwide_map.datainterfaces import (
     BrainwideMapTrialsInterface,
 )
-from ibl_to_nwb.datainterfaces import (
+from src.ibl_to_nwb.datainterfaces import (
     IblPoseEstimationInterface,
     IblSortingInterface,
-    IblStreamingApInterface,
-    IblStreamingLfInterface,
     LickInterface,
     PupilTrackingInterface,
     RoiMotionEnergyInterface,
@@ -50,7 +42,7 @@ def convert_and_upload_parallel_processed_only(
         nwbfile_path.parent.mkdir(exist_ok=True)
 
         # Download behavior and spike sorted data for this session
-        session_path = base_path / "ibl_conversion" / session
+        # session_path = base_path / "ibl_conversion" / session
         cache_folder = base_path / "ibl_conversion" / session / "cache"
         session_one = ONE(
             base_url="https://openalyx.internationalbrainlab.org",

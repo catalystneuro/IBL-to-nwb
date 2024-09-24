@@ -1,4 +1,5 @@
 """The interface for loading spike sorted data via ONE access."""
+
 from pathlib import Path
 
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
