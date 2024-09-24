@@ -7,7 +7,7 @@ from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
-from pynwb import H5DataIO, TimeSeries
+from pynwb import TimeSeries
 from pynwb.behavior import PupilTracking
 
 
@@ -25,15 +25,6 @@ class PupilTrackingInterface(BaseDataInterface):
 
         return metadata
 
-    def get_original_timestamps(self):
-        pass
-
-    def get_timestamps(self):
-        pass
-
-    def align_timestamps(self):
-        pass
-
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         left_or_right = self.camera_name[:5].rstrip("C")
 
@@ -45,7 +36,7 @@ class PupilTrackingInterface(BaseDataInterface):
                 TimeSeries(
                     name=left_or_right.capitalize() + metadata["Pupils"][ibl_key]["name"],
                     description=metadata["Pupils"][ibl_key]["description"],
-                    data=H5DataIO(np.array(camera_data["features"][ibl_key]), compression=True),
+                    data=np.array(camera_data["features"][ibl_key]),
                     timestamps=camera_data["times"],
                     unit="px",
                 )

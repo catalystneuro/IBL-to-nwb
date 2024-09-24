@@ -5,7 +5,7 @@ from ndx_pose import PoseEstimation, PoseEstimationSeries
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
-from pynwb import H5DataIO
+from pynwb import NWBFile
 from pynwb.image import ImageSeries
 
 
@@ -17,16 +17,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
         self.include_video = include_video
         self.include_pose = include_pose
 
-    def get_original_timestamps(self):
-        pass
-
-    def get_timestamps(self):
-        pass
-
-    def align_timestamps(self):
-        pass
-
-    def add_to_nwbfile(self, nwbfile, metadata: dict):
+    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
         # Sometimes the DLC data has been revised, possibly multiple times
         # Always use the most recent revision available
         session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
@@ -50,7 +41,6 @@ class IblPoseEstimationInterface(BaseDataInterface):
         )
 
         left_right_or_body = self.camera_name[:5].rstrip("C")
-        # camera_name_snake_case = f"{left_right_or_body}_camera"
         reused_timestamps = None
         all_pose_estimation_series = list()
         if self.include_pose:
@@ -62,15 +52,15 @@ class IblPoseEstimationInterface(BaseDataInterface):
                 pose_estimation_series = PoseEstimationSeries(
                     name=body_part,
                     description=f"Marker placed on or around, labeled '{body_part}'.",
-                    data=H5DataIO(body_part_data, compression=True),
+                    data=body_part_data,
                     unit="px",
                     reference_frame="(0,0) corresponds to the upper left corner when using width by height convention.",
-                    timestamps=reused_timestamps or H5DataIO(timestamps, compression=True),
+                    timestamps=reused_timestamps or timestamps,
                     confidence=np.array(dlc_data[f"{body_part}_likelihood"]),
                 )
                 all_pose_estimation_series.append(pose_estimation_series)
 
-                reused_timestamps = all_pose_estimation_series[0]  # trick for linking timestamps across series
+                reused_timestamps = all_pose_estimation_series[0]  # A trick for linking timestamps across series
 
             pose_estimation_kwargs = dict(
                 name=f"PoseEstimation{left_right_or_body.capitalize()}Camera",
@@ -88,7 +78,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
         ):
             all_pose_estimation_series.append(pose_estimation_series)
 
-            reused_timestamps = all_pose_estimation_series[0]  # trick for linking timestamps across series
+            reused_timestamps = all_pose_estimation_series[0]  # A trick for linking timestamps across series
 
             original_video_file = self.one.load_dataset(
                 id=self.session, dataset=f"raw_video_data/*{self.camera_name}*", download_only=True
@@ -99,7 +89,6 @@ class IblPoseEstimationInterface(BaseDataInterface):
                 unit="n.a.",
                 external_file=[str(original_video_file)],
                 format="external",
-                timestamps=reused_timestamps or H5DataIO(timestamps, compression=True),
+                timestamps=reused_timestamps or timestamps,
             )
-            # pose_estimation_kwargs.update(original_videos_series=[image_series])  # For future version of ndx-pose
             nwbfile.add_acquisition(image_series)

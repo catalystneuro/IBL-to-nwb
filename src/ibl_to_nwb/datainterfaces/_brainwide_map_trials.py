@@ -4,7 +4,7 @@ from hdmf.common import VectorData
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
-from pynwb import H5DataIO, NWBFile
+from pynwb import NWBFile
 from pynwb.epoch import TimeIntervals
 
 
@@ -18,15 +18,6 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         trial_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "trials.yml")
         metadata.update(trial_metadata)
         return metadata
-
-    def get_original_timestamps(self):
-        pass
-
-    def get_timestamps(self):
-        pass
-
-    def align_timestamps(self):
-        pass
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
         trials = self.one.load_object(id=self.session, obj="trials", collection="alf")
@@ -49,12 +40,12 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
             VectorData(
                 name="start_time",
                 description="The beginning of the trial.",
-                data=H5DataIO(trials["intervals"][:, 0], compression=True),
+                data=trials["intervals"][:, 0],
             ),
             VectorData(
                 name="stop_time",
                 description="The end of the trial.",
-                data=H5DataIO(trials["intervals"][:, 1], compression=True),
+                data=trials["intervals"][:, 1],
             ),
         ]
         for ibl_key in column_ordering:
@@ -62,7 +53,7 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
                 VectorData(
                     name=metadata["Trials"][ibl_key]["name"],
                     description=metadata["Trials"][ibl_key]["description"],
-                    data=H5DataIO(trials[ibl_key], compression=True),
+                    data=trials[ibl_key],
                 )
             )
         nwbfile.add_time_intervals(
@@ -72,14 +63,3 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
                 columns=columns,
             )
         )
-
-        # compression only works using the method above; method below fails
-        # for start_time, stop_time in trials["intervals"]:
-        #    nwbfile.add_trial(start_time=start_time, stop_time=stop_time)
-
-        # for ibl_key in column_ordering:
-        #    nwbfile.add_trial_column(
-        #        name=metadata["Trials"][ibl_key]["name"],
-        #        description=metadata["Trials"][ibl_key]["description"],
-        #        data=H5DataIO(trials[ibl_key], compression=True),
-        #    )
