@@ -18,7 +18,7 @@ class WheelInterface(BaseDataInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        metadata.update(load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "wheel.yml"))
+        metadata.update(load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "wheel.yml"))
 
         return metadata
 

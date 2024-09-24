@@ -2,7 +2,7 @@ from pathlib import Path
 
 from neuroconv.utils import dict_deep_update, load_dict_from_file
 
-from src.ibl_to_nwb.converters.iblconverter import IblConverter
+from src.ibl_to_nwb.converters._iblconverter import IblConverter
 
 
 class BrainwideMapConverter(IblConverter):

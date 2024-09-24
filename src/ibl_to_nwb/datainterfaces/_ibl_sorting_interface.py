@@ -7,7 +7,7 @@ from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
 )
 from neuroconv.utils import load_dict_from_file
 
-from .iblsortingextractor import IblSortingExtractor
+from ._ibl_sorting_extractor import IblSortingExtractor
 
 
 class IblSortingInterface(BaseSortingExtractorInterface):
@@ -16,7 +16,7 @@ class IblSortingInterface(BaseSortingExtractorInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
+        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "ecephys.yml")
 
         metadata.update(Ecephys=dict())
         metadata["Ecephys"].update(UnitProperties=ecephys_metadata["Ecephys"]["UnitProperties"])
