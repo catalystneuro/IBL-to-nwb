@@ -8,5 +8,5 @@ concurrency:  # Cancel previous workflows on the same pull request
   cancel-in-progress: true
 
 jobs:
-  Installation:
+  TestInstallation:
     uses: ./.github/workflows/installation.yml
