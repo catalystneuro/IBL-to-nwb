@@ -12,6 +12,7 @@ from ibl_to_nwb.datainterfaces import (
     RoiMotionEnergyInterface,
     WheelInterface,
 )
+from ibl_to_nwb.testing import check_written_nwbfile_for_consistency
 
 session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
 
@@ -86,3 +87,5 @@ session_converter.run_conversion(
     metadata=metadata,
     overwrite=True,
 )
+
+check_written_nwbfile_for_consistency(one=ibl_client, nwbfile_path=nwbfile_path)
