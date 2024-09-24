@@ -104,7 +104,7 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
+        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "ecephys.yml")
 
         metadata["Ecephys"].update({self.es_key: ecephys_metadata["Ecephys"]["ElectricalSeriesAp"]})
         if len(self.available_streams) > 1:
@@ -176,7 +176,7 @@ class IblStreamingLfInterface(IblStreamingApInterface):
         metadata = super().get_metadata()
         metadata["Ecephys"].pop("ElectrodeGroup")
 
-        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "ecephys.yml")
+        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "ecephys.yml")
 
         metadata["Ecephys"].update({self.es_key: ecephys_metadata["Ecephys"]["ElectricalSeriesLf"]})
         if len(self.available_streams) > 1:

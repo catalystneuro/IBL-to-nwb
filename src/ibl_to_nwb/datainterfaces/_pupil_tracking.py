@@ -20,7 +20,7 @@ class PupilTrackingInterface(BaseDataInterface):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
-        pupils_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "metadata" / "pupils.yml")
+        pupils_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "pupils.yml")
         metadata.update(pupils_metadata)
 
         return metadata
