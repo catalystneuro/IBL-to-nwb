@@ -3,7 +3,7 @@
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
-from pynwb import H5DataIO, TimeSeries
+from pynwb import TimeSeries
 
 
 class RoiMotionEnergyInterface(BaseDataInterface):
@@ -11,15 +11,6 @@ class RoiMotionEnergyInterface(BaseDataInterface):
         self.one = one
         self.session = session
         self.camera_name = camera_name
-
-    def get_original_timestamps(self):
-        pass
-
-    def get_timestamps(self):
-        pass
-
-    def align_timestamps(self):
-        pass
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         left_right_or_body = self.camera_name[:5].rstrip("C")
@@ -42,8 +33,8 @@ class RoiMotionEnergyInterface(BaseDataInterface):
         motion_energy_series = TimeSeries(
             name=f"{left_right_or_body.capitalize()}CameraMotionEnergy",
             description=description,
-            data=H5DataIO(camera_data["ROIMotionEnergy"]),
-            timestamps=H5DataIO(camera_data["times"]),
+            data=camera_data["ROIMotionEnergy"],
+            timestamps=camera_data["times"],
             unit="a.u.",
         )
 

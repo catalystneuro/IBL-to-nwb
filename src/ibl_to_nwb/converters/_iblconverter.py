@@ -1,26 +1,26 @@
 """Primary base class for all IBL converters."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from dateutil import tz
 from ndx_ibl import IblSubject
 from neuroconv import ConverterPipe
-from neuroconv.tools.nwb_helpers import make_or_load_nwbfile
+from neuroconv.tools.nwb_helpers import HDF5BackendConfiguration, configure_backend, make_or_load_nwbfile
 from one.api import ONE
+from pydantic import FilePath
 from pynwb import NWBFile
+from typing_extensions import Self
 
 
 class IblConverter(ConverterPipe):
-    def __init__(self, one: ONE, session: str, data_interfaces: list, verbose: bool = True):
+    def __init__(self, one: ONE, session: str, data_interfaces: list, verbose: bool = True) -> Self:
         self.one = one
         self.session = session
         super().__init__(data_interfaces=data_interfaces, verbose=verbose)
 
     def get_metadata_schema(self) -> dict:
         metadata_schema = super().get_metadata_schema()
-
-        # way of manually overriding custom metadata for interfaces we don't care about validating
         metadata_schema["additionalProperties"] = True
 
         return metadata_schema
@@ -80,10 +80,15 @@ class IblConverter(ConverterPipe):
 
     def run_conversion(
         self,
-        nwbfile_path: Optional[str] = None,
+        nwbfile_path: Optional[FilePath] = None,
         nwbfile: Optional[NWBFile] = None,
         metadata: Optional[dict] = None,
         overwrite: bool = False,
+        # TODO: when all H5DataIO prewraps are gone, introduce Zarr safely
+        # backend: Union[Literal["hdf5", "zarr"]],
+        # backend_configuration: Optional[Union[HDF5BackendConfiguration, ZarrBackendConfiguration]] = None,
+        backend: Optional[Literal["hdf5"]] = None,
+        backend_configuration: Optional[HDF5BackendConfiguration] = None,
         conversion_options: Optional[dict] = None,
     ) -> NWBFile:
         """
@@ -91,33 +96,35 @@ class IblConverter(ConverterPipe):
 
         Parameters
         ----------
-        nwbfile_path: FilePathType
+        nwbfile_path : FilePathType
             Path for where to write or load (if overwrite=False) the NWBFile.
             If specified, the context will always write to this location.
-        nwbfile: NWBFile, optional
+        nwbfile : NWBFile, optional
             An in-memory NWBFile object to write to the location.
-        metadata: dict, optional
+        metadata : dict, optional
             Metadata dictionary with information used to create the NWBFile when one does not exist or overwrite=True.
-        overwrite: bool, optional
-            Whether or not to overwrite the NWBFile if one exists at the nwbfile_path.
+        overwrite : bool, default: False
+            Whether to overwrite the NWBFile if one exists at the nwbfile_path.
             The default is False (append mode).
-        verbose: bool, optional
-            If 'nwbfile_path' is specified, informs user after a successful write operation.
-            The default is True.
-        conversion_options: dict, optional
+        backend : "hdf5", optional
+            The type of backend to use when writing the file.
+            If a `backend_configuration` is not specified, the default type will be "hdf5".
+            If a `backend_configuration` is specified, then the type will be auto-detected.
+        backend_configuration : HDF5BackendConfiguration, optional
+            The configuration model to use when configuring the datasets for this backend.
+            To customize, call the `.get_default_backend_configuration(...)` method, modify the returned
+            BackendConfiguration object, and pass that instead.
+            Otherwise, all datasets will use default configuration settings.
+        conversion_options : dict, optional
             Similar to source_data, a dictionary containing keywords for each interface for which non-default
             conversion specification is requested.
-
-        Returns
-        -------
-        nwbfile: NWBFile
-            The in-memory NWBFile object after all conversion operations are complete.
         """
+        if metadata is None:
+            metadata = self.get_metadata()
+
         subject_metadata = metadata.pop("Subject")
         ibl_subject = IblSubject(**subject_metadata)
 
-        if metadata is None:
-            metadata = self.get_metadata()
         self.validate_metadata(metadata=metadata)
 
         conversion_options = conversion_options or dict()
@@ -136,6 +143,9 @@ class IblConverter(ConverterPipe):
                     nwbfile=nwbfile_out, metadata=metadata, **conversion_options.get(interface_name, dict())
                 )
 
-        super().run_conversion()
+            if backend_configuration is None:
+                backend_configuration = self.get_default_backend_configuration(nwbfile=nwbfile_out, backend=backend)
+
+            configure_backend(nwbfile=nwbfile_out, backend_configuration=backend_configuration)
 
         return nwbfile_out

@@ -2,7 +2,7 @@ from hdmf.common import VectorData
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
-from pynwb import H5DataIO
+from pynwb import NWBFile
 from pynwb.file import DynamicTable
 
 
@@ -11,16 +11,7 @@ class LickInterface(BaseDataInterface):
         self.one = one
         self.session = session
 
-    def get_original_timestamps(self):
-        pass
-
-    def get_timestamps(self):
-        pass
-
-    def align_timestamps(self):
-        pass
-
-    def add_to_nwbfile(self, nwbfile, metadata: dict):
+    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
         licks = self.one.load_object(id=self.session, obj="licks", collection="alf")
 
         lick_events_table = DynamicTable(
@@ -33,15 +24,10 @@ class LickInterface(BaseDataInterface):
                 VectorData(
                     name="lick_time",
                     description="Time stamps of licks as detected from tongue dlc traces",
-                    data=H5DataIO(licks["times"], compression=True),
+                    data=licks["times"],
                 )
             ],
         )
-        # lick_events_table.add_column(
-        #    name="lick_time",
-        #    description="Time stamps of licks as detected from tongue dlc traces",
-        #    data=H5DataIO(licks["times"], compression=True),
-        # )
 
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
         behavior_module.add(lick_events_table)

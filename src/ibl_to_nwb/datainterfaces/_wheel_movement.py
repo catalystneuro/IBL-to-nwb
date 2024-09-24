@@ -5,7 +5,7 @@ from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
-from pynwb import H5DataIO, TimeSeries
+from pynwb import TimeSeries
 from pynwb.behavior import CompassDirection, SpatialSeries
 from pynwb.epoch import TimeIntervals
 
@@ -21,15 +21,6 @@ class WheelInterface(BaseDataInterface):
         metadata.update(load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "wheel.yml"))
 
         return metadata
-
-    def get_original_timestamps(self):
-        pass
-
-    def get_timestamps(self):
-        pass
-
-    def align_timestamps(self):
-        pass
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         wheel_moves = self.one.load_object(id=self.session, obj="wheelMoves", collection="alf")
@@ -56,7 +47,7 @@ class WheelInterface(BaseDataInterface):
         wheel_movement_intervals.add_column(
             name=metadata["WheelMovement"]["columns"]["peakAmplitude"]["name"],
             description=metadata["WheelMovement"]["columns"]["peakAmplitude"]["description"],
-            data=H5DataIO(wheel_moves["peakAmplitude"], compression=True),
+            data=wheel_moves["peakAmplitude"],
         )
 
         # Wheel position over time
@@ -64,8 +55,8 @@ class WheelInterface(BaseDataInterface):
             spatial_series=SpatialSeries(
                 name=metadata["WheelPosition"]["name"],
                 description=metadata["WheelPosition"]["description"],
-                data=H5DataIO(wheel["position"], compression=True),
-                timestamps=H5DataIO(wheel["timestamps"], compression=True),
+                data=wheel["position"],
+                timestamps=wheel["timestamps"],
                 unit="rad",
                 reference_frame="Initial angle at start time is zero. Counter-clockwise is positive.",
             )
@@ -73,7 +64,7 @@ class WheelInterface(BaseDataInterface):
         velocity_series = TimeSeries(
             name=metadata["WheelVelocity"]["name"],
             description=metadata["WheelVelocity"]["description"],
-            data=H5DataIO(velocity, compression=True),
+            data=velocity,
             starting_time=interpolated_starting_time,
             rate=interpolated_rate,
             unit="rad/s",
@@ -81,7 +72,7 @@ class WheelInterface(BaseDataInterface):
         acceleration_series = TimeSeries(
             name=metadata["WheelAcceleration"]["name"],
             description=metadata["WheelAcceleration"]["description"],
-            data=H5DataIO(acceleration, compression=True),
+            data=acceleration,
             starting_time=interpolated_starting_time,
             rate=interpolated_rate,
             unit="rad/s^2",
