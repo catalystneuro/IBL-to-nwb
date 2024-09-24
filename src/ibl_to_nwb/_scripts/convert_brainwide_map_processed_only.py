@@ -18,11 +18,15 @@ from ibl_to_nwb import (
     WheelInterface,
 )
 
+session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
+
+# Specify the revision of the pose estimation data
+# Setting to 'None' will use whatever the latest released revision is
+revision = None
+
 base_path = Path("E:/IBL")
 nwbfiles_folder_path = base_path / "nwbfiles"
 nwbfiles_folder_path.mkdir(exist_ok=True)
-
-session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
 
 # Initialize IBL (ONE) client to download processed data for this session
 one_cache_folder_path = base_path / "cache"
@@ -46,7 +50,9 @@ pose_estimation_files = ibl_client.list_datasets(eid=session_id, filename="*.dlc
 for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
     data_interfaces.append(
-        IblPoseEstimationInterface(one=ibl_client, session=session_id, camera_name=camera_name, include_video=False)
+        IblPoseEstimationInterface(
+            one=ibl_client, session=session_id, camera_name=camera_name, include_video=False, revision=revision
+        )
     )
 
 pupil_tracking_files = ibl_client.list_datasets(eid=session_id, filename="*features*")
