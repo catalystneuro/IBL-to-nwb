@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 import numpy as np
 from ndx_pose import PoseEstimation, PoseEstimationSeries
@@ -7,32 +8,43 @@ from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
 from pynwb.image import ImageSeries
+from typing_extensions import Self
 
 
 class IblPoseEstimationInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str, camera_name: str, include_video: bool, include_pose: bool):
+    def __init__(
+        self,
+        one: ONE,
+        session: str,
+        camera_name: str,
+        include_video: bool,
+        include_pose: bool,
+        revision: Optional[str] = None,
+    ) -> Self:
         self.one = one
         self.session = session
         self.camera_name = camera_name
         self.include_video = include_video
         self.include_pose = include_pose
 
-    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        # Sometimes the DLC data has been revised, possibly multiple times
-        # Always use the most recent revision available
-        session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
-        revision_datetime_format = "%Y-%m-%d"
-        revisions = [
-            datetime.strptime(session_file.split("#")[1], revision_datetime_format)
-            for session_file in session_files
-            if "#" in session_file
-        ]
-        revision = None
-        if any(revisions):
-            most_recent = max(revisions)
-            revision = most_recent.strftime("%Y-%m-%d")
+        self.revision = revision
+        if self.revision is None:
+            session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
+            revision_datetime_format = "%Y-%m-%d"
+            revisions = [
+                datetime.strptime(session_file.split("#")[1], revision_datetime_format)
+                for session_file in session_files
+                if "#" in session_file
+            ]
 
-        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf", revision=revision)
+            if any(revisions):
+                most_recent = max(revisions)
+                self.revision = most_recent.strftime("%Y-%m-%d")
+
+    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
+        camera_data = self.one.load_object(
+            id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
+        )
         dlc_data = camera_data["dlc"]
         timestamps = camera_data["times"]
         number_of_frames = len(timestamps)
