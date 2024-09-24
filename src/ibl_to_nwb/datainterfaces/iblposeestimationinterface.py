@@ -50,7 +50,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
         )
 
         left_right_or_body = self.camera_name[:5].rstrip("C")
-        camera_name_snake_case = f"{left_right_or_body}_camera"
+        # camera_name_snake_case = f"{left_right_or_body}_camera"
         reused_timestamps = None
         all_pose_estimation_series = list()
         if self.include_pose:

@@ -1,12 +1,12 @@
 """The interface for loadding spike sorted data via ONE access."""
+
 from collections import defaultdict
 from typing import Dict, Optional, Union
 
 import numpy as np
+import pandas as pd
 from pydantic import DirectoryPath
 from spikeinterface import BaseSorting, BaseSortingSegment
-
-import pandas as pd
 
 
 class IblSortingExtractor(BaseSorting):
@@ -48,8 +48,8 @@ class IblSortingExtractor(BaseSorting):
             spikes, clusters, channels = sorting_loader.load_spike_sorting()
             # cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
             number_of_units = len(np.unique(spikes["clusters"]))
-            cluster_ids.extend(list(np.arange(number_of_units).astype('int32') + unit_id_per_probe_shift))
-            
+            cluster_ids.extend(list(np.arange(number_of_units).astype("int32") + unit_id_per_probe_shift))
+
             # TODO - compare speed against iterating over unique cluster IDs + vector index search
             for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
                 spikes["clusters"], spikes["times"], spikes["amps"], spikes["depths"]
@@ -86,10 +86,10 @@ class IblSortingExtractor(BaseSorting):
                 cluster_uuid="cluster_uuid",
                 cluster_id="cluster_id",
             )
-            
-            cluster_metrics = clusters['metrics'].reset_index(drop=True).join(pd.DataFrame(clusters['uuids']))
-            cluster_metrics.rename(columns={'uuids':'cluster_uuid'}, inplace=True)
-            
+
+            cluster_metrics = clusters["metrics"].reset_index(drop=True).join(pd.DataFrame(clusters["uuids"]))
+            cluster_metrics.rename(columns={"uuids": "cluster_uuid"}, inplace=True)
+
             for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
                 all_unit_properties[property_name].extend(list(cluster_metrics[ibl_metric_key]))
 

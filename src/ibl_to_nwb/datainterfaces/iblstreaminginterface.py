@@ -1,4 +1,5 @@
 """Data interface wrapper around the SpikeInterface extractor - also sets atlas information."""
+
 from pathlib import Path
 
 import numpy as np
@@ -116,8 +117,8 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
             device_name = f"NeuropixelsProbe{self.probe_number}"
             group_name = f"NeuropixelsShank{self.probe_number}"
         else:
-            device_name = f"NeuropixelsProbe"
-            group_name = f"NeuropixelsShank"
+            device_name = "NeuropixelsProbe"
+            group_name = "NeuropixelsShank"
         # set_channel_groups removes probe
         self.recording_extractor.set_property(
             key="group_name", values=np.array([group_name] * self.recording_extractor.get_num_channels())
@@ -142,8 +143,8 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
     def add_to_nwbfile(self, iterator_opts: dict, progress_position: int, **kwargs):
         # The buffer and chunk shapes must be set explicitly for good performance with the streaming
         # Otherwise, the default buffer/chunk shapes might re-request the same data packet multiple times
-        chunk_frames = 100 if kwargs.get("stub_test", False) else 30_000
-        buffer_frames = 100 if kwargs.get("stub_test", False) else 5 * 30_000
+        # chunk_frames = 100 if kwargs.get("stub_test", False) else 30_000
+        # buffer_frames = 100 if kwargs.get("stub_test", False) else 5 * 30_000
         kwargs.update(
             iterator_opts=dict(
                 display_progress=True,

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from neuroconv.utils import dict_deep_update, load_dict_from_file
-from one.api import ONE
 
 from ..iblconverter import IblConverter
 
