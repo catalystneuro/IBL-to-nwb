@@ -24,7 +24,7 @@ dependencies = [
     "neuroconv",
     "spikeinterface",
     "probeinterface",
-    "ndx-pose>=0.1.1",
+    "ndx-pose==0.1.1",
     "ndx-ibl==0.1.0",
     "ONE-api",
     "ibllib",
