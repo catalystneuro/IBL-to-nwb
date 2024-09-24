@@ -7,7 +7,7 @@ from pathlib import Path
 
 from one.api import ONE
 
-from src.ibl_to_nwb import (
+from ibl_to_nwb import (
     BrainwideMapConverter,
     BrainwideMapTrialsInterface,
     IblPoseEstimationInterface,
@@ -18,63 +18,60 @@ from src.ibl_to_nwb import (
     WheelInterface,
 )
 
-stub_test = False
-cleanup = False
-
 base_path = Path("E:/IBL")
-session = "d32876dd-8303-4720-8e7e-20678dc2fd71"
+nwbfiles_folder_path = base_path / "nwbfiles"
+nwbfiles_folder_path.mkdir(exist_ok=True)
 
-nwbfile_path = base_path / "nwbfiles" / session / f"{session}.nwb"
-nwbfile_path.parent.mkdir(parents=True, exist_ok=True)
+session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
 
-nwbfile_path.parent.mkdir(exist_ok=True)
-
-# Download behavior and spike sorted data for this session
-# session_path = base_path / "ibl_conversion" / session
-cache_folder = base_path / "ibl_conversion" / session / "cache"
-session_one = ONE(
+# Initialize IBL (ONE) client to download processed data for this session
+one_cache_folder_path = base_path / "cache"
+ibl_client = ONE(
     base_url="https://openalyx.internationalbrainlab.org",
     password="international",
     silent=True,
-    cache_dir=cache_folder,
+    cache_dir=one_cache_folder_path,
 )
 
 # Initialize as many of each interface as we need across the streams
 data_interfaces = list()
 
 # These interfaces should always be present in source data
-data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
-data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
-data_interfaces.append(WheelInterface(one=session_one, session=session))
+data_interfaces.append(IblSortingInterface(session=session_id, cache_folder=one_cache_folder_path / "sorting"))
+data_interfaces.append(BrainwideMapTrialsInterface(one=ibl_client, session=session_id))
+data_interfaces.append(WheelInterface(one=ibl_client, session=session_id))
 
 # These interfaces may not be present; check if they are before adding to list
-pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
+pose_estimation_files = ibl_client.list_datasets(eid=session_id, filename="*.dlc*")
 for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
     data_interfaces.append(
-        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, include_video=False)
+        IblPoseEstimationInterface(one=ibl_client, session=session_id, camera_name=camera_name, include_video=False)
     )
 
-pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
+pupil_tracking_files = ibl_client.list_datasets(eid=session_id, filename="*features*")
 for pupil_tracking_file in pupil_tracking_files:
     camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
-    data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name))
+    data_interfaces.append(PupilTrackingInterface(one=ibl_client, session=session_id, camera_name=camera_name))
 
-roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
+roi_motion_energy_files = ibl_client.list_datasets(eid=session_id, filename="*ROIMotionEnergy.npy*")
 for roi_motion_energy_file in roi_motion_energy_files:
     camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
-    data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name))
+    data_interfaces.append(RoiMotionEnergyInterface(one=ibl_client, session=session_id, camera_name=camera_name))
 
-if session_one.list_datasets(eid=session, collection="alf", filename="licks*"):
-    data_interfaces.append(LickInterface(one=session_one, session=session))
+if ibl_client.list_datasets(eid=session_id, collection="alf", filename="licks*"):
+    data_interfaces.append(LickInterface(one=ibl_client, session=session_id))
 
 # Run conversion
 session_converter = BrainwideMapConverter(
-    one=session_one, session=session, data_interfaces=data_interfaces, verbose=False
+    one=ibl_client, session=session_id, data_interfaces=data_interfaces, verbose=False
 )
 
 metadata = session_converter.get_metadata()
-metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"] + "-processed-only"
+subject_id = metadata["Subject"]["subject_id"]
+
+subject_folder_path = nwbfiles_folder_path / f"sub-{subject_id}"
+nwbfile_path = nwbfiles_folder_path / f"sub-{subject_id}_ses-{session_id}_desc-processed_behavior+ecephys.nwb"
 
 session_converter.run_conversion(
     nwbfile_path=nwbfile_path,
