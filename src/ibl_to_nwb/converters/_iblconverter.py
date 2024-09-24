@@ -31,6 +31,7 @@ class IblConverter(ConverterPipe):
         session_metadata_list = self.one.alyx.rest(url="sessions", action="list", id=self.session)
         assert len(session_metadata_list) == 1, "More than one session metadata returned by query."
         session_metadata = session_metadata_list[0]
+        assert session_metadata["id"] == self.session, "Session metadata ID does not match the requested session ID."
 
         lab_metadata_list = self.one.alyx.rest("labs", "list", name=session_metadata["lab"])
         assert len(lab_metadata_list) == 1, "More than one lab metadata returned by query."
@@ -134,5 +135,7 @@ class IblConverter(ConverterPipe):
                 data_interface.add_to_nwbfile(
                     nwbfile=nwbfile_out, metadata=metadata, **conversion_options.get(interface_name, dict())
                 )
+
+        super().run_conversion()
 
         return nwbfile_out

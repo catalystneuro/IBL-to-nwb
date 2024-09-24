@@ -20,11 +20,11 @@ from one.api import ONE
 # from pynwb import NWBHDF5IO
 # from pynwb.image import ImageSeries
 # from tqdm import tqdm
-from src.ibl_to_nwb.brainwide_map import BrainwideMapConverter
-from src.ibl_to_nwb.brainwide_map.datainterfaces import (
+from ibl_to_nwb.brainwide_map import BrainwideMapConverter
+from ibl_to_nwb.brainwide_map.datainterfaces import (
     BrainwideMapTrialsInterface,
 )
-from src.ibl_to_nwb.datainterfaces import (
+from ibl_to_nwb.datainterfaces import (
     IblPoseEstimationInterface,
     IblSortingInterface,
     LickInterface,
