@@ -1,10 +1,11 @@
 from pathlib import Path
 
+import numpy as np
 from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
-import numpy as np
+
 
 def check_written_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
     """
@@ -25,9 +26,7 @@ def check_written_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
         # TODO: fill in the rest of the routed calls
 
 
-def _check_wheel_data(
-    *, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None
-):
+def _check_wheel_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
     processing_module = nwbfile.processing["behavior"]
     wheel_position_series = processing_module.data_interfaces["CompassDirection"].spatial_series["WheelPositionSeries"]
     wheel_movement_table = nwbfile.processing["behavior"].data_interfaces["WheelMovementIntervals"][:]
@@ -60,15 +59,15 @@ def _check_lick_data(*, eid: str, one: ONE, nwbfile: NWBFile):
     assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
-def _check_RoiMotionEnergyInterface(
-    *, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None
-):
+def _check_RoiMotionEnergyInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
 
     camera_views = ["body", "left", "right"]
 
     for view in camera_views:
         # data
-        data_from_NWB = nwbfile.processing["behavior"].data_interfaces["%sCameraMotionEnergy" % view.capitalize()].data[:]
+        data_from_NWB = (
+            nwbfile.processing["behavior"].data_interfaces["%sCameraMotionEnergy" % view.capitalize()].data[:]
+        )
         data_from_ONE = one.load_dataset(eid, "%sCamera.ROIMotionEnergy" % view, collection="alf")
         assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
@@ -80,9 +79,7 @@ def _check_RoiMotionEnergyInterface(
         assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
-def _check_IblPoseEstimationInterface(
-    *, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None
-):
+def _check_IblPoseEstimationInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
 
     camera_views = ["body", "left", "right"]
 
@@ -97,7 +94,9 @@ def _check_IblPoseEstimationInterface(
                 .pose_estimation_series[node]
                 .data[:][:, 0]
             )
-            data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")["%s_x" % node].values
+            data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")[
+                "%s_x" % node
+            ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # y
@@ -107,7 +106,9 @@ def _check_IblPoseEstimationInterface(
                 .pose_estimation_series[node]
                 .data[:][:, 1]
             )
-            data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")["%s_y" % node].values
+            data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")[
+                "%s_y" % node
+            ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # confidence
@@ -133,14 +134,12 @@ def _check_IblPoseEstimationInterface(
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
-def _check_BrainwideMapTrialsInterface(
-    *, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None
-):
+def _check_BrainwideMapTrialsInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
 
     data_from_NWB = nwbfile.trials[:]
     data_from_ONE = one.load_dataset(eid, "_ibl_trials.table", collection="alf")
-    data_from_ONE['stimOff_times'] = one.load_dataset(eid, "_ibl_trials.stimOff_times", collection="alf")
-    data_from_ONE.index.name = 'id'
+    data_from_ONE["stimOff_times"] = one.load_dataset(eid, "_ibl_trials.stimOff_times", collection="alf")
+    data_from_ONE.index.name = "id"
 
     naming_map = {
         "start_time": "intervals_0",
@@ -153,7 +152,7 @@ def _check_BrainwideMapTrialsInterface(
         "probability_left": "probabilityLeft",
         "feedback_time": "feedback_times",
         "response_time": "response_times",
-        "stim_off_time": 'stimOff_times',
+        "stim_off_time": "stimOff_times",
         "stim_on_time": "stimOn_times",
         "go_cue_time": "goCue_times",
         "first_movement_time": "firstMovement_times",
@@ -165,9 +164,8 @@ def _check_BrainwideMapTrialsInterface(
 
     assert_frame_equal(left=data_from_NWB, right=data_from_ONE)
 
-def _check_PupilTrackingInterface(
-    *, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None
-):
+
+def _check_PupilTrackingInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
 
     camera_views = ["left", "right"]
     for view in camera_views:
@@ -198,9 +196,7 @@ def _check_PupilTrackingInterface(
         assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
-def _check_IblSortingInterface(
-    *, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None
-):
+def _check_IblSortingInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
 
     units_table = nwbfile.units[:]
     probe_names = units_table["probe_name"].unique()
