@@ -75,7 +75,7 @@ exclude = [
 line-length = 120
 
 [tool.ruff.lint]
-select = ["F", "E", "I"]
+select = ["F", "E", "I", "UP031", "UP032"]
 ignore = [
     "PTH123",
     "D203",
