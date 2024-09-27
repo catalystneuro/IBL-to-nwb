@@ -59,82 +59,76 @@ def _check_lick_data(*, eid: str, one: ONE, nwbfile: NWBFile):
     assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
-def _check_RoiMotionEnergyInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
+def _check_roi_motion_energy_data(*, eid: str, one: ONE, nwbfile: NWBFile):
 
     camera_views = ["body", "left", "right"]
 
     for view in camera_views:
         # data
-        data_from_NWB = (
-            nwbfile.processing["behavior"].data_interfaces["%sCameraMotionEnergy" % view.capitalize()].data[:]
-        )
-        data_from_ONE = one.load_dataset(eid, "%sCamera.ROIMotionEnergy" % view, collection="alf")
+        data_from_NWB = nwbfile.processing["behavior"].data_interfaces[f"{view.capitalize()}CameraMotionEnergy"].data[:]
+        data_from_ONE = one.load_dataset(eid, f"{view}Camera.ROIMotionEnergy", collection="alf")
         assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
         # timestamps
         data_from_NWB = (
-            nwbfile.processing["behavior"].data_interfaces["%sCameraMotionEnergy" % view.capitalize()].timestamps[:]
+            nwbfile.processing["behavior"].data_interfaces[f"{view.capitalize()}CameraMotionEnergy"].timestamps[:]
         )
-        data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.times" % view, collection="alf")
+        data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times", collection="alf")
         assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
-def _check_IblPoseEstimationInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
+def _check_pose_estimation_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
 
     camera_views = ["body", "left", "right"]
 
     for view in camera_views:
-        nodes = nwbfile.processing["behavior"].data_interfaces["PoseEstimation%sCamera" % view.capitalize()].nodes[:]
+        nodes = nwbfile.processing["behavior"].data_interfaces[f"PoseEstimation{view.capitalize()}Camera"].nodes[:]
 
         for node in nodes:
             # x
             data_from_NWB = (
                 nwbfile.processing["behavior"]
-                .data_interfaces["PoseEstimation%sCamera" % view.capitalize()]
+                .data_interfaces[f"PoseEstimation{view.capitalize()}Camera"]
                 .pose_estimation_series[node]
                 .data[:][:, 0]
             )
-            data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")[
-                "%s_x" % node
-            ].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", collection="alf")[f"{node}_x"].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # y
             data_from_NWB = (
                 nwbfile.processing["behavior"]
-                .data_interfaces["PoseEstimation%sCamera" % view.capitalize()]
+                .data_interfaces[f"PoseEstimation{view.capitalize()}Camera"]
                 .pose_estimation_series[node]
                 .data[:][:, 1]
             )
-            data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")[
-                "%s_y" % node
-            ].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", collection="alf")[f"{node}_y"].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # confidence
             data_from_NWB = (
                 nwbfile.processing["behavior"]
-                .data_interfaces["PoseEstimation%sCamera" % view.capitalize()]
+                .data_interfaces[f"PoseEstimation{view.capitalize()}Camera"]
                 .pose_estimation_series[node]
                 .confidence[:]
             )
-            data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.dlc.pqt" % view, collection="alf")[
-                "%s_likelihood" % node
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", collection="alf")[
+                f"{node}_likelihood"
             ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # timestamps
             data_from_NWB = (
                 nwbfile.processing["behavior"]
-                .data_interfaces["PoseEstimation%sCamera" % view.capitalize()]
+                .data_interfaces[f"PoseEstimation{view.capitalize()}Camera"]
                 .pose_estimation_series[node]
                 .timestamps[:]
             )
-            data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.times" % view, collection="alf")
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times", collection="alf")
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
-def _check_BrainwideMapTrialsInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
+def _check_trials_data(*, eid: str, one: ONE, nwbfile: NWBFile):
 
     data_from_NWB = nwbfile.trials[:]
     data_from_ONE = one.load_dataset(eid, "_ibl_trials.table", collection="alf")
@@ -165,18 +159,18 @@ def _check_BrainwideMapTrialsInterface(*, eid: str, one: ONE, nwbfile: NWBFile, 
     assert_frame_equal(left=data_from_NWB, right=data_from_ONE)
 
 
-def _check_PupilTrackingInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
+def _check_PupilTrackingInterface(*, eid: str, one: ONE, nwbfile: NWBFile):
 
     camera_views = ["left", "right"]
     for view in camera_views:
         # raw
         data_from_NWB = (
             nwbfile.processing["behavior"]
-            .data_interfaces["%sPupilTracking" % view.capitalize()]
-            .time_series["%sRawPupilDiameter" % view.capitalize()]
+            .data_interfaces[f"{view.capitalize()}PupilTracking"]
+            .time_series[f"{view.capitalize()}RawPupilDiameter"]
             .data[:]
         )
-        data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.features.pqt" % view, collection="alf")[
+        data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", collection="alf")[
             "pupilDiameter_raw"
         ].values
 
@@ -185,18 +179,18 @@ def _check_PupilTrackingInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revis
         # smooth
         data_from_NWB = (
             nwbfile.processing["behavior"]
-            .data_interfaces["%sPupilTracking" % view.capitalize()]
-            .time_series["%sSmoothedPupilDiameter" % view.capitalize()]
+            .data_interfaces[f"{view.capitalize()}PupilTracking"]
+            .time_series[f"{view.capitalize()}SmoothedPupilDiameter"]
             .data[:]
         )
-        data_from_ONE = one.load_dataset(eid, "_ibl_%sCamera.features.pqt" % view, collection="alf")[
+        data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", collection="alf")[
             "pupilDiameter_smooth"
         ].values
 
         assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
-def _check_IblSortingInterface(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
+def _check_spike_sorting_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
 
     units_table = nwbfile.units[:]
     probe_names = units_table["probe_name"].unique()
