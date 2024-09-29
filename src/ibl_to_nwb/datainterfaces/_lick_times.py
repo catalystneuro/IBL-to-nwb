@@ -29,5 +29,5 @@ class LickInterface(BaseDataInterface):
             ],
         )
 
-        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
-        behavior_module.add(lick_events_table)
+        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
+        camera_module.add(lick_events_table)

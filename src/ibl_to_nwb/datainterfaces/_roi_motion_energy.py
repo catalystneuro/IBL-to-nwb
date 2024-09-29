@@ -38,5 +38,5 @@ class RoiMotionEnergyInterface(BaseDataInterface):
             unit="a.u.",
         )
 
-        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
-        behavior_module.add(motion_energy_series)
+        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
+        camera_module.add(motion_energy_series)

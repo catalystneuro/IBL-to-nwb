@@ -45,5 +45,5 @@ class PupilTrackingInterface(BaseDataInterface):
         # in this case I'd say LeftPupilTracking and RightPupilTracking reads better
         pupil_tracking = PupilTracking(name=f"{left_or_right.capitalize()}PupilTracking", time_series=pupil_time_series)
 
-        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
-        behavior_module.add(pupil_tracking)
+        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
+        camera_module.add(pupil_tracking)

@@ -78,7 +78,7 @@ class WheelInterface(BaseDataInterface):
             unit="rad/s^2",
         )
 
-        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
+        behavior_module = get_module(nwbfile=nwbfile, name="wheel", description="Processed wheel data.")
         behavior_module.add(wheel_movement_intervals)
         behavior_module.add(compass_direction)
         behavior_module.add(velocity_series)

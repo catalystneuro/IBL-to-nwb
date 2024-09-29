@@ -90,5 +90,6 @@ class IblPoseEstimationInterface(BaseDataInterface):
             nodes=body_parts,
         )
         pose_estimation_container = PoseEstimation(**pose_estimation_kwargs)
-        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
-        behavior_module.add(pose_estimation_container)
+
+        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
+        camera_module.add(pose_estimation_container)

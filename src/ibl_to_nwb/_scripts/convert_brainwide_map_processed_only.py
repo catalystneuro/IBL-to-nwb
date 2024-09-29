@@ -51,8 +51,6 @@ for pose_estimation_file in pose_estimation_files:
             one=ibl_client,
             session=session_id,
             camera_name=camera_name,
-            include_video=False,
-            include_pose=True,
             revision=revision,
         )
     )
