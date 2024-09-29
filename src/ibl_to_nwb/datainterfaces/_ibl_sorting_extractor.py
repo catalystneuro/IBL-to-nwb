@@ -1,4 +1,4 @@
-"""The interface for loadding spike sorted data via ONE access."""
+"""The interface for loading spike sorted data via ONE access."""
 
 from collections import defaultdict
 from typing import Dict, Optional, Union
