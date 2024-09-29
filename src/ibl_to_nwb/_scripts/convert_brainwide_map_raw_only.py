@@ -38,23 +38,29 @@ ap_2_file_path = probe_2_source_folder_path / "5-19-2022-CI0_g0_imec0/5-19-2022-
 lf_1_file_path = probe_1_source_folder_path / "Noise4Sam_g0_imec0/Noise4Sam_g0_t0.imec0.lf.bin"
 lf_2_file_path = probe_2_source_folder_path / "5-19-2022-CI0_g0_imec0/5-19-2022-CI0_g0_t0.imec0.lf.bin"
 
-# Initialize as many of each interface as we need across the streams
+# Initialize interfaces
 data_interfaces = list()
-
-# These interfaces should always be present in source data
 data_interfaces.append(SpikeGLXRecordingInterface(file_path=ap_1_file_path))
 data_interfaces.append(SpikeGLXRecordingInterface(file_path=ap_2_file_path))
 data_interfaces.append(SpikeGLXRecordingInterface(file_path=lf_1_file_path))
 data_interfaces.append(SpikeGLXRecordingInterface(file_path=lf_2_file_path))
 
+# Raw video take some special handling
+metadata_retrieval = BrainwideMapConverter(one=ibl_client, session=session_id, data_interfaces=[], verbose=False)
+subject_id = metadata_retrieval.get_metadata()["Subject"]["subject_id"]
+
 pose_estimation_files = ibl_client.list_datasets(eid=session_id, filename="*.dlc*")
 for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
-    data_interfaces.append(
-        RawVideoInterface(
-            nwbfiles_folder_path=nwbfiles_folder_path, one=ibl_client, session=session_id, camera_name=camera_name
-        )
+
+    video_interface = RawVideoInterface(
+        nwbfiles_folder_path=nwbfiles_folder_path,
+        subject_id=subject_id,
+        one=ibl_client,
+        session=session_id,
+        camera_name=camera_name,
     )
+    data_interfaces.append(video_interface)
 
 # Run conversion
 session_converter = BrainwideMapConverter(

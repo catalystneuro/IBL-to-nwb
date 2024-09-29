@@ -52,9 +52,6 @@ class IblConverter(ConverterPipe):
         assert len(subject_metadata_list) == 1, "More than one subject metadata returned by query."
         subject_metadata = subject_metadata_list[0]
 
-        if "Subject" not in metadata:
-            metadata.update(Subject=dict())
-
         subject_extra_metadata_name_mapping = dict(
             last_water_restriction="last_water_restriction",  # ISO
             remaining_water="remaining_water_ml",
@@ -84,9 +81,6 @@ class IblConverter(ConverterPipe):
         nwbfile: Optional[NWBFile] = None,
         metadata: Optional[dict] = None,
         overwrite: bool = False,
-        # TODO: when all H5DataIO prewraps are gone, introduce Zarr safely
-        # backend: Union[Literal["hdf5", "zarr"]],
-        # backend_configuration: Optional[Union[HDF5BackendConfiguration, ZarrBackendConfiguration]] = None,
         backend: Optional[Literal["hdf5"]] = None,
         backend_configuration: Optional[HDF5BackendConfiguration] = None,
         conversion_options: Optional[dict] = None,
