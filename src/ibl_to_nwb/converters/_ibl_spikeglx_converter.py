@@ -1,12 +1,12 @@
-import one
 from neuroconv.converters import SpikeGLXConverterPipe
+from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
 
 
-class IBLSpikeGLXConverter(SpikeGLXConverterPipe):
+class IblSpikeGlxConverter(SpikeGLXConverterPipe):
 
-    def __init__(self, folder_path: DirectoryPath, one: one.ONE) -> None:
+    def __init__(self, folder_path: DirectoryPath, one: ONE) -> None:
         super().__init__(folder_path=folder_path)
         self.one = one
 

@@ -29,7 +29,7 @@ ibl_client = ONE(
 data_interfaces = []
 
 spikeglx_source_folder_path = Path("D:/example_data/ephy_testing_data/spikeglx/Noise4Sam_g0")
-spikeglx_subconverter = IblSpikeglxConverter(folder_path=spikeglx_source_folder_path)
+spikeglx_subconverter = IblSpikeglxConverter(folder_path=spikeglx_source_folder_path, one=ibl_client)
 data_interfaces.append(spikeglx_subconverter)
 
 # Raw video takes some special handling
