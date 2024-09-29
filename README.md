@@ -30,6 +30,8 @@ An `Interface` reads a single data stream (such as DLC pose estimation) and crea
 
 The `Converter` orchestrates the conversion by combining multiple interfaces, and can also be used to add additional metadata to the NWB file. It is responsible for creating the NWB file saved to disk.
 
+Occasionally, a sub-`Converter`, such as the `IBLSpikeGLXConverter`, will be used to handle the conversion of multiple data streams that is more complex than a single interface can handle; though these behave like other `Interfaces` with respect to the main orchestrating `Converter`.
+
 ## Metadata
 
 Anywhere you see handwritten text in the NWB files that is meant to be human-readable, it is likely that it was copied from the public Google IBL documents and written in the `.yaml` files found in `src/ibl_to_nwb/_metadata`.
