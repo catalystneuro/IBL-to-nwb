@@ -82,10 +82,6 @@ subject_folder_path = nwbfiles_folder_path / f"sub-{subject_id}"
 subject_folder_path.mkdir(exist_ok=True)
 nwbfile_path = subject_folder_path / f"sub-{subject_id}_ses-{session_id}_desc-processed_behavior+ecephys.nwb"
 
-session_converter.run_conversion(
-    nwbfile_path=nwbfile_path,
-    metadata=metadata,
-    overwrite=True,
-)
+session_converter.run_conversion(nwbfile_path=nwbfile_path, metadata=metadata, overwrite=True)
 
 check_written_nwbfile_for_consistency(one=ibl_client, nwbfile_path=nwbfile_path)

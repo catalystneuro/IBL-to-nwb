@@ -7,6 +7,7 @@ from ._pupil_tracking import PupilTrackingInterface
 from ._roi_motion_energy import RoiMotionEnergyInterface
 from ._wheel_movement import WheelInterface
 from ._brainwide_map_trials import BrainwideMapTrialsInterface
+from ._raw_video import RawVideoInterface
 
 __all__ = [
     "BrainwideMapTrialsInterface",
@@ -19,4 +20,5 @@ __all__ = [
     "PupilTrackingInterface",
     "RoiMotionEnergyInterface",
     "WheelInterface",
+    "RawVideoInterface",
 ]
