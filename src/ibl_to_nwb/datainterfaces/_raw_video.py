@@ -1,3 +1,4 @@
+from shutil import copyfile
 from typing import Literal
 
 from neuroconv.basedatainterface import BaseDataInterface
@@ -53,23 +54,25 @@ class RawVideoInterface(BaseDataInterface):
                 id=self.session, dataset=f"raw_video_data/*{self.camera_name}*", download_only=True
             )
 
-            nwb_video_name = f"OriginalVideo{left_right_or_body.capitalize()}Camera"
-
             # Rename to DANDI format and relative organization
             dandi_sub_stem = f"sub-{self.subject_id}"
+            dandi_subject_folder = self.nwbfiles_folder_path / dandi_sub_stem
+
             dandi_sub_ses_stem = f"{dandi_sub_stem}_ses-{self.session}"
-            dandi_video_folder_path = self.nwbfiles_folder_path / dandi_sub_stem / f"{dandi_sub_ses_stem}_ecephys+image"
+            dandi_video_folder_path = dandi_subject_folder / f"{dandi_sub_ses_stem}_ecephys+image"
             dandi_video_folder_path.mkdir(exist_ok=True)
+
+            nwb_video_name = f"OriginalVideo{left_right_or_body.capitalize()}Camera"
             dandi_video_file_path = dandi_video_folder_path / f"{dandi_sub_ses_stem}_{nwb_video_name}.mp4"
 
-            # Move the file into the new DANDI folder and rename to the DANDI pattern
-            original_video_file_path.rename(dandi_video_file_path)
+            # A little bit of data duplication to copy, but easier for re-running since original file stays in cache
+            copyfile(src=original_video_file_path, dst=dandi_video_file_path)
 
             image_series = ImageSeries(
                 name=nwb_video_name,
                 description="The original video each pose was estimated from.",
                 unit="n.a.",
-                external_file=[str(original_video_file_path)],
+                external_file=["./" + str(dandi_video_file_path.relative_to(dandi_subject_folder))],
                 format="external",
                 timestamps=timestamps,
             )
