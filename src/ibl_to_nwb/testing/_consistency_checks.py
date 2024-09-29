@@ -27,9 +27,9 @@ def check_written_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 
 
 def _check_wheel_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
-    processing_module = nwbfile.processing["behavior"]
+    processing_module = nwbfile.processing["wheel"]
     wheel_position_series = processing_module.data_interfaces["CompassDirection"].spatial_series["WheelPositionSeries"]
-    wheel_movement_table = nwbfile.processing["behavior"].data_interfaces["WheelMovementIntervals"][:]
+    wheel_movement_table = processing_module.data_interfaces["WheelMovementIntervals"][:]
 
     # wheel position
     data_from_ONE = one.load_dataset(id=eid, dataset="_ibl_wheel.position", collection="alf")
@@ -44,7 +44,7 @@ def _check_wheel_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = N
     # wheel movement intervals
     data_from_ONE = one.load_dataset(id=eid, dataset="_ibl_wheelMoves.intervals", collection="alf")
     data_from_NWB = wheel_movement_table[["start_time", "stop_time"]].values
-    assert_frame_equal(left=data_from_ONE, right=data_from_NWB)
+    assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
     # peak amplitude of wheel movement
     data_from_ONE = one.load_dataset(id=eid, dataset="_ibl_wheelMoves.peakAmplitude", collection="alf")
@@ -53,7 +53,7 @@ def _check_wheel_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = N
 
 
 def _check_lick_data(*, eid: str, one: ONE, nwbfile: NWBFile):
-    processing_module = nwbfile.processing["behavior"]
+    processing_module = nwbfile.processing["camera"]
     lick_times_table = processing_module.data_interfaces["LickTimes"][:]
 
     data_from_NWB = lick_times_table["lick_time"].values
@@ -62,7 +62,7 @@ def _check_lick_data(*, eid: str, one: ONE, nwbfile: NWBFile):
 
 
 def _check_roi_motion_energy_data(*, eid: str, one: ONE, nwbfile: NWBFile):
-    processing_module = nwbfile.processing["behavior"]
+    processing_module = nwbfile.processing["camera"]
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
@@ -80,7 +80,7 @@ def _check_roi_motion_energy_data(*, eid: str, one: ONE, nwbfile: NWBFile):
 
 
 def _check_pose_estimation_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
-    processing_module = nwbfile.processing["behavior"]
+    processing_module = nwbfile.processing["camera"]
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
@@ -142,7 +142,7 @@ def _check_trials_data(*, eid: str, one: ONE, nwbfile: NWBFile):
 
 
 def _check_pupil_tracking_data(*, eid: str, one: ONE, nwbfile: NWBFile):
-    processing_module = nwbfile.processing["behavior"]
+    processing_module = nwbfile.processing["camera"]
 
     camera_views = ["left", "right"]
     for view in camera_views:
@@ -165,7 +165,6 @@ def _check_pupil_tracking_data(*, eid: str, one: ONE, nwbfile: NWBFile):
 
 
 def _check_spike_sorting_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
-
     units_table = nwbfile.units[:]
     probe_names = units_table["probe_name"].unique()
 
