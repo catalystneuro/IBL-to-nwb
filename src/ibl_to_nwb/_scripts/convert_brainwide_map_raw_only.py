@@ -2,7 +2,7 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeglxConverter
+from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import RawVideoInterface
 
 session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
@@ -29,7 +29,7 @@ ibl_client = ONE(
 data_interfaces = []
 
 spikeglx_source_folder_path = Path("D:/example_data/ephy_testing_data/spikeglx/Noise4Sam_g0")
-spikeglx_subconverter = IblSpikeglxConverter(folder_path=spikeglx_source_folder_path, one=ibl_client)
+spikeglx_subconverter = IblSpikeGlxConverter(folder_path=spikeglx_source_folder_path, one=ibl_client)
 data_interfaces.append(spikeglx_subconverter)
 
 # Raw video takes some special handling
