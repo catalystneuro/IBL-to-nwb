@@ -22,8 +22,14 @@ def check_written_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
         nwbfile = io.read()
         eid = nwbfile.session_id
 
+        # run all consistentcy checks
         _check_wheel_data(eid=eid, nwbfile=nwbfile, one=one)
-        # TODO: fill in the rest of the routed calls
+        _check_lick_data(eid=eid, nwbfile=nwbfile, one=one)
+        _check_roi_motion_energy_data(eid=eid, nwbfile=nwbfile, one=one)
+        _check_pose_estimation_data(eid=eid, nwbfile=nwbfile, one=one)
+        _check_trials_data(eid=eid, nwbfile=nwbfile, one=one)
+        _check_pupil_tracking_data(eid=eid, nwbfile=nwbfile, one=one)
+        _check_spike_sorting_data(eid=eid, nwbfile=nwbfile, one=one)
 
 
 def _check_wheel_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
@@ -180,7 +186,6 @@ def _check_spike_sorting_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision:
 
     # get and prep data once
     for probe_name in probe_names:
-
         # include revision TODO FIXME this will likely change - check back in with Miles
         if revision is not None:
             collection = f"alf/{probe_name}/pykilosort/{revision}"
@@ -198,7 +203,7 @@ def _check_spike_sorting_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision:
 
     for ix in units_table.index:
         probe_name = units_table.loc[ix, "probe_name"]
-        uuid = units_table.loc[ix, "uuid"]
+        uuid = units_table.loc[ix, "cluster_uuid"]
         spike_times_from_NWB = units_table.loc[ix, "spike_times"]
 
         cluster_id = np.where(cluster_uuids[probe_name] == uuid)[0][0]

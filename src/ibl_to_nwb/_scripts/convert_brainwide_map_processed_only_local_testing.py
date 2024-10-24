@@ -4,24 +4,12 @@ os.environ["JUPYTER_PLATFORM_DIRS"] = "1"  # Annoying
 
 import os
 
-# import traceback
-# from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from shutil import rmtree
-
-# from tempfile import mkdtemp
-# from dandi.download import download as dandi_download
-# from dandi.organize import organize as dandi_organize
-# from dandi.upload import upload as dandi_upload
-# from neuroconv.tools.data_transfers import automatic_dandi_upload
-# from nwbinspector.tools import get_s3_urls_and_dandi_paths
 from one.api import ONE
 
-# from pynwb import NWBHDF5IO
-# from pynwb.image import ImageSeries
-# from tqdm import tqdm
-from ibl_to_nwb.brainwide_map import BrainwideMapConverter
-from ibl_to_nwb.brainwide_map.datainterfaces import (
+from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
+from ibl_to_nwb.datainterfaces import (
     BrainwideMapTrialsInterface,
 )
 from ibl_to_nwb.datainterfaces import (
@@ -32,6 +20,8 @@ from ibl_to_nwb.datainterfaces import (
     RoiMotionEnergyInterface,
     WheelInterface,
 )
+
+from ibl_to_nwb.testing._consistency_checks import check_written_nwbfile_for_consistency
 
 base_path = Path.home() / "ibl_scratch"  # local directory
 # session = "d32876dd-8303-4720-8e7e-20678dc2fd71"
@@ -70,9 +60,10 @@ pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*"
 for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
     data_interfaces.append(
-        IblPoseEstimationInterface(
-            one=session_one, session=session, camera_name=camera_name, include_pose=True, include_video=False
-        )
+        # IblPoseEstimationInterface(
+        #     one=session_one, session=session, camera_name=camera_name, include_pose=True, include_video=False
+        # )
+        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
     )
 
 pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
@@ -94,7 +85,7 @@ session_converter = BrainwideMapConverter(
 )
 
 metadata = session_converter.get_metadata()
-metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"] + "-processed-only"
+metadata["NWBFile"]["session_id"] = metadata["NWBFile"]["session_id"]  # + "-processed-only"
 
 session_converter.run_conversion(
     nwbfile_path=nwbfile_path,
@@ -109,3 +100,5 @@ session_converter.run_conversion(
 if cleanup:
     rmtree(cache_folder)
     rmtree(nwbfile_path.parent)
+
+check_written_nwbfile_for_consistency(one=session_one, nwbfile_path=nwbfile_path)
