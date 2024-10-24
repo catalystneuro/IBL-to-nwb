@@ -5,13 +5,16 @@ from one.api import ONE
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import RawVideoInterface
 
-session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
+# session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
+session_id = "caa5dddc-9290-4e27-9f5e-575ba3598614"  # a BWM session with dual probe
+
 
 # Specify the revision of the pose estimation data
 # Setting to 'None' will use whatever the latest released revision is
 revision = None
 
-base_path = Path("E:/IBL")
+# base_path = Path("E:/IBL")
+base_path = Path.home() / "ibl_scratch"  # local directory
 base_path.mkdir(exist_ok=True)
 nwbfiles_folder_path = base_path / "nwbfiles"
 nwbfiles_folder_path.mkdir(exist_ok=True)
@@ -28,7 +31,7 @@ ibl_client = ONE(
 # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
 data_interfaces = []
 
-spikeglx_source_folder_path = Path("D:/example_data/ephy_testing_data/spikeglx/Noise4Sam_g0")
+# spikeglx_source_folder_path = Path("D:/example_data/ephy_testing_data/spikeglx/Noise4Sam_g0")
 spikeglx_subconverter = IblSpikeGlxConverter(folder_path=spikeglx_source_folder_path, one=ibl_client)
 data_interfaces.append(spikeglx_subconverter)
 
