@@ -9,7 +9,7 @@ This repository houses conversion pipelines for the IBL data releases, including
 # Installation
 
 ```
-git clone https:/github.com/catalystneuro/IBL-to-nwb
+git clone https:/github.com/catalystneuro/IBL-to-nwb.git
 cd IBL-to-nwb
 pip install -e .
 ```
