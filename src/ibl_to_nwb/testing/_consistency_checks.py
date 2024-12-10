@@ -5,6 +5,7 @@ from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
+from brainbox.io.one import SpikeSortingLoader
 
 
 def check_written_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
@@ -186,15 +187,10 @@ def _check_spike_sorting_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision:
 
     # get and prep data once
     for probe_name in probe_names:
-        # include revision TODO FIXME this will likely change - check back in with Miles
-        if revision is not None:
-            collection = f"alf/{probe_name}/pykilosort/{revision}"
-        else:
-            collection = f"alf/{probe_name}/pykilosort"
-
-        spike_times[probe_name] = one.load_dataset(eid, "spikes.times", collection=collection)
-        spike_clusters[probe_name] = one.load_dataset(eid, "spikes.clusters", collection=collection)
-        cluster_uuids[probe_name] = one.load_dataset(eid, "clusters.uuids", collection=collection)
+        collection = f"alf/{probe_name}/pykilosort"
+        spike_times[probe_name] = one.load_dataset(eid, "spikes.times", collection=collection, revision=revision)
+        spike_clusters[probe_name] = one.load_dataset(eid, "spikes.clusters", collection=collection, revision=revision)
+        cluster_uuids[probe_name] = one.load_dataset(eid, "clusters.uuids", collection=collection, revision=revision)
 
         # pre-sort for fast access
         sort_ix = np.argsort(spike_clusters[probe_name])
@@ -214,3 +210,83 @@ def _check_spike_sorting_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision:
 
         # testing
         assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1)
+
+
+def _check_raw_ephys_data(*, eid: str, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
+    # data_one
+    pids, pnames_one = one.eid2pid(eid)
+    pidname_map = dict(zip(pnames_one, pids))
+    pid = pidname_map[pname]
+    spike_sorting_loader = SpikeSortingLoader(pid=pid, one=one)
+    sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=True)
+    data_one = sglx_streamer._raw
+
+    pname_to_imec = {
+        "probe00": "Imec0",
+        "probe01": "Imec1",
+    }
+    imec_to_pname = dict(zip(pname_to_imec.values(), pname_to_imec.keys()))
+    imecs = [key.split(band.upper())[1] for key in list(nwbfile.acquisition.keys()) if band.upper() in key]
+    pnames_nwb = [imec_to_pname[imec] for imec in imecs]
+
+    assert set(pnames_one) == set(pnames_nwb)
+
+    # nwb ephys data
+    imec = pname_to_imec[pname]
+    data_nwb = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].data
+
+    # compare number of samples in both
+    n_samples_one = data_one.shape[0]
+    n_samples_nwb = data_nwb.shape[0]
+
+    assert n_samples_nwb == n_samples_one
+
+    # draw a random set of samples and check if they are equal in value
+    n_samples, n_channels = data_nwb.shape
+
+    ix = np.column_stack(
+        [
+            np.random.randint(n_samples, size=10),
+            np.random.randint(n_channels, size=10),
+        ]
+    )
+
+    samples_nwb = np.array([data_nwb[*i] for i in ix])
+    samples_one = np.array([data_one[*i] for i in ix])
+    np.testing.assert_array_equal(samples_nwb, samples_one)
+
+    # check the time stamps
+    nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].timestamps[:]
+
+    # from brainbox.io
+    brainbox_timestamps = spike_sorting_loader.samples2times(np.arange(0, sglx_streamer.ns), direction="forward")
+    np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
+
+
+def _check_raw_video_data(*, eid: str, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
+    # timestamps
+    datasets = one.list_datasets(eid, "*Camera.times*", collection="alf")
+    cameras = [key for key in nwbfile.acquisition.keys() if key.endswith("Camera")]
+    for camera in cameras:
+        timestamps_nwb = nwbfile.acquisition[camera].timestamps[:]
+
+        dataset = [dataset for dataset in datasets if camera.split("OriginalVideo")[1].lower() in dataset.lower()]
+        timestamps_one = one.load_dataset(eid, dataset)
+        np.testing.assert_array_equal(timestamps_nwb, timestamps_one)
+
+    # values (the first 100 bytes)
+    datasets = one.list_datasets(eid, collection="raw_video_data")
+    cameras = [key for key in nwbfile.acquisition.keys() if key.endswith("Camera")]
+
+    for camera in cameras:
+        cam = camera.split("OriginalVideo")[1].lower()
+        dataset = [dataset for dataset in datasets if cam in dataset.lower()]
+        one_video_path = one.load_dataset(eid, dataset)
+        with open(one_video_path, "rb") as fH:
+            one_video_bytes = fH.read(100)
+
+        nwb_video_path = nwbfile_path.parent / Path(nwbfile.acquisition[camera].external_file[:][0])
+        with open(nwb_video_path, "rb") as fH:
+            nwb_video_bytes = fH.read(100)
+
+        assert one_video_bytes == nwb_video_bytes
