@@ -24,7 +24,6 @@ from ibl_to_nwb.datainterfaces import (
 from ibl_to_nwb.testing._consistency_checks import check_written_nwbfile_for_consistency
 
 base_path = Path.home() / "ibl_scratch"  # local directory
-# session = "d32876dd-8303-4720-8e7e-20678dc2fd71"
 session = "caa5dddc-9290-4e27-9f5e-575ba3598614"  # a BWM session with dual probe
 
 nwbfile_path = base_path / "nwbfiles" / session / f"{session}.nwb"
