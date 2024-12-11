@@ -29,7 +29,9 @@ class PupilTrackingInterface(BaseDataInterface):
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         left_or_right = self.camera_name[:5].rstrip("C")
 
-        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf", revision=self.revision)
+        camera_data = self.one.load_object(
+            id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
+        )
 
         pupil_time_series = list()
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:
