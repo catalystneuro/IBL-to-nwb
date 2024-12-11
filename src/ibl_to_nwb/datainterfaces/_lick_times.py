@@ -7,12 +7,13 @@ from pynwb.file import DynamicTable
 
 
 class LickInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str):
+    def __init__(self, one: ONE, session: str, revision: str | None = None):
         self.one = one
         self.session = session
+        self.revision = one.list_revisions(session)[-1] if revision is None else revision
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        licks = self.one.load_object(id=self.session, obj="licks", collection="alf")
+        licks = self.one.load_object(id=self.session, obj="licks", collection="alf", revision=self.revision)
 
         lick_events_table = DynamicTable(
             name="LickTimes",

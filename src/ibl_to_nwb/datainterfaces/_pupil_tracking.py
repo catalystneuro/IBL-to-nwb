@@ -12,10 +12,11 @@ from pynwb.behavior import PupilTracking
 
 
 class PupilTrackingInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str, camera_name: str):
+    def __init__(self, one: ONE, session: str, camera_name: str, revision: str | None = None):
         self.one = one
         self.session = session
         self.camera_name = camera_name
+        self.revision = one.list_revisions(session)[-1] if revision is None else revision
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -28,7 +29,7 @@ class PupilTrackingInterface(BaseDataInterface):
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         left_or_right = self.camera_name[:5].rstrip("C")
 
-        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf")
+        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf", revision=self.revision)
 
         pupil_time_series = list()
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:

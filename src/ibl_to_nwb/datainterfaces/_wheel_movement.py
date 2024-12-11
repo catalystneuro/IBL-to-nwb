@@ -11,9 +11,10 @@ from pynwb.epoch import TimeIntervals
 
 
 class WheelInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str):
+    def __init__(self, one: ONE, session: str, revision: str | None = None):
         self.one = one
         self.session = session
+        self.revision = one.list_revisions(session) if revision is None else revision
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -23,8 +24,8 @@ class WheelInterface(BaseDataInterface):
         return metadata
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
-        wheel_moves = self.one.load_object(id=self.session, obj="wheelMoves", collection="alf")
-        wheel = self.one.load_object(id=self.session, obj="wheel", collection="alf")
+        wheel_moves = self.one.load_object(id=self.session, obj="wheelMoves", collection="alf", revision=self.revision)
+        wheel = self.one.load_object(id=self.session, obj="wheel", collection="alf", revision=self.revision)
 
         # Estimate velocity and acceleration
         interpolation_frequency = 1000.0  # Hz

@@ -9,9 +9,10 @@ from pynwb.epoch import TimeIntervals
 
 
 class BrainwideMapTrialsInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str):
+    def __init__(self, one: ONE, session: str, revision: str | None = None):
         self.one = one
         self.session = session
+        self.revision = one.list_revisions(session)[-1] if revision is None else revision
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -20,7 +21,7 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         return metadata
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        trials = self.one.load_object(id=self.session, obj="trials", collection="alf")
+        trials = self.one.load_object(id=self.session, obj="trials", collection="alf", revision=self.revision)
 
         column_ordering = [
             "choice",

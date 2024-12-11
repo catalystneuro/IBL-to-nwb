@@ -16,7 +16,7 @@ class IblSortingExtractor(BaseSorting):
     installation_mesg = ""
     name = "iblsorting"
 
-    def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None):
+    def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None, revision=None):
         from brainbox.io.one import SpikeSortingLoader
         from iblatlas.atlas import AllenAtlas
         from iblatlas.regions import BrainRegions
@@ -28,6 +28,9 @@ class IblSortingExtractor(BaseSorting):
             silent=True,
             cache_dir=cache_folder,
         )
+        if revision is None: # latest
+            revision = one.list_revisions(session)[-1]
+
         atlas = AllenAtlas()
         brain_regions = BrainRegions()
 
@@ -45,7 +48,7 @@ class IblSortingExtractor(BaseSorting):
         for probe_name in probe_names:
             sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
             sorting_loaders.update({probe_name: sorting_loader})
-            spikes, clusters, channels = sorting_loader.load_spike_sorting()
+            spikes, clusters, channels = sorting_loader.load_spike_sorting(revision=revision)
             # cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
             number_of_units = len(np.unique(spikes["clusters"]))
             cluster_ids.extend(list(np.arange(number_of_units).astype("int32") + unit_id_per_probe_shift))

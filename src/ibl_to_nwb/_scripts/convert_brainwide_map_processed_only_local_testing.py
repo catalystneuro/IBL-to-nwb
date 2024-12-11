@@ -34,6 +34,7 @@ stub_test: bool = False
 cleanup: bool = False
 
 # assert len(os.environ.get("DANDI_API_KEY", "")) > 0, "Run `export DANDI_API_KEY=...`!"
+revision = None
 
 nwbfile_path.parent.mkdir(exist_ok=True)
 
@@ -52,32 +53,29 @@ data_interfaces = list()
 
 # These interfaces should always be present in source data
 data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
-data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session))
-data_interfaces.append(WheelInterface(one=session_one, session=session))
+data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session, revision=revision))
+data_interfaces.append(WheelInterface(one=session_one, session=session, revision=revision))
 
 # These interfaces may not be present; check if they are before adding to list
 pose_estimation_files = session_one.list_datasets(eid=session, filename="*.dlc*")
 for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
     data_interfaces.append(
-        # IblPoseEstimationInterface(
-        #     one=session_one, session=session, camera_name=camera_name, include_pose=True, include_video=False
-        # )
-        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name)
+        IblPoseEstimationInterface(one=session_one, session=session, camera_name=camera_name, revision=revision)
     )
 
 pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
 for pupil_tracking_file in pupil_tracking_files:
     camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
-    data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name))
+    data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name, revision=revision))
 
 roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
 for roi_motion_energy_file in roi_motion_energy_files:
     camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
-    data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name))
+    data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name, revision=revision))
 
 if session_one.list_datasets(eid=session, collection="alf", filename="licks*"):
-    data_interfaces.append(LickInterface(one=session_one, session=session))
+    data_interfaces.append(LickInterface(one=session_one, session=session, revision=revision))
 
 # Run conversion
 session_converter = BrainwideMapConverter(
