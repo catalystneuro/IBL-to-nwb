@@ -1,4 +1,5 @@
 """Data Interface for the special data type of ROI Motion Energy."""
+
 from typing import Optional
 
 from neuroconv.basedatainterface import BaseDataInterface
