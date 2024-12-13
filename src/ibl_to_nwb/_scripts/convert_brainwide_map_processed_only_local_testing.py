@@ -25,9 +25,8 @@ from ibl_to_nwb.testing._consistency_checks import check_written_nwbfile_for_con
 
 base_path = Path.home() / "ibl_scratch"  # local directory
 session = "caa5dddc-9290-4e27-9f5e-575ba3598614"  # a BWM session with dual probe
-
 nwbfile_path = base_path / "nwbfiles" / session / f"{session}.nwb"
-nwbfile_path.parent.mkdir(exist_ok=True)
+nwbfile_path.parent.mkdir(exist_ok=True, parents=True)
 
 stub_test: bool = False
 cleanup: bool = False
