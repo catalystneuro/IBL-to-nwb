@@ -13,7 +13,7 @@ from pynwb.behavior import PupilTracking
 
 
 class PupilTrackingInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str, camera_name: str, revision: Optional[str | None] = None):
+    def __init__(self, one: ONE, session: str, camera_name: str, revision: Optional[str] = None):
         self.one = one
         self.session = session
         self.camera_name = camera_name
