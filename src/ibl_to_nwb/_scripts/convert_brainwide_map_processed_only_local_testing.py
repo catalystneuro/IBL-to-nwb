@@ -3,16 +3,14 @@ import os
 os.environ["JUPYTER_PLATFORM_DIRS"] = "1"  # Annoying
 
 import os
-
 from pathlib import Path
 from shutil import rmtree
+
 from one.api import ONE
 
-from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
+from ibl_to_nwb.converters import BrainwideMapConverter
 from ibl_to_nwb.datainterfaces import (
     BrainwideMapTrialsInterface,
-)
-from ibl_to_nwb.datainterfaces import (
     IblPoseEstimationInterface,
     IblSortingInterface,
     LickInterface,
@@ -20,7 +18,6 @@ from ibl_to_nwb.datainterfaces import (
     RoiMotionEnergyInterface,
     WheelInterface,
 )
-
 from ibl_to_nwb.testing._consistency_checks import check_written_nwbfile_for_consistency
 
 base_path = Path.home() / "ibl_scratch"  # local directory
@@ -65,12 +62,16 @@ for pose_estimation_file in pose_estimation_files:
 pupil_tracking_files = session_one.list_datasets(eid=session, filename="*features*")
 for pupil_tracking_file in pupil_tracking_files:
     camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
-    data_interfaces.append(PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name, revision=revision))
+    data_interfaces.append(
+        PupilTrackingInterface(one=session_one, session=session, camera_name=camera_name, revision=revision)
+    )
 
 roi_motion_energy_files = session_one.list_datasets(eid=session, filename="*ROIMotionEnergy.npy*")
 for roi_motion_energy_file in roi_motion_energy_files:
     camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
-    data_interfaces.append(RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name, revision=revision))
+    data_interfaces.append(
+        RoiMotionEnergyInterface(one=session_one, session=session, camera_name=camera_name, revision=revision)
+    )
 
 if session_one.list_datasets(eid=session, collection="alf", filename="licks*"):
     data_interfaces.append(LickInterface(one=session_one, session=session, revision=revision))

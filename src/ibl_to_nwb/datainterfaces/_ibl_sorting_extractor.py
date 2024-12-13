@@ -28,7 +28,7 @@ class IblSortingExtractor(BaseSorting):
             silent=True,
             cache_dir=cache_folder,
         )
-        if revision is None: # latest
+        if revision is None:  # latest
             revision = one.list_revisions(session)[-1]
 
         atlas = AllenAtlas()
