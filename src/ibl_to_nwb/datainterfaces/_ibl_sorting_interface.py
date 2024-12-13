@@ -2,19 +2,18 @@
 
 from pathlib import Path
 from typing import Optional
-from pydantic import DirectoryPath
 
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
     BaseSortingExtractorInterface,
 )
 from neuroconv.utils import load_dict_from_file
+from pydantic import DirectoryPath
 
 from ._ibl_sorting_extractor import IblSortingExtractor
 
 
 class IblSortingInterface(BaseSortingExtractorInterface):
     Extractor = IblSortingExtractor
-
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -31,7 +30,11 @@ class IblSortingInterface(BaseSortingExtractorInterface):
 
         return metadata
 
-
-
-    def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None, revision: Optional[str] = None, verbose: bool = False):
+    def __init__(
+        self,
+        session: str,
+        cache_folder: Optional[DirectoryPath] = None,
+        revision: Optional[str] = None,
+        verbose: bool = False,
+    ):
         super().__init__(verbose, session=session, cache_folder=cache_folder, revision=revision)
