@@ -1,6 +1,7 @@
 """Data Interface for the pupil tracking."""
 
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from neuroconv.basedatainterface import BaseDataInterface
@@ -12,7 +13,7 @@ from pynwb.behavior import PupilTracking
 
 
 class PupilTrackingInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str, camera_name: str, revision: str | None = None):
+    def __init__(self, one: ONE, session: str, camera_name: str, revision: Optional[str | None] = None):
         self.one = one
         self.session = session
         self.camera_name = camera_name
