@@ -57,12 +57,11 @@ for pose_estimation_file in pose_estimation_files:
 session_converter = BrainwideMapConverter(one=one, session=eid, data_interfaces=data_interfaces, verbose=False)
 
 metadata = session_converter.get_metadata()
-metadata["NWBFile"]["eid"] = metadata["NWBFile"]["eid"]
 subject_id = metadata["Subject"]["subject_id"]
 
 subject_folder_path = nwbfiles_folder_path / f"sub-{subject_id}"
 subject_folder_path.mkdir(exist_ok=True)
-nwbfile_path = subject_folder_path / f"sub-{subject_id}_ses-{eid}_desc-video.nwb"
+nwbfile_path = subject_folder_path / f"sub-{subject_id}_ses-{eid}_desc-raw.nwb"
 
 session_converter.run_conversion(
     nwbfile_path=nwbfile_path,
