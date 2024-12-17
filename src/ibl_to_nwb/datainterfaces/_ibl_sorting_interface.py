@@ -8,11 +8,14 @@ from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
 from neuroconv.utils import load_dict_from_file
 
 from ._ibl_sorting_extractor import IblSortingExtractor
-
+from typing import Optional
+from pydantic import DirectoryPath
 
 class IblSortingInterface(BaseSortingExtractorInterface):
     Extractor = IblSortingExtractor
-
+    def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None, revision=None):
+        super().__init__(session=session, cache_folder=cache_folder, revision=revision)
+        
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 

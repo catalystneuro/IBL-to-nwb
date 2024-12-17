@@ -51,7 +51,7 @@ session_one = ONE(
 data_interfaces = list()
 
 # These interfaces should always be present in source data
-data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting"))
+data_interfaces.append(IblSortingInterface(session=session, cache_folder=cache_folder / "sorting", revision=revision))
 data_interfaces.append(BrainwideMapTrialsInterface(one=session_one, session=session, revision=revision))
 data_interfaces.append(WheelInterface(one=session_one, session=session, revision=revision))
 

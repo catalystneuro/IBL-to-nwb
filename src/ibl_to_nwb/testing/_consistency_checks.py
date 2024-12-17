@@ -175,6 +175,9 @@ def _check_spike_sorting_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision:
     units_table = nwbfile.units[:]
     probe_names = units_table["probe_name"].unique()
 
+    if revision is None:
+        revision = one.list_revisions(eid)[-1]
+
     spike_times = {}
     spike_clusters = {}
     cluster_uuids = {}
