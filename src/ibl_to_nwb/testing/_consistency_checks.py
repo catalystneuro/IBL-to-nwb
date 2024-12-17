@@ -1,11 +1,11 @@
 from pathlib import Path
 
 import numpy as np
-from brainbox.io.one import SpikeSortingLoader
 from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
+from brainbox.io.one import SpikeSortingLoader
 
 
 def check_written_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
@@ -176,7 +176,7 @@ def _check_spike_sorting_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision:
     probe_names = units_table["probe_name"].unique()
 
     if revision is None:
-        revision = one.list_revisions(eid)[-1]
+        revision = one.list_revisions(session)[-1]
 
     spike_times = {}
     spike_clusters = {}
