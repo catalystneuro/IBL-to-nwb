@@ -4,7 +4,6 @@ os.environ["JUPYTER_PLATFORM_DIRS"] = "1"  # Annoying
 
 import os
 from pathlib import Path
-from shutil import rmtree
 
 from one.api import ONE
 
@@ -49,7 +48,9 @@ one = ONE(
 data_interfaces = list()
 
 # These interfaces should always be present in source data
-data_interfaces.append(IblSortingInterface(session=eid, cache_folder=one_cache_folder_path / "sorting", revision=revision))
+data_interfaces.append(
+    IblSortingInterface(session=eid, cache_folder=one_cache_folder_path / "sorting", revision=revision)
+)
 data_interfaces.append(BrainwideMapTrialsInterface(one=one, session=eid, revision=revision))
 data_interfaces.append(WheelInterface(one=one, session=eid, revision=revision))
 
@@ -57,31 +58,23 @@ data_interfaces.append(WheelInterface(one=one, session=eid, revision=revision))
 pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
 for pose_estimation_file in pose_estimation_files:
     camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
-    data_interfaces.append(
-        IblPoseEstimationInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
-    )
+    data_interfaces.append(IblPoseEstimationInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
 
 pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
 for pupil_tracking_file in pupil_tracking_files:
     camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
-    data_interfaces.append(
-        PupilTrackingInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
-    )
+    data_interfaces.append(PupilTrackingInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
 
 roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
 for roi_motion_energy_file in roi_motion_energy_files:
     camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
-    data_interfaces.append(
-        RoiMotionEnergyInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
-    )
+    data_interfaces.append(RoiMotionEnergyInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
 
 if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
     data_interfaces.append(LickInterface(one=one, session=eid, revision=revision))
 
 # Run conversion
-session_converter = BrainwideMapConverter(
-    one=one, session=eid, data_interfaces=data_interfaces, verbose=True
-)
+session_converter = BrainwideMapConverter(one=one, session=eid, data_interfaces=data_interfaces, verbose=True)
 
 metadata = session_converter.get_metadata()
 subject_id = metadata["Subject"]["subject_id"]
