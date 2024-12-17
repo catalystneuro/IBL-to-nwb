@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 from hdmf.common import VectorData
 from neuroconv.basedatainterface import BaseDataInterface
@@ -9,7 +10,7 @@ from pynwb.epoch import TimeIntervals
 
 
 class BrainwideMapTrialsInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str, revision: str | None = None):
+    def __init__(self, one: ONE, session: str, revision: Optional[str] = None):
         self.one = one
         self.session = session
         self.revision = one.list_revisions(session)[-1] if revision is None else revision

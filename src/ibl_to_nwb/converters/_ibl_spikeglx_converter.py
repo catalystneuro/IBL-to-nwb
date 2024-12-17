@@ -1,9 +1,9 @@
+import numpy as np
+from brainbox.io.one import EphysSessionLoader, SpikeSortingLoader
 from neuroconv.converters import SpikeGLXConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
-import numpy as np
-from brainbox.io.one import SpikeSortingLoader, EphysSessionLoader
 
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):

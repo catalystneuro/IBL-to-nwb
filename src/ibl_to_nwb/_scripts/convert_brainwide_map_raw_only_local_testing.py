@@ -1,6 +1,8 @@
 # %%
 from pathlib import Path
+
 from one.api import ONE
+
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import RawVideoInterface
 
@@ -15,7 +17,7 @@ nwbfiles_folder_path = base_path / "nwbfiles"
 nwbfiles_folder_path.mkdir(exist_ok=True)
 
 # Initialize IBL (ONE) client to download processed data for this session
-one_cache_folder_path =  base_path / 'ibl_conversion' / eid / 'cache'
+one_cache_folder_path = base_path / "ibl_conversion" / eid / "cache"
 one = ONE(
     base_url="https://openalyx.internationalbrainlab.org",
     password="international",
@@ -27,7 +29,7 @@ data_interfaces = []
 
 # %% ephys
 session_folder = one.eid2path(eid)
-spikeglx_source_folder_path = session_folder / 'raw_ephys_data'
+spikeglx_source_folder_path = session_folder / "raw_ephys_data"
 
 # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
 spikeglx_subconverter = IblSpikeGlxConverter(folder_path=spikeglx_source_folder_path, one=one, eid=eid)
