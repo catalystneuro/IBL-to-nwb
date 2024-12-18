@@ -9,13 +9,15 @@ from one.api import ONE
 from pynwb import TimeSeries
 from pynwb.behavior import CompassDirection, SpatialSeries
 from pynwb.epoch import TimeIntervals
-
+from brainbox.io.one import SessionLoader
 
 class WheelInterface(BaseDataInterface):
     def __init__(self, one: ONE, session: str, revision: Optional[str] = None):
         self.one = one
         self.session = session
         self.revision = one.list_revisions(session) if revision is None else revision
+        self.session_loader = SessionLoader(eid=session, one=one, revision=revision)
+        self.session_loader.load_wheel()
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -59,7 +61,7 @@ class WheelInterface(BaseDataInterface):
                 description=metadata["WheelPosition"]["description"],
                 data=wheel["position"],
                 timestamps=wheel["timestamps"],
-                unit="rad",
+                unit="radians",
                 reference_frame="Initial angle at start time is zero. Counter-clockwise is positive.",
             )
         )

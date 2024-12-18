@@ -10,7 +10,7 @@ from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
 from pynwb.behavior import PupilTracking
-
+from brainbox.io.one import SessionLoader
 
 class PupilTrackingInterface(BaseDataInterface):
     def __init__(self, one: ONE, session: str, camera_name: str, revision: Optional[str] = None):
@@ -18,13 +18,15 @@ class PupilTrackingInterface(BaseDataInterface):
         self.session = session
         self.camera_name = camera_name
         self.revision = one.list_revisions(session)[-1] if revision is None else revision
+        self.session_loader = SessionLoader(one=one, eid=session, revision=revision)
+        self.session_loader.load_pupil()
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
 
         pupils_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "pupils.yml")
         metadata.update(pupils_metadata)
-
+    
         return metadata
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):

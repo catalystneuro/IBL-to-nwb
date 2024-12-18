@@ -6,16 +6,19 @@ from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
 from pynwb.file import DynamicTable
-
+from brainbox.io.one import SessionLoader
 
 class LickInterface(BaseDataInterface):
     def __init__(self, one: ONE, session: str, revision: Optional[str] = None):
         self.one = one
         self.session = session
         self.revision = one.list_revisions(session)[-1] if revision is None else revision
+        # self.session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
+        # self.session_loader.load_licks()
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
         licks = self.one.load_object(id=self.session, obj="licks", collection="alf", revision=self.revision)
+        # licks = self.session_loader.licks
 
         lick_events_table = DynamicTable(
             name="LickTimes",

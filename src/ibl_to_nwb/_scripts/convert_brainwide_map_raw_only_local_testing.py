@@ -63,11 +63,7 @@ subject_folder_path = nwbfiles_folder_path / f"sub-{subject_id}"
 subject_folder_path.mkdir(exist_ok=True)
 nwbfile_path = subject_folder_path / f"sub-{subject_id}_ses-{eid}_desc-raw.nwb"
 
-session_converter.run_conversion(
-    nwbfile_path=nwbfile_path,
-    metadata=metadata,
-    overwrite=True,
-)
+session_converter.run_conversion(nwbfile_path=nwbfile_path, metadata=metadata, overwrite=True)
 
 # TODO: add some kind of raw-specific check
 # check_written_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
