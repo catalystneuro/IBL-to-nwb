@@ -9,7 +9,6 @@ from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
 from one.api import ONE
-from pydantic import DirectoryPath
 from spikeinterface import BaseSorting, BaseSortingSegment
 
 

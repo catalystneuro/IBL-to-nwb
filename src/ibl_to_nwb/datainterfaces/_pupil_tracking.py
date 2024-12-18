@@ -27,7 +27,7 @@ class PupilTrackingInterface(BaseDataInterface):
 
         pupils_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "pupils.yml")
         metadata.update(pupils_metadata)
-    
+
         return metadata
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
