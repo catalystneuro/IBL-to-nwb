@@ -7,10 +7,10 @@ from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
     BaseSortingExtractorInterface,
 )
 from neuroconv.utils import load_dict_from_file
-from pydantic import DirectoryPath
+from one.api import ONE
 
 from ._ibl_sorting_extractor import IblSortingExtractor
-from one.api import ONE
+
 
 class IblSortingInterface(BaseSortingExtractorInterface):
     Extractor = IblSortingExtractor
@@ -40,4 +40,3 @@ class IblSortingInterface(BaseSortingExtractorInterface):
                 )
 
         return metadata
-

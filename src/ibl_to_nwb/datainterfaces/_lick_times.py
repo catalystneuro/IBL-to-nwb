@@ -6,7 +6,7 @@ from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
 from pynwb.file import DynamicTable
-from brainbox.io.one import SessionLoader
+
 
 class LickInterface(BaseDataInterface):
     def __init__(self, one: ONE, session: str, revision: Optional[str] = None):

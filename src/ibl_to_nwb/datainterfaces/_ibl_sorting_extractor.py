@@ -5,12 +5,11 @@ from typing import Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
-from pydantic import DirectoryPath
-from spikeinterface import BaseSorting, BaseSortingSegment
-from one.api import ONE
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
+from one.api import ONE
+from spikeinterface import BaseSorting, BaseSortingSegment
 
 
 class IblSortingExtractor(BaseSorting):
