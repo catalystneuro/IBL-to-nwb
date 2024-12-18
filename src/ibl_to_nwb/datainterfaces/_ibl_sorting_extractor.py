@@ -10,6 +10,7 @@ from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
 from one.api import ONE
 from spikeinterface import BaseSorting, BaseSortingSegment
+from neuroconv.utils import get_json_schema_from_method_signature
 
 
 class IblSortingExtractor(BaseSorting):
@@ -18,6 +19,17 @@ class IblSortingExtractor(BaseSorting):
     mode = "file"  # Not really, though...
     installation_mesg = ""
     name = "iblsorting"
+
+    def get_source_schema(cls) -> dict:
+        """
+        Infer the JSON schema for the source_data from the method signature (annotation typing).
+
+        Returns
+        -------
+        dict
+            The JSON schema for the source_data.
+        """
+        return get_json_schema_from_method_signature(cls, exclude=["source_data", "one"])
 
     # def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None, revision: Optional[str] = None):
     def __init__(

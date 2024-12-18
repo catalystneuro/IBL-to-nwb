@@ -61,7 +61,7 @@ subject_id = metadata["Subject"]["subject_id"]
 
 subject_folder_path = nwbfiles_folder_path / f"sub-{subject_id}"
 subject_folder_path.mkdir(exist_ok=True)
-nwbfile_path = subject_folder_path / f"sub-{subject_id}_ses-{eid}_desc-raw.nwb"
+nwbfile_path = subject_folder_path / f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+raw_video_.nwb"
 
 session_converter.run_conversion(nwbfile_path=nwbfile_path, metadata=metadata, overwrite=True)
 
