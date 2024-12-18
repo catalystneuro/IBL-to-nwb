@@ -10,7 +10,7 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
     def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str) -> None:
         super().__init__(folder_path=folder_path)
         self.one = one
-        self.eid = eid  # probably should better name this session_id ?
+        self.eid = eid
 
     def temporally_align_data_interfaces(self) -> None:
         """Align the raw data timestamps to the other data streams using the ONE API."""
@@ -22,21 +22,14 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
         }
 
         ephys_session_loader = EphysSessionLoader(one=self.one, eid=self.eid)
-        probes = ephys_session_loader.probes
         for probe_name, pid in ephys_session_loader.probes.items():
             spike_sorting_loader = SpikeSortingLoader(pid=pid, one=self.one)
 
             probe_index = probe_to_imec_map[probe_name]
             for band in ["ap", "lf"]:
                 recording_interface = self.data_interface_objects[f"imec{probe_index}.{band}"]
-                # recording_interface = next(
-                #     interface
-                #     for interface in self.data_interface_objects
-                #     if f"imec{probe_index}.{band}" in interface.source_data["file_path"]
-                # )
-
-                band_info = spike_sorting_loader.raw_electrophysiology(band=band, stream=True)
-                aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, band_info.ns), direction="forward")
+                sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True)
+                aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
                 recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
         pass
 

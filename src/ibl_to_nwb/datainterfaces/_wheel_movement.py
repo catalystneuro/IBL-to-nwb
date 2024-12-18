@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional
 
 from brainbox.behavior import wheel as wheel_methods
+from brainbox.io.one import SessionLoader
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
@@ -9,7 +10,7 @@ from one.api import ONE
 from pynwb import TimeSeries
 from pynwb.behavior import CompassDirection, SpatialSeries
 from pynwb.epoch import TimeIntervals
-from brainbox.io.one import SessionLoader
+
 
 class WheelInterface(BaseDataInterface):
     def __init__(self, one: ONE, session: str, revision: Optional[str] = None):

@@ -32,6 +32,8 @@ ibl_client = ONE(
 data_interfaces = []
 
 # spikeglx_source_folder_path = Path("D:/example_data/ephy_testing_data/spikeglx/Noise4Sam_g0")
+session_folder = ibl_client.eid2path(session_id)
+spikeglx_source_folder_path = session_folder / "raw_ephys_data"
 spikeglx_subconverter = IblSpikeGlxConverter(folder_path=spikeglx_source_folder_path, one=ibl_client)
 data_interfaces.append(spikeglx_subconverter)
 

@@ -5,12 +5,12 @@ from typing import Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
-from pydantic import DirectoryPath
-from spikeinterface import BaseSorting, BaseSortingSegment
-from one.api import ONE
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
+from one.api import ONE
+from pydantic import DirectoryPath
+from spikeinterface import BaseSorting, BaseSortingSegment
 
 
 class IblSortingExtractor(BaseSorting):
@@ -27,12 +27,6 @@ class IblSortingExtractor(BaseSorting):
         session: str,
         revision: Optional[str] = None,
     ):
-        # one = ONE(
-        #     base_url="https://openalyx.internationalbrainlab.org",
-        #     password="international",
-        #     silent=True,
-        #     cache_dir=cache_folder,
-        # )
         if revision is None:  # latest
             revision = one.list_revisions(session)[-1]
 
