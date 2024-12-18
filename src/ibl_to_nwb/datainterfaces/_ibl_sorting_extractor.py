@@ -8,9 +8,9 @@ import pandas as pd
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
+from neuroconv.utils import get_json_schema_from_method_signature
 from one.api import ONE
 from spikeinterface import BaseSorting, BaseSortingSegment
-from neuroconv.utils import get_json_schema_from_method_signature
 
 
 class IblSortingExtractor(BaseSorting):
