@@ -1,7 +1,8 @@
 import sys
 from pathlib import Path
 
-from one.api import ONE
+# from one.api import ONE
+from deploy.iblsdsc import OneSdsc as ONE
 
 from ibl_to_nwb.converters import BrainwideMapConverter
 from ibl_to_nwb.datainterfaces import (
@@ -49,12 +50,13 @@ if __name__ == "__main__":
     revision = "2024-07-10"
 
     # Initialize IBL (ONE) client to download processed data for this session
-    one_cache_folder_path = base_path / "ibl_conversion" / eid / "cache"
+    # one_cache_folder_path = base_path / "ibl_conversion" / eid / "cache"
     one = ONE(
         base_url="https://openalyx.internationalbrainlab.org",
         password="international",
-        silent=True,
-        cache_dir=one_cache_folder_path,
+        mode="local",
+        # silent=True,
+        # cache_dir=one_cache_folder_path,
     )
 
     # Initialize as many of each interface as we need across the streams
@@ -87,6 +89,8 @@ if __name__ == "__main__":
 
     if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
         data_interfaces.append(LickInterface(one=one, session=eid, revision=revision))
+
+    nwbfile_path = convert(eid=eid, one=one, data_interfaces=data_interfaces, raw=False)
 
     # check
     check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
