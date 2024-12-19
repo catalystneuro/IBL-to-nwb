@@ -1,8 +1,5 @@
 import os
 
-os.environ["JUPYTER_PLATFORM_DIRS"] = "1"  # Annoying
-
-import os
 from pathlib import Path
 
 from one.api import ONE

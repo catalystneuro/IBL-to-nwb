@@ -8,7 +8,7 @@ from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
 
 
-def check_written_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
+def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
     """
     Check the processed-only NWB file for consistency with the equivalent calls to the ONE API.
 
@@ -31,6 +31,16 @@ def check_written_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
         _check_trials_data(eid=eid, nwbfile=nwbfile, one=one)
         _check_pupil_tracking_data(eid=eid, nwbfile=nwbfile, one=one)
         _check_spike_sorting_data(eid=eid, nwbfile=nwbfile, one=one)
+
+
+def check_raw_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
+    with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
+        nwbfile = io.read()
+        eid = nwbfile.session_id
+
+        # run checks for raw files
+        _check_raw_ephys_data(eid=eid, one=one, nwbfile=nwbfile)
+        _check_raw_video_data(eid=eid, one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
 
 
 def _check_wheel_data(*, eid: str, one: ONE, nwbfile: NWBFile, revision: str = None):
