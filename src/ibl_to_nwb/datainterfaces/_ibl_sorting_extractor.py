@@ -29,7 +29,7 @@ class IblSortingExtractor(BaseSorting):
         dict
             The JSON schema for the source_data.
         """
-        return get_json_schema_from_method_signature(cls, exclude=["source_data", "one"])
+        return get_json_schema_from_method_signature(cls, exclude=["source_data", "one", "OneSdsc"])
 
     # def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None, revision: Optional[str] = None):
     def __init__(
