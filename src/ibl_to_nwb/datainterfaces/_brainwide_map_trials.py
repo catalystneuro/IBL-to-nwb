@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Optional
 
-from brainbox.io.one import SessionLoader
 from hdmf.common import VectorData
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.utils import load_dict_from_file
