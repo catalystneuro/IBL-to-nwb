@@ -15,8 +15,6 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         self.one = one
         self.session = session
         self.revision = one.list_revisions(session)[-1] if revision is None else revision
-        self.session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
-        self.session_loader.load_trials()
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -25,8 +23,7 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         return metadata
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        # trials = self.one.load_object(id=self.session, obj="trials", collection="alf", revision=self.revision)
-        trials = self.session_loader.trials
+        trials = self.one.load_dataset(self.session, "_ibl_trials.table.pqt", collection="alf", revision=self.revision)
 
         column_ordering = [
             "choice",

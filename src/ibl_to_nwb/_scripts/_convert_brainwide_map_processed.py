@@ -1,8 +1,9 @@
 import sys
+from datetime import datetime
 from pathlib import Path
 
-# from one.api import ONE
-from deploy.iblsdsc import OneSdsc as ONE
+# from deploy.iblsdsc import OneSdsc as ONE
+from one.api import ONE
 
 from ibl_to_nwb.converters import BrainwideMapConverter
 from ibl_to_nwb.datainterfaces import (
@@ -15,6 +16,15 @@ from ibl_to_nwb.datainterfaces import (
     WheelInterface,
 )
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
+
+
+def get_last_before(eid: str, one: ONE, revision: str):
+    revisions = one.list_revisions(eid)
+    revisions = [datetime.strptime(revision, "%Y-%m-%d") for revision in revisions[1:]]
+    revision = datetime.strptime(revision, "%Y-%m-%d")
+    revisions = sorted(revisions)
+    ix = sum([not (rev > revision) for rev in revisions])
+    return revisions[ix]
 
 
 def convert(eid: str, one: ONE, data_interfaces: list, raw: bool):
@@ -40,24 +50,25 @@ def convert(eid: str, one: ONE, data_interfaces: list, raw: bool):
 
 
 if __name__ == "__main__":
-    eid = sys.argv[1]
+    # eid = sys.argv[1]
+    eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
 
     # path setup
     base_path = Path.home() / "ibl_scratch"
     output_folder = base_path / "nwbfiles"
     output_folder.mkdir(exist_ok=True, parents=True)
 
-    revision = "2024-07-10"
-
     # Initialize IBL (ONE) client to download processed data for this session
-    # one_cache_folder_path = base_path / "ibl_conversion" / eid / "cache"
+    one_cache_folder_path = base_path / "ibl_conversion" / eid / "cache"
     one = ONE(
         base_url="https://openalyx.internationalbrainlab.org",
         password="international",
         mode="local",
         # silent=True,
-        # cache_dir=one_cache_folder_path,
+        cache_dir=one_cache_folder_path,
     )
+
+    revision = get_last_before(eid=eid, one=one, revision="2024-07-10")
 
     # Initialize as many of each interface as we need across the streams
     data_interfaces = list()
