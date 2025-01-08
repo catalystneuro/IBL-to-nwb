@@ -67,6 +67,7 @@ if __name__ == "__main__":
     output_folder = base_path / "nwbfiles"
     output_folder.mkdir(exist_ok=True, parents=True)
 
+    # common
     one_kwargs = dict(
         base_url="https://openalyx.internationalbrainlab.org",
         password="international",
@@ -74,7 +75,9 @@ if __name__ == "__main__":
     )
 
     # if not running on SDSC adding the cache folder explicitly
-    if "USE_SDSC_ONE" not in os.environ:
+    if "USE_SDSC_ONE" in os.environ:
+        one_kwargs["cache_rest"] = None  # disables rest caching (write permission errors on popeye)
+    else:
         # Initialize IBL (ONE) client to download processed data for this session
         one_cache_folder_path = base_path / "ibl_conversion" / eid / "cache"
         one_kwargs["cache_dir"] = one_cache_folder_path
