@@ -25,7 +25,7 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 def check_raw_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         nwbfile = io.read()
-        eid, revision = nwbfile.session_id.split(':')
+        eid, revision = nwbfile.session_id.split(":")
 
         # run checks for raw files
         _check_raw_ephys_data(eid=eid, one=one, nwbfile=nwbfile)
@@ -33,7 +33,7 @@ def check_raw_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 
 
 def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
-    eid, revision = nwbfile.session_id.split(':')
+    eid, revision = nwbfile.session_id.split(":")
     processing_module = nwbfile.processing["wheel"]
     wheel_position_series = processing_module.data_interfaces["CompassDirection"].spatial_series["WheelPositionSeries"]
     wheel_movement_table = processing_module.data_interfaces["WheelMovementIntervals"][:]
@@ -60,8 +60,8 @@ def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
 
 
 def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
-    eid, revision = nwbfile.session_id.split(':')
-    
+    eid, revision = nwbfile.session_id.split(":")
+
     processing_module = nwbfile.processing["camera"]
     lick_times_table = processing_module.data_interfaces["LickTimes"][:]
 
@@ -72,8 +72,7 @@ def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
 
 def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
-    eid, revision = nwbfile.session_id.split(':')
-    
+    eid, revision = nwbfile.session_id.split(":")
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
@@ -92,8 +91,7 @@ def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
 
 def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
-    eid, revision = nwbfile.session_id.split(':')
-    
+    eid, revision = nwbfile.session_id.split(":")
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
@@ -129,8 +127,7 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
 
 
 def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
-    eid, revision = nwbfile.session_id.split(':')
-    
+    eid, revision = nwbfile.session_id.split(":")
 
     data_from_NWB = nwbfile.trials[:].reset_index(drop=True)
     session_loader = SessionLoader(one=one, eid=eid, revision=revision)
@@ -166,8 +163,8 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
 
 
 def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
-    eid, revision = nwbfile.session_id.split(':')
-    
+    eid, revision = nwbfile.session_id.split(":")
+
     processing_module = nwbfile.processing["camera"]
 
     camera_views = ["left", "right"]
@@ -191,9 +188,9 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
 
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
-    eid, revision = nwbfile.session_id.split(':')
+    eid, revision = nwbfile.session_id.split(":")
 
-    pids, probe_names = one.eid2pid(eid)    
+    pids, probe_names = one.eid2pid(eid)
     pids = dict(zip(probe_names, pids))
 
     units_table = nwbfile.units[:]
@@ -219,18 +216,20 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
         clusters[probe_name] = clusters_
 
         # pre-sort for fast access
-        sort_ix = np.argsort(spikes[probe_name]['clusters'])
-        spikes[probe_name]['times'] = spikes[probe_name]['times'][sort_ix]
-        spikes[probe_name]['clusters'] = spikes[probe_name]['clusters'][sort_ix]
+        sort_ix = np.argsort(spikes[probe_name]["clusters"])
+        spikes[probe_name]["times"] = spikes[probe_name]["times"][sort_ix]
+        spikes[probe_name]["clusters"] = spikes[probe_name]["clusters"][sort_ix]
 
     for ix in units_table.index:
         probe_name, uuid = units_table.loc[ix, ["probe_name", "cluster_uuid"]]
-        assert uuid in clusters[probe_name]['uuids'].values
+        assert uuid in clusters[probe_name]["uuids"].values
         spike_times_from_NWB = units_table.loc[ix, "spike_times"]
 
-        cluster_id = np.where(clusters[probe_name]['uuids'] == uuid)[0][0]
-        spikes[probe_name]['clusters']
-        spike_times_from_ONE = get_spikes_for_cluster(spikes[probe_name]['clusters'], spikes[probe_name]['times'], cluster_id)
+        cluster_id = np.where(clusters[probe_name]["uuids"] == uuid)[0][0]
+        spikes[probe_name]["clusters"]
+        spike_times_from_ONE = get_spikes_for_cluster(
+            spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id
+        )
 
         # more verbose but slower for more than ~20 checks
         # spike_times_from_ONE = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
@@ -240,7 +239,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
 
 def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
-    eid, revision = nwbfile.session_id.split(':')
+    eid, revision = nwbfile.session_id.split(":")
 
     # data_one
     pids, pnames_one = one.eid2pid(eid)
@@ -293,7 +292,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 
 
 def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
-    eid, revision = nwbfile.session_id.split(':')
+    eid, revision = nwbfile.session_id.split(":")
 
     # timestamps
     datasets = one.list_datasets(eid, "*Camera.times*", collection="alf")

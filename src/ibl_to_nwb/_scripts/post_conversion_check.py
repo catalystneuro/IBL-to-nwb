@@ -1,6 +1,8 @@
-from one.api import ONE
-from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 from pathlib import Path
+
+from one.api import ONE
+
+from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
 nwbfile_path = ""
 
