@@ -1,8 +1,12 @@
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
-# from deploy.iblsdsc import OneSdsc as ONE
-from one.api import ONE
+if "USE_SDSC_ONE" in os.envion:
+    from deploy.iblsdsc import OneSdsc as ONE
+else:
+    from one.api import ONE
 
 from ibl_to_nwb.converters import BrainwideMapConverter
 from ibl_to_nwb.datainterfaces import (
@@ -46,8 +50,10 @@ def convert(eid: str, one: ONE, data_interfaces: list, revision: str):
 
 
 if __name__ == "__main__":
-    # eid = sys.argv[1]
-    eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
+    if len(sys.argv) == 1:
+        eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
+    else:
+        eid = sys.argv[1]
 
     # path setup
     base_path = Path.home() / "ibl_scratch"
