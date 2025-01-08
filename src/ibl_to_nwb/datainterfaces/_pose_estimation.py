@@ -37,17 +37,6 @@ class IblPoseEstimationInterface(BaseDataInterface):
         self.revision = revision
         if self.revision is None:
             self.revision = one.list_revisions(session)[-1]
-        #     session_files = self.one.list_datasets(eid=self.session, filename=f"*{self.camera_name}.dlc*")
-        #     revision_datetime_format = "%Y-%m-%d"
-        #     revisions = [
-        #         datetime.strptime(session_file.split("#")[1], revision_datetime_format)
-        #         for session_file in session_files
-        #         if "#" in session_file
-        #     ]
-
-        #     if any(revisions):
-        #         most_recent = max(revisions)
-        #         self.revision = most_recent.strftime("%Y-%m-%d")
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
         camera_data = self.one.load_object(

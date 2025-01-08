@@ -1,13 +1,13 @@
 from pathlib import Path
 from typing import Optional
 
-from brainbox.io.one import SessionLoader
 from hdmf.common import VectorData
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import NWBFile
 from pynwb.epoch import TimeIntervals
+from brainbox.io.one import SessionLoader
 
 
 class BrainwideMapTrialsInterface(BaseDataInterface):
@@ -23,7 +23,9 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         return metadata
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        trials = self.one.load_dataset(self.session, "_ibl_trials.table.pqt", collection="alf", revision=self.revision)
+        session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
+        session_loader.load_trials()
+        trials = session_loader.trials
 
         column_ordering = [
             "choice",

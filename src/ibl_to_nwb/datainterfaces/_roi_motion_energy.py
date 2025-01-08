@@ -18,9 +18,11 @@ class RoiMotionEnergyInterface(BaseDataInterface):
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         left_right_or_body = self.camera_name[:5].rstrip("C")
 
-        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf")
+        camera_data = self.one.load_object(
+            id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
+        )
         motion_energy_video_region = self.one.load_object(
-            id=self.session, obj=f"{left_right_or_body}ROIMotionEnergy", collection="alf", revision=self.revision
+            id=self.session, obj=f"{left_right_or_body}ROIMotionEnergy", collection="alf"
         )
 
         width, height, x, y = motion_energy_video_region["position"]

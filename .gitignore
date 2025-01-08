@@ -134,4 +134,5 @@ dmypy.json
 #misc
 endpoint_schemas/
 tests/
-src/local
+src/ibl_to_nwb/local/
+.vscode

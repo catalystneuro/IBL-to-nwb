@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from brainbox.io.one import SessionLoader
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
@@ -19,8 +18,6 @@ class PupilTrackingInterface(BaseDataInterface):
         self.session = session
         self.camera_name = camera_name
         self.revision = one.list_revisions(session)[-1] if revision is None else revision
-        self.session_loader = SessionLoader(one=one, eid=session, revision=revision)
-        self.session_loader.load_pupil()
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()

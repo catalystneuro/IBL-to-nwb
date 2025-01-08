@@ -13,12 +13,10 @@ class LickInterface(BaseDataInterface):
         self.one = one
         self.session = session
         self.revision = one.list_revisions(session)[-1] if revision is None else revision
-        # self.session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
-        # self.session_loader.load_licks()
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        licks = self.one.load_object(id=self.session, obj="licks", collection="alf", revision=self.revision)
-        # licks = self.session_loader.licks
+        # licks = self.one.load_object(id=self.session, obj="licks", collection="alf")
+        licks = self.one.load_dataset(self.session, "licks.times", collection="alf", revision=self.revision)
 
         lick_events_table = DynamicTable(
             name="LickTimes",
@@ -30,7 +28,7 @@ class LickInterface(BaseDataInterface):
                 VectorData(
                     name="lick_time",
                     description="Time stamps of licks as detected from tongue dlc traces",
-                    data=licks["times"],
+                    data=licks,
                 )
             ],
         )

@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Optional
 
 from brainbox.behavior import wheel as wheel_methods
-from brainbox.io.one import SessionLoader
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
@@ -17,8 +16,6 @@ class WheelInterface(BaseDataInterface):
         self.one = one
         self.session = session
         self.revision = one.list_revisions(session) if revision is None else revision
-        self.session_loader = SessionLoader(eid=session, one=one, revision=revision)
-        self.session_loader.load_wheel()
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
