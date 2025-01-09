@@ -2,8 +2,8 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+
 import spikeglx
-import shutil
 
 # if running on SDSC, use the OneSdsc, else normal
 if "USE_SDSC_ONE" in os.environ:
