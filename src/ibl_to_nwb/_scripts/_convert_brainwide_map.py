@@ -205,4 +205,5 @@ if __name__ == "__main__":
     # cleanup
     if cleanup:
         if mode == "raw":
+            os.system(f"find {local_scratch_folder} -type l -exec unlink {{}} \;")
             shutil.rmtree(local_scratch_folder)
