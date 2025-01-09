@@ -26,6 +26,21 @@ from ibl_to_nwb.datainterfaces import (
 )
 
 
+def create_symlinks(source_dir, target_dir):
+    """replicates the tree under source_dir at target dir in the form of symlinks"""
+    for root, dirs, files in os.walk(source_dir):
+        for dir in dirs:
+            folder = target_dir / (Path(root) / dir).relative_to(source_dir)
+            folder.mkdir(parents=True, exist_ok=True)
+
+    for root, dirs, files in os.walk(source_dir):
+        for file in files:
+            source_file_path = Path(root) / file
+            target_file_path = target_dir / source_file_path.relative_to(source_dir)
+            if not target_file_path.exists():
+                target_file_path.symlink_to(source_file_path)
+
+
 def get_last_before(eid: str, one: ONE, revision: str):
     revisions = one.list_revisions(eid, revision="*")
     revisions = [datetime.strptime(revision, "%Y-%m-%d") for revision in revisions]
@@ -75,6 +90,7 @@ if __name__ == "__main__":
     base_path = Path.home() / "ibl_scratch"
     output_folder = base_path / "nwbfiles"
     output_folder.mkdir(exist_ok=True, parents=True)
+    local_scratch_folder = base_path / eid
 
     # common
     one_kwargs = dict(
@@ -105,10 +121,12 @@ if __name__ == "__main__":
         session_folder = one.eid2path(eid)
         spikeglx_source_folder_path = session_folder / "raw_ephys_data"
 
+        # create symlinks at local scratch
+        create_symlinks(spikeglx_source_folder_path, local_scratch_folder)
+
         # check and decompress
-        # get paths
         cbin_paths = []
-        for root, dirs, files in os.walk(spikeglx_source_folder_path):
+        for root, dirs, files in os.walk(local_scratch_folder):
             for file in files:
                 if file.endswith(".cbin"):
                     cbin_paths.append(Path(root) / file)
@@ -116,7 +134,7 @@ if __name__ == "__main__":
         for path in cbin_paths:
             if not path.with_suffix(".bin").exists():
                 print(f"decompressing {path}")
-                spikeglx.reader(path).decompress_to_scratch()
+                spikeglx.Reader(path).decompress_to_scratch()
 
         # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
         spikeglx_subconverter = IblSpikeGlxConverter(folder_path=spikeglx_source_folder_path, one=one, eid=eid)
@@ -182,8 +200,4 @@ if __name__ == "__main__":
     # cleanup
     if cleanup:
         if mode == "raw":
-            for path in cbin_paths:
-                bin_path = path.with_suffix(".bin")
-                if bin_path.exists():
-                    print(f"removing {bin_path}")
-                    os.remove(bin_path)
+            shutil.rmtree(local_scratch_folder)
