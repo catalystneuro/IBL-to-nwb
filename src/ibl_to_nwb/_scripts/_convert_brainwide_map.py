@@ -36,12 +36,13 @@ def create_symlinks(source_dir, target_dir, remove_uuid=True):
 
     for root, dirs, files in os.walk(source_dir):
         for file in files:
-            if remove_uuid:
-                parts = file.split(".")
-                parts.remove(parts[-2])
-                file = "".join(parts)
             source_file_path = Path(root) / file
             target_file_path = target_dir / source_file_path.relative_to(source_dir)
+            if remove_uuid:
+                parent, name = target_file_path.parent, target_file_path.name
+                name_parts = name.split(".")
+                name_parts.remove(name_parts[-2])
+                target_file_path = parent / ".".join(name_parts)
             if not target_file_path.exists():
                 target_file_path.symlink_to(source_file_path)
 
