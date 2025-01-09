@@ -27,7 +27,7 @@ from ibl_to_nwb.datainterfaces import (
 )
 
 
-def create_symlinks(source_dir, target_dir):
+def create_symlinks(source_dir, target_dir, remove_uuid=True):
     """replicates the tree under source_dir at target dir in the form of symlinks"""
     for root, dirs, files in os.walk(source_dir):
         for dir in dirs:
@@ -36,6 +36,10 @@ def create_symlinks(source_dir, target_dir):
 
     for root, dirs, files in os.walk(source_dir):
         for file in files:
+            if remove_uuid:
+                parts = file.split(".")
+                parts.remove(parts[-2])
+                file = "".join(parts)
             source_file_path = Path(root) / file
             target_file_path = target_dir / source_file_path.relative_to(source_dir)
             if not target_file_path.exists():
