@@ -2,11 +2,15 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+import spikeglx
+import shutil
 
 # if running on SDSC, use the OneSdsc, else normal
 if "USE_SDSC_ONE" in os.environ:
+    print("using SDSC ONE")
     from deploy.iblsdsc import OneSdsc as ONE
 else:
+    print("using regular ONE")
     from one.api import ONE
 
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
@@ -54,6 +58,8 @@ def convert(eid: str, one: ONE, data_interfaces: list, revision: str, mode: str)
     return nwbfile_path
 
 
+cleanup = False
+
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
@@ -61,6 +67,9 @@ if __name__ == "__main__":
     else:
         eid = sys.argv[1]
         mode = sys.argv[2]  # raw or processed
+
+    print(eid)
+    print(mode)
 
     # path setup
     base_path = Path.home() / "ibl_scratch"
@@ -95,6 +104,19 @@ if __name__ == "__main__":
         # ephys
         session_folder = one.eid2path(eid)
         spikeglx_source_folder_path = session_folder / "raw_ephys_data"
+
+        # check and decompress
+        # get paths
+        cbin_paths = []
+        for root, dirs, files in os.walk(spikeglx_source_folder_path):
+            for file in files:
+                if file.endswith(".cbin"):
+                    cbin_paths.append(Path(root) / file)
+
+        for path in cbin_paths:
+            if not path.with_suffix(".bin").exists():
+                print(f"decompressing {path}")
+                spikeglx.reader(path).decompress_to_scratch()
 
         # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
         spikeglx_subconverter = IblSpikeGlxConverter(folder_path=spikeglx_source_folder_path, one=one, eid=eid)
@@ -156,3 +178,12 @@ if __name__ == "__main__":
         revision=revision,
         mode=mode,
     )
+
+    # cleanup
+    if cleanup:
+        if mode == "raw":
+            for path in cbin_paths:
+                bin_path = path.with_suffix(".bin")
+                if bin_path.exists():
+                    print(f"removing {bin_path}")
+                    os.remove(bin_path)
