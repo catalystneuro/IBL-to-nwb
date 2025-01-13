@@ -143,7 +143,7 @@ if __name__ == "__main__":
                 spikeglx.Reader(path).decompress_to_scratch()
 
         # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
-        spikeglx_subconverter = IblSpikeGlxConverter(folder_path=spikeglx_source_folder_path, one=one, eid=eid)
+        spikeglx_subconverter = IblSpikeGlxConverter(folder_path=local_scratch_folder, one=one, eid=eid)
         data_interfaces.append(spikeglx_subconverter)
 
         # video
