@@ -1,17 +1,27 @@
 """The interface for loading spike sorted data via ONE access."""
 
 from pathlib import Path
+from typing import Optional
 
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
     BaseSortingExtractorInterface,
 )
 from neuroconv.utils import load_dict_from_file
+from one.api import ONE
 
 from ._ibl_sorting_extractor import IblSortingExtractor
 
 
 class IblSortingInterface(BaseSortingExtractorInterface):
     Extractor = IblSortingExtractor
+
+    def __init__(
+        self,
+        session: str,
+        one: ONE,
+        revision: Optional[str] = None,
+    ):
+        super().__init__(session=session, one=one, revision=revision)
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()

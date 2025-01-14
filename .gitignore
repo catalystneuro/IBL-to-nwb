@@ -134,3 +134,5 @@ dmypy.json
 #misc
 endpoint_schemas/
 tests/
+src/ibl_to_nwb/local/
+.vscode

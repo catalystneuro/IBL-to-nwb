@@ -5,7 +5,11 @@ from typing import Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
-from pydantic import DirectoryPath
+from brainbox.io.one import SpikeSortingLoader
+from iblatlas.atlas import AllenAtlas
+from iblatlas.regions import BrainRegions
+from neuroconv.utils import get_json_schema_from_method_signature
+from one.api import ONE
 from spikeinterface import BaseSorting, BaseSortingSegment
 
 
@@ -16,18 +20,27 @@ class IblSortingExtractor(BaseSorting):
     installation_mesg = ""
     name = "iblsorting"
 
-    def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None):
-        from brainbox.io.one import SpikeSortingLoader
-        from iblatlas.atlas import AllenAtlas
-        from iblatlas.regions import BrainRegions
-        from one.api import ONE
+    def get_source_schema(cls) -> dict:
+        """
+        Infer the JSON schema for the source_data from the method signature (annotation typing).
 
-        one = ONE(
-            base_url="https://openalyx.internationalbrainlab.org",
-            password="international",
-            silent=True,
-            cache_dir=cache_folder,
-        )
+        Returns
+        -------
+        dict
+            The JSON schema for the source_data.
+        """
+        return get_json_schema_from_method_signature(cls, exclude=["source_data", "one"])
+
+    # def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None, revision: Optional[str] = None):
+    def __init__(
+        self,
+        one: ONE,
+        session: str,
+        revision: Optional[str] = None,
+    ):
+        if revision is None:  # latest
+            revision = one.list_revisions(session)[-1]
+
         atlas = AllenAtlas()
         brain_regions = BrainRegions()
 
@@ -45,7 +58,7 @@ class IblSortingExtractor(BaseSorting):
         for probe_name in probe_names:
             sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
             sorting_loaders.update({probe_name: sorting_loader})
-            spikes, clusters, channels = sorting_loader.load_spike_sorting()
+            spikes, clusters, channels = sorting_loader.load_spike_sorting(revision=revision)
             # cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
             number_of_units = len(np.unique(spikes["clusters"]))
             cluster_ids.extend(list(np.arange(number_of_units).astype("int32") + unit_id_per_probe_shift))

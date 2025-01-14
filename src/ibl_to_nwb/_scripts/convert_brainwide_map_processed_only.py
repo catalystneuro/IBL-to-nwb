@@ -14,13 +14,15 @@ from ibl_to_nwb.datainterfaces import (
 )
 from ibl_to_nwb.testing import check_written_nwbfile_for_consistency
 
-session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
+# session_id = "d32876dd-8303-4720-8e7e-20678dc2fd71"
+session_id = "caa5dddc-9290-4e27-9f5e-575ba3598614"  # a BWM session with dual probe
 
 # Specify the revision of the pose estimation data
 # Setting to 'None' will use whatever the latest released revision is
 revision = None
 
-base_path = Path("E:/IBL")
+# base_path = Path("E:/IBL")
+base_path = Path.home() / "ibl_scratch"  # local directory
 base_path.mkdir(exist_ok=True)
 nwbfiles_folder_path = base_path / "nwbfiles"
 nwbfiles_folder_path.mkdir(exist_ok=True)
