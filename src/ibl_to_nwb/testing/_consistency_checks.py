@@ -276,12 +276,12 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             # draw a random set of samples and check if they are equal in value
             n_samples, n_channels = data_nwb.shape
 
-            ix  = np.random.randint(n_samples, size=10)
+            ix = np.random.randint(n_samples, size=10)
             for i in ix:
                 samples_nwb = data_nwb[i]
-                samples_one = data_one[int(i)][:-1] # excluding the digital channel
+                samples_one = data_one[int(i)][:-1]  # excluding the digital channel
                 np.testing.assert_array_equal(samples_nwb, samples_one)
-                
+
                 # samples_nwb = np.array([data_nwb[*i] for i in ix])
                 # samples_one = np.array([data_one[*i] for i in ix])
                 # np.testing.assert_array_equal(samples_nwb, samples_one)
