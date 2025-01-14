@@ -6,6 +6,8 @@ from pathlib import Path
 
 import spikeglx
 
+from ibl_to_nwb.helpers import create_symlinks
+
 # if running on SDSC, use the OneSdsc, else normal
 if "USE_SDSC_ONE" in os.environ:
     print("using SDSC ONE")
@@ -25,47 +27,6 @@ from ibl_to_nwb.datainterfaces import (
     RoiMotionEnergyInterface,
     WheelInterface,
 )
-
-# def create_symlinks(source_dir, target_dir, remove_uuid=True):
-#     """replicates the tree under source_dir at target dir in the form of symlinks"""
-#     for root, dirs, files in os.walk(source_dir):
-#         for dir in dirs:
-#             folder = target_dir / (Path(root) / dir).relative_to(source_dir)
-#             folder.mkdir(parents=True, exist_ok=True)
-
-#     for root, dirs, files in os.walk(source_dir):
-#         for file in files:
-#             source_file_path = Path(root) / file
-#             target_file_path = target_dir / source_file_path.relative_to(source_dir)
-#             if remove_uuid:
-#                 parent, name = target_file_path.parent, target_file_path.name
-#                 name_parts = name.split(".")
-#                 name_parts.remove(name_parts[-2])
-#                 target_file_path = parent / ".".join(name_parts)
-#             if not target_file_path.exists():
-#                 target_file_path.symlink_to(source_file_path)
-
-
-def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
-    """replicates the tree under source_dir at target dir in the form of symlinks"""
-
-    for root, dirs, files in os.walk(source_dir):
-        for file in files:
-            source_file_path = Path(root) / file
-            if filter is not None:
-                if filter not in str(source_file_path):
-                    continue
-
-            target_file_path = target_dir / source_file_path.relative_to(source_dir)
-            target_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-            if remove_uuid:
-                parent, name = target_file_path.parent, target_file_path.name
-                name_parts = name.split(".")
-                name_parts.remove(name_parts[-2])
-                target_file_path = parent / ".".join(name_parts)
-            if not target_file_path.exists():
-                target_file_path.symlink_to(source_file_path)
 
 
 def get_last_before(eid: str, one: ONE, revision: str):
@@ -227,6 +188,7 @@ if __name__ == "__main__":
     # cleanup
     if cleanup:
         if mode == "raw":
+            # find . -type l -exec unlink {} \;")
             os.system(f"find {session_scratch_folder} -type l -exec unlink {{}} \;")
             shutil.rmtree(session_scratch_folder)
-# find . -type l -exec unlink {} \;")
+
