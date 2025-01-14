@@ -26,7 +26,6 @@ from ibl_to_nwb.datainterfaces import (
     WheelInterface,
 )
 
-
 # def create_symlinks(source_dir, target_dir, remove_uuid=True):
 #     """replicates the tree under source_dir at target dir in the form of symlinks"""
 #     for root, dirs, files in os.walk(source_dir):
@@ -45,6 +44,7 @@ from ibl_to_nwb.datainterfaces import (
 #                 target_file_path = parent / ".".join(name_parts)
 #             if not target_file_path.exists():
 #                 target_file_path.symlink_to(source_file_path)
+
 
 def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
     """replicates the tree under source_dir at target dir in the form of symlinks"""
@@ -66,6 +66,7 @@ def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
                 target_file_path = parent / ".".join(name_parts)
             if not target_file_path.exists():
                 target_file_path.symlink_to(source_file_path)
+
 
 def get_last_before(eid: str, one: ONE, revision: str):
     revisions = one.list_revisions(eid, revision="*")

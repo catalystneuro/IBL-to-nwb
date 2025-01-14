@@ -1,6 +1,5 @@
 # %%
 import os
-import sys
 from pathlib import Path
 
 # if running on SDSC, use the OneSdsc, else normal
@@ -53,4 +52,4 @@ if raw:
 else:
     check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
 # %%
-print('all checks passed')
+print("all checks passed")
