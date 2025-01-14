@@ -46,9 +46,9 @@ else:
 # instantiate one
 one = ONE(**one_kwargs)
 
-if mode == 'raw':
+if mode == "raw":
     check_raw_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
-if mode == 'processed':
+if mode == "processed":
     check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
 # %%
 

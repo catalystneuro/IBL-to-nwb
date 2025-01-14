@@ -191,4 +191,3 @@ if __name__ == "__main__":
             # find . -type l -exec unlink {} \;")
             os.system(f"find {session_scratch_folder} -type l -exec unlink {{}} \;")
             shutil.rmtree(session_scratch_folder)
-
