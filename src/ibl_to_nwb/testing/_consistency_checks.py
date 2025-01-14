@@ -23,12 +23,12 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 
 
 def check_raw_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
-    with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
-        nwbfile = io.read()
-
-        # run checks for raw files
-        _check_raw_ephys_data(one=one, nwbfile=nwbfile)
-        _check_raw_video_data(one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
+    # with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
+    #     nwbfile = io.read()
+    nwbfile = NWBHDF5IO(path=nwbfile_path, mode="r").read()
+    # run checks for raw files
+    _check_raw_ephys_data(one=one, nwbfile=nwbfile)
+    _check_raw_video_data(one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
 
 
 def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
@@ -276,16 +276,15 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             # draw a random set of samples and check if they are equal in value
             n_samples, n_channels = data_nwb.shape
 
-            ix = np.column_stack(
-                [
-                    np.random.randint(n_samples, size=10),
-                    np.random.randint(n_channels, size=10),
-                ]
-            )
-
-            samples_nwb = np.array([data_nwb[*i] for i in ix])
-            samples_one = np.array([data_one[*i] for i in ix])
-            np.testing.assert_array_equal(samples_nwb, samples_one)
+            ix  = np.random.randint(n_samples, size=10)
+            for i in ix:
+                samples_nwb = data_nwb[i]
+                samples_one = data_one[int(i)][:-1] # excluding the digital channel
+                np.testing.assert_array_equal(samples_nwb, samples_one)
+                
+                # samples_nwb = np.array([data_nwb[*i] for i in ix])
+                # samples_one = np.array([data_one[*i] for i in ix])
+                # np.testing.assert_array_equal(samples_nwb, samples_one)
 
             # check the time stamps
             nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].timestamps[:]
@@ -295,6 +294,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
                 np.arange(0, sglx_streamer.ns), direction="forward"
             )
             np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
+            print(f"passing {pname}, {band}")
 
 
 def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):

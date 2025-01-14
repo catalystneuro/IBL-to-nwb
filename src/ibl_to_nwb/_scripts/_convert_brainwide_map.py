@@ -27,17 +27,38 @@ from ibl_to_nwb.datainterfaces import (
 )
 
 
-def create_symlinks(source_dir, target_dir, remove_uuid=True):
+# def create_symlinks(source_dir, target_dir, remove_uuid=True):
+#     """replicates the tree under source_dir at target dir in the form of symlinks"""
+#     for root, dirs, files in os.walk(source_dir):
+#         for dir in dirs:
+#             folder = target_dir / (Path(root) / dir).relative_to(source_dir)
+#             folder.mkdir(parents=True, exist_ok=True)
+
+#     for root, dirs, files in os.walk(source_dir):
+#         for file in files:
+#             source_file_path = Path(root) / file
+#             target_file_path = target_dir / source_file_path.relative_to(source_dir)
+#             if remove_uuid:
+#                 parent, name = target_file_path.parent, target_file_path.name
+#                 name_parts = name.split(".")
+#                 name_parts.remove(name_parts[-2])
+#                 target_file_path = parent / ".".join(name_parts)
+#             if not target_file_path.exists():
+#                 target_file_path.symlink_to(source_file_path)
+
+def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
     """replicates the tree under source_dir at target dir in the form of symlinks"""
-    for root, dirs, files in os.walk(source_dir):
-        for dir in dirs:
-            folder = target_dir / (Path(root) / dir).relative_to(source_dir)
-            folder.mkdir(parents=True, exist_ok=True)
 
     for root, dirs, files in os.walk(source_dir):
         for file in files:
             source_file_path = Path(root) / file
+            if filter is not None:
+                if filter not in str(source_file_path):
+                    continue
+
             target_file_path = target_dir / source_file_path.relative_to(source_dir)
+            target_file_path.parent.mkdir(parents=True, exist_ok=True)
+
             if remove_uuid:
                 parent, name = target_file_path.parent, target_file_path.name
                 name_parts = name.split(".")
@@ -45,7 +66,6 @@ def create_symlinks(source_dir, target_dir, remove_uuid=True):
                 target_file_path = parent / ".".join(name_parts)
             if not target_file_path.exists():
                 target_file_path.symlink_to(source_file_path)
-
 
 def get_last_before(eid: str, one: ONE, revision: str):
     revisions = one.list_revisions(eid, revision="*")
@@ -96,7 +116,7 @@ if __name__ == "__main__":
     base_path = Path.home() / "ibl_scratch"
     output_folder = base_path / "nwbfiles"
     output_folder.mkdir(exist_ok=True, parents=True)
-    local_scratch_folder = base_path / eid
+    session_scratch_folder = base_path / eid
 
     # common
     one_kwargs = dict(
@@ -128,11 +148,11 @@ if __name__ == "__main__":
         spikeglx_source_folder_path = session_folder / "raw_ephys_data"
 
         # create symlinks at local scratch
-        create_symlinks(spikeglx_source_folder_path, local_scratch_folder)
+        create_symlinks(spikeglx_source_folder_path, session_scratch_folder)
 
         # check and decompress
         cbin_paths = []
-        for root, dirs, files in os.walk(local_scratch_folder):
+        for root, dirs, files in os.walk(session_scratch_folder):
             for file in files:
                 if file.endswith(".cbin"):
                     cbin_paths.append(Path(root) / file)
@@ -143,7 +163,7 @@ if __name__ == "__main__":
                 spikeglx.Reader(path).decompress_to_scratch()
 
         # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
-        spikeglx_subconverter = IblSpikeGlxConverter(folder_path=local_scratch_folder, one=one, eid=eid)
+        spikeglx_subconverter = IblSpikeGlxConverter(folder_path=session_scratch_folder, one=one, eid=eid)
         data_interfaces.append(spikeglx_subconverter)
 
         # video
@@ -206,5 +226,6 @@ if __name__ == "__main__":
     # cleanup
     if cleanup:
         if mode == "raw":
-            os.system(f"find {local_scratch_folder} -type l -exec unlink {{}} \;")
-            shutil.rmtree(local_scratch_folder)
+            os.system(f"find {session_scratch_folder} -type l -exec unlink {{}} \;")
+            shutil.rmtree(session_scratch_folder)
+# find . -type l -exec unlink {} \;")

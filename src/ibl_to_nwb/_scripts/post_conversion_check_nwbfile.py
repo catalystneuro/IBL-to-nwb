@@ -15,18 +15,19 @@ from pynwb import NWBHDF5IO
 
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency, check_raw_nwbfile_for_consistency
 
-nwbfile_path = sys.argv[1]
+# nwbfile_path = sys.argv[1]
+nwbfile_path = "/mnt/home/graiser/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
 if "raw" in nwbfile_path:
     raw = True
 
 nwbfile = NWBHDF5IO.read_nwb(nwbfile_path)
-
 eid, revision = nwbfile.session_id.split(":")  # this is the hack that has to be removed eventually
 
 # path setup
 base_path = Path.home() / "ibl_scratch"
 output_folder = base_path / "nwbfiles"
 output_folder.mkdir(exist_ok=True, parents=True)
+# session_scratch_folder = base_path / eid
 
 # common
 one_kwargs = dict(
@@ -51,3 +52,4 @@ if raw:
 else:
     check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
 # %%
+print('all checks passed')
