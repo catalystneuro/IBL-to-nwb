@@ -23,12 +23,12 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 
 
 def check_raw_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
-    # with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
-    #     nwbfile = io.read()
-    nwbfile = NWBHDF5IO(path=nwbfile_path, mode="r").read()
-    # run checks for raw files
-    _check_raw_ephys_data(one=one, nwbfile=nwbfile)
-    _check_raw_video_data(one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
+    with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
+        nwbfile = io.read()
+
+        # run checks for raw files
+        _check_raw_ephys_data(one=one, nwbfile=nwbfile)
+        _check_raw_video_data(one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
 
 
 def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):

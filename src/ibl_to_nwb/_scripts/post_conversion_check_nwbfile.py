@@ -20,8 +20,9 @@ nwbfile_path = "/mnt/home/graiser/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_s
 if "raw" in nwbfile_path:
     raw = True
 
-nwbfile = NWBHDF5IO.read_nwb(nwbfile_path)
-eid, revision = nwbfile.session_id.split(":")  # this is the hack that has to be removed eventually
+with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
+    nwbfile = io.read()
+    eid, revision = nwbfile.session_id.split(":")  # this is the hack that has to be removed eventually
 
 # path setup
 base_path = Path.home() / "ibl_scratch"
