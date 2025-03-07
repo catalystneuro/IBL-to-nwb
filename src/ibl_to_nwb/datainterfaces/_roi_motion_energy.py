@@ -1,5 +1,7 @@
 """Data Interface for the special data type of ROI Motion Energy."""
 
+from typing import Optional
+
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
@@ -7,15 +9,18 @@ from pynwb import TimeSeries
 
 
 class RoiMotionEnergyInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str, camera_name: str):
+    def __init__(self, one: ONE, session: str, camera_name: str, revision: Optional[str] = None):
         self.one = one
         self.session = session
         self.camera_name = camera_name
+        self.revision = one.list_revisions(session)[-1] if revision is None else revision
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         left_right_or_body = self.camera_name[:5].rstrip("C")
 
-        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf")
+        camera_data = self.one.load_object(
+            id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
+        )
         motion_energy_video_region = self.one.load_object(
             id=self.session, obj=f"{left_right_or_body}ROIMotionEnergy", collection="alf"
         )

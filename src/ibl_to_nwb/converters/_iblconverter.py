@@ -5,6 +5,7 @@ from typing import Literal, Optional
 
 from dateutil import tz
 from ndx_ibl import IblSubject
+from ndx_ibl_bwm import ibl_bwm_metadata
 from neuroconv import ConverterPipe
 from neuroconv.tools.nwb_helpers import HDF5BackendConfiguration, configure_backend, make_or_load_nwbfile
 from one.api import ONE
@@ -80,6 +81,7 @@ class IblConverter(ConverterPipe):
         nwbfile_path: Optional[FilePath] = None,
         nwbfile: Optional[NWBFile] = None,
         metadata: Optional[dict] = None,
+        ibl_metadata: Optional[dict] = None,
         overwrite: bool = False,
         backend: Optional[Literal["hdf5"]] = None,
         backend_configuration: Optional[HDF5BackendConfiguration] = None,
@@ -132,6 +134,10 @@ class IblConverter(ConverterPipe):
             verbose=self.verbose,
         ) as nwbfile_out:
             nwbfile_out.subject = ibl_subject
+
+            # adding ibl specific metadata
+            nwbfile_out.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(**ibl_metadata))
+
             for interface_name, data_interface in self.data_interface_objects.items():
                 data_interface.add_to_nwbfile(
                     nwbfile=nwbfile_out, metadata=metadata, **conversion_options.get(interface_name, dict())
