@@ -42,7 +42,7 @@ def convert(eid: str, one: ONE, data_interfaces: list, revision: str, mode: str)
     # Run conversion
     session_converter = BrainwideMapConverter(one=one, session=eid, data_interfaces=data_interfaces, verbose=True)
     metadata = session_converter.get_metadata()
-    metadata["NWBFile"]["session_id"] = f"{eid}:{revision}"  # FIXME this hack has to go
+    # metadata["NWBFile"]["session_id"] = f"{eid}:{revision}"  # FIXME this hack has to go
     subject_id = metadata["Subject"]["subject_id"]
 
     subject_folder_path = output_folder / f"sub-{subject_id}"
@@ -51,11 +51,16 @@ def convert(eid: str, one: ONE, data_interfaces: list, revision: str, mode: str)
         fname = f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+image.nwb"
     if mode == "processed":
         fname = f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+    if mode == "debug":
+        fname = f"sub-{subject_id}_ses-{eid}_desc-debug.nwb"
+    if mode == "debug-wheel":
+        fname = f"sub-{subject_id}_ses-{eid}_desc-debug_wheel.nwb"
 
     nwbfile_path = subject_folder_path / fname
     session_converter.run_conversion(
         nwbfile_path=nwbfile_path,
         metadata=metadata,
+        ibl_metadata=dict(revision=revision),
         overwrite=True,
     )
     return nwbfile_path
@@ -66,7 +71,7 @@ cleanup = False
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
-        mode = "raw"
+        mode = "debug-wheel"
     else:
         eid = sys.argv[1]
         mode = sys.argv[2]  # raw or processed
@@ -92,8 +97,7 @@ if __name__ == "__main__":
         one_kwargs["cache_rest"] = None  # disables rest caching (write permission errors on popeye)
     else:
         # Initialize IBL (ONE) client to download processed data for this session
-        one_cache_folder_path = base_path / "ibl_conversion" / eid / "cache"
-        one_kwargs["cache_dir"] = one_cache_folder_path
+        one_kwargs["cache_dir"] = base_path / "ibl_conversion" / eid / "cache"
 
     # instantiate one
     one = ONE(**one_kwargs)
@@ -176,6 +180,36 @@ if __name__ == "__main__":
         if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
             data_interfaces.append(LickInterface(one=one, session=eid, revision=revision))
 
+    if mode == "debug":
+        # ephys
+        session_folder = one.eid2path(eid)
+        spikeglx_source_folder_path = session_folder / "raw_ephys_data"
+
+        # create symlinks at local scratch
+        create_symlinks(spikeglx_source_folder_path, session_scratch_folder)
+
+        # check and decompress
+        cbin_paths = []
+        for root, dirs, files in os.walk(session_scratch_folder):
+            for file in files:
+                if file.endswith(".cbin"):
+                    cbin_paths.append(Path(root) / file)
+
+        for path in cbin_paths:
+            if not path.with_suffix(".bin").exists():
+                print(f"decompressing {path}")
+                spikeglx.Reader(path).decompress_to_scratch()
+
+        # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
+        spikeglx_subconverter = IblSpikeGlxConverter(
+            folder_path=session_scratch_folder, one=one, eid=eid, streams=["imec0.ap"]
+        )
+        data_interfaces.append(spikeglx_subconverter)
+    
+    if mode == "debug-wheel":
+        # just one small interface for quick writing
+        data_interfaces.append(WheelInterface(one=one, session=eid, revision=revision))
+
     # run the conversion
     nwbfile_path = convert(
         eid=eid,
@@ -189,6 +223,5 @@ if __name__ == "__main__":
     if cleanup:
         if mode == "raw":
             # find . -type l -exec unlink {} \;")
-            os.system(f"find {session_scratch_folder} -type l -exec unlink {{}} \;")
+            os.system(f"find {session_scratch_folder} -type l -exec unlink {{}} \\;")
             shutil.rmtree(session_scratch_folder)
-

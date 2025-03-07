@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import os
 import numpy as np
 from brainbox.io.one import SessionLoader, SpikeSortingLoader
 from numpy.testing import assert_array_equal, assert_array_less
@@ -260,7 +260,8 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
         for band in ["ap", "lf"]:
             pid = pidname_map[pname]
             spike_sorting_loader = SpikeSortingLoader(pid=pid, one=one)
-            sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=True)
+            stream = False if "USE_SDSC_ONE" in os.environ else True
+            sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream)
             data_one = sglx_streamer._raw
 
             # nwb ephys data
@@ -277,9 +278,10 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             n_samples, n_channels = data_nwb.shape
 
             ix = np.random.randint(n_samples, size=10)
+
             for i in ix:
                 samples_nwb = data_nwb[i]
-                samples_one = data_one[int(i)][:-1]  # excluding the digital channel
+                samples_one = data_one[i][:-1]  # excluding the digital channel
                 np.testing.assert_array_equal(samples_nwb, samples_one)
 
                 # samples_nwb = np.array([data_nwb[*i] for i in ix])
@@ -287,7 +289,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
                 # np.testing.assert_array_equal(samples_nwb, samples_one)
 
             # check the time stamps
-            nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].timestamps[:]
+            nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()
 
             # from brainbox.io
             brainbox_timestamps = spike_sorting_loader.samples2times(

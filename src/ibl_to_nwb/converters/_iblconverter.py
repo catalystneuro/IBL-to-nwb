@@ -11,7 +11,7 @@ from one.api import ONE
 from pydantic import FilePath
 from pynwb import NWBFile
 from typing_extensions import Self
-
+from ndx_ibl_bwm import ibl_bwm_metadata
 
 class IblConverter(ConverterPipe):
     def __init__(self, one: ONE, session: str, data_interfaces: list, verbose: bool = True) -> Self:
@@ -80,6 +80,7 @@ class IblConverter(ConverterPipe):
         nwbfile_path: Optional[FilePath] = None,
         nwbfile: Optional[NWBFile] = None,
         metadata: Optional[dict] = None,
+        ibl_metadata: Optional[dict] = None,
         overwrite: bool = False,
         backend: Optional[Literal["hdf5"]] = None,
         backend_configuration: Optional[HDF5BackendConfiguration] = None,
@@ -132,6 +133,10 @@ class IblConverter(ConverterPipe):
             verbose=self.verbose,
         ) as nwbfile_out:
             nwbfile_out.subject = ibl_subject
+            
+            # adding ibl specific metadata
+            nwbfile_out.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(**ibl_metadata))
+
             for interface_name, data_interface in self.data_interface_objects.items():
                 data_interface.add_to_nwbfile(
                     nwbfile=nwbfile_out, metadata=metadata, **conversion_options.get(interface_name, dict())

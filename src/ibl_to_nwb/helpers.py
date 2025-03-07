@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-
+from one.alf.spec import is_uuid_string
 
 def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
     """replicates the tree under source_dir at target dir in the form of symlinks"""
@@ -18,7 +18,8 @@ def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
             if remove_uuid:
                 parent, name = target_file_path.parent, target_file_path.name
                 name_parts = name.split(".")
-                name_parts.remove(name_parts[-2])
+                if is_uuid_string(name_parts[-2]):
+                    name_parts.remove(name_parts[-2])
                 target_file_path = parent / ".".join(name_parts)
             if not target_file_path.exists():
                 target_file_path.symlink_to(source_file_path)
