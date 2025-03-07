@@ -1,5 +1,5 @@
 import numpy as np
-from brainbox.io.one import EphysSessionLoader, SpikeSortingLoader
+from brainbox.io.one import SpikeSortingLoader
 from neuroconv.converters import SpikeGLXConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
@@ -21,10 +21,10 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
             "probe01": 1,
         }
         imec_to_probe_map = dict(zip(probe_to_imec_map.values(), probe_to_imec_map.keys()))
-        
+
         # new way - only interate over present data interfaces
         for key, recording_interface in self.data_interface_objects.items():
-            imec_name, band = key.split('.')
+            imec_name, band = key.split(".")
             probe_name = imec_to_probe_map[int(imec_name[-1])]
             pids, pnames = self.one.eid2pid(self.eid)
             pid = dict(zip(pnames, pids))[probe_name]

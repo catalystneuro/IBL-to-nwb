@@ -205,7 +205,7 @@ if __name__ == "__main__":
             folder_path=session_scratch_folder, one=one, eid=eid, streams=["imec0.ap"]
         )
         data_interfaces.append(spikeglx_subconverter)
-    
+
     if mode == "debug-wheel":
         # just one small interface for quick writing
         data_interfaces.append(WheelInterface(one=one, session=eid, revision=revision))

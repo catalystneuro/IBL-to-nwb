@@ -1,5 +1,6 @@
-from pathlib import Path
 import os
+from pathlib import Path
+
 import numpy as np
 from brainbox.io.one import SessionLoader, SpikeSortingLoader
 from numpy.testing import assert_array_equal, assert_array_less
