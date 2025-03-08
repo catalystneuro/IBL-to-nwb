@@ -21,22 +21,79 @@ from ibl_to_nwb.datainterfaces import (
 
 from brainwidemap.bwm_loading import bwm_query
 
+import os
+from pathlib import Path
+from one.alf.spec import is_uuid_string
+
+
+"""
+########     ###    ######## ##     ##
+##     ##   ## ##      ##    ##     ##
+##     ##  ##   ##     ##    ##     ##
+########  ##     ##    ##    #########
+##        #########    ##    ##     ##
+##        ##     ##    ##    ##     ##
+##        ##     ##    ##    ##     ##
+"""
 
 def setup_paths(eid, one, base_path=Path.home() / "ibl_scratch"):
-    # to be implemented where exactly that is (locally on node)
+    # TODO here we need to figure out what is where now eventually
+
     paths = dict(
         output_folder=base_path / "nwbfiles",
         session_folder=one.eid2path(eid),  # <- to be changed
         session_scratch_folder=base_path / eid, # <- to be changed to be locally on the node
     )
+
     # inferred from above
     paths["spikeglx_source_folder_path"] = paths["session_folder"] / "raw_ephys_data"
 
+    # just to be on the safe side
     for _, path in paths.items():
         path.mkdir(exist_ok=True, parents=True)
 
     return paths
 
+
+def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
+    """replicates the tree under source_dir at target dir in the form of symlinks"""
+
+    for root, dirs, files in os.walk(source_dir):
+        for file in files:
+            source_file_path = Path(root) / file
+            if filter is not None:
+                if filter not in str(source_file_path):
+                    continue
+
+            target_file_path = target_dir / source_file_path.relative_to(source_dir)
+            target_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if remove_uuid:
+                parent, name = target_file_path.parent, target_file_path.name
+                name_parts = name.split(".")
+                if is_uuid_string(name_parts[-2]):
+                    name_parts.remove(name_parts[-2])
+                target_file_path = parent / ".".join(name_parts)
+            if not target_file_path.exists():
+                target_file_path.symlink_to(source_file_path)
+
+
+def paths_cleanup(paths):
+    # unlink the symlinks in the scratch folder and remove the scratch 
+    os.system(f"find {paths['session_scratch_folder']} -type l -exec unlink {{}} \;")
+    shutil.rmtree(paths["session_scratch_folder"])
+
+
+
+"""
+########     ###    ########    ###       #### ##    ## ######## ######## ########  ########    ###     ######  ########  ######
+##     ##   ## ##      ##      ## ##       ##  ###   ##    ##    ##       ##     ## ##         ## ##   ##    ## ##       ##    ##
+##     ##  ##   ##     ##     ##   ##      ##  ####  ##    ##    ##       ##     ## ##        ##   ##  ##       ##       ##
+##     ## ##     ##    ##    ##     ##     ##  ## ## ##    ##    ######   ########  ######   ##     ## ##       ######    ######
+##     ## #########    ##    #########     ##  ##  ####    ##    ##       ##   ##   ##       ######### ##       ##             ##
+##     ## ##     ##    ##    ##     ##     ##  ##   ###    ##    ##       ##    ##  ##       ##     ## ##    ## ##       ##    ##
+########  ##     ##    ##    ##     ##    #### ##    ##    ##    ######## ##     ## ##       ##     ##  ######  ########  ######
+"""
 
 def _get_processed_data_interfaces(one, eid, revision=None):
     """
@@ -115,15 +172,31 @@ def _get_raw_data_interfaces(one, eid, paths) -> List:
         data_interfaces.append(video_interface)
     return data_interfaces
 
-
+"""
+########  ########  ######## ########
+##     ## ##     ## ##       ##     ##
+##     ## ##     ## ##       ##     ##
+########  ########  ######   ########
+##        ##   ##   ##       ##
+##        ##    ##  ##       ##
+##        ##     ## ######## ##
+"""
 def decompress_ephys_cbins(folder):
-    # check and decompress
+    # decompress cbin if necessary
     for file_cbin in folder.rglob("*.cbin"):
         if not file_cbin.with_suffix(".bin").exists():
             print(f"decompressing {file_cbin}")
             spikeglx.Reader(file_cbin).decompress_to_scratch()
 
-
+"""
+ ######   #######  ##    ## ##     ## ######## ########  ########
+##    ## ##     ## ###   ## ##     ## ##       ##     ##    ##
+##       ##     ## ####  ## ##     ## ##       ##     ##    ##
+##       ##     ## ## ## ## ##     ## ######   ########     ##
+##       ##     ## ##  ####  ##   ##  ##       ##   ##      ##
+##    ## ##     ## ##   ###   ## ##   ##       ##    ##     ##
+ ######   #######  ##    ##    ###    ######## ##     ##    ##
+"""
 def convert_session(eid=None, one=None, revision=None, cleanup=True):
     assert one is not None
     
@@ -150,10 +223,6 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True):
         metadata=metadata,
         overwrite=True,
     )
-    if cleanup:
-        # find . -type l -exec unlink {} \;")
-        os.system(f"find {paths['session_scratch_folder']} -type l -exec unlink {{}} \;")
-        shutil.rmtree(paths["session_scratch_folder"])
 
     # VIDEO
     session_converter = BrainwideMapConverter(
@@ -169,3 +238,7 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True):
         ibl_metadata=dict(revision=revision),
         overwrite=True,
     )
+
+    if cleanup:
+        paths_cleanup(paths)
+        
