@@ -5,8 +5,6 @@ from typing import List
 
 import spikeglx
 
-from ibl_to_nwb.helpers import create_symlinks
-
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import (
     BrainwideMapTrialsInterface,
@@ -197,7 +195,7 @@ def decompress_ephys_cbins(folder):
 ##    ## ##     ## ##   ###   ## ##   ##       ##    ##     ##
  ######   #######  ##    ##    ###    ######## ##     ##    ##
 """
-def convert_session(eid=None, one=None, revision=None, cleanup=True):
+def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw'):
     assert one is not None
     
     # path setup
@@ -206,38 +204,41 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True):
     # TODO potentially not safe - tbd how
     create_symlinks(paths["session_folder"], paths["session_scratch_folder"])
     
-    # EPHYS
-    decompress_ephys_cbins(paths['']) # TODO tbd where they will be now
-    session_converter = BrainwideMapConverter(
-        one=one,
-        session=eid,
-        data_interfaces=_get_raw_data_interfaces(one, eid, session_folder=paths[""]),  # TODO tbd where they will be now
-        verbose=True,
-    )
-    metadata = session_converter.get_metadata()
-    subject_id = metadata["Subject"]["subject_id"]
-    session_converter.run_conversion(
-        nwbfile_path=paths["output_folder"].joinpath(
-            f"sub-{subject_id}", f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+image.nwb"
-        ),
-        metadata=metadata,
-        overwrite=True,
-    )
+    # we want this probably because we will re-run processed more often than raw
+    match mode: 
+        case 'raw':
+            decompress_ephys_cbins(paths['']) # TODO tbd where they will be now
+            session_converter = BrainwideMapConverter(
+                one=one,
+                session=eid,
+                data_interfaces=_get_raw_data_interfaces(one, eid, session_folder=paths[""]),  # TODO tbd where they will be now
+                verbose=True,
+            )
+            metadata = session_converter.get_metadata()
+            subject_id = metadata["Subject"]["subject_id"]
+            session_converter.run_conversion(
+                nwbfile_path=paths["output_folder"].joinpath(
+                    f"sub-{subject_id}", f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+image.nwb"
+                ),
+                metadata=metadata,
+                ibl_metadata=dict(revision=revision),
+                overwrite=True,
+            )
 
-    # VIDEO
-    session_converter = BrainwideMapConverter(
-        one=one,
-        session=eid,
-        data_interfaces=_get_processed_data_interfaces(one, eid, revision=paths[""]),  # TODO tbd where they will be now
-        verbose=True,
-    )
-    metadata = session_converter.get_metadata()
-    session_converter.run_conversion(
-        nwbfile_path=f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb",
-        metadata=metadata,
-        ibl_metadata=dict(revision=revision),
-        overwrite=True,
-    )
+        case 'processed':
+            session_converter = BrainwideMapConverter(
+                one=one,
+                session=eid,
+                data_interfaces=_get_processed_data_interfaces(one, eid, revision=revision),
+                verbose=True,
+            )
+            metadata = session_converter.get_metadata()
+            session_converter.run_conversion(
+                nwbfile_path=f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb",
+                metadata=metadata,
+                ibl_metadata=dict(revision=revision),
+                overwrite=True,
+            )
 
     if cleanup:
         paths_cleanup(paths)

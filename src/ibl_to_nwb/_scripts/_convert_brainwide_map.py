@@ -6,7 +6,7 @@ from pathlib import Path
 
 import spikeglx
 
-from ibl_to_nwb.helpers import create_symlinks
+# from ibl_to_nwb.helpers import create_symlinks
 
 # if running on SDSC, use the OneSdsc, else normal
 if "USE_SDSC_ONE" in os.environ:
