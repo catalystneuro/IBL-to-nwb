@@ -42,7 +42,6 @@ def convert(eid: str, one: ONE, data_interfaces: list, revision: str, mode: str)
     # Run conversion
     session_converter = BrainwideMapConverter(one=one, session=eid, data_interfaces=data_interfaces, verbose=True)
     metadata = session_converter.get_metadata()
-    # metadata["NWBFile"]["session_id"] = f"{eid}:{revision}"  # FIXME this hack has to go
     subject_id = metadata["Subject"]["subject_id"]
 
     subject_folder_path = output_folder / f"sub-{subject_id}"
