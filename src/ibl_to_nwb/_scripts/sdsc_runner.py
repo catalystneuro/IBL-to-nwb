@@ -1,7 +1,7 @@
 import joblib
 from pathlib import Path
 
-import ibldandi
+import bwm_to_nwb
 from deploy.iblsdsc import OneSdsc as ONE
 #from one.api import ONE
 
@@ -22,7 +22,7 @@ eids = bwm_df['eid'].unique().tolist()
 
 
 if N_JOBS <= 1:
-    ibldandi.convert_session(eid=eids[0], one=one, revision=REVISION, cleanup=True)
+    bwm_to_nwb.convert_session(eid=eids[0], one=one, revision=REVISION, cleanup=True)
 else:
     jobs = (joblib.delayed(ibldandi.convert_session)(eid=eid, one=one, revision=REVISION, cleanup=True) for eid in eids)
     joblib.Parallel(n_jobs=N_JOBS)(jobs)

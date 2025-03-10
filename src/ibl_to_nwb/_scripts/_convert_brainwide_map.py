@@ -6,7 +6,7 @@ from pathlib import Path
 
 import spikeglx
 
-# from ibl_to_nwb.helpers import create_symlinks
+from ibl_to_nwb.bwm_to_nwb import create_symlinks
 
 # if running on SDSC, use the OneSdsc, else normal
 if "USE_SDSC_ONE" in os.environ:
@@ -70,7 +70,7 @@ cleanup = False
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
-        mode = "debug-wheel"
+        mode = "processed"
     else:
         eid = sys.argv[1]
         mode = sys.argv[2]  # raw or processed

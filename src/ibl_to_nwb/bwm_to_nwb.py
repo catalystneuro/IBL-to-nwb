@@ -34,7 +34,7 @@ from one.alf.spec import is_uuid_string
 ##        ##     ##    ##    ##     ##
 """
 
-def setup_paths(eid, one, base_path=Path.home() / "ibl_scratch"):
+def setup_paths(one, eid: str, base_path=Path.home() / "ibl_scratch"):
     # TODO here we need to figure out what is where now eventually
 
     paths = dict(
@@ -53,7 +53,7 @@ def setup_paths(eid, one, base_path=Path.home() / "ibl_scratch"):
     return paths
 
 
-def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
+def create_symlinks(source_dir: Path, target_dir: Path, remove_uuid=True, filter=None):
     """replicates the tree under source_dir at target dir in the form of symlinks"""
 
     for root, dirs, files in os.walk(source_dir):
@@ -76,7 +76,7 @@ def create_symlinks(source_dir, target_dir, remove_uuid=True, filter=None):
                 target_file_path.symlink_to(source_file_path)
 
 
-def paths_cleanup(paths):
+def paths_cleanup(paths: dict):
     # unlink the symlinks in the scratch folder and remove the scratch 
     os.system(f"find {paths['session_scratch_folder']} -type l -exec unlink {{}} \;")
     shutil.rmtree(paths["session_scratch_folder"])
@@ -93,7 +93,7 @@ def paths_cleanup(paths):
 ########  ##     ##    ##    ##     ##    #### ##    ##    ##    ######## ##     ## ##       ##     ##  ######  ########  ######
 """
 
-def _get_processed_data_interfaces(one, eid, revision=None):
+def _get_processed_data_interfaces(one, eid: str, revision=None):
     """
     Returns a list of the data interfaces to build the processed NWB file for this session
     :param one:
@@ -131,7 +131,7 @@ def _get_processed_data_interfaces(one, eid, revision=None):
     return data_interfaces
 
 
-def _get_raw_data_interfaces(one, eid, paths) -> List:
+def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
     """
     Returns a list of the data interfaces to build the raw NWB file for this session
     :param one:
@@ -149,7 +149,7 @@ def _get_raw_data_interfaces(one, eid, paths) -> List:
 
     # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
     spikeglx_subconverter = IblSpikeGlxConverter(
-        folder_path=paths["session_folder"], one=one, eid=eid, pname_pid_map=pname_pid_map
+        folder_path=paths["session_scratch_folder"], one=one, eid=eid, pname_pid_map=pname_pid_map
     )
     data_interfaces.append(spikeglx_subconverter)
 
@@ -199,32 +199,25 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw')
     assert one is not None
     
     # path setup
-    paths = setup_paths(eid, one)
+    paths = setup_paths(one, eid)
     # symlink the entire session from the main storage to a local scratch
     # TODO potentially not safe - tbd how
-    create_symlinks(paths["session_folder"], paths["session_scratch_folder"])
+    create_symlinks(paths["spikeglx_source_folder_path"], paths["session_scratch_folder"])
     
     # we want this probably because we will re-run processed more often than raw
     match mode: 
         case 'raw':
-            decompress_ephys_cbins(paths['']) # TODO tbd where they will be now
+            decompress_ephys_cbins(paths['session_scratch_folder']) # TODO tbd where they will be now
             session_converter = BrainwideMapConverter(
                 one=one,
                 session=eid,
-                data_interfaces=_get_raw_data_interfaces(one, eid, session_folder=paths[""]),  # TODO tbd where they will be now
+                data_interfaces=_get_raw_data_interfaces(one, eid, paths),  # TODO tbd where they will be now
                 verbose=True,
             )
             metadata = session_converter.get_metadata()
             subject_id = metadata["Subject"]["subject_id"]
-            session_converter.run_conversion(
-                nwbfile_path=paths["output_folder"].joinpath(
-                    f"sub-{subject_id}", f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+image.nwb"
-                ),
-                metadata=metadata,
-                ibl_metadata=dict(revision=revision),
-                overwrite=True,
-            )
-
+            fname = f"sub-{subject_id}", f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+image.nwb"
+        
         case 'processed':
             session_converter = BrainwideMapConverter(
                 one=one,
@@ -233,12 +226,27 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw')
                 verbose=True,
             )
             metadata = session_converter.get_metadata()
-            session_converter.run_conversion(
-                nwbfile_path=f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb",
-                metadata=metadata,
-                ibl_metadata=dict(revision=revision),
-                overwrite=True,
+            subject_id = metadata["Subject"]["subject_id"]
+            fname = f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+            
+        case 'debug':
+            session_converter = BrainwideMapConverter(
+                one=one,
+                session=eid,
+                data_interfaces=[WheelInterface(one=one, session=eid, revision=revision)],
+                verbose=True,
             )
+            metadata = session_converter.get_metadata()
+            subject_id = metadata["Subject"]["subject_id"]
+            fname = f"sub-{subject_id}_ses-{eid}_desc-debug.nwb"
+
+    session_converter.run_conversion(
+        nwbfile_path=paths["output_folder"] / f"sub-{subject_id}" / fname,
+        metadata=metadata,
+        ibl_metadata=dict(revision=revision),
+        overwrite=True,
+    )
+    # print(outpath)
 
     if cleanup:
         paths_cleanup(paths)

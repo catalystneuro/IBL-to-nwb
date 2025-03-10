@@ -7,11 +7,12 @@ from pynwb import NWBFile
 
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):
-    def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, streams: None) -> None:
+    def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, streams: None, revision: str) -> None:
         super().__init__(folder_path=folder_path, streams=streams)
         self.one = one
         self.eid = eid
         self.pname_pid_map = pname_pid_map
+        self.revision = revision
 
     def temporally_align_data_interfaces(self) -> None:
         """Align the raw data timestamps to the other data streams using the ONE API."""
@@ -27,8 +28,8 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
             probe_name = imec_to_probe_map[int(imec_name[-1])]
             pid = self.pname_pid_map[probe_name]
 
-            spike_sorting_loader = SpikeSortingLoader(pid=pid, one=self.one)
-            sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True)
+            spike_sorting_loader = SpikeSortingLoader(pid=pid, one=self.one, revision=self.revision)
+            sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True) # FIXME
             aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
             recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
 
