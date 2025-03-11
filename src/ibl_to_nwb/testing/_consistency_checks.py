@@ -7,7 +7,8 @@ from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
 from brainwidemap.bwm_loading import bwm_query
-
+from ibl_to_nwb.fixtures import load_fixtures
+from iblatlas.atlas import AllenAtlas
 
 def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
@@ -246,6 +247,23 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
         # testing
         assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1)
+
+    # test unit locations
+    units_nwb = nwbfile.units[:]
+    units_df = load_fixtures.load_bwm_units_df()
+    units_ids = units_df.groupby('eid').get_group(eid)['uuids']
+    
+    # beryl
+    one_beryl = units_df.set_index('uuids').loc[units_ids, 'Beryl']
+    nwb_beryl = units_nwb.set_index('cluster_uuid').loc[units_ids, 'beryl_location']
+    np.testing.assert_array_equal(one_beryl.values, nwb_beryl.values)
+
+    # allen
+    atlas = AllenAtlas()
+    atlas_ids = units_df.set_index('uuids').loc[units_ids, 'atlas_id']
+    one_allen = np.array([atlas.regions.id2acronym(i)[0] for i in atlas_ids])
+    nwb_allen = units_nwb.set_index('cluster_uuid').loc[units_ids, 'allen_location'].values
+    np.testing.assert_array_equal(one_allen, nwb_allen)
 
 
 def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
