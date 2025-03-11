@@ -13,20 +13,20 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         nwbfile = io.read()
         
-    if 'processed_behavior+ecephys' in nwbfile_path:
-        # run all consistentcy checks for processed data
-        _check_wheel_data(nwbfile=nwbfile, one=one)
-        _check_lick_data(nwbfile=nwbfile, one=one)
-        _check_roi_motion_energy_data(nwbfile=nwbfile, one=one)
-        _check_pose_estimation_data(nwbfile=nwbfile, one=one)
-        _check_trials_data(nwbfile=nwbfile, one=one)
-        _check_pupil_tracking_data(nwbfile=nwbfile, one=one)
-        _check_spike_sorting_data(nwbfile=nwbfile, one=one)
+        if 'processed_behavior+ecephys' in str(nwbfile_path):
+            # run all consistentcy checks for processed data
+            _check_wheel_data(nwbfile=nwbfile, one=one)
+            _check_lick_data(nwbfile=nwbfile, one=one)
+            _check_roi_motion_energy_data(nwbfile=nwbfile, one=one)
+            _check_pose_estimation_data(nwbfile=nwbfile, one=one)
+            _check_trials_data(nwbfile=nwbfile, one=one)
+            _check_pupil_tracking_data(nwbfile=nwbfile, one=one)
+            _check_spike_sorting_data(nwbfile=nwbfile, one=one)
 
-    if 'raw_ecephys+image' in nwbfile_path:
-        # run checks for raw files
-        _check_raw_ephys_data(one=one, nwbfile=nwbfile)
-        _check_raw_video_data(one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
+        if 'raw_ecephys+image' in str(nwbfile_path):
+            # run checks for raw files
+            _check_raw_ephys_data(one=one, nwbfile=nwbfile)
+            _check_raw_video_data(one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
 
 
 def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
@@ -68,7 +68,7 @@ def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
     lick_times_table = processing_module.data_interfaces["LickTimes"][:]
 
     data_from_NWB = lick_times_table["lick_time"].values
-    data_from_ONE = one.load_dataset(eid, "licks.times", revision=revision, **load_kwargs)
+    data_from_ONE = one.load_dataset(eid, "licks.times", **load_kwargs)
     assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
 
