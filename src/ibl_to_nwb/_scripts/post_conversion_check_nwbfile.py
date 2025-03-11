@@ -12,16 +12,15 @@ else:
 
 from pynwb import NWBHDF5IO
 
-from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency, check_raw_nwbfile_for_consistency
+from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
 # nwbfile_path = sys.argv[1]
+# nwbfile_path = "/home/georg/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
 nwbfile_path = "/home/georg/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-processed_behavior+ecephys.nwb"
-nwbfile_path = "/home/georg/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
-mode = "raw" if "raw" in nwbfile_path else "processed"
 
 with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
     nwbfile = io.read()
-    eid, revision = nwbfile.session_id.split(":")  # this is the hack that has to be removed eventually
+    eid = nwbfile.session_id
 
 # path setup
 base_path = Path.home() / "ibl_scratch"
@@ -47,10 +46,5 @@ else:
 # instantiate one
 one = ONE(**one_kwargs)
 
-if mode == "raw":
-    check_raw_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
-if mode == "processed":
-    check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
-# %%
-
-print(f"all checks passed, mode={mode}")
+check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
+print(f"all checks passed")
