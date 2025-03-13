@@ -18,4 +18,4 @@ bwm_units_df.to_parquet(outpath)
 bwm_df = bwm_query(freeze="2023_12_bwm_release", one=one, return_details=True)
 outpath = Path(__file__).parent.parent / 'fixtures' / 'bwm_df.pqt'
 outpath.parent.mkdir(parents=True, exist_ok=True)
-bwm_units_df.to_parquet(outpath)
+bwm_df.to_parquet(outpath)
