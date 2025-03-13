@@ -6,7 +6,7 @@ from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
-from brainwidemap.bwm_loading import bwm_query
+# from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
 from iblatlas.atlas import AllenAtlas
 
@@ -273,9 +273,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
     # comparing probe names
     # pids, pnames_one = one.eid2pid(eid)
     # get the pid/pname mapping for this eid
-    bwm_df = bwm_query(
-        freeze="2023_12_bwm_release", one=one, return_details=True
-    )  # TODO proper freeze, also return_details and freeze together doesn't work
+    bwm_df = load_fixtures.load_bwm_df()
     pidname_map = bwm_df.set_index("eid").loc[eid][["probe_name", "pid"]].to_dict()
     pnames_one = bwm_df.set_index("eid").loc[eid]['probe_name'].values
 

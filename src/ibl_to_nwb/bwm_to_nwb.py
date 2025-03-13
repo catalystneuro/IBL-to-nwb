@@ -17,7 +17,8 @@ from ibl_to_nwb.datainterfaces import (
     WheelInterface,
 )
 
-from brainwidemap.bwm_loading import bwm_query
+# from brainwidemap.bwm_loading import bwm_query
+from ibl_to_nwb.fixtures import load_fixtures
 
 import os
 from pathlib import Path
@@ -40,11 +41,11 @@ def setup_paths(one, eid: str, base_path=Path.home() / "ibl_scratch"):
     paths = dict(
         output_folder=base_path / "nwbfiles",
         session_folder=one.eid2path(eid),  # <- to be changed
-        session_scratch_folder=base_path / eid, # <- to be changed to be locally on the node
+        session_scratch_folder=base_path / eid, # <- to be changed to be locally on the node, /scratch/eid ?
     )
 
     # inferred from above
-    paths["spikeglx_source_folder_path"] = paths["session_folder"] / "raw_ephys_data"
+    paths["spikeglx_source_folder_path"] = paths["session_folder"] / "raw_ephys_data" # <- this will be based on the session_scratch_folder 
 
     # just to be on the safe side
     for _, path in paths.items():
@@ -78,8 +79,9 @@ def create_symlinks(source_dir: Path, target_dir: Path, remove_uuid=True, filter
 
 def paths_cleanup(paths: dict):
     # unlink the symlinks in the scratch folder and remove the scratch 
-    os.system(f"find {paths['session_scratch_folder']} -type l -exec unlink {{}} \;")
-    shutil.rmtree(paths["session_scratch_folder"])
+    # os.system(f"find {paths['session_scratch_folder']} -type l -exec unlink {{}} \;")
+    # shutil.rmtree(paths["session_scratch_folder"])
+    ...
 
 
 
@@ -141,10 +143,7 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
     data_interfaces = []
 
     # get the pid/pname mapping for this eid
-    bwm_df = bwm_query(
-        freeze="2023_12_bwm_release", one=one, return_details=True
-    )  # TODO proper freeze, also return_details and freeze together doesn't work
-
+    bwm_df = load_fixtures.load_bwm_df()
     pname_pid_map = bwm_df.set_index("eid").loc[eid][["probe_name", "pid"]].to_dict()
 
     # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
@@ -179,12 +178,12 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
 ##        ##    ##  ##       ##
 ##        ##     ## ######## ##
 """
-def decompress_ephys_cbins(folder):
+def decompress_ephys_cbins(folder, scratch_folder=None):
     # decompress cbin if necessary
     for file_cbin in folder.rglob("*.cbin"):
         if not file_cbin.with_suffix(".bin").exists():
             print(f"decompressing {file_cbin}")
-            spikeglx.Reader(file_cbin).decompress_to_scratch()
+            spikeglx.Reader(file_cbin).decompress_to_scratch(scratch_folder=scratch_folder)
 
 """
  ######   #######  ##    ## ##     ## ######## ########  ########
@@ -202,12 +201,14 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw')
     paths = setup_paths(one, eid)
     # symlink the entire session from the main storage to a local scratch
     # TODO potentially not safe - tbd how
-    create_symlinks(paths["spikeglx_source_folder_path"], paths["session_scratch_folder"])
+    # create_symlinks(paths["spikeglx_source_folder_path"], paths["session_scratch_folder"])
     
     # we want this probably because we will re-run processed more often than raw
     match mode: 
         case 'raw':
-            decompress_ephys_cbins(paths['session_scratch_folder']) # TODO tbd where they will be now
+            decompress_ephys_cbins(paths['session_folder'], paths['session_scratch_folder']) # TODO tbd where they will be now
+            # copy the remaining data to that folder
+            
             session_converter = BrainwideMapConverter(
                 one=one,
                 session=eid,

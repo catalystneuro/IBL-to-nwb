@@ -12,13 +12,17 @@ else:
 
 from ibl_to_nwb import bwm_to_nwb
 from brainwidemap.bwm_loading import bwm_query
-
+from ibl_to_nwb.fixtures import load_fixtures
 REVISION = '2025-05-06'
 N_JOBS = 1
 output_folder = Path.home() / "ibl_scratch" / "nwbfiles"
 base_path = Path.home() / "ibl_scratch" # FIXME or pass me down to setup_paths()
 
-# eid needs to be defined before instantiation of ONE for local compatiblity.
+bwm_df = load_fixtures.load_bwm_df()
+
+eids = bwm_df['eid']
+# for eid in eids:
+
 eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
 
 # common
@@ -38,12 +42,9 @@ else:
 # instantiate one
 one = ONE(**one_kwargs)
 
-# bwm_df = bwm_query(freeze='2023_12_bwm_release', one=one, return_details=True)
-# eids = bwm_df['eid'].unique().tolist()
 mode = "processed"
 
 # if N_JOBS <= 1:
-
 bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True)
 # else:
 #     jobs = (joblib.delayed(bwm_to_nwb.convert_session)(eid=eid, one=one, revision=REVISION, cleanup=True) for eid in eids)
