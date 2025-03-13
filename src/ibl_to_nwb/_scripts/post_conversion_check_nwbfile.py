@@ -16,7 +16,8 @@ from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
 # nwbfile_path = sys.argv[1]
 # nwbfile_path = "/home/georg/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
-nwbfile_path = "/home/georg/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-processed_behavior+ecephys.nwb"
+# nwbfile_path = "/home/georg/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-processed_behavior+ecephys.nwb"
+nwbfile_path = "/mnt/home/graiser/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-processed_behavior+ecephys.nwb"
 
 with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
     nwbfile = io.read()

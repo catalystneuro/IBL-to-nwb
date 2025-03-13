@@ -40,7 +40,7 @@ one = ONE(**one_kwargs)
 
 # bwm_df = bwm_query(freeze='2023_12_bwm_release', one=one, return_details=True)
 # eids = bwm_df['eid'].unique().tolist()
-mode = "processed"
+mode = "raw"
 
 # if N_JOBS <= 1:
 
