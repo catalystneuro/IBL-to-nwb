@@ -17,7 +17,7 @@ from ibl_to_nwb.datainterfaces import (
     WheelInterface,
 )
 
-# from brainwidemap.bwm_loading import bwm_query
+from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 from ibl_to_nwb.fixtures import load_fixtures
 
 import os
@@ -78,6 +78,7 @@ def create_symlinks(source_dir: Path, target_dir: Path, remove_uuid=True, filter
                 target_file_path.symlink_to(source_file_path)
 
 def remove_uuid_from_filename(file_path):
+    """ if present, removes the uuid from the filename """
     parent, name = file_path.parent, file_path.name
     name_parts = name.split(".")
     if is_uuid_string(name_parts[-2]):
@@ -191,7 +192,7 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
     for pose_estimation_file in pose_estimation_files:
         camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
         video_interface = RawVideoInterface(
-            nwbfiles_folder_path=paths["output_folder"],
+            nwbfiles_folder_path=paths["output_folder"]  / f"sub-{subject_id}",
             subject_id=subject_id,
             one=one,
             session=eid,
@@ -209,31 +210,38 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
 ##        ##    ##  ##       ##
 ##        ##     ## ######## ##
 """
-def decompress_ephys_cbins(source_folder, target_folder=None):
+def decompress_ephys_cbins(source_folder, target_folder=None, remove_uuid=True):
     # target is the folder to compress into
 
     # decompress cbin if necessary
     for file_cbin in source_folder.rglob("*.cbin"):
         if target_folder is not None:
-            target_bin = target_folder / file_cbin.with_suffix('.bin').name
+            target_bin = (target_folder / file_cbin.relative_to(source_folder)).with_suffix('.bin')
+            # target_bin = target_folder / file_cbin.with_suffix('.bin').name
         else:
             target_bin = file_cbin.with_suffix(".bin")
-        target_bin = remove_uuid_from_filename(target_bin)
-        if not target_bin.exists():
-            target_bin.parent.mkdir(parents=True, exist_ok=True)
-            print(f"decompressing {file_cbin}") # TODO to be replaced by a logger
-            # find corresponding meta file
-            name = '.'.join(file_cbin.name.split('.')[:2])
-            file_meta, = list(file_cbin.parent.glob(f'{name}*.meta'))
-            # this copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, scratch_dir=target_folder)
-            # remove uuid from meta file at target directory
-            # or remove it as tree copy should take care of it
-            # safer to leave it in here, more expected behavior
-            file_meta_target = remove_uuid_from_filename(target_folder / file_meta.name)
+        target_bin_no_uuid = remove_uuid_from_filename(target_bin)
+        target_bin_no_uuid.parent.mkdir(parents=True, exist_ok=True)
+
+        if not target_bin_no_uuid.exists():
+            print(f"decompressing {file_cbin} to {target_bin_no_uuid}") # TODO to be replaced by a logger
             
-            if not file_meta_target.exists(): # = "exist_ok"
-                shutil.move(target_folder / file_meta.name, file_meta_target)
+            # find corresponding meta file
+            name = '.'.join(file_cbin.name.split('.')[:-2])
+            file_meta, = list(file_cbin.parent.glob(f'{name}*.meta'))
+            file_ch, = list(file_cbin.parent.glob(f'{name}*.ch'))
+            
+            # copies over the meta file which will still have an uuid
+            spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, file_ch=file_ch, scratch_dir=target_bin.parent)
+
+            if remove_uuid:
+                shutil.move(target_bin, target_bin_no_uuid)
+            
+            # remove uuid from meta file at target directory
+            if target_folder is not None and remove_uuid is True:
+                file_meta_target = remove_uuid_from_filename(target_bin.parent / file_meta.name)
+                if not file_meta_target.exists():
+                    shutil.move(target_bin.parent / file_meta.name, file_meta_target)
 
 """
  ######   #######  ##    ## ##     ## ######## ########  ########
@@ -244,7 +252,7 @@ def decompress_ephys_cbins(source_folder, target_folder=None):
 ##    ## ##     ## ##   ###   ## ##   ##       ##    ##     ##
  ######   #######  ##    ##    ###    ######## ##     ##    ##
 """
-def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw', base_path=None):
+def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw', base_path=None, verify=True):
     assert one is not None
     
     # path setup
@@ -288,8 +296,10 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw',
             subject_id = metadata["Subject"]["subject_id"]
             fname = f"sub-{subject_id}_ses-{eid}_desc-debug.nwb"
 
+    subject_output_folder = paths["output_folder"] / f"sub-{subject_id}"
+    subject_output_folder.mkdir(exist_ok=True)
     session_converter.run_conversion(
-        nwbfile_path=paths["output_folder"] / f"sub-{subject_id}" / fname,
+        nwbfile_path=subject_output_folder / fname,
         metadata=metadata,
         ibl_metadata=dict(revision=revision),
         overwrite=True,
@@ -298,4 +308,7 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw',
 
     if cleanup:
         paths_cleanup(paths)
+
+    if verify:
+        check_nwbfile_for_consistency(one=one, nwbfile_path=subject_output_folder / fname)
         

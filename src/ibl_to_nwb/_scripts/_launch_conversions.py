@@ -43,7 +43,7 @@ else:
 # instantiate one
 one = ONE(**one_kwargs)
 
-mode = "processed"
+mode = "raw"
 
 # if N_JOBS <= 1:
 bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path)
