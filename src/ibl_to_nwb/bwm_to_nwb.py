@@ -35,17 +35,19 @@ from one.alf.spec import is_uuid_string
 ##        ##     ##    ##    ##     ##
 """
 
-def setup_paths(one, eid: str, base_path=Path.home() / "ibl_scratch"):
+def setup_paths(one, eid: str, base_path=Path.home() / "ibl_bmw_to_nwb"):
     # TODO here we need to figure out what is where now eventually
 
     paths = dict(
-        output_folder=base_path / "nwbfiles",
-        session_folder=one.eid2path(eid),  # <- to be changed
-        session_scratch_folder=base_path / eid, # <- to be changed to be locally on the node, /scratch/eid ?
+        output_folder = base_path / "nwbfiles",
+        session_folder = one.eid2path(eid),  # <- this is the folder on the main storage
+        scatch_folder = base_path / 'scratch' # <- this is to be changed to /scratch/eid on the node
+        # session_scratch_folder = base_path / eid, # <- to be changed to be locally on the node, /scratch/eid ?
     )
 
     # inferred from above
-    paths["spikeglx_source_folder_path"] = paths["session_folder"] / "raw_ephys_data" # <- this will be based on the session_scratch_folder 
+    paths["spikeglx_source_folder_path"] = paths["session_scratch_folder"] / "raw_ephys_data" # <- this will be based on the session_scratch_folder 
+    paths["session_scratch_folder"] = paths["scratch_folder"] / eid
 
     # just to be on the safe side
     for _, path in paths.items():
@@ -226,6 +228,7 @@ def decompress_ephys_cbins(folder, target=None):
             spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, scratch_dir=target)
             # remove uuid from meta file at target directory
             # or remove it as tree copy should take care of it
+            # safer to leave it in here, more expected behavior
             shutil.move(target / file_meta.name / remove_uuid_from_filename(target / file_meta.name))
 
 """
@@ -237,14 +240,16 @@ def decompress_ephys_cbins(folder, target=None):
 ##    ## ##     ## ##   ###   ## ##   ##       ##    ##     ##
  ######   #######  ##    ##    ###    ######## ##     ##    ##
 """
-def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw'):
+def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw', base_path=None):
     assert one is not None
     
     # path setup
-    paths = setup_paths(one, eid)
+    paths = setup_paths(one, eid, base_path=base_path)
     # symlink the entire session from the main storage to a local scratch
     # TODO potentially not safe - tbd how
     # create_symlinks(paths["spikeglx_source_folder_path"], paths["session_scratch_folder"])
+    # TODO instead of symlinking, tree copy
+    tree_copy(paths['session_path'] / "raw_ephys_data", paths["session_scratch_folder"] / 'raw_ephys_data')
     
     # we want this probably because we will re-run processed more often than raw
     match mode: 
