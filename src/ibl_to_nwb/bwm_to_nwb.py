@@ -40,14 +40,13 @@ def setup_paths(one, eid: str, base_path=Path.home() / "ibl_bmw_to_nwb"):
 
     paths = dict(
         output_folder = base_path / "nwbfiles",
-        session_folder = one.eid2path(eid),  # <- this is the folder on the main storage
-        scatch_folder = base_path / 'scratch' # <- this is to be changed to /scratch/eid on the node
-        # session_scratch_folder = base_path / eid, # <- to be changed to be locally on the node, /scratch/eid ?
+        session_folder = one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
+        scratch_folder = base_path / 'scratch' # <- this is to be changed to /scratch/eid on the node
     )
 
     # inferred from above
-    paths["spikeglx_source_folder_path"] = paths["session_scratch_folder"] / "raw_ephys_data" # <- this will be based on the session_scratch_folder 
     paths["session_scratch_folder"] = paths["scratch_folder"] / eid
+    paths["spikeglx_source_folder"] = paths["session_scratch_folder"] / "raw_ephys_data" # <- this will be based on the session_scratch_folder 
 
     # just to be on the safe side
     for _, path in paths.items():
@@ -180,7 +179,7 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
 
     # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
     spikeglx_subconverter = IblSpikeGlxConverter(
-        folder_path=paths["session_scratch_folder"], one=one, eid=eid, pname_pid_map=pname_pid_map
+        folder_path=paths["spikeglx_source_folder"], one=one, eid=eid, pname_pid_map=pname_pid_map
     )
     data_interfaces.append(spikeglx_subconverter)
 
@@ -210,11 +209,13 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
 ##        ##    ##  ##       ##
 ##        ##     ## ######## ##
 """
-def decompress_ephys_cbins(folder, target=None):
+def decompress_ephys_cbins(source_folder, target_folder=None):
+    # target is the folder to compress into
+
     # decompress cbin if necessary
-    for file_cbin in folder.rglob("*.cbin"):
-        if target is not None:
-            target_bin = target / file_cbin.with_suffix('.bin').name
+    for file_cbin in source_folder.rglob("*.cbin"):
+        if target_folder is not None:
+            target_bin = target_folder / file_cbin.with_suffix('.bin').name
         else:
             target_bin = file_cbin.with_suffix(".bin")
         target_bin = remove_uuid_from_filename(target_bin)
@@ -225,11 +226,14 @@ def decompress_ephys_cbins(folder, target=None):
             name = '.'.join(file_cbin.name.split('.')[:2])
             file_meta, = list(file_cbin.parent.glob(f'{name}*.meta'))
             # this copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, scratch_dir=target)
+            spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, scratch_dir=target_folder)
             # remove uuid from meta file at target directory
             # or remove it as tree copy should take care of it
             # safer to leave it in here, more expected behavior
-            shutil.move(target / file_meta.name / remove_uuid_from_filename(target / file_meta.name))
+            file_meta_target = remove_uuid_from_filename(target_folder / file_meta.name)
+            
+            if not file_meta_target.exists(): # = "exist_ok"
+                shutil.move(target_folder / file_meta.name, file_meta_target)
 
 """
  ######   #######  ##    ## ##     ## ######## ########  ########
@@ -245,22 +249,13 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw',
     
     # path setup
     paths = setup_paths(one, eid, base_path=base_path)
-    # symlink the entire session from the main storage to a local scratch
-    # TODO potentially not safe - tbd how
-    # create_symlinks(paths["spikeglx_source_folder_path"], paths["session_scratch_folder"])
-    # TODO instead of symlinking, tree copy
-    tree_copy(paths['session_path'] / "raw_ephys_data", paths["session_scratch_folder"] / 'raw_ephys_data')
-    
-    # we want this probably because we will re-run processed more often than raw
+
     match mode: 
         case 'raw':
-            decompress_ephys_cbins(paths['session_folder'], paths['session_scratch_folder']) # TODO tbd where they will be now
-            # TODO remove uuid from filename
-            
+            decompress_ephys_cbins(paths['session_folder'], paths['session_scratch_folder'])
             # now copy the remaining files, copy everything that is not cbin
             tree_copy(paths['session_folder'] / 'raw_ephys_data', paths['session_scratch_folder'] / 'raw_ephys_data')
-            # files = [p for p in (paths['session_folder'] / 'raw_ephys_data').glob('**/*') if p.is_file() and not p.name.endswith('.cbin')]
-            # shutil.copy()
+
             session_converter = BrainwideMapConverter(
                 one=one,
                 session=eid,
