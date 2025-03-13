@@ -11,15 +11,16 @@ else:
     from one.api import ONE
 
 from ibl_to_nwb import bwm_to_nwb
-from brainwidemap.bwm_loading import bwm_query
+# from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
+
 REVISION = '2025-05-06'
 N_JOBS = 1
-output_folder = Path.home() / "ibl_scratch" / "nwbfiles"
-base_path = Path.home() / "ibl_scratch" # FIXME or pass me down to setup_paths()
+
+base_path = Path.home() / "ibl_bwm_to_nwb"
+base_path.mkdir(exist_ok=True)
 
 bwm_df = load_fixtures.load_bwm_df()
-
 eids = bwm_df['eid']
 # for eid in eids:
 
@@ -45,7 +46,7 @@ one = ONE(**one_kwargs)
 mode = "processed"
 
 # if N_JOBS <= 1:
-bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True)
+bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path)
 # else:
 #     jobs = (joblib.delayed(bwm_to_nwb.convert_session)(eid=eid, one=one, revision=REVISION, cleanup=True) for eid in eids)
 #     joblib.Parallel(n_jobs=N_JOBS)(jobs)

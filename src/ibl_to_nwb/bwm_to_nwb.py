@@ -35,17 +35,19 @@ from one.alf.spec import is_uuid_string
 ##        ##     ##    ##    ##     ##
 """
 
-def setup_paths(one, eid: str, base_path=Path.home() / "ibl_scratch"):
+def setup_paths(one, eid: str, base_path=Path.home() / "ibl_bmw_to_nwb"):
     # TODO here we need to figure out what is where now eventually
 
     paths = dict(
-        output_folder=base_path / "nwbfiles",
-        session_folder=one.eid2path(eid),  # <- to be changed
-        session_scratch_folder=base_path / eid, # <- to be changed to be locally on the node, /scratch/eid ?
+        output_folder = base_path / "nwbfiles",
+        session_folder = one.eid2path(eid),  # <- this is the folder on the main storage
+        scatch_folder = base_path / 'scratch' # <- this is to be changed to /scratch/eid on the node
+        # session_scratch_folder = base_path / eid, # <- to be changed to be locally on the node, /scratch/eid ?
     )
 
     # inferred from above
-    paths["spikeglx_source_folder_path"] = paths["session_folder"] / "raw_ephys_data" # <- this will be based on the session_scratch_folder 
+    paths["spikeglx_source_folder_path"] = paths["session_scratch_folder"] / "raw_ephys_data" # <- this will be based on the session_scratch_folder 
+    paths["session_scratch_folder"] = paths["scratch_folder"] / eid
 
     # just to be on the safe side
     for _, path in paths.items():
@@ -76,6 +78,36 @@ def create_symlinks(source_dir: Path, target_dir: Path, remove_uuid=True, filter
             if not target_file_path.exists():
                 target_file_path.symlink_to(source_file_path)
 
+def remove_uuid_from_filename(file_path):
+    parent, name = file_path.parent, file_path.name
+    name_parts = name.split(".")
+    if is_uuid_string(name_parts[-2]):
+        name_parts.remove(name_parts[-2])
+        return parent / ".".join(name_parts)
+    else:
+        return file_path
+
+def tree_copy(source_dir: Path, target_dir: Path, remove_uuid=True, filter='.cbin'):
+    """ copies all files found under source dir"""
+
+    for root, dirs, files in os.walk(source_dir):
+        for file in files:
+            source_file_path = Path(root) / file
+            if filter is not None:
+                if filter not in str(source_file_path):
+                    continue
+
+            target_file_path = target_dir / source_file_path.relative_to(source_dir)
+            target_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if remove_uuid:
+                parent, name = target_file_path.parent, target_file_path.name
+                name_parts = name.split(".")
+                if is_uuid_string(name_parts[-2]):
+                    name_parts.remove(name_parts[-2])
+                target_file_path = parent / ".".join(name_parts)
+            if not target_file_path.exists():
+                shutil.copy(source_file_path, target_file_path)
 
 def paths_cleanup(paths: dict):
     # unlink the symlinks in the scratch folder and remove the scratch 
@@ -178,12 +210,26 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
 ##        ##    ##  ##       ##
 ##        ##     ## ######## ##
 """
-def decompress_ephys_cbins(folder, scratch_folder=None):
+def decompress_ephys_cbins(folder, target=None):
     # decompress cbin if necessary
     for file_cbin in folder.rglob("*.cbin"):
-        if not file_cbin.with_suffix(".bin").exists():
-            print(f"decompressing {file_cbin}")
-            spikeglx.Reader(file_cbin).decompress_to_scratch(scratch_folder=scratch_folder)
+        if target is not None:
+            target_bin = target / file_cbin.with_suffix('.bin').name
+        else:
+            target_bin = file_cbin.with_suffix(".bin")
+        target_bin = remove_uuid_from_filename(target_bin)
+        if not target_bin.exists():
+            target_bin.parent.mkdir(parents=True, exist_ok=True)
+            print(f"decompressing {file_cbin}") # TODO to be replaced by a logger
+            # find corresponding meta file
+            name = '.'.join(file_cbin.name.split('.')[:2])
+            file_meta, = list(file_cbin.parent.glob(f'{name}*.meta'))
+            # this copies over the meta file which will still have an uuid
+            spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, scratch_dir=target)
+            # remove uuid from meta file at target directory
+            # or remove it as tree copy should take care of it
+            # safer to leave it in here, more expected behavior
+            shutil.move(target / file_meta.name / remove_uuid_from_filename(target / file_meta.name))
 
 """
  ######   #######  ##    ## ##     ## ######## ########  ########
@@ -194,14 +240,16 @@ def decompress_ephys_cbins(folder, scratch_folder=None):
 ##    ## ##     ## ##   ###   ## ##   ##       ##    ##     ##
  ######   #######  ##    ##    ###    ######## ##     ##    ##
 """
-def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw'):
+def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw', base_path=None):
     assert one is not None
     
     # path setup
-    paths = setup_paths(one, eid)
+    paths = setup_paths(one, eid, base_path=base_path)
     # symlink the entire session from the main storage to a local scratch
     # TODO potentially not safe - tbd how
     # create_symlinks(paths["spikeglx_source_folder_path"], paths["session_scratch_folder"])
+    # TODO instead of symlinking, tree copy
+    tree_copy(paths['session_path'] / "raw_ephys_data", paths["session_scratch_folder"] / 'raw_ephys_data')
     
     # we want this probably because we will re-run processed more often than raw
     match mode: 

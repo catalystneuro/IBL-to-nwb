@@ -1,3 +1,5 @@
+# This does not run on popeye
+
 # download bwm units table 
 from one.api import ONE
 from brainwidemap import bwm_units, bwm_query
