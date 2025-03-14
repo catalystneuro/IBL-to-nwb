@@ -37,11 +37,11 @@ from one.alf.spec import is_uuid_string
 
 def setup_paths(one, eid: str, base_path=Path.home() / "ibl_bmw_to_nwb"):
     # TODO here we need to figure out what is where now eventually
-
+    subject = one.eid2ref(eid)['subject']
     paths = dict(
-        output_folder = base_path / "nwbfiles",
+        output_folder = base_path / "nwbfiles" / f"sub-{subject}",
         session_folder = one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
-        scratch_folder = base_path / 'scratch' # <- this is to be changed to /scratch/eid on the node
+        scratch_folder = base_path / 'scratch' # <- this is to be changed to /scratch on the node
     )
 
     # inferred from above
@@ -55,27 +55,27 @@ def setup_paths(one, eid: str, base_path=Path.home() / "ibl_bmw_to_nwb"):
     return paths
 
 
-def create_symlinks(source_dir: Path, target_dir: Path, remove_uuid=True, filter=None):
-    """replicates the tree under source_dir at target dir in the form of symlinks"""
+# def create_symlinks(source_dir: Path, target_dir: Path, remove_uuid=True, filter=None):
+#     """replicates the tree under source_dir at target dir in the form of symlinks"""
 
-    for root, dirs, files in os.walk(source_dir):
-        for file in files:
-            source_file_path = Path(root) / file
-            if filter is not None:
-                if filter not in str(source_file_path):
-                    continue
+#     for root, dirs, files in os.walk(source_dir):
+#         for file in files:
+#             source_file_path = Path(root) / file
+#             if filter is not None:
+#                 if filter not in str(source_file_path):
+#                     continue
 
-            target_file_path = target_dir / source_file_path.relative_to(source_dir)
-            target_file_path.parent.mkdir(parents=True, exist_ok=True)
+#             target_file_path = target_dir / source_file_path.relative_to(source_dir)
+#             target_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            if remove_uuid:
-                parent, name = target_file_path.parent, target_file_path.name
-                name_parts = name.split(".")
-                if is_uuid_string(name_parts[-2]):
-                    name_parts.remove(name_parts[-2])
-                target_file_path = parent / ".".join(name_parts)
-            if not target_file_path.exists():
-                target_file_path.symlink_to(source_file_path)
+#             if remove_uuid:
+#                 parent, name = target_file_path.parent, target_file_path.name
+#                 name_parts = name.split(".")
+#                 if is_uuid_string(name_parts[-2]):
+#                     name_parts.remove(name_parts[-2])
+#                 target_file_path = parent / ".".join(name_parts)
+#             if not target_file_path.exists():
+#                 target_file_path.symlink_to(source_file_path)
 
 def remove_uuid_from_filename(file_path):
     """ if present, removes the uuid from the filename """
@@ -165,7 +165,7 @@ def _get_processed_data_interfaces(one, eid: str, revision=None):
     return data_interfaces
 
 
-def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
+def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> List:
     """
     Returns a list of the data interfaces to build the raw NWB file for this session
     :param one:
@@ -176,11 +176,12 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
 
     # get the pid/pname mapping for this eid
     bwm_df = load_fixtures.load_bwm_df()
-    pname_pid_map = bwm_df.set_index("eid").loc[eid][["probe_name", "pid"]].to_dict()
+    df = bwm_df.groupby('eid').get_group(eid)
+    pname_pid_map = df.set_index('probe_name')['pid'].to_dict()
 
     # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
     spikeglx_subconverter = IblSpikeGlxConverter(
-        folder_path=paths["spikeglx_source_folder"], one=one, eid=eid, pname_pid_map=pname_pid_map
+        folder_path=paths["spikeglx_source_folder"], one=one, eid=eid, pname_pid_map=pname_pid_map, revision=revision,
     )
     data_interfaces.append(spikeglx_subconverter)
 
@@ -192,7 +193,7 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict) -> List:
     for pose_estimation_file in pose_estimation_files:
         camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
         video_interface = RawVideoInterface(
-            nwbfiles_folder_path=paths["output_folder"]  / f"sub-{subject_id}",
+            nwbfiles_folder_path=paths["output_folder"],
             subject_id=subject_id,
             one=one,
             session=eid,
@@ -272,7 +273,7 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw',
             )
             metadata = session_converter.get_metadata()
             subject_id = metadata["Subject"]["subject_id"]
-            fname = f"sub-{subject_id}", f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+image.nwb"
+            fname = f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+image.nwb"
         
         case 'processed':
             session_converter = BrainwideMapConverter(
@@ -296,10 +297,10 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw',
             subject_id = metadata["Subject"]["subject_id"]
             fname = f"sub-{subject_id}_ses-{eid}_desc-debug.nwb"
 
-    subject_output_folder = paths["output_folder"] / f"sub-{subject_id}"
-    subject_output_folder.mkdir(exist_ok=True)
+    # subject_output_folder = paths["output_folder"] / f"sub-{subject_id}"
+    # subject_output_folder.mkdir(exist_ok=True)
     session_converter.run_conversion(
-        nwbfile_path=subject_output_folder / fname,
+        nwbfile_path=paths["output_folder"] / fname,
         metadata=metadata,
         ibl_metadata=dict(revision=revision),
         overwrite=True,
@@ -310,5 +311,5 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw',
         paths_cleanup(paths)
 
     if verify:
-        check_nwbfile_for_consistency(one=one, nwbfile_path=subject_output_folder / fname)
+        check_nwbfile_for_consistency(one=one, nwbfile_path=paths["output_folder"] / fname)
         

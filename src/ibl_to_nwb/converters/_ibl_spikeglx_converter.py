@@ -7,7 +7,7 @@ from pynwb import NWBFile
 
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):
-    def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, streams: None, revision: str) -> None:
+    def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, revision: str, streams=None) -> None:
         super().__init__(folder_path=folder_path, streams=streams)
         self.one = one
         self.eid = eid
@@ -24,14 +24,15 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
         
         # only interate over present data interfaces
         for key, recording_interface in self.data_interface_objects.items():
-            imec_name, band = key.split('.')
-            probe_name = imec_to_probe_map[int(imec_name[-1])]
-            pid = self.pname_pid_map[probe_name]
+            if key != 'nidq':
+                imec_name, band = key.split('.')
+                probe_name = imec_to_probe_map[int(imec_name[-1])]
+                pid = self.pname_pid_map[probe_name]
 
-            spike_sorting_loader = SpikeSortingLoader(pid=pid, one=self.one, revision=self.revision)
-            sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True) # FIXME
-            aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
-            recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
+                spike_sorting_loader = SpikeSortingLoader(pid=pid, one=self.one) # FIXME
+                sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True) # FIXME
+                aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
+                recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata) -> None:
         self.temporally_align_data_interfaces()
