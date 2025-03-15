@@ -23,7 +23,10 @@ from ibl_to_nwb.fixtures import load_fixtures
 import os
 from pathlib import Path
 from one.alf.spec import is_uuid_string
+from one.api import ONE
 
+import logging
+_logger = logging.getLogger('ibl_to_nwb') # FIXME
 
 """
 ########     ###    ######## ##     ##
@@ -35,8 +38,19 @@ from one.alf.spec import is_uuid_string
 ##        ##     ##    ##    ##     ##
 """
 
-def setup_paths(one, eid: str, base_path=Path.home() / "ibl_bmw_to_nwb"):
-    # TODO here we need to figure out what is where now eventually
+def setup_paths(one: ONE, eid: str, base_path: Path = Path.home() / "ibl_bmw_to_nwb") -> dict:
+    """ setup a dictionary that ontains all relevant paths for the conversion
+
+    Args:
+        one (ONE): _description_
+        eid (str): _description_
+        base_path (Path, optional): unclear if necessary. Defaults to Path.home()/"ibl_bmw_to_nwb".
+
+    Returns:
+        dict: _description_
+    """
+
+
     subject = one.eid2ref(eid)['subject']
     paths = dict(
         output_folder = base_path / "nwbfiles" / f"sub-{subject}",
@@ -77,18 +91,35 @@ def setup_paths(one, eid: str, base_path=Path.home() / "ibl_bmw_to_nwb"):
 #             if not target_file_path.exists():
 #                 target_file_path.symlink_to(source_file_path)
 
-def remove_uuid_from_filename(file_path):
-    """ if present, removes the uuid from the filename """
-    parent, name = file_path.parent, file_path.name
+def remove_uuid_from_filepath(file_path: Path) -> Path:
+    """if the filename contains an uuid string, it is removed. Otherwise, just returns the path.
+
+    Args:
+        file_path (Path): _description_
+
+    Returns:
+        Path: _description_
+    """
+    
+    dir, name = file_path.parent, file_path.name
     name_parts = name.split(".")
     if is_uuid_string(name_parts[-2]):
         name_parts.remove(name_parts[-2])
-        return parent / ".".join(name_parts)
+        _logger.debug(f"removing uuid from file {file_path}")
+        return dir / ".".join(name_parts)
     else:
         return file_path
 
-def tree_copy(source_dir: Path, target_dir: Path, remove_uuid=True, filter='.cbin'):
-    """ copies all files found under source dir"""
+def tree_copy(source_dir: Path, target_dir: Path, remove_uuid:bool=True, filter:str='.cbin'):
+    """copies all files found under source_dir (including subdirectories) to target_dir. Replicates the tree, optionally removes uuids from filenames and exludes files in filter
+    this could have include or exclude
+
+    Args:
+        source_dir (Path): _description_
+        target_dir (Path): _description_
+        remove_uuid (bool, optional): _description_. Defaults to True.
+        filter (str, optional): _description_. Defaults to '.cbin'.
+    """
 
     for root, dirs, files in os.walk(source_dir):
         for file in files:
@@ -109,6 +140,41 @@ def tree_copy(source_dir: Path, target_dir: Path, remove_uuid=True, filter='.cbi
             if not target_file_path.exists():
                 shutil.copy(source_file_path, target_file_path)
 
+def filter_file_paths(file_paths: list[Path], include: list|None = None, exclude: list|None = None) ->list[Path]:
+    # include filter
+    if include is not None:
+        file_paths_ = []
+        if not isinstance(include, list):
+            include = [include]
+        for incl in include:
+            [file_paths_.append(f) for f in file_paths if incl in f.name]
+        file_paths = list(set(file_paths_))
+
+    # exclude filter
+    if exclude is not None:
+        exclude_paths = []
+        if not isinstance(exclude, list):
+            exclude = [exclude]
+            for excl in exclude:
+                [exclude_paths.append(f) for f in file_paths if excl in f.name]
+        file_paths = list(set(file_paths) - set(exclude_paths))
+
+    return file_paths
+
+def tree_copy(source_dir: Path, target_dir: Path, remove_uuid:bool=True, include=None, exclude=None):
+    # include and exclude can be lists
+    file_paths = source_dir.rglob('*/**')
+    if include is not None or exclude is not None:
+        file_paths = filter_file_paths(file_paths, include, exclude)
+    
+    for source_file_path in file_paths:
+        target_file_path = target_dir / source_file_path.relative_to(source_dir)
+        if remove_uuid:
+            target_file_path = remove_uuid_from_filepath(target_file_path)
+        if not target_file_path.exists():
+            _logger.debug(f"copying {source_file_path} to {target_file_path}")
+            shutil.copy(source_file_path, target_file_path)
+
 def paths_cleanup(paths: dict):
     # unlink the symlinks in the scratch folder and remove the scratch 
     # os.system(f"find {paths['session_scratch_folder']} -type l -exec unlink {{}} \;")
@@ -127,7 +193,7 @@ def paths_cleanup(paths: dict):
 ########  ##     ##    ##    ##     ##    #### ##    ##    ##    ######## ##     ## ##       ##     ##  ######  ########  ######
 """
 
-def _get_processed_data_interfaces(one, eid: str, revision=None):
+def _get_processed_data_interfaces(one: ONE, eid: str, revision:str=None) -> list:
     """
     Returns a list of the data interfaces to build the processed NWB file for this session
     :param one:
@@ -165,7 +231,7 @@ def _get_processed_data_interfaces(one, eid: str, revision=None):
     return data_interfaces
 
 
-def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> List:
+def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
     """
     Returns a list of the data interfaces to build the raw NWB file for this session
     :param one:
@@ -211,7 +277,7 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> List:
 ##        ##    ##  ##       ##
 ##        ##     ## ######## ##
 """
-def decompress_ephys_cbins(source_folder, target_folder=None, remove_uuid=True):
+def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, remove_uuid:bool=True):
     # target is the folder to compress into
 
     # decompress cbin if necessary
@@ -221,11 +287,11 @@ def decompress_ephys_cbins(source_folder, target_folder=None, remove_uuid=True):
             # target_bin = target_folder / file_cbin.with_suffix('.bin').name
         else:
             target_bin = file_cbin.with_suffix(".bin")
-        target_bin_no_uuid = remove_uuid_from_filename(target_bin)
+        target_bin_no_uuid = remove_uuid_from_filepath(target_bin)
         target_bin_no_uuid.parent.mkdir(parents=True, exist_ok=True)
 
         if not target_bin_no_uuid.exists():
-            print(f"decompressing {file_cbin} to {target_bin_no_uuid}") # TODO to be replaced by a logger
+            _logger.info(f"decompressing {file_cbin}")
             
             # find corresponding meta file
             name = '.'.join(file_cbin.name.split('.')[:-2])
@@ -233,16 +299,18 @@ def decompress_ephys_cbins(source_folder, target_folder=None, remove_uuid=True):
             file_ch, = list(file_cbin.parent.glob(f'{name}*.ch'))
             
             # copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, file_ch=file_ch, scratch_dir=target_bin.parent)
+            #spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, file_ch=file_ch, scratch_dir=target_bin.parent)
+            spikeglx.Reader(file_cbin, file_meta=file_meta, file_ch=file_ch).decompress_to_scratch(scratch_dir=target_bin.parent)
 
             if remove_uuid:
                 shutil.move(target_bin, target_bin_no_uuid)
             
             # remove uuid from meta file at target directory
             if target_folder is not None and remove_uuid is True:
-                file_meta_target = remove_uuid_from_filename(target_bin.parent / file_meta.name)
+                file_meta_target = remove_uuid_from_filepath(target_bin.parent / file_meta.name)
                 if not file_meta_target.exists():
                     shutil.move(target_bin.parent / file_meta.name, file_meta_target)
+                    # _logger.info(f"moving {}")
 
 """
  ######   #######  ##    ## ##     ## ######## ########  ########
@@ -253,8 +321,18 @@ def decompress_ephys_cbins(source_folder, target_folder=None, remove_uuid=True):
 ##    ## ##     ## ##   ###   ## ##   ##       ##    ##     ##
  ######   #######  ##    ##    ###    ######## ##     ##    ##
 """
-def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw', base_path=None, verify=True):
-    assert one is not None
+def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool=True, mode:str='raw', base_path:Path=None, verify:bool=True):
+    """converts the session associated with the eid and the revision to .nwb
+
+    Args:
+        eid (str, optional): _description_. Defaults to None.
+        one (ONE, optional): _description_. Defaults to None.
+        revision (str, optional): _description_. Defaults to None.
+        cleanup (bool, optional): _description_. Defaults to True.
+        mode (str, optional): _description_. Defaults to 'raw'.
+        base_path (Path, optional): _description_. Defaults to None.
+        verify (bool, optional): _description_. Defaults to True.
+    """
     
     # path setup
     paths = setup_paths(one, eid, base_path=base_path)
@@ -297,15 +375,13 @@ def convert_session(eid=None, one=None, revision=None, cleanup=True, mode='raw',
             subject_id = metadata["Subject"]["subject_id"]
             fname = f"sub-{subject_id}_ses-{eid}_desc-debug.nwb"
 
-    # subject_output_folder = paths["output_folder"] / f"sub-{subject_id}"
-    # subject_output_folder.mkdir(exist_ok=True)
+    _logger.info(f"converting: {eid} with mode:{mode}")
     session_converter.run_conversion(
         nwbfile_path=paths["output_folder"] / fname,
         metadata=metadata,
         ibl_metadata=dict(revision=revision),
         overwrite=True,
     )
-    # print(outpath)
 
     if cleanup:
         paths_cleanup(paths)

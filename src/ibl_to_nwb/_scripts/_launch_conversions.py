@@ -10,14 +10,24 @@ else:
     print("using regular ONE")
     from one.api import ONE
 
-from ibl_to_nwb import bwm_to_nwb
-# from brainwidemap.bwm_loading import bwm_query
+# TODO logging and joblib
+import logging
+_logger = logging.getLogger('ibl_to_nwb')
+_logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()  # Create a console handler
+ch.setLevel(logging.DEBUG)  # Set the level for the handler
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+_logger.addHandler(ch)
+
 from ibl_to_nwb.fixtures import load_fixtures
+from ibl_to_nwb import bwm_to_nwb
 
 REVISION = '2025-05-06'
 N_JOBS = 1
 
 base_path = Path.home() / "ibl_bwm_to_nwb"
+base_path = Path.home() / "ibl_scratch"
 base_path.mkdir(exist_ok=True)
 
 bwm_df = load_fixtures.load_bwm_df()
@@ -44,8 +54,9 @@ else:
 one = ONE(**one_kwargs)
 
 mode = "raw"
-
+mode = "debug"
 # if N_JOBS <= 1:
+
 bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path)
 # else:
 #     jobs = (joblib.delayed(bwm_to_nwb.convert_session)(eid=eid, one=one, revision=REVISION, cleanup=True) for eid in eids)
