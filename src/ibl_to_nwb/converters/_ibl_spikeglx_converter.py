@@ -29,9 +29,12 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 probe_name = imec_to_probe_map[int(imec_name[-1])]
                 pid = self.pname_pid_map[probe_name]
 
-                spike_sorting_loader = SpikeSortingLoader(pid=pid, one=self.one) # FIXME
-                sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True) # FIXME
-                aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
+                spike_sorting_loader = SpikeSortingLoader(eid=self.eid, pid=pid, pname=probe_name, one=self.one) # FIXME
+                # if all we need is the number of samples, then this seems a bit overkill
+                # sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True) # FIXME
+                # aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
+                ns = recording_interface._extractor_instance.get_num_samples()
+                aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, ns), direction="forward")
                 recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata) -> None:

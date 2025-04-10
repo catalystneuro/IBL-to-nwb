@@ -10,6 +10,20 @@ from pynwb import NWBHDF5IO, NWBFile
 from ibl_to_nwb.fixtures import load_fixtures
 from iblatlas.atlas import AllenAtlas
 
+def eid2pid(eid, bwm_df):
+    _df = bwm_df.set_index("eid").loc[eid]
+    pids = []
+    pnames = []
+    for i, row in _df.iterrows():
+        pids.append(row.pid)
+        pnames.append(row.probe_name)
+    return pids, pnames
+
+def pid2eid(pid, bwm_df):
+    _df = bwm_df.set_index("pid").loc[pid]
+    return _df["eid"], _df["probe_name"]
+
+
 def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         nwbfile = io.read()
@@ -200,8 +214,8 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
-    
-    pids, probe_names = one.eid2pid(eid)
+    bwm_df = load_fixtures.load_bwm_df()
+    pids, probe_names = eid2pid(eid, bwm_df)
     pids = dict(zip(probe_names, pids))
 
     units_table = nwbfile.units[:]
@@ -221,7 +235,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
     # get and prep data
     for probe_name in probe_names:
-        spike_sorting_loader = SpikeSortingLoader(pid=pids[probe_name], one=one)
+        spike_sorting_loader = SpikeSortingLoader(eid=eid, pname=probe_name, pid=pids[probe_name], one=one)
         spikes_, clusters_, _ = spike_sorting_loader.load_spike_sorting(revision=revision)
         spikes[probe_name] = spikes_
         clusters[probe_name] = clusters_
@@ -271,11 +285,12 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     
     # comparing probe names
-    # pids, pnames_one = one.eid2pid(eid)
     # get the pid/pname mapping for this eid
     bwm_df = load_fixtures.load_bwm_df()
-    pidname_map = bwm_df.set_index("eid").loc[eid][["probe_name", "pid"]].to_dict()
-    pnames_one = bwm_df.set_index("eid").loc[eid]['probe_name'].values
+    pids, pnames_one = eid2pid(eid, bwm_df)
+    pidname_map = dict(zip(pnames_one, pids))
+    # pidname_map = bwm_df.set_index("eid").loc[eid][["probe_name", "pid"]].to_dict()
+    # pnames_one = bwm_df.set_index("eid").loc[eid]['probe_name'].values
 
     pname_to_imec = {
         "probe00": "Imec0",
@@ -292,7 +307,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
     for pname in pnames_nwb:
         for band in ["ap", "lf"]:
             pid = pidname_map[pname]
-            spike_sorting_loader = SpikeSortingLoader(pid=pid, one=one)
+            spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=eid, pname=pname, one=one)
             stream = False if "USE_SDSC_ONE" in os.environ else True
             sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=revision)
             data_one = sglx_streamer._raw
@@ -314,7 +329,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 
             for i in ix:
                 samples_nwb = data_nwb[i]
-                samples_one = data_one[i][:-1]  # excluding the digital channel
+                samples_one = data_one[int(i)][:-1]  # excluding the digital channel
                 np.testing.assert_array_equal(samples_nwb, samples_one)
 
                 # samples_nwb = np.array([data_nwb[*i] for i in ix])
@@ -322,14 +337,14 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
                 # np.testing.assert_array_equal(samples_nwb, samples_one)
 
             # check the time stamps
-            nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()
+            nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()[:]
 
             # from brainbox.io
             brainbox_timestamps = spike_sorting_loader.samples2times(
                 np.arange(0, sglx_streamer.ns), direction="forward"
             )
             np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
-            print(f"passing {pname}, {band}")
+            # print(f"passing {pname}, {band}")
 
 
 def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):

@@ -60,7 +60,7 @@ class RawVideoInterface(BaseDataInterface):
 
             dandi_sub_ses_stem = f"{dandi_sub_stem}_ses-{self.session}"
             dandi_video_folder_path = dandi_subject_folder / f"{dandi_sub_ses_stem}_ecephys+image"
-            dandi_video_folder_path.mkdir(exist_ok=True)
+            dandi_video_folder_path.mkdir(exist_ok=True, parents=True)
 
             nwb_video_name = f"OriginalVideo{left_right_or_body.capitalize()}Camera"
             dandi_video_file_path = dandi_video_folder_path / f"{dandi_sub_ses_stem}_{nwb_video_name}.mp4"

@@ -12,13 +12,34 @@ else:
 
 # TODO logging and joblib
 import logging
-_logger = logging.getLogger('ibl_to_nwb')
-_logger.setLevel(logging.INFO)
-ch = logging.StreamHandler()  # Create a console handler
-ch.setLevel(logging.DEBUG)  # Set the level for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-_logger.addHandler(ch)
+# _logger = logging.getLogger('ibl_to_nwb')
+# _logger.setLevel(logging.DEBUG)
+# ch = logging.StreamHandler()  # Create a console handler
+# ch.setLevel(logging.DEBUG)  # Set the level for the handler
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# ch.setFormatter(formatter)
+# _logger.addHandler(ch)
+
+# Create a logger
+logger = logging.getLogger('ibl_to_nwb')
+logger.setLevel(logging.DEBUG)
+
+# Create file handler
+file_handler = logging.FileHandler(Path.home() / 'bwm_conversion.log')
+file_handler.setLevel(logging.DEBUG)
+
+# Create console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Create a formatter and set it for both handlers
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# Add handlers to the logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb import bwm_to_nwb
@@ -28,6 +49,7 @@ N_JOBS = 1
 
 base_path = Path.home() / "ibl_bwm_to_nwb"
 base_path = Path.home() / "ibl_scratch"
+base_path = Path("/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/")
 base_path.mkdir(exist_ok=True)
 
 bwm_df = load_fixtures.load_bwm_df()
@@ -38,9 +60,9 @@ eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
 
 # common
 one_kwargs = dict(
-    base_url="https://openalyx.internationalbrainlab.org",
-    password="international",
-    mode="remote",
+    # base_url="https://openalyx.internationalbrainlab.org",
+    # password="international",
+    mode="local",
 )
 
 # if not running on SDSC adding the cache folder explicitly
@@ -54,10 +76,11 @@ else:
 one = ONE(**one_kwargs)
 
 mode = "raw"
-mode = "debug"
+# mode = "debug"
+# mode = "processed"
 # if N_JOBS <= 1:
 
-bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path)
+bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=False)
 # else:
 #     jobs = (joblib.delayed(bwm_to_nwb.convert_session)(eid=eid, one=one, revision=REVISION, cleanup=True) for eid in eids)
 #     joblib.Parallel(n_jobs=N_JOBS)(jobs)
