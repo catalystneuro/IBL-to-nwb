@@ -10,8 +10,11 @@ from pynwb import NWBHDF5IO, NWBFile
 from ibl_to_nwb.fixtures import load_fixtures
 from iblatlas.atlas import AllenAtlas
 
+import logging
+_logger = logging.getLogger('ibl_to_nwb')
+
 def eid2pid(eid, bwm_df):
-    _df = bwm_df.set_index("eid").loc[eid]
+    _df = bwm_df.set_index("eid").loc[[eid]]
     pids = []
     pnames = []
     for i, row in _df.iterrows():
@@ -25,6 +28,7 @@ def pid2eid(pid, bwm_df):
 
 
 def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
+    _logger.debug(f"verifying {nwbfile_path} for consistency")
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         nwbfile = io.read()
         
@@ -72,6 +76,7 @@ def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
     data_from_ONE = one.load_dataset(id=eid, dataset="_ibl_wheelMoves.peakAmplitude", **load_kwargs)
     data_from_NWB = wheel_movement_table["peak_amplitude"].values
     assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+    _logger.debug(f"wheel data passed")
 
 
 def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
@@ -85,6 +90,7 @@ def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
     data_from_NWB = lick_times_table["lick_time"].values
     data_from_ONE = one.load_dataset(eid, "licks.times", **load_kwargs)
     assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+    _logger.debug(f"lick data passed")
 
 
 def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
@@ -106,6 +112,7 @@ def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
         data_from_NWB = camera_motion_energy.timestamps[:]
         data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times", **load_kwargs)
         assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+        _logger.debug(f"roi motion energy for {view} passed")
 
 
 def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
@@ -145,6 +152,7 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
             data_from_NWB = pose_estimation_container.pose_estimation_series[node].timestamps[:]
             data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times", **load_kwargs)
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+        _logger.debug(f"pose estimation for {view} passed")
 
 
 def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
@@ -182,6 +190,7 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     data_from_ONE.columns = naming_map.keys()
 
     assert_frame_equal(left=data_from_NWB, right=data_from_ONE)
+    _logger.debug(f"trials table passed")
 
 
 def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
@@ -209,6 +218,7 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
         ].values
 
         assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+        _logger.debug(f"pupil data for {view} passed")
 
 
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
@@ -261,6 +271,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
         # testing
         assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1)
+        _logger.debug(f"spike times passed")
 
     # test unit locations
     units_nwb = nwbfile.units[:]
@@ -278,6 +289,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     one_allen = np.array([atlas.regions.id2acronym(i)[0] for i in atlas_ids])
     nwb_allen = units_nwb.set_index('cluster_uuid').loc[units_ids, 'allen_location'].values
     np.testing.assert_array_equal(one_allen, nwb_allen)
+    _logger.debug(f"brain regions for units passed")
 
 
 def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
@@ -307,8 +319,9 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
     for pname in pnames_nwb:
         for band in ["ap", "lf"]:
             pid = pidname_map[pname]
-            spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=eid, pname=pname, one=one)
-            stream = False if "USE_SDSC_ONE" in os.environ else True
+            spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=eid, pname=pname, one=one, revision=revision)
+            # stream = False if "USE_SDSC_ONE" in os.environ else True
+            stream = False # FIXME now forcing this to run only locally on SDSC
             sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=revision)
             data_one = sglx_streamer._raw
 
@@ -335,16 +348,17 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
                 # samples_nwb = np.array([data_nwb[*i] for i in ix])
                 # samples_one = np.array([data_one[*i] for i in ix])
                 # np.testing.assert_array_equal(samples_nwb, samples_one)
-
+            _logger.debug(f"raw ephys data for {pname}/{band} passed")
+            
             # check the time stamps
             nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()[:]
 
             # from brainbox.io
             brainbox_timestamps = spike_sorting_loader.samples2times(
-                np.arange(0, sglx_streamer.ns), direction="forward"
+                np.arange(0, n_samples_one), direction="forward"
             )
             np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
-            # print(f"passing {pname}, {band}")
+            _logger.debug(f"ephys data timestamps for {pname}/{band} passed")
 
 
 def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
@@ -361,6 +375,7 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
         dataset = [dataset for dataset in datasets if camera.split("OriginalVideo")[1].lower() in dataset.lower()]
         timestamps_one = one.load_dataset(eid, dataset, revision=revision)
         np.testing.assert_array_equal(timestamps_nwb, timestamps_one)
+        _logger.debug(f"video timestamps for {camera} passed")
 
     # values (the first 100 bytes)
     datasets = one.list_datasets(eid, collection="raw_video_data", revision=revision)
@@ -378,3 +393,4 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
             nwb_video_bytes = fH.read(100)
 
         assert one_video_bytes == nwb_video_bytes
+        _logger.debug(f"video values for {camera} passed")

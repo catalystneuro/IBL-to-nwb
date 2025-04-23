@@ -26,7 +26,32 @@ from one.alf.spec import is_uuid_string
 from one.api import ONE
 
 import logging
-_logger = logging.getLogger('ibl_to_nwb') # FIXME
+
+def setup_logger():
+    # Create a logger
+    logger = logging.getLogger('ibl_to_nwb')
+    logger.setLevel(logging.DEBUG)
+
+    # Create file handler
+    file_handler = logging.FileHandler(Path.home() / 'bwm_conversion.log')
+    file_handler.setLevel(logging.DEBUG)
+
+    # Create console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+
+    # Create a formatter and set it for both handlers
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+
+    # Add handlers to the logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger
+
+_logger = setup_logger()
 
 """
 ########     ###    ######## ##     ##
@@ -175,6 +200,8 @@ def tree_copy(source_dir: Path, target_dir: Path, remove_uuid:bool=True, include
             if not target_file_path.exists():
                 _logger.debug(f"copying {source_file_path} to {target_file_path}")
                 shutil.copy(source_file_path, target_file_path)
+            else:
+                _logger.debug(f"skipping copy for {source_file_path} to {target_file_path}, exists already")
 
 def paths_cleanup(paths: dict):
     # unlink the symlinks in the scratch folder and remove the scratch 
@@ -342,7 +369,7 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
         case 'raw':
             decompress_ephys_cbins(paths['session_folder'], paths['session_scratch_folder'])
             # now copy the remaining files, copy everything that is not cbin
-            tree_copy(paths['session_folder'] / 'raw_ephys_data', paths['session_scratch_folder'] / 'raw_ephys_data')
+            tree_copy(paths['session_folder'] / 'raw_ephys_data', paths['session_scratch_folder'] / 'raw_ephys_data', exclude='.cbin')
 
             session_converter = BrainwideMapConverter(
                 one=one,
