@@ -3,15 +3,15 @@ import os
 from pathlib import Path
 
 # if running on SDSC, use the OneSdsc, else normal
-# if "USE_SDSC_ONE" in os.environ:
-#     print("using SDSC ONE")
-#     from deploy.iblsdsc import OneSdsc as ONE
-# else:
-#     print("using regular ONE")
-#     from one.api import ONE
+if "USE_SDSC_ONE" in os.environ:
+    print("using SDSC ONE")
+    from deploy.iblsdsc import OneSdsc as ONE
+else:
+    print("using regular ONE")
+    from one.api import ONE
 
 # right now, enforcing the use of SDSC one
-from deploy.iblsdsc import OneSdsc as ONE
+# from deploy.iblsdsc import OneSdsc as ONE
 
 # from pynwb import NWBHDF5IO
 

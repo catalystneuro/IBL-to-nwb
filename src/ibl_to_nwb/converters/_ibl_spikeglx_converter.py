@@ -1,10 +1,10 @@
+import os
 import numpy as np
-from brainbox.io.one import EphysSessionLoader, SpikeSortingLoader
+from brainbox.io.one import SpikeSortingLoader
 from neuroconv.converters import SpikeGLXConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
-
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):
     def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, revision: str, streams=None) -> None:
@@ -45,11 +45,10 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 probe_name = self.imec_to_probe_map[int(imec_name[-1])]
                 pid = self.pname_pid_map[probe_name]
 
-                # spike_sorting_loader = SpikeSortingLoader(eid=self.eid, pid=pid, pname=probe_name, one=self.one)
                 spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)
-                # stream = False if "USE_SDSC_ONE" in os.environ else True
-                stream = False
+                stream = False if "USE_SDSC_ONE" in os.environ else True
                 sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=self.revision)
+                
                 # data_one = sglx_streamer._raw
 
                 # if all we need is the number of samples, then this seems a bit overkill
@@ -59,7 +58,7 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 # rather, the ns can be retrieved directly from the recording interface
                 # ns = recording_interface._extractor_instance.get_num_samples()
                 # aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
-                aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sglx_streamer.ns), direction="forward")
+                aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sglx_streamer.ns), direction="forward", band=band)
                 recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata) -> None:

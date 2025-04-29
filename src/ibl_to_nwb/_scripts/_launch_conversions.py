@@ -28,10 +28,9 @@ base_path.mkdir(exist_ok=True)
 
 bwm_df = load_fixtures.load_bwm_df()
 eids = bwm_df['eid']
-# for eid in eids:
 
 eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
-# eid = eids[3]
+eid = eids[3]
 print(eid)
 # sys.exit()
 
@@ -57,6 +56,6 @@ mode = "raw"
 # mode = "processed"
 N_JOBS = 1
 
-bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
-# jobs = (joblib.delayed(bwm_to_nwb.convert_session)(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=False), )
-# joblib.Parallel(n_jobs=N_JOBS)(jobs)
+# bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
+jobs = (joblib.delayed(bwm_to_nwb.convert_session)(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=False), )
+joblib.Parallel(n_jobs=N_JOBS)(jobs)
