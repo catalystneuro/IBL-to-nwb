@@ -357,12 +357,8 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             brainbox_timestamps = spike_sorting_loader.samples2times(
                 np.arange(0, n_samples_one), direction="forward", band=band
             )
-            # np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
-            fs = dict(ap=30000,lf=2500)[band]
-            outdir = Path('/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/')
-            np.save(outdir / 'nwb.npy', nwb_timestamps)
-            np.save(outdir / 'bb.npy', brainbox_timestamps)
-            assert_array_less(np.max((nwb_timestamps - brainbox_timestamps) * fs), 1, err_msg=f"fail for {band},{nwb_timestamps - brainbox_timestamps}")
+
+            np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
             _logger.debug(f"ephys data timestamps for {pname}/{band} passed")
 
 

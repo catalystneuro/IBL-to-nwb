@@ -28,14 +28,9 @@ class IblConverter(ConverterPipe):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()  # Aggregates from the interfaces
 
-        session_metadata_list = self.one.alyx.rest(url="sessions", action="list", id=self.session)
-        assert len(session_metadata_list) == 1, "More than one session metadata returned by query."
-        session_metadata = session_metadata_list[0]
+        session_metadata, = self.one.alyx.rest(url="sessions", action="list", id=self.session)
         assert session_metadata["id"] == self.session, "Session metadata ID does not match the requested session ID."
-
-        lab_metadata_list = self.one.alyx.rest("labs", "list", name=session_metadata["lab"])
-        assert len(lab_metadata_list) == 1, "More than one lab metadata returned by query."
-        lab_metadata = lab_metadata_list[0]
+        lab_metadata, = self.one.alyx.rest("labs", "list", name=session_metadata["lab"])
 
         # TODO: include session_metadata['number'] in the extension attributes
         session_start_time = datetime.fromisoformat(session_metadata["start_time"])

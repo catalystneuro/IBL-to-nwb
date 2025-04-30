@@ -322,9 +322,10 @@ def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, rem
             _logger.info(f"decompressing {file_cbin}")
             
             # find corresponding meta file
+            band = file_cbin.name.split('.')[-2]
             name = '.'.join(file_cbin.name.split('.')[:-2])
-            file_meta, = list(file_cbin.parent.glob(f'{name}*.meta'))
-            file_ch, = list(file_cbin.parent.glob(f'{name}*.ch'))
+            file_meta, = list(file_cbin.parent.glob(f'{name}*{band}.meta'))
+            file_ch, = list(file_cbin.parent.glob(f'{name}*{band}.ch'))
             
             # copies over the meta file which will still have an uuid
             # spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, file_ch=file_ch, scratch_dir=target_bin.parent)
