@@ -46,7 +46,8 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 pid = self.pname_pid_map[probe_name]
 
                 spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)
-                stream = False if "USE_SDSC_ONE" in os.environ else True
+                # stream = False if "USE_SDSC_ONE" in os.environ else True
+                stream = False
                 sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=self.revision)
                 
                 # data_one = sglx_streamer._raw

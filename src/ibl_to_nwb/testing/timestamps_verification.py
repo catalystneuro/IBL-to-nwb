@@ -14,6 +14,6 @@ one_kwargs = dict(
 one = ONE(**one_kwargs)
 
 sl = SpikeSortingLoader(one=one, eid=eid, pname="probe00")
-sl.samples2times(np.arange(0, 10), direction="forward")
 
+print(sl.samples2times(np.arange(0, 10), direction="forward", band='lf'))
 # %%
