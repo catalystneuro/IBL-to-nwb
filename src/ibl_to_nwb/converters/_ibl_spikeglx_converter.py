@@ -8,6 +8,8 @@ from pynwb import NWBFile
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):
     def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, revision: str, streams=None) -> None:
+        # # debug injection
+        # streams = ['imec0.lf','imec1.lf']
         super().__init__(folder_path=folder_path, streams=streams)
         self.one = one
         self.eid = eid

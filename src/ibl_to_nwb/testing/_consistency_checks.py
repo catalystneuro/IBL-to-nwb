@@ -300,7 +300,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
     # get the pid/pname mapping for this eid
     bwm_df = load_fixtures.load_bwm_df()
     pids, pnames_one = eid2pid(eid, bwm_df)
-    pidname_map = dict(zip(pnames_one, pids))
+    # pidname_map = dict(zip(pnames_one, pids))
     # pidname_map = bwm_df.set_index("eid").loc[eid][["probe_name", "pid"]].to_dict()
     # pnames_one = bwm_df.set_index("eid").loc[eid]['probe_name'].values
 
@@ -317,11 +317,11 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 
     # comparing ephys samples
     for pname in pnames_nwb:
-        for band in ["ap", "lf"]:
-            pid = pidname_map[pname]
-            spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=eid, pname=pname, one=one, revision=revision)
-            stream = False if "USE_SDSC_ONE" in os.environ else True
-            # stream = False # FIXME now forcing this to run only locally on SDSC
+        for band in ["lf", "ap"]:
+            # pid = pidname_map[pname]
+            spike_sorting_loader = SpikeSortingLoader(eid=eid, pname=pname, one=one, revision=revision)
+            # stream = False if "USE_SDSC_ONE" in os.environ else True
+            stream = False # FIXME now forcing this to run only locally on SDSC
             sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=revision)
             data_one = sglx_streamer._raw
 
@@ -368,7 +368,7 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     load_kwargs = dict(collection='alf', revision=revision)
     
     # timestamps
-    datasets = one.list_datasets(eid, "*Camera.times*", **load_kwargs)
+    datasets = one.list_datasets(eid, "*Camera.times*", collection=load_kwargs["collection"])
     cameras = [key for key in nwbfile.acquisition.keys() if key.endswith("Camera")]
     for camera in cameras:
         timestamps_nwb = nwbfile.acquisition[camera].timestamps[:]
@@ -379,17 +379,18 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
         _logger.debug(f"video timestamps for {camera} passed")
 
     # values (the first 100 bytes)
-    datasets = one.list_datasets(eid, collection="raw_video_data", revision=revision)
+    datasets = one.list_datasets(eid, collection="raw_video_data")
     cameras = [key for key in nwbfile.acquisition.keys() if key.endswith("Camera")]
 
     for camera in cameras:
         cam = camera.split("OriginalVideo")[1].lower()
         dataset = [dataset for dataset in datasets if cam in dataset.lower()]
-        one_video_path = one.load_dataset(eid, dataset, revision=revision)
+        one_video_path = one.load_dataset(eid, dataset)
         with open(one_video_path, "rb") as fH:
             one_video_bytes = fH.read(100)
 
-        nwb_video_path = nwbfile_path.parent / Path(nwbfile.acquisition[camera].external_file[:][0])
+        
+        nwb_video_path = Path(nwbfile_path).parent / Path(nwbfile_path).parent.parts[-1] / Path(nwbfile.acquisition[camera].external_file[:][0])
         with open(nwb_video_path, "rb") as fH:
             nwb_video_bytes = fH.read(100)
 

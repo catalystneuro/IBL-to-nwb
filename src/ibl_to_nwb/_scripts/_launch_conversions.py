@@ -55,8 +55,8 @@ if "USE_SDSC_ONE" in os.environ:
 one = ONE(**one_kwargs)
 
 # %%
-# mode = "raw"
-mode = "debug"
+mode = "raw"
+# mode = "debug"
 # mode = "processed"
 N_JOBS = 1
 

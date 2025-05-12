@@ -23,7 +23,11 @@ from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 # nwbfile_path = "/mnt/home/graiser/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-processed_behavior+ecephys.nwb"
 # nwbfile_path = "/mnt/home/graiser/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
 # nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
-nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NYU-12/sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-raw_ecephys+image.nwb"
+# nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NYU-12/sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-raw_ecephys+image.nwb"
+# nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NYU-12/sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-raw_ecephys+image.nwb"
+
+nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
+eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
 # with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
 #     nwbfile = io.read()
 #     eid = nwbfile.session_id
