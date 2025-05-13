@@ -38,7 +38,7 @@ print(eid)
 one_kwargs = dict(
     # base_url="https://openalyx.internationalbrainlab.org",
     # password="international",
-    # mode="local",
+    mode="local",
 )
 # if not running on SDSC adding the cache folder explicitly
 if "USE_SDSC_ONE" in os.environ:
@@ -58,12 +58,12 @@ one = ONE(**one_kwargs)
 mode = "raw"
 # mode = "debug"
 # mode = "processed"
-N_JOBS = 1
+N_JOBS = 2
 
 # bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
 jobs = (
     joblib.delayed(bwm_to_nwb.convert_session)(
-        eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=False
-    ),
+        eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path, verify=True
+    ) for eid in eids[:2]
 )
 joblib.Parallel(n_jobs=N_JOBS)(jobs)
