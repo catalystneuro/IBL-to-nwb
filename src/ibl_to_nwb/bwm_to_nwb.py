@@ -221,6 +221,13 @@ def paths_cleanup(paths: dict):
 ########  ##     ##    ##    ##     ##    #### ##    ##    ##    ######## ##     ## ##       ##     ##  ######  ########  ######
 """
 
+def get_camera_name_from_file(filepath):
+    filename = Path(filepath).name
+    if filename.startswith('_ibl_'):
+        filename = filename.split('_ibl_')[1] # remove namespace
+    camera_name = filename.split('.')[0] # remove suffixes 
+    return camera_name
+
 def _get_processed_data_interfaces(one: ONE, eid: str, revision:str=None) -> list:
     """
     Returns a list of the data interfaces to build the processed NWB file for this session
@@ -237,19 +244,25 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision:str=None) -> lis
     # # These interfaces may not be present; check if they are before adding to list
     pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
     for pose_estimation_file in pose_estimation_files:
-        camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
+        # camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
+        # camera_name = Path(pose_estimation_file).stem.split('_ibl_')[1].split('.')[0]
+        camera_name = get_camera_name_from_file(pose_estimation_file)
         data_interfaces.append(
             IblPoseEstimationInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
         )
 
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     for pupil_tracking_file in pupil_tracking_files:
-        camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
+        # camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
+        # camera_name = Path(pupil_tracking_file).stem.split('_ibl_')[1].split('.')[0]
+        camera_name = get_camera_name_from_file(pupil_tracking_file)
         data_interfaces.append(PupilTrackingInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
 
     roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
     for roi_motion_energy_file in roi_motion_energy_files:
-        camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
+        # camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
+        # camera_name = Path(roi_motion_energy_file).stem.split('_ibl_')[1].split('.')[0]
+        camera_name = get_camera_name_from_file(roi_motion_energy_file)
         data_interfaces.append(
             RoiMotionEnergyInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
         )

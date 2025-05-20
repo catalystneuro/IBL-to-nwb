@@ -34,13 +34,19 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
         
         if 'processed_behavior+ecephys' in str(nwbfile_path):
             # run all consistentcy checks for processed data
-            _check_wheel_data(nwbfile=nwbfile, one=one)
-            _check_lick_data(nwbfile=nwbfile, one=one)
-            _check_roi_motion_energy_data(nwbfile=nwbfile, one=one)
-            _check_pose_estimation_data(nwbfile=nwbfile, one=one)
             _check_trials_data(nwbfile=nwbfile, one=one)
-            _check_pupil_tracking_data(nwbfile=nwbfile, one=one)
+            _check_wheel_data(nwbfile=nwbfile, one=one)
             _check_spike_sorting_data(nwbfile=nwbfile, one=one)
+            # these are "optional"
+            for data_interface_name in nwbfile.processing['camera'].data_interfaces.keys():
+                if 'Pose' in data_interface_name:
+                    _check_pose_estimation_data(nwbfile=nwbfile, one=one)
+                if 'Motion' in data_interface_name:
+                    _check_roi_motion_energy_data(nwbfile=nwbfile, one=one)
+                if 'Pupil' in data_interface_name:
+                    _check_pupil_tracking_data(nwbfile=nwbfile, one=one)
+                if 'Lick' in data_interface_name:
+                    _check_lick_data(nwbfile=nwbfile, one=one)
 
         if 'raw_ecephys+image' in str(nwbfile_path):
             # run checks for raw files
@@ -101,18 +107,21 @@ def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
-        camera_motion_energy = processing_module.data_interfaces[f"{view.capitalize()}CameraMotionEnergy"]
+        data_interface_name = f"{view.capitalize()}CameraMotionEnergy"
+        if data_interface_name in processing_module.data_interfaces.keys():
+            camera_motion_energy = processing_module.data_interfaces[data_interface_name]
 
-        # data
-        data_from_NWB = camera_motion_energy.data[:]
-        data_from_ONE = one.load_dataset(eid, f"{view}Camera.ROIMotionEnergy", **load_kwargs)
-        assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+            # data
+            data_from_NWB = camera_motion_energy.data[:]
+            data_from_ONE = one.load_dataset(eid, f"{view}Camera.ROIMotionEnergy", **load_kwargs)
+            assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
-        # timestamps
-        data_from_NWB = camera_motion_energy.timestamps[:]
-        data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times", **load_kwargs)
-        assert_array_equal(x=data_from_ONE, y=data_from_NWB)
-        _logger.debug(f"roi motion energy for {view} passed")
+            # timestamps
+            data_from_NWB = camera_motion_energy.timestamps[:]
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times", **load_kwargs)
+            assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+            _logger.debug(f"roi motion energy for {view} passed")
+        # _logger.debug(f"roi motion energy for {view} passed")
 
 
 def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
@@ -123,36 +132,38 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
-        pose_estimation_container = processing_module.data_interfaces[f"PoseEstimation{view.capitalize()}Camera"]
+        data_interface_name = f"PoseEstimation{view.capitalize()}Camera"
+        if data_interface_name in processing_module.data_interfaces.keys():
+            pose_estimation_container = processing_module.data_interfaces[data_interface_name]
 
-        nodes = pose_estimation_container.nodes[:]
-        for node in nodes:
-            # x
-            data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 0]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
-                f"{node}_x"
-            ].values
-            assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+            nodes = pose_estimation_container.nodes[:]
+            for node in nodes:
+                # x
+                data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 0]
+                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
+                    f"{node}_x"
+                ].values
+                assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
-            # y
-            data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 1]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
-                f"{node}_y"
-            ].values
-            assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+                # y
+                data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 1]
+                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
+                    f"{node}_y"
+                ].values
+                assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
-            # confidence
-            data_from_NWB = pose_estimation_container.pose_estimation_series[node].confidence[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
-                f"{node}_likelihood"
-            ].values
-            assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+                # confidence
+                data_from_NWB = pose_estimation_container.pose_estimation_series[node].confidence[:]
+                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
+                    f"{node}_likelihood"
+                ].values
+                assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
-            # timestamps
-            data_from_NWB = pose_estimation_container.pose_estimation_series[node].timestamps[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times", **load_kwargs)
-            assert_array_equal(x=data_from_ONE, y=data_from_NWB)
-        _logger.debug(f"pose estimation for {view} passed")
+                # timestamps
+                data_from_NWB = pose_estimation_container.pose_estimation_series[node].timestamps[:]
+                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times", **load_kwargs)
+                assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+            _logger.debug(f"pose estimation for {view} passed")
 
 
 def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
@@ -202,23 +213,25 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
     camera_views = ["left", "right"]
     for view in camera_views:
-        pupil_tracking_container = processing_module.data_interfaces[f"{view.capitalize()}PupilTracking"]
+        data_interface_name = f"{view.capitalize()}PupilTracking"
+        if data_interface_name in processing_module.data_interfaces.keys():
+            pupil_tracking_container = processing_module.data_interfaces[data_interface_name]
 
-        # raw
-        data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].data[:]
-        data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
-            "pupilDiameter_raw"
-        ].values
-        assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+            # raw
+            data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].data[:]
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
+                "pupilDiameter_raw"
+            ].values
+            assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
-        # smooth
-        data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}SmoothedPupilDiameter"].data[:]
-        data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
-            "pupilDiameter_smooth"
-        ].values
+            # smooth
+            data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}SmoothedPupilDiameter"].data[:]
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
+                "pupilDiameter_smooth"
+            ].values
 
-        assert_array_equal(x=data_from_ONE, y=data_from_NWB)
-        _logger.debug(f"pupil data for {view} passed")
+            assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+            _logger.debug(f"pupil data for {view} passed")
 
 
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
@@ -271,7 +284,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
         # testing
         assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1)
-        _logger.debug(f"spike times passed")
+    _logger.debug(f"spike times passed")
 
     # test unit locations
     units_nwb = nwbfile.units[:]

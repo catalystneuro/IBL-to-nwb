@@ -6,7 +6,7 @@ from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
-
+import re
 
 class IblPoseEstimationInterface(BaseDataInterface):
     def __init__(
@@ -49,7 +49,8 @@ class IblPoseEstimationInterface(BaseDataInterface):
             set(field.replace("_x", "").replace("_y", "").replace("_likelihood", "") for field in dlc_data.keys())
         )
 
-        left_right_or_body = self.camera_name[:5].rstrip("C")
+        camera_view = re.search(r'(left|right|body)Camera*', self.camera_name).group(1)
+        # left_right_or_body = self.camera_name[:5].rstrip("C")
         reused_timestamps = None
         all_pose_estimation_series = list()
 
@@ -72,7 +73,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
             reused_timestamps = all_pose_estimation_series[0]  # A trick for linking timestamps across series
 
         pose_estimation_kwargs = dict(
-            name=f"PoseEstimation{left_right_or_body.capitalize()}Camera",
+            name=f"PoseEstimation{camera_view.capitalize()}Camera",
             pose_estimation_series=all_pose_estimation_series,
             description="Estimated positions of body parts using DeepLabCut.",
             source_software="DeepLabCut",

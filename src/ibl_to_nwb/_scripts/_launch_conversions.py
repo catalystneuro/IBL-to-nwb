@@ -1,5 +1,6 @@
 # %%
 import sys
+import numpy as np
 import os
 from pathlib import Path
 import joblib
@@ -19,51 +20,47 @@ from ibl_to_nwb import bwm_to_nwb
 
 
 REVISION = "2025-05-06"
-N_JOBS = 1
+N_BATCHES = 10
+if len(sys.argv) == 2:
+    i_batch = sys.argv[1]
+else:
+    i_batch = 0
 
-# base_path = Path.home() / "ibl_bwm_to_nwb"
-# base_path = Path.home() / "ibl_scratch"
 base_path = Path("/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/")
 base_path.mkdir(exist_ok=True, parents=True)
 
 bwm_df = load_fixtures.load_bwm_df()
-eids = bwm_df["eid"]
+eids = bwm_df["eid"].unique()
 
-eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
-# eid = eids[3]
-print(eid)
-# sys.exit()
+n_sessions = eids.shape[0]
+eids_batches = np.array_split(eids, 10)
+batch = eids_batches[i_batch]
 
 # common
 one_kwargs = dict(
-    # base_url="https://openalyx.internationalbrainlab.org",
-    # password="international",
     mode="local",
+    cache_rest = None, # disables rest caching (write permission errors on popeye)
 )
-# if not running on SDSC adding the cache folder explicitly
-if "USE_SDSC_ONE" in os.environ:
-    one_kwargs["cache_rest"] = None  # disables rest caching (write permission errors on popeye)
-# else:
-#     # Initialize IBL (ONE) client to download processed data for this session
-#     # one_kwargs["cache_dir"] = Path("/home/georg/Downloads/ONE/alyx.internationalbrainlab.org")
-#     one_kwargs["cache_dir"] = (
-#         Path.home() / "ibl_scratch" / "ibl_conversion" / eid / "cache"
-#     )  # base_path / "ibl_conversion" / eid / "cache"
-#     # one_kwargs["mode"] = "remote"
 
 # instantiate one
 one = ONE(**one_kwargs)
 
-# %%
-mode = "raw"
-# mode = "debug"
-# mode = "processed"
-N_JOBS = 2
 
-# bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
-jobs = (
-    joblib.delayed(bwm_to_nwb.convert_session)(
-        eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path, verify=True
-    ) for eid in eids[:2]
-)
-joblib.Parallel(n_jobs=N_JOBS)(jobs)
+# %%
+# mode = "raw"
+# mode = "debug"
+mode = "processed"
+
+# %% the full thing
+N_JOBS = len(batch)
+
+if N_JOBS == 1:
+    eid = batch[0]
+    bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
+else:
+    jobs = (
+        joblib.delayed(bwm_to_nwb.convert_session)(
+            eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path, verify=True
+        ) for eid in batch
+    )
+    joblib.Parallel(n_jobs=N_JOBS)(jobs)
