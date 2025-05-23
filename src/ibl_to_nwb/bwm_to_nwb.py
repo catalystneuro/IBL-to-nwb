@@ -51,7 +51,7 @@ def setup_logger():
 
     return logger
 
-_logger = setup_logger()
+_logger = logging.getLogger('bwm_to_nwb')
 
 """
 ########     ###    ######## ##     ##
@@ -385,6 +385,11 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
     
     # path setup
     paths = setup_paths(one, eid, base_path=base_path)
+    _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
+    # _logger.removeHandler(handler)
+    handler = logging.FileHandler(base_path / f'{eid}.log')
+    handler.setLevel(logging.DEBUG)
+    _logger.addHandler(handler)
 
     match mode: 
         case 'raw':
@@ -435,8 +440,13 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
 
     if cleanup:
         paths_cleanup(paths)
+        _logger.info(f" cleanup done")
 
     if verify:
         check_nwbfile_for_consistency(one=one, nwbfile_path=paths["output_folder"] / fname)
         _logger.info(f"all checks passed for {eid} with mode:{mode}")
-        
+    
+    # for keeping track of the jobs
+    running_dir = base_path / 'eids_running'
+    done_dir = base_path / 'eids_done'
+    shutil.move(running_dir / f'{eid}', done_dir / f'{eid}')

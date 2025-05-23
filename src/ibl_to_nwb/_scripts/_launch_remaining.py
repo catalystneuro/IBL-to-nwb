@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import joblib
 from iblutil.util import setup_logger
+import shutil
 
 # if running on SDSC, use the OneSdsc, else normal
 if "USE_SDSC_ONE" in os.environ:
@@ -21,21 +22,33 @@ from iblutil.util import setup_logger
 _logger = setup_logger('bwm_to_nwb')
 
 REVISION = "2025-05-06"
-N_BATCHES = 10
-if len(sys.argv) == 2:
-    i_batch = int(sys.argv[1])
-else:
-    i_batch = 0
+N_JOBS = 48
+RESET = False
 
 base_path = Path("/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/")
 base_path.mkdir(exist_ok=True, parents=True)
 
-bwm_df = load_fixtures.load_bwm_df()
-eids = bwm_df["eid"].unique()
+todo_dir = base_path / 'eids_todo'
+running_dir = base_path / 'eids_running'
+done_dir = base_path / 'eids_done'
+for folder in [running_dir, done_dir]:
+    folder.mkdir(exist_ok=True)
 
-n_sessions = eids.shape[0]
-eids_batches = np.array_split(eids, 10)
-batch = eids_batches[i_batch]
+# if not exists, create the folder with filenames == eids
+# from this todo_dir, move to running_dir when launched
+# there, when finished, will move to done_dir
+
+if not todo_dir.exists():
+    todo_dir.mkdir(exist_ok=True)
+    bwm_df = load_fixtures.load_bwm_df()
+
+    for eid in bwm_df['eid'].values:
+        (todo_dir / f'{eid}').touch()
+
+eids = [fpath.name for fpath in list(todo_dir.glob('*'))]
+if len(eids) < N_JOBS:
+    N_JOBS = len(eids)
+eids_ = eids[:N_JOBS]
 
 # common
 one_kwargs = dict(
@@ -46,23 +59,21 @@ one_kwargs = dict(
 # instantiate one
 one = ONE(**one_kwargs)
 
-
 # %%
 # mode = "raw"
 # mode = "debug"
 mode = "processed"
 
 # %% the full thing
-N_JOBS = len(batch)
-N_JOBS = 1
-eid = "0f25376f-2b78-4ddc-8c39-b6cdbe7bf5b9"
 if N_JOBS == 1:
-    eid = batch[0]
+    eid = eids_[0]
     bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
 else:
+    for eid in eids_:
+        shutil.move(todo_dir / f'{eid}', running_dir / f'{eid}')
     jobs = (
         joblib.delayed(bwm_to_nwb.convert_session)(
             eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path, verify=True
-        ) for eid in batch
+        ) for eid in eids_
     )
     joblib.Parallel(n_jobs=N_JOBS)(jobs)
