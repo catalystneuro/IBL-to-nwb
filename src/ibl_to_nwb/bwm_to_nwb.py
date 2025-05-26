@@ -26,32 +26,34 @@ from one.alf.spec import is_uuid_string
 from one.api import ONE
 
 import logging
+# logger setup
+# _logger = logging.getLogger(f'bwm_to_nwb')
 
-def setup_logger():
-    # Create a logger
-    logger = logging.getLogger('ibl_to_nwb')
-    logger.setLevel(logging.DEBUG)
+# def setup_logger():
+#     # Create a logger
+#     logger = logging.getLogger('ibl_to_nwb')
+#     logger.setLevel(logging.DEBUG)
 
-    # Create file handler
-    file_handler = logging.FileHandler(Path.home() / 'bwm_conversion.log')
-    file_handler.setLevel(logging.DEBUG)
+#     # Create file handler
+#     file_handler = logging.FileHandler(Path.home() / 'bwm_conversion.log')
+#     file_handler.setLevel(logging.DEBUG)
 
-    # Create console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
+#     # Create console handler
+#     console_handler = logging.StreamHandler()
+#     console_handler.setLevel(logging.DEBUG)
 
-    # Create a formatter and set it for both handlers
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
+#     # Create a formatter and set it for both handlers
+#     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+#     file_handler.setFormatter(formatter)
+#     console_handler.setFormatter(formatter)
 
-    # Add handlers to the logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+#     # Add handlers to the logger
+#     logger.addHandler(file_handler)
+#     logger.addHandler(console_handler)
 
-    return logger
+#     return logger
 
-_logger = logging.getLogger('bwm_to_nwb')
+# _logger = logging.getLogger('bwm_to_nwb')
 
 """
 ########     ###    ######## ##     ##
@@ -129,7 +131,7 @@ def remove_uuid_from_filepath(file_path: Path) -> Path:
     name_parts = name.split(".")
     if is_uuid_string(name_parts[-2]):
         name_parts.remove(name_parts[-2])
-        _logger.debug(f"removing uuid from file {file_path}")
+        # _logger.debug(f"removing uuid from file {file_path}")
         return dir / ".".join(name_parts)
     else:
         return file_path
@@ -198,15 +200,15 @@ def tree_copy(source_dir: Path, target_dir: Path, remove_uuid:bool=True, include
             if remove_uuid:
                 target_file_path = remove_uuid_from_filepath(target_file_path)
             if not target_file_path.exists():
-                _logger.debug(f"copying {source_file_path} to {target_file_path}")
+                # _logger.debug(f"copying {source_file_path} to {target_file_path}")
                 shutil.copy(source_file_path, target_file_path)
-            else:
-                _logger.debug(f"skipping copy for {source_file_path} to {target_file_path}, exists already")
+            # else:
+            #     _logger.debug(f"skipping copy for {source_file_path} to {target_file_path}, exists already")
 
 def paths_cleanup(paths: dict):
     # unlink the symlinks in the scratch folder and remove the scratch 
     # os.system(f"find {paths['session_scratch_folder']} -type l -exec unlink {{}} \;")
-    _logger.debug(f"removing {paths['session_scratch_folder']}")
+    # _logger.debug(f"removing {paths['session_scratch_folder']}")
     shutil.rmtree(paths["session_scratch_folder"])
 
 
@@ -332,7 +334,7 @@ def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, rem
         target_bin_no_uuid.parent.mkdir(parents=True, exist_ok=True)
 
         if not target_bin_no_uuid.exists():
-            _logger.info(f"decompressing {file_cbin}")
+            # _logger.info(f"decompressing {file_cbin}")
             
             # find corresponding meta file
             name = remove_uuid_from_filepath(file_cbin).stem
@@ -359,7 +361,7 @@ def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, rem
                 file_meta_target = remove_uuid_from_filepath(target_bin.parent / file_meta.name)
                 if not file_meta_target.exists():
                     shutil.move(target_bin.parent / file_meta.name, file_meta_target)
-                    _logger.info(f"moving {target_bin.parent / file_meta.name} to {file_meta_target}")
+                    # _logger.info(f"moving {target_bin.parent / file_meta.name} to {file_meta_target}")
 
 """
  ######   #######  ##    ## ##     ## ######## ########  ########
@@ -370,6 +372,16 @@ def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, rem
 ##    ## ##     ## ##   ###   ## ##   ##       ##    ##     ##
  ######   #######  ##    ##    ###    ######## ##     ##    ##
 """
+
+def convert_session_(**kwargs):
+    try:
+        convert_session(**kwargs)
+    except Exception as e:
+        eid = kwargs['eid']
+        _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
+        _logger.error(e)
+        return None  # Return None or handle the error as needed
+
 def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool=True, mode:str='raw', base_path:Path=None, verify:bool=True):
     """converts the session associated with the eid and the revision to .nwb
 
@@ -385,17 +397,23 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
     
     # path setup
     paths = setup_paths(one, eid, base_path=base_path)
+
+    # create sublogger with a seperate file handle to log each conversion into a seperate file
     _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
-    # _logger.removeHandler(handler)
+    _logger.setLevel(logging.DEBUG)
     handler = logging.FileHandler(base_path / f'{eid}.log')
     handler.setLevel(logging.DEBUG)
     _logger.addHandler(handler)
-
+    _logger.debug(f"logger set up for {eid}")
+    _logger.debug(f"initializing data interfaces for mode {mode} ")
     match mode: 
         case 'raw':
+            _logger.debug(f"decompressing raw ephys data ... ")
             decompress_ephys_cbins(paths['session_folder'], paths['session_scratch_folder'])
             # now copy the remaining files, copy everything that is not cbin
+            _logger.debug(f"copying raw ephys data to local scratch ... ")
             tree_copy(paths['session_folder'] / 'raw_ephys_data', paths['session_scratch_folder'] / 'raw_ephys_data', exclude='.cbin')
+            _logger.debug(f" ...done")
 
             session_converter = BrainwideMapConverter(
                 one=one,

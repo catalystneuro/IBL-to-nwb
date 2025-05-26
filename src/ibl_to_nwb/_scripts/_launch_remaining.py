@@ -4,8 +4,9 @@ import numpy as np
 import os
 from pathlib import Path
 import joblib
-from iblutil.util import setup_logger
 import shutil
+
+# Set the filter to show each warning only once for a specific module
 
 # if running on SDSC, use the OneSdsc, else normal
 if "USE_SDSC_ONE" in os.environ:
@@ -15,11 +16,17 @@ else:
     print("using regular ONE")
     from one.api import ONE
 
+import warnings
+warnings.filterwarnings('once', category=UserWarning, module='ONE')
+
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb import bwm_to_nwb
 
 from iblutil.util import setup_logger
-_logger = setup_logger('bwm_to_nwb')
+# _logger = setup_logger('bwm_to_nwb')
+# import logging
+# _logger = logging.getLogger('bwm_to_nwb')
+# _logger.setLevel(logging.DEBUG)
 
 REVISION = "2025-05-06"
 N_JOBS = 48
@@ -67,7 +74,7 @@ mode = "processed"
 # %% the full thing
 if N_JOBS == 1:
     eid = eids_[0]
-    bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
+    bwm_to_nwb.convert_session_(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
 else:
     for eid in eids_:
         shutil.move(todo_dir / f'{eid}', running_dir / f'{eid}')

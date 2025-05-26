@@ -11,7 +11,10 @@ from ibl_to_nwb.fixtures import load_fixtures
 from iblatlas.atlas import AllenAtlas
 
 import logging
-_logger = logging.getLogger('ibl_to_nwb')
+
+def get_logger(eid: str):
+    _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
+    return _logger
 
 def eid2pid(eid, bwm_df):
     _df = bwm_df.set_index("eid").loc[[eid]]
@@ -28,7 +31,8 @@ def pid2eid(pid, bwm_df):
 
 
 def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
-    _logger.debug(f"verifying {nwbfile_path} for consistency")
+    
+    # _logger.debug(f"verifying {nwbfile_path} for consistency")
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         nwbfile = io.read()
         
@@ -56,6 +60,7 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 
 def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     load_kwargs = dict(collection='alf', revision=revision)
 
@@ -87,6 +92,7 @@ def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
 
 def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     load_kwargs = dict(collection='alf', revision=revision)
 
@@ -102,6 +108,7 @@ def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
 def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     load_kwargs = dict(collection='alf', revision=revision)
 
@@ -127,6 +134,7 @@ def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
 def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     load_kwargs = dict(collection='alf', revision=revision)
 
@@ -168,6 +176,7 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
 
 def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
 
     data_from_NWB = nwbfile.trials[:].reset_index(drop=True)
@@ -206,6 +215,7 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
 
 def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     load_kwargs = dict(collection='alf', revision=revision)
 
@@ -236,6 +246,7 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     bwm_df = load_fixtures.load_bwm_df()
     pids, probe_names = eid2pid(eid, bwm_df)
@@ -307,6 +318,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
 def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     
     # comparing probe names
@@ -377,6 +389,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 
 def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     eid = nwbfile.session_id
+    _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
     load_kwargs = dict(collection='alf', revision=revision)
     
