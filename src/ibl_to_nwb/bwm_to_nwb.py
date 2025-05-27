@@ -26,6 +26,7 @@ from one.alf.spec import is_uuid_string
 from one.api import ONE
 
 import logging
+import traceback
 # logger setup
 # _logger = logging.getLogger(f'bwm_to_nwb')
 
@@ -66,16 +67,7 @@ import logging
 """
 
 def setup_paths(one: ONE, eid: str, base_path: Path = Path.home() / "ibl_bmw_to_nwb") -> dict:
-    """ setup a dictionary that ontains all relevant paths for the conversion
-
-    Args:
-        one (ONE): _description_
-        eid (str): _description_
-        base_path (Path, optional): unclear if necessary. Defaults to Path.home()/"ibl_bmw_to_nwb".
-
-    Returns:
-        dict: _description_
-    """
+    # setup a dictionary that contains all relevant paths for the conversion
 
     subject = one.eid2ref(eid)['subject']
     paths = dict(
@@ -94,38 +86,8 @@ def setup_paths(one: ONE, eid: str, base_path: Path = Path.home() / "ibl_bmw_to_
 
     return paths
 
-
-# def create_symlinks(source_dir: Path, target_dir: Path, remove_uuid=True, filter=None):
-#     """replicates the tree under source_dir at target dir in the form of symlinks"""
-
-#     for root, dirs, files in os.walk(source_dir):
-#         for file in files:
-#             source_file_path = Path(root) / file
-#             if filter is not None:
-#                 if filter not in str(source_file_path):
-#                     continue
-
-#             target_file_path = target_dir / source_file_path.relative_to(source_dir)
-#             target_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-#             if remove_uuid:
-#                 parent, name = target_file_path.parent, target_file_path.name
-#                 name_parts = name.split(".")
-#                 if is_uuid_string(name_parts[-2]):
-#                     name_parts.remove(name_parts[-2])
-#                 target_file_path = parent / ".".join(name_parts)
-#             if not target_file_path.exists():
-#                 target_file_path.symlink_to(source_file_path)
-
 def remove_uuid_from_filepath(file_path: Path) -> Path:
-    """if the filename contains an uuid string, it is removed. Otherwise, just returns the path.
-
-    Args:
-        file_path (Path): _description_
-
-    Returns:
-        Path: _description_
-    """
+    # if the filename contains an uuid string, it is removed. Otherwise, just returns the path.
     
     dir, name = file_path.parent, file_path.name
     name_parts = name.split(".")
@@ -136,36 +98,6 @@ def remove_uuid_from_filepath(file_path: Path) -> Path:
     else:
         return file_path
 
-# def tree_copy(source_dir: Path, target_dir: Path, remove_uuid:bool=True, filter:str='.cbin'):
-#     """copies all files found under source_dir (including subdirectories) to target_dir. Replicates the tree,
-#     optionally removes uuids from filenames and exludes files in filter
-#     this could have include or exclude
-
-#     Args:
-#         source_dir (Path): _description_
-#         target_dir (Path): _description_
-#         remove_uuid (bool, optional): _description_. Defaults to True.
-#         filter (str, optional): _description_. Defaults to '.cbin'.
-#     """
-
-#     for root, dirs, files in os.walk(source_dir):
-#         for file in files:
-#             source_file_path = Path(root) / file
-#             if filter is not None:
-#                 if filter not in str(source_file_path):
-#                     continue
-
-#             target_file_path = target_dir / source_file_path.relative_to(source_dir)
-#             target_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-#             if remove_uuid:
-#                 parent, name = target_file_path.parent, target_file_path.name
-#                 name_parts = name.split(".")
-#                 if is_uuid_string(name_parts[-2]):
-#                     name_parts.remove(name_parts[-2])
-#                 target_file_path = parent / ".".join(name_parts)
-#             if not target_file_path.exists():
-#                 shutil.copy(source_file_path, target_file_path)
 
 def filter_file_paths(file_paths: list[Path], include: list|None = None, exclude: list|None = None) ->list[Path]:
     # include filter
@@ -224,6 +156,7 @@ def paths_cleanup(paths: dict):
 """
 
 def get_camera_name_from_file(filepath):
+    # smaller helper
     filename = Path(filepath).name
     if filename.startswith('_ibl_'):
         filename = filename.split('_ibl_')[1] # remove namespace
@@ -231,13 +164,8 @@ def get_camera_name_from_file(filepath):
     return camera_name
 
 def _get_processed_data_interfaces(one: ONE, eid: str, revision:str=None) -> list:
-    """
-    Returns a list of the data interfaces to build the processed NWB file for this session
-    :param one:
-    :param eid:
-    :param revision:
-    :return:
-    """
+    # Returns a list of the data interfaces to build the processed NWB file for this session
+
     data_interfaces = []
     data_interfaces.append(IblSortingInterface(one=one, session=eid, revision=revision))
     data_interfaces.append(BrainwideMapTrialsInterface(one=one, session=eid, revision=revision))
@@ -255,15 +183,12 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision:str=None) -> lis
 
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     for pupil_tracking_file in pupil_tracking_files:
-        # camera_name = pupil_tracking_file.replace("alf/_ibl_", "").replace(".features.pqt", "")
-        # camera_name = Path(pupil_tracking_file).stem.split('_ibl_')[1].split('.')[0]
         camera_name = get_camera_name_from_file(pupil_tracking_file)
         data_interfaces.append(PupilTrackingInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
 
     roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
     for roi_motion_energy_file in roi_motion_energy_files:
         # camera_name = roi_motion_energy_file.replace("alf/", "").replace(".ROIMotionEnergy.npy", "")
-        # camera_name = Path(roi_motion_energy_file).stem.split('_ibl_')[1].split('.')[0]
         camera_name = get_camera_name_from_file(roi_motion_energy_file)
         data_interfaces.append(
             RoiMotionEnergyInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
@@ -275,12 +200,8 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision:str=None) -> lis
 
 
 def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
-    """
-    Returns a list of the data interfaces to build the raw NWB file for this session
-    :param one:
-    :param eid:
-    :return:
-    """
+    # Returns a list of the data interfaces to build the raw NWB file for this session
+    
     data_interfaces = []
 
     # get the pid/pname mapping for this eid
@@ -340,17 +261,8 @@ def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, rem
             name = remove_uuid_from_filepath(file_cbin).stem
             file_meta, = list(file_cbin.parent.glob(f'{name}*.meta'))
             file_ch, = list(file_cbin.parent.glob(f'{name}*.ch'))
-            # if file_cbin.name.split('.')[-2] == 'nidq':
-            #     file_meta, = list(file_cbin.parent.glob(f'{name}*{band}.meta'))
-            #     file_ch, = list(file_cbin.parent.glob(f'{name}*{band}.ch'))
-            # else:
-            #     band = file_cbin.name.split('.')[-2]
-            #     name = '.'.join(file_cbin.name.split('.')[:-2])
-            #     file_meta, = list(file_cbin.parent.glob(f'{name}*{band}.meta'))
-            #     file_ch, = list(file_cbin.parent.glob(f'{name}*{band}.ch'))
             
             # copies over the meta file which will still have an uuid
-            # spikeglx.Reader(file_cbin).decompress_to_scratch(file_meta=file_meta, file_ch=file_ch, scratch_dir=target_bin.parent)
             spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(scratch_dir=target_bin.parent)
 
             if remove_uuid:
@@ -374,26 +286,18 @@ def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, rem
 """
 
 def convert_session_(**kwargs):
+    # a poor mans logger
     try:
         convert_session(**kwargs)
     except Exception as e:
         eid = kwargs['eid']
-        _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
-        _logger.error(e)
-        return None  # Return None or handle the error as needed
+        # _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
+        with open(kwargs['base_path'] / f'{eid}_err.log', 'w') as fH:
+            fH.writelines(traceback.format_exception(e))
+    return None
 
 def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool=True, mode:str='raw', base_path:Path=None, verify:bool=True):
-    """converts the session associated with the eid and the revision to .nwb
-
-    Args:
-        eid (str, optional): _description_. Defaults to None.
-        one (ONE, optional): _description_. Defaults to None.
-        revision (str, optional): _description_. Defaults to None.
-        cleanup (bool, optional): _description_. Defaults to True.
-        mode (str, optional): _description_. Defaults to 'raw'.
-        base_path (Path, optional): _description_. Defaults to None.
-        verify (bool, optional): _description_. Defaults to True.
-    """
+    # converts the session associated with the eid and the revision to .nwb
     
     # path setup
     paths = setup_paths(one, eid, base_path=base_path)
@@ -406,6 +310,7 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
     _logger.addHandler(handler)
     _logger.debug(f"logger set up for {eid}")
     _logger.debug(f"initializing data interfaces for mode {mode} ")
+
     match mode: 
         case 'raw':
             _logger.debug(f"decompressing raw ephys data ... ")
@@ -448,20 +353,21 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
             fname = f"sub-{subject_id}_ses-{eid}_desc-debug.nwb"
 
     _logger.info(f"converting: {eid} with mode:{mode} ... ")
+    nwbfile_path = paths["output_folder"] / fname
     session_converter.run_conversion(
-        nwbfile_path=paths["output_folder"] / fname,
+        nwbfile_path=nwbfile_path,
         metadata=metadata,
         ibl_metadata=dict(revision=revision),
         overwrite=True,
     )
-    _logger.info(f" ... done successfully: {eid} with mode:{mode}")
+    _logger.info(f" ... conversion done. File written to {nwbfile_path}")
 
     if cleanup:
         paths_cleanup(paths)
         _logger.info(f" cleanup done")
 
     if verify:
-        check_nwbfile_for_consistency(one=one, nwbfile_path=paths["output_folder"] / fname)
+        check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
         _logger.info(f"all checks passed for {eid} with mode:{mode}")
     
     # for keeping track of the jobs

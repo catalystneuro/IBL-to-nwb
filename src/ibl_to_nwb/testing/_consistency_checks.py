@@ -13,10 +13,12 @@ from iblatlas.atlas import AllenAtlas
 import logging
 
 def get_logger(eid: str):
+    # helper to get the eid specific logger
     _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
     return _logger
 
 def eid2pid(eid, bwm_df):
+    # helper to replace the online one functionality
     _df = bwm_df.set_index("eid").loc[[eid]]
     pids = []
     pnames = []
@@ -26,22 +28,23 @@ def eid2pid(eid, bwm_df):
     return pids, pnames
 
 def pid2eid(pid, bwm_df):
+    # helper to replace the online one functionality
     _df = bwm_df.set_index("pid").loc[pid]
     return _df["eid"], _df["probe_name"]
 
 
 def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
-    
     # _logger.debug(f"verifying {nwbfile_path} for consistency")
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         nwbfile = io.read()
         
+        # run all consistentcy checks for processed data
         if 'processed_behavior+ecephys' in str(nwbfile_path):
-            # run all consistentcy checks for processed data
             _check_trials_data(nwbfile=nwbfile, one=one)
             _check_wheel_data(nwbfile=nwbfile, one=one)
             _check_spike_sorting_data(nwbfile=nwbfile, one=one)
-            # these are "optional"
+            
+            # these are not always present for all datasets, therefore check for existence first
             for data_interface_name in nwbfile.processing['camera'].data_interfaces.keys():
                 if 'Pose' in data_interface_name:
                     _check_pose_estimation_data(nwbfile=nwbfile, one=one)
@@ -52,8 +55,8 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
                 if 'Lick' in data_interface_name:
                     _check_lick_data(nwbfile=nwbfile, one=one)
 
+        # run checks for raw files
         if 'raw_ecephys+image' in str(nwbfile_path):
-            # run checks for raw files
             _check_raw_ephys_data(one=one, nwbfile=nwbfile)
             _check_raw_video_data(one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
 
@@ -294,7 +297,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
         # spike_times_from_ONE = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
 
         # testing
-        assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1)
+        assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1.)
     _logger.debug(f"spike times passed")
 
     # test unit locations
@@ -345,8 +348,9 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
         for band in ["lf", "ap"]:
             # pid = pidname_map[pname]
             spike_sorting_loader = SpikeSortingLoader(eid=eid, pname=pname, one=one, revision=revision)
+            # forcing this to run only with one in local mode (as required for SDSC)
+            stream = False
             # stream = False if "USE_SDSC_ONE" in os.environ else True
-            stream = False # FIXME now forcing this to run only locally on SDSC
             sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=revision)
             data_one = sglx_streamer._raw
 
