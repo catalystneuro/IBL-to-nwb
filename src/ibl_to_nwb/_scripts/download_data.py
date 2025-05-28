@@ -1,45 +1,43 @@
-# %%
+# %% imports
 from pathlib import Path
-
 from one.api import ONE
 
-# %%
-eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"  # a BWM eid with dual probe
+# %% session selection
+# eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"  # a BWM eid with dual probe
+eid = "09394481-8dd2-4d5c-9327-f2753ede92d7" # the spike timestamps issue for Heberto
 
+# %% path setup
 base_path = Path.home() / "ibl_scratch"  # local directory
-
-# Download behavior and spike sorted data for this eid
 session_path = base_path / "ibl_conversion" / eid
 cache_folder = base_path / "ibl_conversion" / eid / "cache"
-session_one = ONE(
+one = ONE(
     base_url="https://openalyx.internationalbrainlab.org",
     password="international",
     silent=False,
     cache_dir=cache_folder,
 )
 
-# %% latest revision
-revisions = session_one.list_revisions(eid)
-revision = revisions[-1]
+# %% revision selection
+revisions = one.list_revisions(eid)
+revision = revisions[-1] # latest revision
+revision = "2025-05-06" # the revision used for the BWM conversion
 
-# %% list all datasets
-datasets = session_one.list_datasets(eid)
+# %% inpsection
+datasets = one.list_datasets(eid)
+collections = one.list_collections(eid)
 
-# %% list all collections
-collections = session_one.list_collections(eid)
-
-# %%
+# %% download everything
 for dataset in datasets:
-    session_one.load_dataset(eid, dataset, download_only=True)
+    one.load_dataset(eid, dataset, download_only=True)
 
-# %% downloads all raw ephys data!
-collections = session_one.list_collections(eid, collection="raw_ephys_data/*")
+# %% downloads just raw ephys data
+collections = one.list_collections(eid, collection="raw_ephys_data/*")
 for collection in collections:
-    datasets = session_one.list_datasets(eid, collection=collection)
+    datasets = one.list_datasets(eid, collection=collection)
     for dataset in datasets:
-        session_one.load_dataset(eid, dataset, download_only=True)
+        one.load_dataset(eid, dataset, download_only=True)
 
-# %% just the video data
-datasets = session_one.list_datasets(eid, collection="raw_video_data")
+# %% downloads just the video data
+datasets = one.list_datasets(eid, collection="raw_video_data")
 for dataset in datasets:
-    session_one.load_dataset(eid, dataset, download_only=True)
+    one.load_dataset(eid, dataset, download_only=True)
