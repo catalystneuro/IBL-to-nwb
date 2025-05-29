@@ -11,6 +11,7 @@ from iblatlas.regions import BrainRegions
 from neuroconv.utils import get_json_schema_from_method_signature
 from one.api import ONE
 from spikeinterface import BaseSorting, BaseSortingSegment
+from tqdm import tqdm
 
 
 class IblSortingExtractor(BaseSorting):
@@ -67,13 +68,20 @@ class IblSortingExtractor(BaseSorting):
             cluster_ids.extend(list(np.arange(number_of_units).astype("int32") + unit_id_per_probe_shift))
 
             # TODO - compare speed against iterating over unique cluster IDs + vector index search
-            for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
-                spikes["clusters"], spikes["times"], spikes["amps"], spikes["depths"]
-            ):
+            # for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
+            #     spikes["clusters"], spikes["times"], spikes["amps"], spikes["depths"]
+            # ):
+            #     unit_id = unit_id_per_probe_shift + spike_cluster
+            #     spike_times_by_id[unit_id].append(spike_times)
+            #     spike_amplitudes_by_id[unit_id].append(spike_amplitudes)
+            #     spike_depths_by_id[unit_id].append(spike_depths)
+
+            for spike_cluster in tqdm(np.unique(spikes["clusters"])):
+                ix = np.where(spikes["clusters"] == spike_cluster)[0]
                 unit_id = unit_id_per_probe_shift + spike_cluster
-                spike_times_by_id[unit_id].append(spike_times)
-                spike_amplitudes_by_id[unit_id].append(spike_amplitudes)
-                spike_depths_by_id[unit_id].append(spike_depths)
+                spike_times_by_id[unit_id] = spikes["times"][ix]
+                spike_amplitudes_by_id[unit_id] = spikes["amps"][ix]
+                spike_depths_by_id[unit_id] = spikes["depths"][ix]
 
             unit_id_per_probe_shift += number_of_units
             all_unit_properties["probe_name"].extend([probe_name] * number_of_units)
@@ -129,6 +137,7 @@ class IblSortingExtractor(BaseSorting):
                     )
                 )
 
+        # this is obsolete now
         for unit_id in spike_times_by_id:  # Cast as arrays for fancy indexing
             spike_times_by_id[unit_id] = np.array(spike_times_by_id[unit_id])
             spike_amplitudes_by_id[unit_id] = np.array(spike_amplitudes_by_id[unit_id])

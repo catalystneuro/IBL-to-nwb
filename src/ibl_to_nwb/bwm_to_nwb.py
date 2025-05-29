@@ -27,34 +27,6 @@ from one.api import ONE
 
 import logging
 import traceback
-# logger setup
-# _logger = logging.getLogger(f'bwm_to_nwb')
-
-# def setup_logger():
-#     # Create a logger
-#     logger = logging.getLogger('ibl_to_nwb')
-#     logger.setLevel(logging.DEBUG)
-
-#     # Create file handler
-#     file_handler = logging.FileHandler(Path.home() / 'bwm_conversion.log')
-#     file_handler.setLevel(logging.DEBUG)
-
-#     # Create console handler
-#     console_handler = logging.StreamHandler()
-#     console_handler.setLevel(logging.DEBUG)
-
-#     # Create a formatter and set it for both handlers
-#     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-#     file_handler.setFormatter(formatter)
-#     console_handler.setFormatter(formatter)
-
-#     # Add handlers to the logger
-#     logger.addHandler(file_handler)
-#     logger.addHandler(console_handler)
-
-#     return logger
-
-# _logger = logging.getLogger('bwm_to_nwb')
 
 """
 ########     ###    ######## ##     ##
@@ -66,19 +38,22 @@ import traceback
 ##        ##     ##    ##    ##     ##
 """
 
+
 def setup_paths(one: ONE, eid: str, base_path: Path = Path.home() / "ibl_bmw_to_nwb") -> dict:
     # setup a dictionary that contains all relevant paths for the conversion
 
-    subject = one.eid2ref(eid)['subject']
+    subject = one.eid2ref(eid)["subject"]
     paths = dict(
-        output_folder = base_path / "nwbfiles" / f"sub-{subject}",
-        session_folder = one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
-        scratch_folder = Path('/scratch') # <- this is to be changed to /scratch on the node
+        output_folder=base_path / "nwbfiles" / f"sub-{subject}",
+        session_folder=one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
+        scratch_folder=Path("/scratch"),  # <- this is to be changed to /scratch on the node
     )
 
     # inferred from above
     paths["session_scratch_folder"] = paths["scratch_folder"] / eid
-    paths["spikeglx_source_folder"] = paths["session_scratch_folder"] / "raw_ephys_data" # <- this will be based on the session_scratch_folder 
+    paths["spikeglx_source_folder"] = (
+        paths["session_scratch_folder"] / "raw_ephys_data"
+    )  # <- this will be based on the session_scratch_folder
 
     # just to be on the safe side
     for _, path in paths.items():
@@ -86,9 +61,10 @@ def setup_paths(one: ONE, eid: str, base_path: Path = Path.home() / "ibl_bmw_to_
 
     return paths
 
+
 def remove_uuid_from_filepath(file_path: Path) -> Path:
     # if the filename contains an uuid string, it is removed. Otherwise, just returns the path.
-    
+
     dir, name = file_path.parent, file_path.name
     name_parts = name.split(".")
     if is_uuid_string(name_parts[-2]):
@@ -99,7 +75,7 @@ def remove_uuid_from_filepath(file_path: Path) -> Path:
         return file_path
 
 
-def filter_file_paths(file_paths: list[Path], include: list|None = None, exclude: list|None = None) ->list[Path]:
+def filter_file_paths(file_paths: list[Path], include: list | None = None, exclude: list | None = None) -> list[Path]:
     # include filter
     if include is not None:
         file_paths_ = []
@@ -120,12 +96,13 @@ def filter_file_paths(file_paths: list[Path], include: list|None = None, exclude
 
     return list(file_paths)
 
-def tree_copy(source_dir: Path, target_dir: Path, remove_uuid:bool=True, include=None, exclude=None):
+
+def tree_copy(source_dir: Path, target_dir: Path, remove_uuid: bool = True, include=None, exclude=None):
     # include and exclude can be lists
-    file_paths = list(source_dir.rglob('**/*'))
+    file_paths = list(source_dir.rglob("**/*"))
     if include is not None or exclude is not None:
         file_paths = filter_file_paths(file_paths, include, exclude)
-    
+
     for source_file_path in file_paths:
         if source_file_path.is_file():
             target_file_path = target_dir / source_file_path.relative_to(source_dir)
@@ -137,12 +114,12 @@ def tree_copy(source_dir: Path, target_dir: Path, remove_uuid:bool=True, include
             # else:
             #     _logger.debug(f"skipping copy for {source_file_path} to {target_file_path}, exists already")
 
+
 def paths_cleanup(paths: dict):
-    # unlink the symlinks in the scratch folder and remove the scratch 
+    # unlink the symlinks in the scratch folder and remove the scratch
     # os.system(f"find {paths['session_scratch_folder']} -type l -exec unlink {{}} \;")
     # _logger.debug(f"removing {paths['session_scratch_folder']}")
     shutil.rmtree(paths["session_scratch_folder"])
-
 
 
 """
@@ -155,15 +132,17 @@ def paths_cleanup(paths: dict):
 ########  ##     ##    ##    ##     ##    #### ##    ##    ##    ######## ##     ## ##       ##     ##  ######  ########  ######
 """
 
+
 def get_camera_name_from_file(filepath):
     # smaller helper
     filename = Path(filepath).name
-    if filename.startswith('_ibl_'):
-        filename = filename.split('_ibl_')[1] # remove namespace
-    camera_name = filename.split('.')[0] # remove suffixes 
+    if filename.startswith("_ibl_"):
+        filename = filename.split("_ibl_")[1]  # remove namespace
+    camera_name = filename.split(".")[0]  # remove suffixes
     return camera_name
 
-def _get_processed_data_interfaces(one: ONE, eid: str, revision:str=None) -> list:
+
+def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> list:
     # Returns a list of the data interfaces to build the processed NWB file for this session
 
     data_interfaces = []
@@ -201,17 +180,21 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision:str=None) -> lis
 
 def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
     # Returns a list of the data interfaces to build the raw NWB file for this session
-    
+
     data_interfaces = []
 
     # get the pid/pname mapping for this eid
     bwm_df = load_fixtures.load_bwm_df()
-    df = bwm_df.groupby('eid').get_group(eid)
-    pname_pid_map = df.set_index('probe_name')['pid'].to_dict()
+    df = bwm_df.groupby("eid").get_group(eid)
+    pname_pid_map = df.set_index("probe_name")["pid"].to_dict()
 
     # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
     spikeglx_subconverter = IblSpikeGlxConverter(
-        folder_path=paths["spikeglx_source_folder"], one=one, eid=eid, pname_pid_map=pname_pid_map, revision=revision,
+        folder_path=paths["spikeglx_source_folder"],
+        one=one,
+        eid=eid,
+        pname_pid_map=pname_pid_map,
+        revision=revision,
     )
     data_interfaces.append(spikeglx_subconverter)
 
@@ -232,6 +215,7 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
         data_interfaces.append(video_interface)
     return data_interfaces
 
+
 """
 ########  ########  ######## ########
 ##     ## ##     ## ##       ##     ##
@@ -241,13 +225,15 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
 ##        ##    ##  ##       ##
 ##        ##     ## ######## ##
 """
-def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, remove_uuid:bool=True):
+
+
+def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = None, remove_uuid: bool = True):
     # target is the folder to compress into
 
     # decompress cbin if necessary
     for file_cbin in source_folder.rglob("*.cbin"):
         if target_folder is not None:
-            target_bin = (target_folder / file_cbin.relative_to(source_folder)).with_suffix('.bin')
+            target_bin = (target_folder / file_cbin.relative_to(source_folder)).with_suffix(".bin")
             # target_bin = target_folder / file_cbin.with_suffix('.bin').name
         else:
             target_bin = file_cbin.with_suffix(".bin")
@@ -256,24 +242,27 @@ def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, rem
 
         if not target_bin_no_uuid.exists():
             # _logger.info(f"decompressing {file_cbin}")
-            
+
             # find corresponding meta file
             name = remove_uuid_from_filepath(file_cbin).stem
-            file_meta, = list(file_cbin.parent.glob(f'{name}*.meta'))
-            file_ch, = list(file_cbin.parent.glob(f'{name}*.ch'))
-            
+            (file_meta,) = list(file_cbin.parent.glob(f"{name}*.meta"))
+            (file_ch,) = list(file_cbin.parent.glob(f"{name}*.ch"))
+
             # copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(scratch_dir=target_bin.parent)
+            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(
+                scratch_dir=target_bin.parent
+            )
 
             if remove_uuid:
                 shutil.move(target_bin, target_bin_no_uuid)
-            
+
             # remove uuid from meta file at target directory
             if target_folder is not None and remove_uuid is True:
                 file_meta_target = remove_uuid_from_filepath(target_bin.parent / file_meta.name)
                 if not file_meta_target.exists():
                     shutil.move(target_bin.parent / file_meta.name, file_meta_target)
                     # _logger.info(f"moving {target_bin.parent / file_meta.name} to {file_meta_target}")
+
 
 """
  ######   #######  ##    ## ##     ## ######## ########  ########
@@ -285,39 +274,56 @@ def decompress_ephys_cbins(source_folder:Path, target_folder:Path|None=None, rem
  ######   #######  ##    ##    ###    ######## ##     ##    ##
 """
 
+
 def convert_session_(**kwargs):
     # a poor mans logger
     try:
         convert_session(**kwargs)
     except Exception as e:
-        eid = kwargs['eid']
+        eid = kwargs["eid"]
         # _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
-        with open(kwargs['base_path'] / f'{eid}_err.log', 'w') as fH:
+        with open(kwargs["base_path"] / f"{eid}_err.log", "w") as fH:
             fH.writelines(traceback.format_exception(e))
     return None
 
-def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool=True, mode:str='raw', base_path:Path=None, verify:bool=True):
+
+def convert_session(
+    eid: str = None,
+    one: ONE = None,
+    revision: str = None,
+    cleanup: bool = True,
+    mode: str = "raw",
+    base_path: Path = None,
+    verify: bool = True,
+    log_to_file=False,
+    debug=False,
+):
     # converts the session associated with the eid and the revision to .nwb
-    
+
     # path setup
     paths = setup_paths(one, eid, base_path=base_path)
 
     # create sublogger with a seperate file handle to log each conversion into a seperate file
-    _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
+    _logger = logging.getLogger(f"bwm_to_nwb.{eid}")
     _logger.setLevel(logging.DEBUG)
-    handler = logging.FileHandler(base_path / f'{eid}.log')
-    handler.setLevel(logging.DEBUG)
-    _logger.addHandler(handler)
     _logger.debug(f"logger set up for {eid}")
-    _logger.debug(f"initializing data interfaces for mode {mode} ")
+    if log_to_file:
+        handler = logging.FileHandler(base_path / f"{eid}.log")
+        handler.setLevel(logging.DEBUG)
+        _logger.addHandler(handler)
+        _logger.debug(f"initializing data interfaces for mode {mode} ")
 
-    match mode: 
-        case 'raw':
+    match mode:
+        case "raw":
             _logger.debug(f"decompressing raw ephys data ... ")
-            decompress_ephys_cbins(paths['session_folder'], paths['session_scratch_folder'])
+            decompress_ephys_cbins(paths["session_folder"], paths["session_scratch_folder"])
             # now copy the remaining files, copy everything that is not cbin
             _logger.debug(f"copying raw ephys data to local scratch ... ")
-            tree_copy(paths['session_folder'] / 'raw_ephys_data', paths['session_scratch_folder'] / 'raw_ephys_data', exclude='.cbin')
+            tree_copy(
+                paths["session_folder"] / "raw_ephys_data",
+                paths["session_scratch_folder"] / "raw_ephys_data",
+                exclude=".cbin",
+            )
             _logger.debug(f" ...done")
 
             session_converter = BrainwideMapConverter(
@@ -329,8 +335,8 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
             metadata = session_converter.get_metadata()
             subject_id = metadata["Subject"]["subject_id"]
             fname = f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys+image.nwb"
-        
-        case 'processed':
+
+        case "processed":
             session_converter = BrainwideMapConverter(
                 one=one,
                 session=eid,
@@ -340,12 +346,15 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
             metadata = session_converter.get_metadata()
             subject_id = metadata["Subject"]["subject_id"]
             fname = f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
-            
-        case 'debug':
+
+        case "debug":
             session_converter = BrainwideMapConverter(
                 one=one,
                 session=eid,
-                data_interfaces=[WheelInterface(one=one, session=eid, revision=revision)],
+                data_interfaces=[
+                    IblSortingInterface(one=one, session=eid, revision=revision),
+                ],
+                # data_interfaces=[WheelInterface(one=one, session=eid, revision=revision)],
                 verbose=True,
             )
             metadata = session_converter.get_metadata()
@@ -369,8 +378,9 @@ def convert_session(eid: str=None, one:ONE=None, revision:str=None, cleanup:bool
     if verify:
         check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
         _logger.info(f"all checks passed for {eid} with mode:{mode}")
-    
-    # for keeping track of the jobs
-    running_dir = base_path / 'eids_running'
-    done_dir = base_path / 'eids_done'
-    shutil.move(running_dir / f'{eid}', done_dir / f'{eid}')
+
+    if not debug:
+        # for keeping track of the jobs
+        running_dir = base_path / "eids_running"
+        done_dir = base_path / "eids_done"
+        shutil.move(running_dir / f"{eid}", done_dir / f"{eid}")
