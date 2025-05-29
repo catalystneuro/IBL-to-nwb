@@ -38,15 +38,18 @@ class IblSortingExtractor(BaseSorting):
         session: str,
         revision: Optional[str] = None,
     ):
-        if revision is None:  # latest
+        if revision is None:  # if no revision is specified, use the latest
             revision = one.list_revisions(session)[-1]
 
         atlas = AllenAtlas()
         brain_regions = BrainRegions()
 
-        dataset_contents = one.list_datasets(eid=session, collection="raw_ephys_data/*")
-        raw_contents = [dataset_content for dataset_content in dataset_contents if not dataset_content.endswith(".npy")]
-        probe_names = set([raw_content.split("/")[1] for raw_content in raw_contents])
+        probe_names = [
+            probe_description["label"] for probe_description in one.load_dataset(session, "probes.description")
+        ]
+        # dataset_contents = one.list_datasets(eid=session, collection="raw_ephys_data/*")
+        # raw_contents = [dataset_content for dataset_content in dataset_contents if not dataset_content.endswith(".npy")]
+        # probe_names = set([raw_content.split("/")[1] for raw_content in raw_contents])
 
         sorting_loaders = dict()
         spike_times_by_id = defaultdict(list)  # Cast lists per key as arrays after assembly

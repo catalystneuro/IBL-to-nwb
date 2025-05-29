@@ -13,26 +13,14 @@ else:
 # right now, enforcing the use of SDSC one
 # from deploy.iblsdsc import OneSdsc as ONE
 
-# from pynwb import NWBHDF5IO
-
+from pynwb import NWBHDF5IO
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
-# nwbfile_path = sys.argv[1]
-# nwbfile_path = "/home/georg/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
-# nwbfile_path = "/home/georg/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-processed_behavior+ecephys.nwb"
-# nwbfile_path = "/mnt/home/graiser/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-processed_behavior+ecephys.nwb"
-# nwbfile_path = "/mnt/home/graiser/ibl_scratch/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
-# nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
-# nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NYU-12/sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-raw_ecephys+image.nwb"
-# nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NYU-12/sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-raw_ecephys+image.nwb"
+nwbfile_path = Path("/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-ibl_witten_26/sub-ibl_witten_26_ses-09394481-8dd2-4d5c-9327-f2753ede92d7_desc-processed_behavior+ecephys.nwb")
 
-# nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NR_0031/sub-NR_0031_ses-caa5dddc-9290-4e27-9f5e-575ba3598614_desc-raw_ecephys+image.nwb"
-# eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"
-nwbfile_path = "/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-NYU-11/sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d_desc-processed_behavior+ecephys.nwb"
-eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d"
-# with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
-#     nwbfile = io.read()
-#     eid = nwbfile.session_id
+with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
+    nwbfile = io.read()
+    eid = nwbfile.session_id
 
 
 # %%
@@ -44,8 +32,6 @@ output_folder.mkdir(exist_ok=True, parents=True)
 
 # common
 one_kwargs = dict(
-    # base_url="https://openalyx.internationalbrainlab.org",
-    # password="international",
     mode="local",
 )
 

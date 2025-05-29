@@ -29,7 +29,7 @@ from ibl_to_nwb import bwm_to_nwb
 # _logger.setLevel(logging.DEBUG)
 
 REVISION = "2025-05-06"
-N_JOBS = 12
+N_JOBS = 4
 RESET = False
 
 base_path = Path("/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/")
@@ -59,12 +59,6 @@ if len(eids) < N_JOBS:
     N_JOBS = len(eids)
 eids_ = eids[:N_JOBS]
 
-# common
-one_kwargs = dict(
-    mode="local",
-    cache_rest = None, 
-)
-
 # instantiate one
 one = ONE(
     mode="local", # required for SDSC use
@@ -72,14 +66,16 @@ one = ONE(
 )
 
 # %%
-# mode = "raw"
+mode = "raw"
 # mode = "debug"
-mode = "processed"
+# mode = "processed"
 
 # %% the full thing
-# N_JOBS = 1
-if N_JOBS == 1: # this is debugging single ones 
-    eid = "09394481-8dd2-4d5c-9327-f2753ede92d"
+N_JOBS = 1
+if N_JOBS == 1: # this is debugging single   ones 
+    eid = "b81e3e11-9a60-4114-b894-09f85074d9c3" # <- this seems to have problems with the spike sorting!
+    eid = "1f095590-6669-46c9-986b-ccaf0620c5e9" # <- errors out with the 1. != 1.
+
     bwm_to_nwb.convert_session_(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
 else:
     for eid in eids_:

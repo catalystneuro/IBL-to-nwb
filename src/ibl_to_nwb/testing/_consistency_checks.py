@@ -288,7 +288,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
         spike_times_from_NWB = units_table.loc[ix, "spike_times"]
 
         cluster_id = np.where(clusters[probe_name]["uuids"] == uuid)[0][0]
-        spikes[probe_name]["clusters"]
+        # spikes[probe_name]["clusters"]
         spike_times_from_ONE = get_spikes_for_cluster(
             spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id
         )
