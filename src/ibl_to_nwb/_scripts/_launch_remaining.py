@@ -33,13 +33,13 @@ base_path.mkdir(exist_ok=True, parents=True)
 
 
 REVISION = "2025-05-06"
-N_JOBS = 4
+N_JOBS = 12
 DEBUG = True
 
 if DEBUG:
     eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
     # crashes locally
-    eid = 
+    # eid = 
 else:
     # if not debugging
     # 3 folders: jobs are taken from a pile of eids in eids_todo
@@ -87,22 +87,37 @@ else:
 one = ONE(**one_kwargs)
 
 # %% mode selection
-mode = "raw"
+# mode = "raw"
 mode = "processed"
 
 # %% the full thing
 if DEBUG:  # this is debugging single   ones
-    bwm_to_nwb.convert_session(
-        eid=eid,
-        one=one,
-        revision=REVISION,
-        mode="debug",
-        cleanup=False,
-        base_path=base_path,
-        verify=True,
-        log_to_file=False,
-        debug=True,
+    # bwm_to_nwb.convert_session(
+    #     eid=eid,
+    #     one=one,
+    #     revision=REVISION,
+    #     mode="debug",
+    #     cleanup=False,
+    #     base_path=base_path,
+    #     verify=True,
+    #     log_to_file=False,
+    #     debug=True,
+    # )
+    eids_ = [eid]
+    jobs = (
+        joblib.delayed(bwm_to_nwb.convert_session_)(
+            eid=eid,
+            one=one,
+            revision=REVISION,
+            mode=mode,
+            cleanup=False,
+            base_path=base_path,
+            verify=True,
+            log_to_file=False,
+        )
+        for eid in eids_
     )
+    joblib.Parallel(n_jobs=N_JOBS)(jobs)
 else:
     for eid in eids_:
         shutil.move(todo_dir / f"{eid}", running_dir / f"{eid}")
