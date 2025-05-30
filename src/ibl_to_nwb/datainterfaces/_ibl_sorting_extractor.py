@@ -76,12 +76,31 @@ class IblSortingExtractor(BaseSorting):
             #     spike_amplitudes_by_id[unit_id].append(spike_amplitudes)
             #     spike_depths_by_id[unit_id].append(spike_depths)
 
+            # pre-sort for fast access
+            # sort_ix = np.argsort(spikes["clusters"])
+            # spikes_times = spikes["times"][sort_ix]
+            # spikes_clusters = spikes["clusters"][sort_ix]
+            # spikes_amps = spikes["amps"][sort_ix]
+            # spikes_depths = spikes["depths"][sort_ix]
+
+            # def get_spikes_for_cluster(spike_clusters, spike_times, cluster):
+            #     # requires that spike_times and spike_clusters are sorted
+            #     start_ix, stop_ix = np.searchsorted(spike_clusters, [cluster, cluster + 1])
+            #     return np.sort(spike_times[start_ix:stop_ix])
+
             for spike_cluster in tqdm(np.unique(spikes["clusters"])):
                 ix = np.where(spikes["clusters"] == spike_cluster)[0]
                 unit_id = unit_id_per_probe_shift + spike_cluster
                 spike_times_by_id[unit_id] = spikes["times"][ix]
                 spike_amplitudes_by_id[unit_id] = spikes["amps"][ix]
                 spike_depths_by_id[unit_id] = spikes["depths"][ix]
+
+            # for spike_cluster in tqdm(np.unique(spikes["clusters"])):
+            #     start_ix, stop_ix = np.searchsorted(spikes_clusters, [spike_cluster, spike_cluster + 1])
+            #     unit_id = unit_id_per_probe_shift + spike_cluster
+            #     spike_times_by_id[unit_id] = spikes_times[start_ix:stop_ix]
+            #     spike_amplitudes_by_id[unit_id] = spikes_amps[start_ix:stop_ix]
+            #     spike_depths_by_id[unit_id] = spikes_depths[start_ix:stop_ix]
 
             unit_id_per_probe_shift += number_of_units
             all_unit_properties["probe_name"].extend([probe_name] * number_of_units)
