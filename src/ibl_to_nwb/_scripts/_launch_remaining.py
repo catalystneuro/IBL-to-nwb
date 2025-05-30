@@ -37,9 +37,10 @@ N_JOBS = 12
 DEBUG = True
 
 if DEBUG:
-    eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
+    # eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
+    eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d" # the LF timestamps issue
+    N_JOBS = 1
     # crashes locally
-    # eid = 
 else:
     # if not debugging
     # 3 folders: jobs are taken from a pile of eids in eids_todo
@@ -87,22 +88,11 @@ else:
 one = ONE(**one_kwargs)
 
 # %% mode selection
-# mode = "raw"
-mode = "processed"
+mode = "raw"
+# mode = "processed"
 
 # %% the full thing
-if DEBUG:  # this is debugging single   ones
-    # bwm_to_nwb.convert_session(
-    #     eid=eid,
-    #     one=one,
-    #     revision=REVISION,
-    #     mode="debug",
-    #     cleanup=False,
-    #     base_path=base_path,
-    #     verify=True,
-    #     log_to_file=False,
-    #     debug=True,
-    # )
+if DEBUG:  # this is for debugging single sessions
     eids_ = [eid]
     jobs = (
         joblib.delayed(bwm_to_nwb.convert_session_)(
