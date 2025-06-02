@@ -67,6 +67,7 @@ class IblSortingExtractor(BaseSorting):
             number_of_units = len(np.unique(spikes["clusters"]))
             cluster_ids.extend(list(np.arange(number_of_units).astype("int32") + unit_id_per_probe_shift))
 
+            # previous by cody
             # TODO - compare speed against iterating over unique cluster IDs + vector index search
             # for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
             #     spikes["clusters"], spikes["times"], spikes["amps"], spikes["depths"]
@@ -76,24 +77,21 @@ class IblSortingExtractor(BaseSorting):
             #     spike_amplitudes_by_id[unit_id].append(spike_amplitudes)
             #     spike_depths_by_id[unit_id].append(spike_depths)
 
-            # pre-sort for fast access
-            # sort_ix = np.argsort(spikes["clusters"])
-            # spikes_times = spikes["times"][sort_ix]
-            # spikes_clusters = spikes["clusters"][sort_ix]
-            # spikes_amps = spikes["amps"][sort_ix]
-            # spikes_depths = spikes["depths"][sort_ix]
-
-            # def get_spikes_for_cluster(spike_clusters, spike_times, cluster):
-            #     # requires that spike_times and spike_clusters are sorted
-            #     start_ix, stop_ix = np.searchsorted(spike_clusters, [cluster, cluster + 1])
-            #     return np.sort(spike_times[start_ix:stop_ix])
-
+            # simply numpy indexing - here 2x faster than searchsorted ... ?
             for spike_cluster in tqdm(np.unique(spikes["clusters"])):
                 ix = np.where(spikes["clusters"] == spike_cluster)[0]
                 unit_id = unit_id_per_probe_shift + spike_cluster
                 spike_times_by_id[unit_id] = spikes["times"][ix]
                 spike_amplitudes_by_id[unit_id] = spikes["amps"][ix]
                 spike_depths_by_id[unit_id] = spikes["depths"][ix]
+
+            # should outperform but doesn't
+            # pre-sort for fast access
+            # sort_ix = np.argsort(spikes["clusters"])
+            # spikes_times = spikes["times"][sort_ix]
+            # spikes_clusters = spikes["clusters"][sort_ix]
+            # spikes_amps = spikes["amps"][sort_ix]
+            # spikes_depths = spikes["depths"][sort_ix]
 
             # for spike_cluster in tqdm(np.unique(spikes["clusters"])):
             #     start_ix, stop_ix = np.searchsorted(spikes_clusters, [spike_cluster, spike_cluster + 1])

@@ -6,16 +6,19 @@ from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
+
 # from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
 from iblatlas.atlas import AllenAtlas
 
 import logging
 
+
 def get_logger(eid: str):
     # helper to get the eid specific logger
-    _logger = logging.getLogger(f'bwm_to_nwb.{eid}')
+    _logger = logging.getLogger(f"bwm_to_nwb.{eid}")
     return _logger
+
 
 def eid2pid(eid, bwm_df):
     # helper to replace the online one functionality
@@ -27,6 +30,7 @@ def eid2pid(eid, bwm_df):
         pnames.append(row.probe_name)
     return pids, pnames
 
+
 def pid2eid(pid, bwm_df):
     # helper to replace the online one functionality
     _df = bwm_df.set_index("pid").loc[pid]
@@ -37,26 +41,26 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
     # _logger.debug(f"verifying {nwbfile_path} for consistency")
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         nwbfile = io.read()
-        
+
         # run all consistentcy checks for processed data
-        if 'processed_behavior+ecephys' in str(nwbfile_path):
+        if "processed_behavior+ecephys" in str(nwbfile_path):
             _check_trials_data(nwbfile=nwbfile, one=one)
             _check_wheel_data(nwbfile=nwbfile, one=one)
             _check_spike_sorting_data(nwbfile=nwbfile, one=one)
-            
+
             # these are not always present for all datasets, therefore check for existence first
-            for data_interface_name in nwbfile.processing['camera'].data_interfaces.keys():
-                if 'Pose' in data_interface_name:
+            for data_interface_name in nwbfile.processing["camera"].data_interfaces.keys():
+                if "Pose" in data_interface_name:
                     _check_pose_estimation_data(nwbfile=nwbfile, one=one)
-                if 'Motion' in data_interface_name:
+                if "Motion" in data_interface_name:
                     _check_roi_motion_energy_data(nwbfile=nwbfile, one=one)
-                if 'Pupil' in data_interface_name:
+                if "Pupil" in data_interface_name:
                     _check_pupil_tracking_data(nwbfile=nwbfile, one=one)
-                if 'Lick' in data_interface_name:
+                if "Lick" in data_interface_name:
                     _check_lick_data(nwbfile=nwbfile, one=one)
 
         # run checks for raw files
-        if 'raw_ecephys+image' in str(nwbfile_path):
+        if "raw_ecephys+image" in str(nwbfile_path):
             _check_raw_ephys_data(one=one, nwbfile=nwbfile)
             _check_raw_video_data(one=one, nwbfile=nwbfile, nwbfile_path=nwbfile_path)
 
@@ -64,8 +68,8 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
-    load_kwargs = dict(collection='alf', revision=revision)
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["wheel"]
     wheel_position_series = processing_module.data_interfaces["CompassDirection"].spatial_series["WheelPositionSeries"]
@@ -96,8 +100,8 @@ def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
 def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
-    load_kwargs = dict(collection='alf', revision=revision)
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["camera"]
     lick_times_table = processing_module.data_interfaces["LickTimes"][:]
@@ -112,8 +116,8 @@ def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
-    load_kwargs = dict(collection='alf', revision=revision)
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    load_kwargs = dict(collection="alf", revision=revision)
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
@@ -138,8 +142,8 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
-    load_kwargs = dict(collection='alf', revision=revision)
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    load_kwargs = dict(collection="alf", revision=revision)
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
@@ -151,16 +155,12 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
             for node in nodes:
                 # x
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 0]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
-                    f"{node}_x"
-                ].values
+                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_x"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # y
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 1]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
-                    f"{node}_y"
-                ].values
+                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_y"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # confidence
@@ -180,7 +180,7 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
 def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
 
     data_from_NWB = nwbfile.trials[:].reset_index(drop=True)
     session_loader = SessionLoader(one=one, eid=eid, revision=revision)
@@ -219,8 +219,8 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
 def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
-    load_kwargs = dict(collection='alf', revision=revision)
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["camera"]
 
@@ -250,7 +250,7 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
     bwm_df = load_fixtures.load_bwm_df()
     pids, probe_names = eid2pid(eid, bwm_df)
     pids = dict(zip(probe_names, pids))
@@ -296,25 +296,26 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
         # more verbose but slower for more than ~20 checks
         # spike_times_from_ONE = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
 
-        # testing
-        assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1.)
+        # testing - the original assertion
+        assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1.0)
+        # assert_array_less(np.max(np.absolute(spike_times_from_ONE - spike_times_from_NWB)), 1e-6)
     _logger.debug(f"spike times passed")
 
     # test unit locations
     units_nwb = nwbfile.units[:]
     units_df = load_fixtures.load_bwm_units_df()
-    units_ids = units_df.groupby('eid').get_group(eid)['uuids']
-    
+    units_ids = units_df.groupby("eid").get_group(eid)["uuids"]
+
     # beryl
-    one_beryl = units_df.set_index('uuids').loc[units_ids, 'Beryl']
-    nwb_beryl = units_nwb.set_index('cluster_uuid').loc[units_ids, 'beryl_location']
+    one_beryl = units_df.set_index("uuids").loc[units_ids, "Beryl"]
+    nwb_beryl = units_nwb.set_index("cluster_uuid").loc[units_ids, "beryl_location"]
     np.testing.assert_array_equal(one_beryl.values, nwb_beryl.values)
 
     # allen
     atlas = AllenAtlas()
-    atlas_ids = units_df.set_index('uuids').loc[units_ids, 'atlas_id']
+    atlas_ids = units_df.set_index("uuids").loc[units_ids, "atlas_id"]
     one_allen = np.array([atlas.regions.id2acronym(i)[0] for i in atlas_ids])
-    nwb_allen = units_nwb.set_index('cluster_uuid').loc[units_ids, 'allen_location'].values
+    nwb_allen = units_nwb.set_index("cluster_uuid").loc[units_ids, "allen_location"].values
     np.testing.assert_array_equal(one_allen, nwb_allen)
     _logger.debug(f"brain regions for units passed")
 
@@ -322,8 +323,8 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
-    
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+
     # comparing probe names
     # get the pid/pname mapping for this eid
     bwm_df = load_fixtures.load_bwm_df()
@@ -378,7 +379,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
                 # samples_one = np.array([data_one[*i] for i in ix])
                 # np.testing.assert_array_equal(samples_nwb, samples_one)
             _logger.debug(f"raw ephys data for {pname}/{band} passed")
-            
+
             # check the time stamps
             nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()[:]
 
@@ -394,9 +395,9 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data['ibl_bwm_metadata'].revision
-    load_kwargs = dict(collection='alf', revision=revision)
-    
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    load_kwargs = dict(collection="alf", revision=revision)
+
     # timestamps
     datasets = one.list_datasets(eid, "*Camera.times*", collection=load_kwargs["collection"])
     cameras = [key for key in nwbfile.acquisition.keys() if key.endswith("Camera")]
@@ -419,8 +420,11 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
         with open(one_video_path, "rb") as fH:
             one_video_bytes = fH.read(100)
 
-        
-        nwb_video_path = Path(nwbfile_path).parent / Path(nwbfile_path).parent.parts[-1] / Path(nwbfile.acquisition[camera].external_file[:][0])
+        nwb_video_path = (
+            Path(nwbfile_path).parent
+            / Path(nwbfile_path).parent.parts[-1]
+            / Path(nwbfile.acquisition[camera].external_file[:][0])
+        )
         with open(nwb_video_path, "rb") as fH:
             nwb_video_bytes = fH.read(100)
 

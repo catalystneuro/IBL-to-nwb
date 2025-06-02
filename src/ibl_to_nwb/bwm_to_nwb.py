@@ -46,8 +46,11 @@ def setup_paths(one: ONE, eid: str, base_path: Path = Path.home() / "ibl_bmw_to_
     paths = dict(
         output_folder=base_path / "nwbfiles" / f"sub-{subject}",
         session_folder=one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
-        scratch_folder=Path("/scratch"),  # <- this is to be changed to /scratch on the node
     )
+    if "USE_SDSC_ONE" in os.environ:
+        paths["scratch_folder"] = (Path("/scratch"),)  # <- on SDSC, a per node /scratch folder exists for this purpose
+    else:
+        paths["scratch_folder"] = Path.home() / "ibl_scratch"  # for local usage
 
     # inferred from above
     paths["session_scratch_folder"] = paths["scratch_folder"] / eid
@@ -231,7 +234,13 @@ def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = Non
     # target is the folder to compress into
 
     # decompress cbin if necessary
-    for file_cbin in source_folder.rglob("*.cbin"):
+    cbin_files = source_folder.rglob("*.cbin")
+    if len(cbin_files) == 0:
+        # TODO should copmlain
+        # _logger.critical('no .cbin files found to decompress')
+        ...
+
+    for file_cbin in cbin_files:
         if target_folder is not None:
             target_bin = (target_folder / file_cbin.relative_to(source_folder)).with_suffix(".bin")
             # target_bin = target_folder / file_cbin.with_suffix('.bin').name
@@ -315,16 +324,16 @@ def convert_session(
 
     match mode:
         case "raw":
-            _logger.debug(f"decompressing raw ephys data ... ")
+            _logger.debug("decompressing raw ephys data ... ")
             decompress_ephys_cbins(paths["session_folder"], paths["session_scratch_folder"])
             # now copy the remaining files, copy everything that is not cbin
-            _logger.debug(f"copying raw ephys data to local scratch ... ")
+            _logger.debug("copying raw ephys data to local scratch ... ")
             tree_copy(
                 paths["session_folder"] / "raw_ephys_data",
                 paths["session_scratch_folder"] / "raw_ephys_data",
                 exclude=".cbin",
             )
-            _logger.debug(f" ...done")
+            _logger.debug(" ...done")
 
             session_converter = BrainwideMapConverter(
                 one=one,
@@ -373,7 +382,7 @@ def convert_session(
 
     if cleanup:
         paths_cleanup(paths)
-        _logger.info(f" cleanup done")
+        _logger.info(" cleanup done")
 
     if verify:
         check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)

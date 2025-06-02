@@ -35,10 +35,12 @@ base_path.mkdir(exist_ok=True, parents=True)
 REVISION = "2025-05-06"
 N_JOBS = 12
 DEBUG = True
+USE_JOBLIB = False
 
 if DEBUG:
-    # eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
-    eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d" # the LF timestamps issue
+    eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
+    # eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d" # the LF timestamps issue
+    # eid = "d32876dd-8303-4720-8e7e-20678dc2fd71"  # no spikes['clusters'] ????
     N_JOBS = 1
     # crashes locally
 else:
@@ -88,40 +90,30 @@ else:
 one = ONE(**one_kwargs)
 
 # %% mode selection
-mode = "raw"
-# mode = "processed"
+# mode = "raw"
+mode = "processed"
 
 # %% the full thing
+kwargs = dict(
+    eid=eid,
+    one=one,
+    revision=REVISION,
+    mode=mode,
+    base_path=base_path,
+    cleanup=False,
+    log_to_file=False,
+    verify=True,
+)
+
 if DEBUG:  # this is for debugging single sessions
-    eids_ = [eid]
-    jobs = (
-        joblib.delayed(bwm_to_nwb.convert_session_)(
-            eid=eid,
-            one=one,
-            revision=REVISION,
-            mode=mode,
-            cleanup=False,
-            base_path=base_path,
-            verify=True,
-            log_to_file=False,
-        )
-        for eid in eids_
-    )
-    joblib.Parallel(n_jobs=N_JOBS)(jobs)
+    if USE_JOBLIB:
+        eids_ = [eid]
+        jobs = (joblib.delayed(bwm_to_nwb.convert_session_)(**kwargs) for eid in eids_)
+        joblib.Parallel(n_jobs=N_JOBS)(jobs)
+    else:
+        bwm_to_nwb.convert_session(**kwargs)
 else:
     for eid in eids_:
         shutil.move(todo_dir / f"{eid}", running_dir / f"{eid}")
-    jobs = (
-        joblib.delayed(bwm_to_nwb.convert_session_)(
-            eid=eid,
-            one=one,
-            revision=REVISION,
-            mode=mode,
-            cleanup=True,
-            base_path=base_path,
-            verify=True,
-            log_to_file=True,
-        )
-        for eid in eids_
-    )
+    jobs = (joblib.delayed(bwm_to_nwb.convert_session_)(**kwargs) for eid in eids_)
     joblib.Parallel(n_jobs=N_JOBS)(jobs)
