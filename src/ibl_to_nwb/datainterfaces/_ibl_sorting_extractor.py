@@ -182,7 +182,6 @@ class IblSortingExtractor(BaseSorting):
         for property_name, values in all_unit_properties.items():
             self.set_property(key=property_name, values=values, ids=cluster_ids)
 
-
     def get_unit_spike_train(
         self,
         unit_id: str | int,
@@ -196,13 +195,12 @@ class IblSortingExtractor(BaseSorting):
 
         if return_times is False:
             raise ValueError("return_times must be True for IblSortingExtractor.get_unit_spike_train()")
-        
-        
+
         segment = self._sorting_segments[segment_index]
         segment.get_unit_spike_times(unit_id=unit_id)
 
         spike_times = segment.get_unit_spike_times(unit_id=unit_id)
-        
+
         start_time = start_frame / self.get_sampling_frequency() if start_frame is not None else None
         end_time = end_frame / self.get_sampling_frequency() if end_frame is not None else None
 
@@ -212,6 +210,7 @@ class IblSortingExtractor(BaseSorting):
         if end_time is not None:
             spike_times = spike_times[spike_times < end_time]
         return spike_times
+
 
 class IblSortingSegment(BaseSortingSegment):
     def __init__(self, sampling_frequency: float, spike_times_by_id: Dict[int, np.ndarray]):
@@ -233,7 +232,6 @@ class IblSortingSegment(BaseSortingSegment):
             frames = frames[frames < end_frame]
         return frames
 
-    
     def get_unit_spike_times(self, unit_id: int) -> np.ndarray:
         """
         Get the spike times for a given unit ID.
