@@ -95,7 +95,6 @@ mode = "processed"
 
 # %% the full thing
 kwargs = dict(
-    eid=eid,
     one=one,
     revision=REVISION,
     mode=mode,
@@ -107,13 +106,12 @@ kwargs = dict(
 
 if DEBUG:  # this is for debugging single sessions
     if USE_JOBLIB:
-        eids_ = [eid]
-        jobs = (joblib.delayed(bwm_to_nwb.convert_session_)(**kwargs) for eid in eids_)
+        jobs = joblib.delayed(bwm_to_nwb.convert_session_)(eid=eid, **kwargs)
         joblib.Parallel(n_jobs=N_JOBS)(jobs)
     else:
         bwm_to_nwb.convert_session(**kwargs)
 else:
     for eid in eids_:
         shutil.move(todo_dir / f"{eid}", running_dir / f"{eid}")
-    jobs = (joblib.delayed(bwm_to_nwb.convert_session_)(**kwargs) for eid in eids_)
+    jobs = (joblib.delayed(bwm_to_nwb.convert_session_)(eid=eid, **kwargs) for eid in eids_)
     joblib.Parallel(n_jobs=N_JOBS)(jobs)

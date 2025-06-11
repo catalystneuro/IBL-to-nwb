@@ -45,9 +45,7 @@ class IblSortingExtractor(BaseSorting):
         atlas = AllenAtlas()
         brain_regions = BrainRegions()
 
-        probe_names = [
-            probe_description["label"] for probe_description in one.load_dataset(session, "probes.description")
-        ]
+        probe_names = [probe_description["label"] for probe_description in one.load_dataset(session, "probes.description")]
         # dataset_contents = one.list_datasets(eid=session, collection="raw_ephys_data/*")
         # raw_contents = [dataset_content for dataset_content in dataset_contents if not dataset_content.endswith(".npy")]
         # probe_names = set([raw_content.split("/")[1] for raw_content in raw_contents])
@@ -140,18 +138,10 @@ class IblSortingExtractor(BaseSorting):
 
                 all_unit_properties["allen_location"].extend(list(channel_id_to_allen_regions[unit_id_to_channel_id]))
                 all_unit_properties["beryl_location"].extend(
-                    list(
-                        brain_regions.id2acronym(
-                            atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Beryl"
-                        )
-                    )
+                    list(brain_regions.id2acronym(atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Beryl"))
                 )
                 all_unit_properties["cosmos_location"].extend(
-                    list(
-                        brain_regions.id2acronym(
-                            atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Cosmos"
-                        )
-                    )
+                    list(brain_regions.id2acronym(atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Cosmos"))
                 )
 
         # this is obsolete now
@@ -182,6 +172,35 @@ class IblSortingExtractor(BaseSorting):
         for property_name, values in all_unit_properties.items():
             self.set_property(key=property_name, values=values, ids=cluster_ids)
 
+    def get_unit_spike_train(
+        self,
+        unit_id: str | int,
+        segment_index: Union[int, None] = None,
+        start_frame: Union[int, None] = None,
+        end_frame: Union[int, None] = None,
+        return_times: bool = False,
+        use_cache: bool = True,
+    ):
+        segment_index = self._check_segment_index(segment_index)
+
+        if return_times is False:
+            raise ValueError("return_times must be True for IblSortingExtractor.get_unit_spike_train()")
+
+        segment = self._sorting_segments[segment_index]
+        segment.get_unit_spike_times(unit_id=unit_id)
+
+        spike_times = segment.get_unit_spike_times(unit_id=unit_id)
+
+        start_time = start_frame / self.get_sampling_frequency() if start_frame is not None else None
+        end_time = end_frame / self.get_sampling_frequency() if end_frame is not None else None
+
+        spike_times = segment.get_unit_spike_times(unit_id=unit_id)
+        if start_time is not None:
+            spike_times = spike_times[spike_times >= start_time]
+        if end_time is not None:
+            spike_times = spike_times[spike_times < end_time]
+        return spike_times
+
 
 class IblSortingSegment(BaseSortingSegment):
     def __init__(self, sampling_frequency: float, spike_times_by_id: Dict[int, np.ndarray]):
@@ -202,3 +221,19 @@ class IblSortingSegment(BaseSortingSegment):
         if end_frame is not None:
             frames = frames[frames < end_frame]
         return frames
+
+    def get_unit_spike_times(self, unit_id: int) -> np.ndarray:
+        """
+        Get the spike times for a given unit ID.
+
+        Parameters
+        ----------
+        unit_id : int
+            The ID of the unit.
+
+        Returns
+        -------
+        np.ndarray
+            The spike times in seconds.
+        """
+        return self._spike_times_by_id[unit_id]
