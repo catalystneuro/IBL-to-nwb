@@ -38,8 +38,8 @@ DEBUG = True
 USE_JOBLIB = False
 
 if DEBUG:
-    eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
-    # eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d" # the LF timestamps issue
+    # eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
+    eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d"  # the LF timestamps issue
     # eid = "d32876dd-8303-4720-8e7e-20678dc2fd71"  # no spikes['clusters'] ????
     N_JOBS = 1
     # crashes locally
@@ -90,8 +90,8 @@ else:
 one = ONE(**one_kwargs)
 
 # %% mode selection
-# mode = "raw"
-mode = "processed"
+mode = "raw"
+# mode = "processed"
 
 # %% the full thing
 kwargs = dict(
@@ -109,7 +109,7 @@ if DEBUG:  # this is for debugging single sessions
         jobs = joblib.delayed(bwm_to_nwb.convert_session_)(eid=eid, **kwargs)
         joblib.Parallel(n_jobs=N_JOBS)(jobs)
     else:
-        bwm_to_nwb.convert_session(**kwargs)
+        bwm_to_nwb.convert_session(eid=eid, **kwargs)
 else:
     for eid in eids_:
         shutil.move(todo_dir / f"{eid}", running_dir / f"{eid}")
