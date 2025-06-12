@@ -1,6 +1,11 @@
 # %%
 import os
+import sys
 from pathlib import Path
+
+from pynwb import NWBHDF5IO
+
+from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
 # if running on SDSC, use the OneSdsc, else normal
 if "USE_SDSC_ONE" in os.environ:
@@ -13,10 +18,9 @@ else:
 # right now, enforcing the use of SDSC one
 # from deploy.iblsdsc import OneSdsc as ONE
 
-from pynwb import NWBHDF5IO
-from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
-
-nwbfile_path = Path("/mnt/sdceph/users/ibl/data/quarantine/BWM_to_NWB/nwbfiles/sub-ibl_witten_26/sub-ibl_witten_26_ses-09394481-8dd2-4d5c-9327-f2753ede92d7_desc-processed_behavior+ecephys.nwb")
+nwbfile_path = Path(
+    "/home/georg/ibl_scratch/nwbfiles/sub-ibl_witten_26/sub-ibl_witten_26_ses-09394481-8dd2-4d5c-9327-f2753ede92d7_desc-processed_behavior+ecephys.nwb"
+)
 
 with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
     nwbfile = io.read()
@@ -28,7 +32,6 @@ with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
 base_path = Path.home() / "ibl_scratch"
 output_folder = base_path / "nwbfiles"
 output_folder.mkdir(exist_ok=True, parents=True)
-# session_scratch_folder = base_path / eid
 
 # common
 one_kwargs = dict(

@@ -1,9 +1,13 @@
+import logging
 import os
 import shutil
+import traceback
 from pathlib import Path
 from typing import List
 
 import spikeglx
+from one.alf.spec import is_uuid_string
+from one.api import ONE
 
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import (
@@ -16,17 +20,8 @@ from ibl_to_nwb.datainterfaces import (
     RoiMotionEnergyInterface,
     WheelInterface,
 )
-
-from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 from ibl_to_nwb.fixtures import load_fixtures
-
-import os
-from pathlib import Path
-from one.alf.spec import is_uuid_string
-from one.api import ONE
-
-import logging
-import traceback
+from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
 """
 ########     ###    ######## ##     ##
@@ -312,7 +307,7 @@ def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = Non
 
 
 def convert_session_(**kwargs):
-    # a poor mans logger
+    # a poor mans logger diverting errors into a seperate file
     try:
         convert_session(**kwargs)
     except Exception as e:

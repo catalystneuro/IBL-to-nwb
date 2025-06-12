@@ -1,7 +1,8 @@
 # %% imports
-from pathlib import Path
-from one.api import ONE
 import sys
+from pathlib import Path
+
+from one.api import ONE
 
 # %% session selection
 # eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"  # a BWM eid with dual probe

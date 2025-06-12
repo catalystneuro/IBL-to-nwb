@@ -1,10 +1,14 @@
 # %%
-import sys
-import numpy as np
 import os
-from pathlib import Path
-import joblib
 import shutil
+import sys
+from pathlib import Path
+
+import joblib
+import numpy as np
+
+from ibl_to_nwb import bwm_to_nwb
+from ibl_to_nwb.fixtures import load_fixtures
 
 # Set the filter to show each warning only once for a specific module
 
@@ -19,9 +23,6 @@ else:
 import warnings
 
 warnings.filterwarnings("once", category=UserWarning, module="ONE")
-
-from ibl_to_nwb.fixtures import load_fixtures
-from ibl_to_nwb import bwm_to_nwb
 
 
 # base path setup
@@ -78,9 +79,8 @@ if "USE_SDSC_ONE" in os.environ:
     )
 else:
     one_kwargs = dict(
-        base_url="https://alyx.internationalbrainlab.org",  # when running the first time, this needs to be uncommented to get the cache tables
-        # mode="local",  # after the first run, this should be uncommented to be closest to the SDSC environment
-        # actually doesn't run in local mode with normal alyx
+        # base_url="https://alyx.internationalbrainlab.org",  # when running the first time, this needs to be uncommented to get the cache tables
+        mode="local",  # after the first run, this should be uncommented to be closest to the SDSC environment
         # make sure this path matches to what is set in the download_data.py script for local troubleshooting
         cache_dir=base_path / "ibl_conversion" / eid / "cache",  # base_path / "ibl_conversion" / eid / "cache"
     )
@@ -90,8 +90,8 @@ else:
 one = ONE(**one_kwargs)
 
 # %% mode selection
-mode = "raw"
-# mode = "processed"
+# mode = "raw"
+mode = "processed"
 
 # %% the full thing
 kwargs = dict(

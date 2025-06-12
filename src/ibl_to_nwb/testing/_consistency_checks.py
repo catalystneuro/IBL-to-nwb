@@ -1,7 +1,9 @@
+import logging
 from pathlib import Path
-import os
+
 import numpy as np
 from brainbox.io.one import SessionLoader, SpikeSortingLoader
+from iblatlas.atlas import AllenAtlas
 from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
@@ -9,9 +11,6 @@ from pynwb import NWBHDF5IO, NWBFile
 
 # from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
-from iblatlas.atlas import AllenAtlas
-
-import logging
 
 
 def get_logger(eid: str):
@@ -94,7 +93,7 @@ def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
     data_from_ONE = one.load_dataset(id=eid, dataset="_ibl_wheelMoves.peakAmplitude", **load_kwargs)
     data_from_NWB = wheel_movement_table["peak_amplitude"].values
     assert_array_equal(x=data_from_ONE, y=data_from_NWB)
-    _logger.debug(f"wheel data passed")
+    _logger.debug("wheel data passed")
 
 
 def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
@@ -109,7 +108,7 @@ def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
     data_from_NWB = lick_times_table["lick_time"].values
     data_from_ONE = one.load_dataset(eid, "licks.times", **load_kwargs)
     assert_array_equal(x=data_from_ONE, y=data_from_NWB)
-    _logger.debug(f"lick data passed")
+    _logger.debug("lick data passed")
 
 
 def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
@@ -165,9 +164,7 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
 
                 # confidence
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].confidence[:]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
-                    f"{node}_likelihood"
-                ].values
+                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_likelihood"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # timestamps
@@ -213,7 +210,7 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     data_from_ONE.columns = naming_map.keys()
 
     assert_frame_equal(left=data_from_NWB, right=data_from_ONE)
-    _logger.debug(f"trials table passed")
+    _logger.debug("trials table passed")
 
 
 def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
@@ -232,16 +229,12 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
             # raw
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
-                "pupilDiameter_raw"
-            ].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_raw"].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # smooth
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}SmoothedPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
-                "pupilDiameter_smooth"
-            ].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_smooth"].values
 
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
             _logger.debug(f"pupil data for {view} passed")
@@ -272,7 +265,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
     # get and prep data
     for probe_name in probe_names:
-        spike_sorting_loader = SpikeSortingLoader(eid=eid, pname=probe_name, pid=pids[probe_name], one=one)
+        spike_sorting_loader = SpikeSortingLoader(eid=eid, pname=probe_name, one=one)
         spikes_, clusters_, _ = spike_sorting_loader.load_spike_sorting(revision=revision)
         spikes[probe_name] = spikes_
         clusters[probe_name] = clusters_
@@ -289,9 +282,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
         cluster_id = np.where(clusters[probe_name]["uuids"] == uuid)[0][0]
         # spikes[probe_name]["clusters"]
-        spike_times_from_ONE = get_spikes_for_cluster(
-            spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id
-        )
+        spike_times_from_ONE = get_spikes_for_cluster(spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id)
 
         # more verbose but slower for more than ~20 checks
         # spike_times_from_ONE = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
@@ -299,7 +290,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
         # testing - the original assertion
         assert_array_less(np.max((spike_times_from_ONE - spike_times_from_NWB) * 30000), 1.0)
         # assert_array_less(np.max(np.absolute(spike_times_from_ONE - spike_times_from_NWB)), 1e-6)
-    _logger.debug(f"spike times passed")
+    _logger.debug("spike times passed")
 
     # test unit locations
     units_nwb = nwbfile.units[:]
@@ -317,7 +308,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     one_allen = np.array([atlas.regions.id2acronym(i)[0] for i in atlas_ids])
     nwb_allen = units_nwb.set_index("cluster_uuid").loc[units_ids, "allen_location"].values
     np.testing.assert_array_equal(one_allen, nwb_allen)
-    _logger.debug(f"brain regions for units passed")
+    _logger.debug("brain regions for units passed")
 
 
 def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
@@ -384,9 +375,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()[:]
 
             # from brainbox.io
-            brainbox_timestamps = spike_sorting_loader.samples2times(
-                np.arange(0, n_samples_one), direction="forward", band=band
-            )
+            brainbox_timestamps = spike_sorting_loader.samples2times(np.arange(0, n_samples_one), direction="forward", band=band)
 
             np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
             _logger.debug(f"ephys data timestamps for {pname}/{band} passed")
