@@ -1,12 +1,10 @@
 import os
-import numpy as np
-import pandas as pd
 from pathlib import Path
+
 import h5py
-from pynwb import NWBHDF5IO, NWBFile
-from one.api import ONE
-import logging
 import read_after_write as raw
+from one.api import ONE
+from pynwb import NWBHDF5IO
 
 # the session
 eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"  # dual probe session

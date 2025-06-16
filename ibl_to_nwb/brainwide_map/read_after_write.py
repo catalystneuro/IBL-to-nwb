@@ -1,13 +1,10 @@
-import os
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-import h5py
-from pynwb import NWBHDF5IO, NWBFile
-from one.api import ONE
-import logging
-from typing import Optional
 from numpy import testing
+from one.api import ONE
+from pynwb import NWBFile
+
 
 def check_arrays(array_a: np.ndarray, array_b: np.ndarray, full_check: bool = False):
     """checks if two arrays contain the same numerical values
@@ -26,7 +23,6 @@ def check_arrays(array_a: np.ndarray, array_b: np.ndarray, full_check: bool = Fa
     else:
         inds = np.random.randint(0, np.prod(array_a.shape), size=10)
         testing.assert_allclose(np.ravel(array_a)[inds], np.ravel(array_b)[inds])
-        
 
 
 def check_series(series_a: pd.Series, series_b: pd.Series, full_check: bool = False):
@@ -40,7 +36,7 @@ def check_series(series_a: pd.Series, series_b: pd.Series, full_check: bool = Fa
 
     # -> all of this functionality is now moved to check_arrays()
     # this function as of now is obsolete but kept for potential future integration
-    
+
     check_arrays(series_a.values, series_b.values, full_check=full_check)
 
 
@@ -356,6 +352,6 @@ def test_IblSortingInterface(
 
         # more verbose but slower for more than ~20 checks
         # one_spike_times = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
-        
+
         # testing
         np.testing.assert_array_less(np.max((one_spike_times - nwb_spike_times) * 30000), 1)
