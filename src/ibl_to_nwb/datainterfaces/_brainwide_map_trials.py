@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Optional
 
+from brainbox.io.one import SessionLoader
 from hdmf.common import VectorData
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.utils import load_dict_from_file
@@ -9,9 +11,10 @@ from pynwb.epoch import TimeIntervals
 
 
 class BrainwideMapTrialsInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str):
+    def __init__(self, one: ONE, session: str, revision: Optional[str] = None):
         self.one = one
         self.session = session
+        self.revision = one.list_revisions(session)[-1] if revision is None else revision
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()
@@ -20,7 +23,9 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         return metadata
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        trials = self.one.load_object(id=self.session, obj="trials", collection="alf")
+        session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
+        session_loader.load_trials()
+        trials = session_loader.trials
 
         column_ordering = [
             "choice",
@@ -40,12 +45,12 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
             VectorData(
                 name="start_time",
                 description="The beginning of the trial.",
-                data=trials["intervals"][:, 0],
+                data=trials["intervals_0"].values,
             ),
             VectorData(
                 name="stop_time",
                 description="The end of the trial.",
-                data=trials["intervals"][:, 1],
+                data=trials["intervals_1"].values,
             ),
         ]
         for ibl_key in column_ordering:
@@ -53,7 +58,7 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
                 VectorData(
                     name=metadata["Trials"][ibl_key]["name"],
                     description=metadata["Trials"][ibl_key]["description"],
-                    data=trials[ibl_key],
+                    data=trials[ibl_key].values,
                 )
             )
         nwbfile.add_time_intervals(

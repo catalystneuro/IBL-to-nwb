@@ -1,1 +1,1 @@
-from ._consistency_checks import check_written_nwbfile_for_consistency
+from ._consistency_checks import check_nwbfile_for_consistency

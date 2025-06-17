@@ -48,10 +48,11 @@ class RawVideoInterface(BaseDataInterface):
         camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf")
         timestamps = camera_data["times"]
 
-        left_right_or_body = self.camera_name[:5].removesuffix("C")
-        if self.one.list_datasets(eid=self.session, filename=f"raw_video_data/*{self.camera_name}*"):
+        camera_view = self.camera_name.split("Camera")[0]  # left, right or body
+        video_filename = f"raw_video_data/_iblrig_{self.camera_name}.raw.mp4"
+        if self.one.list_datasets(eid=self.session, filename=video_filename):
             original_video_file_path = self.one.load_dataset(
-                id=self.session, dataset=f"raw_video_data/*{self.camera_name}*", download_only=True
+                id=self.session, dataset=video_filename, download_only=True
             )
 
             # Rename to DANDI format and relative organization
@@ -60,9 +61,9 @@ class RawVideoInterface(BaseDataInterface):
 
             dandi_sub_ses_stem = f"{dandi_sub_stem}_ses-{self.session}"
             dandi_video_folder_path = dandi_subject_folder / f"{dandi_sub_ses_stem}_ecephys+image"
-            dandi_video_folder_path.mkdir(exist_ok=True)
+            dandi_video_folder_path.mkdir(exist_ok=True, parents=True)
 
-            nwb_video_name = f"OriginalVideo{left_right_or_body.capitalize()}Camera"
+            nwb_video_name = f"OriginalVideo{camera_view.capitalize()}Camera"
             dandi_video_file_path = dandi_video_folder_path / f"{dandi_sub_ses_stem}_{nwb_video_name}.mp4"
 
             # A little bit of data duplication to copy, but easier for re-running since original file stays in cache

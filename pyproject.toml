@@ -25,7 +25,7 @@ dependencies = [
     "spikeinterface",
     "probeinterface",
     "ndx-pose==0.1.1",
-    "ndx-ibl==0.1.0",
+    "ndx-ibl-bwm",
     "ONE-api",
     "ibllib",
     "iblatlas",
