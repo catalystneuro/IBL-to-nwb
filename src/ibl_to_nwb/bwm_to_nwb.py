@@ -3,7 +3,6 @@ import os
 import shutil
 import traceback
 from pathlib import Path
-from typing import List
 
 import spikeglx
 from one.alf.spec import is_uuid_string

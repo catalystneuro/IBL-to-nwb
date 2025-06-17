@@ -1,10 +1,10 @@
-import os
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
 from neuroconv.converters import SpikeGLXConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
+
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):
     def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, revision: str, streams=None) -> None:

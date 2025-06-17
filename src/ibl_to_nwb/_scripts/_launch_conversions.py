@@ -1,9 +1,10 @@
 # %%
-import sys
-import numpy as np
 import os
+import sys
 from pathlib import Path
+
 import joblib
+import numpy as np
 from iblutil.util import setup_logger
 
 # if running on SDSC, use the OneSdsc, else normal
@@ -14,10 +15,9 @@ else:
     print("using regular ONE")
     from one.api import ONE
 
-from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb import bwm_to_nwb
+from ibl_to_nwb.fixtures import load_fixtures
 
-from iblutil.util import setup_logger
 _logger = setup_logger('bwm_to_nwb')
 
 REVISION = "2025-05-06"

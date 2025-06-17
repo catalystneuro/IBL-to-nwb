@@ -1,12 +1,13 @@
 """Data Interface for the special data type of ROI Motion Energy."""
 
+import re
 from typing import Optional
 
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import TimeSeries
-import re
+
 
 class RoiMotionEnergyInterface(BaseDataInterface):
     def __init__(self, one: ONE, session: str, camera_name: str, revision: Optional[str] = None):

@@ -5,13 +5,14 @@ from typing import Literal, Optional
 
 from dateutil import tz
 from ndx_ibl import IblSubject
+from ndx_ibl_bwm import ibl_bwm_metadata
 from neuroconv import ConverterPipe
 from neuroconv.tools.nwb_helpers import HDF5BackendConfiguration, configure_backend, make_or_load_nwbfile
 from one.api import ONE
 from pydantic import FilePath
 from pynwb import NWBFile
 from typing_extensions import Self
-from ndx_ibl_bwm import ibl_bwm_metadata
+
 
 class IblConverter(ConverterPipe):
     def __init__(self, one: ONE, session: str, data_interfaces: list, verbose: bool = True) -> Self:

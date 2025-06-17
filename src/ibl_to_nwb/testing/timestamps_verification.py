@@ -1,8 +1,10 @@
 # %%
-import numpy as np
 from pathlib import Path
-from one.api import ONE
+
+import numpy as np
 from brainbox.io.one import SpikeSortingLoader
+from one.api import ONE
+
 # from deploy.iblsdsc import OneSdsc as ONE
 
 eid = "caa5dddc-9290-4e27-9f5e-575ba3598614"

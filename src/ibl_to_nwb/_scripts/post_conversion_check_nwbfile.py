@@ -1,6 +1,5 @@
 # %%
 import os
-import sys
 from pathlib import Path
 
 from pynwb import NWBHDF5IO
@@ -50,6 +49,6 @@ else:
 one = ONE(**one_kwargs)
 
 check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
-print(f"all checks passed")
+print("all checks passed")
 
 # %%

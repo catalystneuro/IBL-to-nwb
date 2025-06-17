@@ -1,5 +1,6 @@
 """Data Interface for the pupil tracking."""
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -10,7 +11,7 @@ from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
 from pynwb.behavior import PupilTracking
-import re
+
 
 class PupilTrackingInterface(BaseDataInterface):
     def __init__(self, one: ONE, session: str, camera_name: str, revision: Optional[str] = None):

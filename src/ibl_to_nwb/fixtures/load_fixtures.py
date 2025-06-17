@@ -1,5 +1,7 @@
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
+
 
 def load_bwm_df():
     path = Path(__file__).parent / 'bwm_df.pqt'

@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 import numpy as np
@@ -6,7 +7,7 @@ from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
-import re
+
 
 class IblPoseEstimationInterface(BaseDataInterface):
     def __init__(

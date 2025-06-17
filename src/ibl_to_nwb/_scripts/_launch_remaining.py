@@ -1,11 +1,9 @@
 # %%
 import os
 import shutil
-import sys
 from pathlib import Path
 
 import joblib
-import numpy as np
 
 from ibl_to_nwb import bwm_to_nwb
 from ibl_to_nwb.fixtures import load_fixtures
