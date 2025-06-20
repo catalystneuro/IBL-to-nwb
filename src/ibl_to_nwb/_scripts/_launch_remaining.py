@@ -30,11 +30,11 @@ else:
     base_path = Path.home() / "ibl_scratch"  # local directory
 base_path.mkdir(exist_ok=True, parents=True)
 
-
 REVISION = "2025-05-06"
 N_JOBS = 12
 DEBUG = True
 USE_JOBLIB = False
+RESET_CACHE = True
 
 if DEBUG:
     # eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
@@ -77,12 +77,16 @@ if "USE_SDSC_ONE" in os.environ:
     )
 else:
     one_kwargs = dict(
-        # base_url="https://alyx.internationalbrainlab.org",  # when running the first time, this needs to be uncommented to get the cache tables
-        mode="local",  # after the first run, this should be uncommented to be closest to the SDSC environment
-        # make sure this path matches to what is set in the download_data.py script for local troubleshooting
-        cache_dir=base_path / "ibl_conversion" / eid / "cache",  # base_path / "ibl_conversion" / eid / "cache"
+        base_url="https://openalyx.internationalbrainlab.org",
+        mode="local",
     )
 
+# %%
+if RESET_CACHE:
+    one = ONE(base_url="https://openalyx.internationalbrainlab.org")
+    one._remove_table_files()
+    one.load_cache()
+    del one
 
 # instantiate one
 one = ONE(**one_kwargs)

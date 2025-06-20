@@ -45,10 +45,10 @@ class IblSortingExtractor(BaseSorting):
         atlas = AllenAtlas()
         brain_regions = BrainRegions()
 
-        probe_names = [probe_description["label"] for probe_description in one.load_dataset(session, "probes.description")]
-        # dataset_contents = one.list_datasets(eid=session, collection="raw_ephys_data/*")
-        # raw_contents = [dataset_content for dataset_content in dataset_contents if not dataset_content.endswith(".npy")]
-        # probe_names = set([raw_content.split("/")[1] for raw_content in raw_contents])
+        # although clearner this fails when probes are present in alyx but not openalyx
+        # probe_names = [probe_description["label"] for probe_description in one.load_dataset(session, "probes.description")]
+        raw_ephys_datasets = one.list_datasets(eid=session, collection="raw_ephys_data/*")
+        probe_names = set([filename.split('/')[1] for filename in raw_ephys_datasets])
 
         sorting_loaders = dict()
         spike_times_by_id = defaultdict(list)  # Cast lists per key as arrays after assembly
@@ -58,6 +58,7 @@ class IblSortingExtractor(BaseSorting):
         cluster_ids = list()
         unit_id_per_probe_shift = 0
         for probe_name in probe_names:
+            # verify probe data exists
             sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
             sorting_loaders.update({probe_name: sorting_loader})
             spikes, clusters, channels = sorting_loader.load_spike_sorting(revision=revision)

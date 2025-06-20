@@ -1,6 +1,5 @@
 # %% imports
 from pathlib import Path
-
 from one.api import ONE
 
 # %% session selection
@@ -8,15 +7,11 @@ from one.api import ONE
 # eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
 eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d"  # the LF timestamps issue
 
-# %% path setup
-base_path = Path.home() / "ibl_scratch"  # local directory
-session_path = base_path / "ibl_conversion" / eid
-cache_folder = base_path / "ibl_conversion" / eid / "cache"
+# %% one setup
 one = ONE(
     base_url="https://openalyx.internationalbrainlab.org",
     password="international",
     silent=False,
-    cache_dir=cache_folder,
 )
 
 # %% revision selection
@@ -35,7 +30,7 @@ collections = one.list_collections(eid)
 
 # %% download everything
 for dataset in datasets:
-    one.load_dataset(eid, dataset, download_only=True)
+    one.load_dataset(eid, dataset)
 
 # %% downloads just raw ephys data
 # collections = one.list_collections(eid, collection="raw_ephys_data/*")
