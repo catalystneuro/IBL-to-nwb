@@ -181,7 +181,9 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         # camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
         # camera_name = Path(pose_estimation_file).stem.split('_ibl_')[1].split('.')[0]
         camera_name = get_camera_name_from_file(pose_estimation_file)
-        data_interfaces.append(IblPoseEstimationInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
+        data_interfaces.append(
+            IblPoseEstimationInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
+        )
 
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     camera_names = []
@@ -197,7 +199,9 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         camera_names.append(get_camera_name_from_file(roi_motion_energy_file))
     camera_names = set(camera_names)
     for camera_name in camera_names:
-        data_interfaces.append(RoiMotionEnergyInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
+        data_interfaces.append(
+            RoiMotionEnergyInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
+        )
 
     if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
         data_interfaces.append(LickInterface(one=one, session=eid, revision=revision))
@@ -281,7 +285,9 @@ def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = Non
             (file_ch,) = list(file_cbin.parent.glob(f"{name}*.ch"))
 
             # copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(scratch_dir=target_bin.parent)
+            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(
+                scratch_dir=target_bin.parent
+            )
 
             if remove_uuid:
                 shutil.move(target_bin, target_bin_no_uuid)
