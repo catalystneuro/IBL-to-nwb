@@ -50,7 +50,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
             set(field.replace("_x", "").replace("_y", "").replace("_likelihood", "") for field in dlc_data.keys())
         )
 
-        camera_view = re.search(r'(left|right|body)Camera*', self.camera_name).group(1)
+        camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
         camera_view = camera_view.capitalize()  # To SnakeCase
         # left_right_or_body = self.camera_name[:5].rstrip("C")
         reused_timestamps = None
@@ -102,7 +102,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
             devices=[camera_device],
         )
         pose_estimation_container = PoseEstimation(**pose_estimation_kwargs)
-        
+
         behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
         behavior_module.add(skeletons)
         behavior_module.add(pose_estimation_container)

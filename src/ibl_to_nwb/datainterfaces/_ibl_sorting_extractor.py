@@ -48,7 +48,7 @@ class IblSortingExtractor(BaseSorting):
         # although clearner this fails when probes are present in alyx but not openalyx
         # probe_names = [probe_description["label"] for probe_description in one.load_dataset(session, "probes.description")]
         raw_ephys_datasets = one.list_datasets(eid=session, collection="raw_ephys_data/*")
-        probe_names = set([filename.split('/')[1] for filename in raw_ephys_datasets])
+        probe_names = set([filename.split("/")[1] for filename in raw_ephys_datasets])
 
         sorting_loaders = dict()
         spike_times_by_id = defaultdict(list)  # Cast lists per key as arrays after assembly
@@ -139,10 +139,18 @@ class IblSortingExtractor(BaseSorting):
 
                 all_unit_properties["allen_location"].extend(list(channel_id_to_allen_regions[unit_id_to_channel_id]))
                 all_unit_properties["beryl_location"].extend(
-                    list(brain_regions.id2acronym(atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Beryl"))
+                    list(
+                        brain_regions.id2acronym(
+                            atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Beryl"
+                        )
+                    )
                 )
                 all_unit_properties["cosmos_location"].extend(
-                    list(brain_regions.id2acronym(atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Cosmos"))
+                    list(
+                        brain_regions.id2acronym(
+                            atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Cosmos"
+                        )
+                    )
                 )
 
         # this is obsolete now

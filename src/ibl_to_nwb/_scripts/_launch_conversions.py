@@ -18,7 +18,7 @@ else:
 from ibl_to_nwb import bwm_to_nwb
 from ibl_to_nwb.fixtures import load_fixtures
 
-_logger = setup_logger('bwm_to_nwb')
+_logger = setup_logger("bwm_to_nwb")
 
 REVISION = "2025-05-06"
 N_BATCHES = 10
@@ -40,7 +40,7 @@ batch = eids_batches[i_batch]
 # common
 one_kwargs = dict(
     mode="local",
-    cache_rest = None, # disables rest caching (write permission errors on popeye)
+    cache_rest=None,  # disables rest caching (write permission errors on popeye)
 )
 
 # instantiate one
@@ -58,11 +58,14 @@ N_JOBS = 1
 eid = "0f25376f-2b78-4ddc-8c39-b6cdbe7bf5b9"
 if N_JOBS == 1:
     eid = batch[0]
-    bwm_to_nwb.convert_session(eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True)
+    bwm_to_nwb.convert_session(
+        eid=eid, one=one, revision=REVISION, mode=mode, cleanup=False, base_path=base_path, verify=True
+    )
 else:
     jobs = (
         joblib.delayed(bwm_to_nwb.convert_session)(
             eid=eid, one=one, revision=REVISION, mode=mode, cleanup=True, base_path=base_path, verify=True
-        ) for eid in batch
+        )
+        for eid in batch
     )
     joblib.Parallel(n_jobs=N_JOBS)(jobs)
