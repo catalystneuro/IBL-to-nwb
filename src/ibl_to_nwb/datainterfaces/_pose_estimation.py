@@ -2,7 +2,7 @@ import re
 from typing import Optional
 
 import numpy as np
-from ndx_pose import PoseEstimation, PoseEstimationSeries
+from ndx_pose import PoseEstimation, PoseEstimationSeries, Skeleton, Skeletons
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
@@ -51,6 +51,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
         )
 
         camera_view = re.search(r'(left|right|body)Camera*', self.camera_name).group(1)
+        camera_view = camera_view.capitalize()  # To SnakeCase
         # left_right_or_body = self.camera_name[:5].rstrip("C")
         reused_timestamps = None
         all_pose_estimation_series = list()
@@ -68,19 +69,40 @@ class IblPoseEstimationInterface(BaseDataInterface):
                 reference_frame="(0,0) corresponds to the upper left corner when using width by height convention.",
                 timestamps=reused_timestamps or timestamps,
                 confidence=np.array(dlc_data[f"{body_part}_likelihood"]),
+                confidence_definition="Likelihood output from DeepLabCut neural network.",
             )
             all_pose_estimation_series.append(pose_estimation_series)
 
             reused_timestamps = all_pose_estimation_series[0]  # A trick for linking timestamps across series
+
+        # Create skeleton that defines the body parts without edges
+        skeleton_name = f"{camera_view}_camera_skeleton"
+
+        skeleton = Skeleton(
+            name=skeleton_name,
+            nodes=body_parts,
+        )
+
+        # Store the skeleton in a Skeletons container
+        skeletons = Skeletons(skeletons=[skeleton])
+
+        # Create device for the camera
+        camera_name_snake_case = f"{camera_view}_camera"
+        camera_device = nwbfile.create_device(
+            name=camera_name_snake_case,
+            description=f"{camera_view} camera for recording behavior",
+        )
 
         pose_estimation_kwargs = dict(
             name=f"PoseEstimation{camera_view.capitalize()}Camera",
             pose_estimation_series=all_pose_estimation_series,
             description="Estimated positions of body parts using DeepLabCut.",
             source_software="DeepLabCut",
-            nodes=body_parts,
+            skeleton=skeleton,  # link to the skeleton object
+            devices=[camera_device],
         )
         pose_estimation_container = PoseEstimation(**pose_estimation_kwargs)
-
-        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
-        camera_module.add(pose_estimation_container)
+        
+        behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Processed behavioral data.")
+        behavior_module.add(skeletons)
+        behavior_module.add(pose_estimation_container)
