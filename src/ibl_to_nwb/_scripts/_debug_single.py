@@ -1,13 +1,12 @@
 # %%
 import os
-import shutil
 from pathlib import Path
 
 from pynwb import NWBHDF5IO
 
 from ibl_to_nwb import bwm_to_nwb
-from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing import check_nwbfile_for_consistency
+
 # Set the filter to show each warning only once for a specific module
 
 # if running on SDSC, use the OneSdsc, else normal
@@ -50,7 +49,7 @@ else:
         # base_url="https://openalyx.internationalbrainlab.org",
         base_url="https://alyx.internationalbrainlab.org",
         mode="local",
-)
+    )
 
 # %%
 if RESET_CACHE:
@@ -78,15 +77,16 @@ kwargs = dict(
     log_to_file=False,
     verify=False,
     debug=True,
-    overwrite=True
+    overwrite=True,
 )
 
-def eid2nwbfilename(eid, one, mode='processed'):
+
+def eid2nwbfilename(eid, one, mode="processed"):
     ref = one.eid2ref(eid)
     base_path = Path("/mnt/home/graiser/quarantine/BWM_to_NWB/nwbfiles")
     match mode:
-        case 'processed':
-            suffix = 'processed_behavior+ecephys'
+        case "processed":
+            suffix = "processed_behavior+ecephys"
     nwbfile_path = base_path / f"sub-{ref['subject']}" / f"sub-{ref['subject']}_ses-{eid}_desc-{suffix}.nwb"
     return nwbfile_path
 
@@ -95,8 +95,7 @@ if CONVERT:
     bwm_to_nwb.convert_session(eid=eid, **kwargs)
 
 if VERIFY:
-    nwbfile_path = eid2nwbfilename(eid, one, mode='processed')
+    nwbfile_path = eid2nwbfilename(eid, one, mode="processed")
 
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
-

@@ -29,9 +29,9 @@ class IblConverter(ConverterPipe):
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()  # Aggregates from the interfaces
 
-        session_metadata, = self.one.alyx.rest(url="sessions", action="list", id=self.session)
+        (session_metadata,) = self.one.alyx.rest(url="sessions", action="list", id=self.session)
         assert session_metadata["id"] == self.session, "Session metadata ID does not match the requested session ID."
-        lab_metadata, = self.one.alyx.rest("labs", "list", name=session_metadata["lab"])
+        (lab_metadata,) = self.one.alyx.rest("labs", "list", name=session_metadata["lab"])
 
         # TODO: include session_metadata['number'] in the extension attributes
         session_start_time = datetime.fromisoformat(session_metadata["start_time"])
@@ -129,14 +129,13 @@ class IblConverter(ConverterPipe):
             verbose=self.verbose,
         ) as nwbfile_out:
             nwbfile_out.subject = ibl_subject
-            
+
             # adding ibl specific metadata
             nwbfile_out.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(**ibl_metadata))
 
             for interface_name, data_interface in self.data_interface_objects.items():
                 conversion_options = conversion_options.get(interface_name, dict())
                 data_interface.add_to_nwbfile(nwbfile=nwbfile_out, metadata=metadata, **conversion_options)
-                
 
             if backend_configuration is None:
                 backend_configuration = self.get_default_backend_configuration(nwbfile=nwbfile_out, backend="hdf5")

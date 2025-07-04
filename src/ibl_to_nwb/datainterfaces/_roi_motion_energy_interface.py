@@ -18,8 +18,7 @@ class RoiMotionEnergyInterface(BaseDataInterface):
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         # left_right_or_body = self.camera_name[:5].rstrip("C")
-        camera_view = re.search(r'(left|right|body)Camera*', self.camera_name).group(1)
-        
+        camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
 
         camera_data = self.one.load_object(
             id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
@@ -35,7 +34,7 @@ class RoiMotionEnergyInterface(BaseDataInterface):
             f"wide, {height} pixels tall, and the top-left corner of the region is the pixel ({x}, {y}).\n\n"
             "CAUTION: As each software will load the video in a different orientation, the ROI might need to be "
             "adapted. For example, when loading the video with cv2 in Python, x and y axes are flipped from the "
-            f"convention used above. The region then becomes [{y}:{y+height}, {x}:{x+width}]."
+            f"convention used above. The region then becomes [{y}:{y + height}, {x}:{x + width}]."
         )
 
         motion_energy_series = TimeSeries(

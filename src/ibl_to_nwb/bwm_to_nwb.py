@@ -12,13 +12,12 @@ from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import (
     BrainwideMapTrialsInterface,
     IblPoseEstimationInterface,
-    IblSortingInterface,
     LickInterface,
+    PassivePeriodDataInterface,
     PupilTrackingInterface,
     RawVideoInterface,
     RoiMotionEnergyInterface,
     WheelInterface,
-    PassivePeriodDataInterface,
 )
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
@@ -284,7 +283,9 @@ def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = Non
             (file_ch,) = list(file_cbin.parent.glob(f"{name}*.ch"))
 
             # copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(scratch_dir=target_bin.parent)
+            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(
+                scratch_dir=target_bin.parent
+            )
 
             if remove_uuid:
                 shutil.move(target_bin, target_bin_no_uuid)
