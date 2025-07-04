@@ -33,6 +33,7 @@ class PassivePeriodDataInterface(BaseDataInterface):
         self.present_datasets = dict(
             has_passive = True if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets else False,
             has_replay = True if "alf/_ibl_passiveStims.table.csv" in datasets else False,
+            # has_gabor = True if "alf/_ibl_passiveStims.table.csv" in datasets else False, # TODO asses and understand this
             has_rfm = True if "alf/_ibl_passiveGabor.table.csv" in datasets else False,
         )
         
@@ -180,7 +181,7 @@ class TaskReplayInterface(BaseDataInterface):
 
         # Add passive stimulation intervals as a TimeIntervals table
         passive_stims = TimeIntervals(
-            name="TaskReplayPassiveStimulusIntervals",
+            name="passive_task_replay",
             description="Passive stimulation events including valve, tone, and noise stimuli.",
         )
 
@@ -226,10 +227,10 @@ class GaborRFMInterface(BaseDataInterface):
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
         passive_module = get_module(nwbfile=nwbfile, name="passive", description="passive stimulation data.")
 
-        # the stim
+        # the stim data
         gabor_data = TimeSeries(
-            name="",
-            description="",
+            name="rfm_stim",
+            description="receptive field mapping visual stimulus",
             data=self.rfm_data,
             timestamps=self.rfm_times,
             unit="px",
@@ -237,6 +238,7 @@ class GaborRFMInterface(BaseDataInterface):
 
         passive_module.add(gabor_data)
 
+        # the stim events
         columns = [
             VectorData(
                 name="start_time",
@@ -249,24 +251,24 @@ class GaborRFMInterface(BaseDataInterface):
                 data=self.gabor_events_df["stop"].values,
             ),
         ]
-        columns = ["position", "contrast", "phase"]
-        meta = dict(position="", conrast="", phase="")
+        col_names = ["position", "contrast", "phase"]
+        meta = dict(position="gabor patch position", contrast="gabor patch contrast", phase="gabor patch phase",) # TODO fill these with proper docstrings
 
-        for key in columns:
+        for name in col_names:
             columns.append(
                 VectorData(
-                    name=key,
-                    description=meta[key],
-                    data=self.gabor_events_df[key].values,
+                    name=name,
+                    description=meta[name],
+                    data=self.gabor_events_df[name].values,
                 )
             )
 
-        gabor = TimeIntervals(
-            name="trials",
-            description="Trial intervals and conditions.",
+        gabor_events = TimeIntervals(
+            name="gabor_table",
+            description="Gabor patch presentations table.",
             columns=columns,
         )
 
         # TODO try and verify
         # nwbfile.add_time_intervals(gabor)
-        passive_module.add(gabor)
+        passive_module.add(gabor_events)

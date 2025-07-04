@@ -31,12 +31,13 @@ base_path.mkdir(exist_ok=True, parents=True)
 
 REVISION = "2025-05-06"
 CONVERT = True
-VERIFY = True
+VERIFY = False
 RESET_CACHE = False
 
-eid = "d832d9f7-c96a-4f63-8921-516ba4a7b61f" # no camera issue
+# eid = "d832d9f7-c96a-4f63-8921-516ba4a7b61f" # no camera issue
 # eid = "b81e3e11-9a60-4114-b894-09f85074d9c3" # cluster__uuid / eid issue
 # eid = "4b7fbad4-f6de-43b4-9b15-c7c7ef44db4b" # duplicate camera interface
+eid = "a8a8af78-16de-4841-ab07-fde4b5281a03"
 
 # instantiating one
 if "USE_SDSC_ONE" in os.environ:
