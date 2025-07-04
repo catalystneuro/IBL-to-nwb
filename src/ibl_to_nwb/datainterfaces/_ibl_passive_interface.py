@@ -20,6 +20,7 @@ from hdmf.common import VectorData
 
 
 class PassivePeriodDataInterface(BaseDataInterface):
+
     def __init__(
         self,
         one: ONE,
@@ -32,9 +33,8 @@ class PassivePeriodDataInterface(BaseDataInterface):
         datasets = one.list_datasets(session)
         self.present_datasets = dict(
             has_passive = True if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets else False,
-            has_replay = True if "alf/_ibl_passiveStims.table.csv" in datasets else False,
-            # has_gabor = True if "alf/_ibl_passiveStims.table.csv" in datasets else False, # TODO asses and understand this
-            has_rfm = True if "alf/_ibl_passiveGabor.table.csv" in datasets else False,
+            has_replay = True if "alf/_ibl_passiveGabor.table.csv" in datasets else False,
+            has_rfm = True if "alf/_ibl_passiveRFM.times.npy" in datasets else False,
         )
         
         # passive epochs
@@ -58,49 +58,16 @@ class PassivePeriodDataInterface(BaseDataInterface):
         if self.present_datasets['has_replay']:
             TaskReplayInterface(self.passive_intervals_df, self.taskreplay_events_df).add_to_nwbfile(nwbfile, metadata=metadata)
         if self.present_datasets['has_rfm']:
-            GaborRFMInterface(self.gabor_events_df, self.rfm_times, self.rfm_data).add_to_nwbfile(nwbfile, metadata=metadata)
+            ReceptiveFieldMappingInterface(self.gabor_events_df, self.rfm_times, self.rfm_data).add_to_nwbfile(nwbfile, metadata=metadata)
 
 
 class PassiveEpochsInterface(BaseDataInterface):
-    """
-    Interface for adding experimental epochs to NWBFile.
-
-    This interface creates epochs from interval data loaded from IntervalTable.csv,
-    including one normal experiment epoch and three passive protocol epochs.
-    """
 
     def __init__(self, passive_intervals_df: pd.DataFrame):
-        """
-        Initialize the PassiveEpochsInterface.
-
-        Parameters
-        ----------
-        passive_intervals_df : pd.DataFrame
-            DataFrame containing interval data with columns for different protocols
-            (passiveProtocol, spontaneousActivity, RFM, taskReplay) and rows for
-            'start' and 'stop' times.
-        """
         self.passive_intervals_df = passive_intervals_df
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
-        """
-        Add experimental epochs to the NWBFile.
 
-        Creates a total of 4 epochs:
-        - 1 normal experiment epoch (0 to start of passive protocol)
-        - 3 passive protocol epochs (spontaneousActivity, RFM, taskReplay)
-
-        Each epoch includes custom columns:
-        - protocol_type: "normal" or "passive"
-        - protocol_name: specific protocol name
-
-        Parameters
-        ----------
-        nwbfile : NWBFile
-            The NWBFile to add epochs to.
-        metadata : dict, optional
-            Additional metadata. If None, uses self.get_metadata().
-        """
         if metadata is None:
             metadata = self.get_metadata()
         df = self.passive_intervals_df
@@ -133,51 +100,16 @@ class PassiveEpochsInterface(BaseDataInterface):
 
 
 class TaskReplayInterface(BaseDataInterface):
-    """
-    Interface for adding passive stimulation intervals to NWBFile.
-
-    This interface creates a TimeIntervals table containing passive stimulation
-    events (valve, tone, and noise) sorted by start time.
-    """
-
-    def __init__(self, passive_intervals_df: pd.DataFrame, taskreplay_events_df: pd.DataFrame):
-        """
-        Initialize the TaskReplayInterface.
-
-        Parameters
-        ----------
-        passive_intervals_df : pd.DataFrame
-            DataFrame containing interval data (not used in this interface but kept
-            for consistency with the interface pattern).
-        taskreplay_events_df : pd.DataFrame
-            DataFrame containing passive stimulation data with columns:
-            - valveOn, valveOff: valve stimulation start/stop times
-            - toneOn, toneOff: tone stimulation start/stop times
-            - noiseOn, noiseOff: noise stimulation start/stop times
-        """
-        self.passive_intervals_df = passive_intervals_df
+    def __init__(self, taskreplay_events_df: pd.DataFrame, gabor_events_df: pd.DataFrame):
         self.taskreplay_events_df = taskreplay_events_df
+        self.gabor_events_df = gabor_events_df
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
-        """
-        Add passive stimulation intervals to the NWBFile.
-
-        Creates a TimeIntervals table named "TaskReplayPassiveStimulusIntervals"
-        containing all passive stimulation events sorted by start time.
-
-        The table includes:
-        - start_time, stop_time: timing of each stimulation event
-        - stim_type: type of stimulation ("valve", "tone", or "noise")
-
-        Parameters
-        ----------
-        nwbfile : NWBFile
-            The NWBFile to add intervals to.
-        metadata : dict, optional
-            Additional metadata. If None, uses self.get_metadata().
-        """
         if metadata is None:
             metadata = self.get_metadata()
+
+        # get the module
+        passive_module = get_module(nwbfile=nwbfile, name="passive", description="passive stimulation data.")
 
         # Add passive stimulation intervals as a TimeIntervals table
         passive_stims = TimeIntervals(
@@ -203,42 +135,15 @@ class TaskReplayInterface(BaseDataInterface):
         for _, row in self.taskreplay_events_df.iterrows():
             all_stim_events.append({"start_time": row["noiseOn"], "stop_time": row["noiseOff"], "stim_type": "noise"})
 
-        # Sort events by start time
+        # Sort events by start time and add sorted events to the TimeIntervals table
         all_stim_events.sort(key=lambda x: x["start_time"])
-
-        # Add sorted events to the TimeIntervals table
         for event in all_stim_events:
             passive_stims.add_row(start_time=event["start_time"], stop_time=event["stop_time"], stim_type=event["stim_type"])
 
-        # Add the TimeIntervals table to the NWB file # TODO testme
-        # nwbfile.add_time_intervals(passive_stims)
-
-        # or - add it to the module
-        passive_module = get_module(nwbfile=nwbfile, name="passive", description="passive stimulation data.")
+        # add it to the module
         passive_module.add(passive_stims)
 
-
-class GaborRFMInterface(BaseDataInterface):
-    def __init__(self, gabor_events_df, rfm_times, rfm_data):
-        self.gabor_events_df = gabor_events_df
-        self.rfm_times = rfm_times
-        self.rfm_data = rfm_data
-
-    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
-        passive_module = get_module(nwbfile=nwbfile, name="passive", description="passive stimulation data.")
-
-        # the stim data
-        gabor_data = TimeSeries(
-            name="rfm_stim",
-            description="receptive field mapping visual stimulus",
-            data=self.rfm_data,
-            timestamps=self.rfm_times,
-            unit="px",
-        )
-
-        passive_module.add(gabor_data)
-
-        # the stim events
+        # gabor patch data
         columns = [
             VectorData(
                 name="start_time",
@@ -252,7 +157,7 @@ class GaborRFMInterface(BaseDataInterface):
             ),
         ]
         col_names = ["position", "contrast", "phase"]
-        meta = dict(position="gabor patch position", contrast="gabor patch contrast", phase="gabor patch phase",) # TODO fill these with proper docstrings
+        meta = dict(position="gabor patch position", contrast="gabor patch contrast", phase="gabor patch phase",)
 
         for name in col_names:
             columns.append(
@@ -269,6 +174,31 @@ class GaborRFMInterface(BaseDataInterface):
             columns=columns,
         )
 
-        # TODO try and verify
-        # nwbfile.add_time_intervals(gabor)
         passive_module.add(gabor_events)
+
+
+class ReceptiveFieldMappingInterface(BaseDataInterface):
+    def __init__(self, rfm_times, rfm_data):
+
+        self.rfm_times = rfm_times
+        self.rfm_data = rfm_data
+
+    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
+        if metadata is None:
+            metadata = self.get_metadata()
+        # get module
+        passive_module = get_module(nwbfile=nwbfile, name="passive", description="passive stimulation data.")
+
+        # the stim data
+        rfm_stim = TimeSeries(
+            name="rfm_stim",
+            description="receptive field mapping visual stimulus",
+            data=self.rfm_data,
+            timestamps=self.rfm_times,
+            unit="px",
+        )
+        
+        # add to module
+        passive_module.add(rfm_stim)
+
+        

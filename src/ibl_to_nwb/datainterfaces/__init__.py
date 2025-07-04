@@ -1,13 +1,13 @@
-from ._pose_estimation import IblPoseEstimationInterface
+from ._pose_estimation_interface import IblPoseEstimationInterface
 from ._ibl_sorting_extractor import IblSortingExtractor
 from ._ibl_sorting_interface import IblSortingInterface
-from ._ibl_streaming_interface import IblStreamingApInterface, IblStreamingLfInterface
-from ._lick_times import LickInterface
-from ._pupil_tracking import PupilTrackingInterface
-from ._roi_motion_energy import RoiMotionEnergyInterface
-from ._wheel_movement import WheelInterface
-from ._brainwide_map_trials import BrainwideMapTrialsInterface
-from ._raw_video import RawVideoInterface
+# from ._ibl_streaming_interface import IblStreamingApInterface, IblStreamingLfInterface
+from ._lick_times_interface import LickInterface
+from ._pupil_tracking_interface import PupilTrackingInterface
+from ._roi_motion_energy_interface import RoiMotionEnergyInterface
+from ._wheel_movement_interface import WheelInterface
+from ._brainwide_map_trials_interface import BrainwideMapTrialsInterface
+from ._raw_video_interface import RawVideoInterface
 from ._ibl_passive_interface import PassivePeriodDataInterface
 
 __all__ = [
@@ -15,8 +15,8 @@ __all__ = [
     "IblPoseEstimationInterface",
     "IblSortingExtractor",
     "IblSortingInterface",
-    "IblStreamingApInterface",
-    "IblStreamingLfInterface",
+    # "IblStreamingApInterface",
+    # "IblStreamingLfInterface",
     "LickInterface",
     "PupilTrackingInterface",
     "RoiMotionEnergyInterface",

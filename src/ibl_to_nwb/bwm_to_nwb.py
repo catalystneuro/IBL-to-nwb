@@ -173,7 +173,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
 
     data_interfaces = []
     interface_kwargs = dict(one=one, session=eid, revision=revision)
-    data_interfaces.append(IblSortingInterface(**interface_kwargs))
+    # data_interfaces.append(IblSortingInterface(**interface_kwargs))
     data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
     data_interfaces.append(WheelInterface(**interface_kwargs))
     data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
