@@ -18,6 +18,7 @@ from ibl_to_nwb.datainterfaces import (
     RawVideoInterface,
     RoiMotionEnergyInterface,
     WheelInterface,
+    PassivePeriodDataInterface,
 )
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
@@ -174,6 +175,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
     data_interfaces.append(IblSortingInterface(one=one, session=eid, revision=revision))
     data_interfaces.append(BrainwideMapTrialsInterface(one=one, session=eid, revision=revision))
     data_interfaces.append(WheelInterface(one=one, session=eid, revision=revision))
+    data_interfaces.append(PassivePeriodDataInterface(one=one, session=eid, revision=revision))
 
     # These interfaces may not be present; check if they are before adding to list
     # pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
@@ -420,7 +422,9 @@ def convert_session(
             pose_estimation_files = set([Path(f).name for f in one.list_datasets(eid=eid, filename="*.dlc*")])
             for pose_estimation_file in pose_estimation_files:
                 camera_name = get_camera_name_from_file(pose_estimation_file)
-                data_interfaces.append(IblPoseEstimationInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
+                data_interfaces.append(
+                    IblPoseEstimationInterface(one=one, session=eid, camera_name=camera_name, revision=revision)
+                )
 
             session_converter = BrainwideMapConverter(
                 one=one,
@@ -438,7 +442,7 @@ def convert_session(
     if nwbfile_path.exists():
         if overwrite:
             _logger.warning(f"file: {nwbfile_path} exists already, overwriting")
-            os.remove(nwbfile_path) # for processed. if raw TODO video folder needs to be removed as well
+            os.remove(nwbfile_path)  # for processed. if raw TODO video folder needs to be removed as well
         else:
             _logger.error(f"file: {nwbfile_path} exists already, quitting")
             raise FileExistsError
