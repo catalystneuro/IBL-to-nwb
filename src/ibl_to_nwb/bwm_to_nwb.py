@@ -172,20 +172,19 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
     # Returns a list of the data interfaces to build the processed NWB file for this session
 
     data_interfaces = []
-    data_interfaces.append(IblSortingInterface(one=one, session=eid, revision=revision))
-    data_interfaces.append(BrainwideMapTrialsInterface(one=one, session=eid, revision=revision))
-    data_interfaces.append(WheelInterface(one=one, session=eid, revision=revision))
-    data_interfaces.append(PassivePeriodDataInterface(one=one, session=eid, revision=revision))
+    interface_kwargs = dict(one=one, session=eid, revision=revision)
+    # data_interfaces.append(IblSortingInterface(**interface_kwargs))
+    # data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
+    # data_interfaces.append(WheelInterface(**interface_kwargs))
+    data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
 
     # These interfaces may not be present; check if they are before adding to list
     # pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
     # ugly hack, but workaround for one.list_datasets() with revision behavior
     pose_estimation_files = set([Path(f).name for f in one.list_datasets(eid=eid, filename="*.dlc*")])
     for pose_estimation_file in pose_estimation_files:
-        # camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
-        # camera_name = Path(pose_estimation_file).stem.split('_ibl_')[1].split('.')[0]
         camera_name = get_camera_name_from_file(pose_estimation_file)
-        data_interfaces.append(IblPoseEstimationInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
+        data_interfaces.append(IblPoseEstimationInterface(camera_name=camera_name, **interface_kwargs))
 
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     camera_names = []
@@ -193,7 +192,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         camera_names.append(get_camera_name_from_file(pupil_tracking_file))
     camera_names = set(camera_names)
     for camera_name in camera_names:
-        data_interfaces.append(PupilTrackingInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
+        data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
 
     roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
     camera_names = []
@@ -201,10 +200,10 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         camera_names.append(get_camera_name_from_file(roi_motion_energy_file))
     camera_names = set(camera_names)
     for camera_name in camera_names:
-        data_interfaces.append(RoiMotionEnergyInterface(one=one, session=eid, camera_name=camera_name, revision=revision))
+        data_interfaces.append(RoiMotionEnergyInterface(camera_name=camera_name, **interface_kwargs))
 
     if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
-        data_interfaces.append(LickInterface(one=one, session=eid, revision=revision))
+        data_interfaces.append(LickInterface(**interface_kwargs))
     return data_interfaces
 
 

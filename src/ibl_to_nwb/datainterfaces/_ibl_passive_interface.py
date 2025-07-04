@@ -23,28 +23,41 @@ class PassivePeriodDataInterface(BaseDataInterface):
     def __init__(
         self,
         one: ONE,
-        eid: str,
+        session: str,
         revision: Optional[str] = None,
     ):
         if revision is None:  # if no revision is specified, use the latest
-            revision = one.list_revisions(eid)[-1]
+            revision = one.list_revisions(session)[-1]
 
+        datasets = one.list_datasets(session)
+        self.present_datasets = dict(
+            has_passive = True if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets else False,
+            has_replay = True if "alf/_ibl_passiveStims.table.csv" in datasets else False,
+            has_rfm = True if "alf/_ibl_passiveGabor.table.csv" in datasets else False,
+        )
+        
         # passive epochs
-        self.passive_intervals_df = one.load_dataset(eid, "alf/_ibl_passivePeriods.intervalsTable.csv")
+        if self.present_datasets['has_passive']:
+            self.passive_intervals_df = one.load_dataset(session, "alf/_ibl_passivePeriods.intervalsTable.csv")
 
         # replay
-        self.taskreplay_events_df = one.load_dataset(eid, "alf/_ibl_passiveStims.table.csv")
+        if self.present_datasets['has_replay']:
+            self.taskreplay_events_df = one.load_dataset(session, "alf/_ibl_passiveStims.table.csv")
 
         # RFM
-        self.gabor_events_df = one.load_dataset(eid, "alf/_ibl_passiveGabor.table.csv")
-        self.rfm_times = one.load_dataset(eid, "alf/_ibl_passiveRFM.times.npy")
-        path = one.load_dataset(eid, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
-        self.rfm_data = np.fromfile(path, dtype=np.uint8).reshape((self.rfm_times.shape[0], 15, 15))
+        if self.present_datasets['has_rfm']:
+            self.gabor_events_df = one.load_dataset(session, "alf/_ibl_passiveGabor.table.csv")
+            self.rfm_times = one.load_dataset(session, "alf/_ibl_passiveRFM.times.npy")
+            path = one.load_dataset(session, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
+            self.rfm_data = np.fromfile(path, dtype=np.uint8).reshape((self.rfm_times.shape[0], 15, 15))
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
-        PassiveEpochsInterface(self.passive_intervals_df).add_to_nwbfile(nwbfile, metadata=metadata)
-        TaskReplayInterface(self.passive_intervals_df, self.taskreplay_events_df).add_to_nwbfile(nwbfile, metadata=metadata)
-        GaborRFMInterface(self.gabor_events_df, self.rfm_times, self.rfm_data).add_to_nwbfile(nwbfile, metadata=metadata)
+        if self.present_datasets['has_passive']:
+            PassiveEpochsInterface(self.passive_intervals_df).add_to_nwbfile(nwbfile, metadata=metadata)
+        if self.present_datasets['has_replay']:
+            TaskReplayInterface(self.passive_intervals_df, self.taskreplay_events_df).add_to_nwbfile(nwbfile, metadata=metadata)
+        if self.present_datasets['has_rfm']:
+            GaborRFMInterface(self.gabor_events_df, self.rfm_times, self.rfm_data).add_to_nwbfile(nwbfile, metadata=metadata)
 
 
 class PassiveEpochsInterface(BaseDataInterface):
@@ -164,7 +177,6 @@ class TaskReplayInterface(BaseDataInterface):
         """
         if metadata is None:
             metadata = self.get_metadata()
-        stims_df = self.taskreplay_events_df
 
         # Add passive stimulation intervals as a TimeIntervals table
         passive_stims = TimeIntervals(
@@ -179,15 +191,15 @@ class TaskReplayInterface(BaseDataInterface):
         all_stim_events = []
 
         # Add valve stimulation events
-        for _, row in stims_df.iterrows():
+        for _, row in self.taskreplay_events_df.iterrows():
             all_stim_events.append({"start_time": row["valveOn"], "stop_time": row["valveOff"], "stim_type": "valve"})
 
         # Add tone stimulation events
-        for _, row in stims_df.iterrows():
+        for _, row in self.taskreplay_events_df.iterrows():
             all_stim_events.append({"start_time": row["toneOn"], "stop_time": row["toneOff"], "stim_type": "tone"})
 
         # Add noise stimulation events
-        for _, row in stims_df.iterrows():
+        for _, row in self.taskreplay_events_df.iterrows():
             all_stim_events.append({"start_time": row["noiseOn"], "stop_time": row["noiseOff"], "stim_type": "noise"})
 
         # Sort events by start time
