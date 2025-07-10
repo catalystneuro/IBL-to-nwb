@@ -171,20 +171,15 @@ def get_camera_name_from_file(filepath):
     camera_name = filename.split(".")[0]  # remove suffixes
     return camera_name
 
-# def check_camera_health(one: ONE = None, session: str = None, revision: str = None):
-#     try:
-#         session_loader = SessionLoader(one=one, eid=session, revision=revision)
-#         session_loader.load_pose(tracker='dlc')
-#         return True
-#     except: # ALFObjectNotFound or ValueError
-#         return False
+def check_camera_health_by_loading(one: ONE = None, session: str = None, revision: str = None):
+    try:
+        session_loader = SessionLoader(one=one, eid=session, revision=revision)
+        session_loader.load_pose(tracker='dlc')
+        return True
+    except: # ALFObjectNotFound or ValueError
+        return False
 
-# def get_healthy_cameras(eid):
-#     camera_views = ['body','left','right']
-#     for view in camera_views:
-#         if qc[eid][f'video{view}'] is in ['CRITICAL', 'FAIL']:
-
-def check_camera_health(bwm_qc, eid, camera_name):
+def check_camera_health_by_qc(bwm_qc, eid, camera_name):
     view = camera_name.split('Camera')[0].capitalize()
     qc = bwm_qc[eid][f'video{view}']
     if qc in ['CRITICAL','FAIL']:
@@ -202,7 +197,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
     data_interfaces.append(IblSortingInterface(**interface_kwargs))
     data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
     data_interfaces.append(WheelInterface(**interface_kwargs))
-    data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
+    # data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
 
     # These interfaces may not be present; check if they are before adding to list
     # pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
@@ -211,7 +206,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
     for pose_estimation_file in pose_estimation_files:
         # parse file name to camera
         camera_name = get_camera_name_from_file(pose_estimation_file)
-        if check_camera_health(bwm_qc, eid, camera_name):
+        if check_camera_health_by_qc(bwm_qc, eid, camera_name) and check_camera_health_by_loading(**interface_kwargs):
             data_interfaces.append(IblPoseEstimationInterface(camera_name=camera_name, **interface_kwargs))
 
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
@@ -220,7 +215,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         camera_names.append(get_camera_name_from_file(pupil_tracking_file))
     camera_names = set(camera_names)
     for camera_name in camera_names:
-        if check_camera_health(bwm_qc, eid, camera_name):
+        if check_camera_health_by_qc(bwm_qc, eid, camera_name):
             data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
 
     roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
@@ -229,7 +224,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         camera_names.append(get_camera_name_from_file(roi_motion_energy_file))
     camera_names = set(camera_names)
     for camera_name in camera_names:
-        if check_camera_health(bwm_qc, eid, camera_name):
+        if check_camera_health_by_qc(bwm_qc, eid, camera_name):
             data_interfaces.append(RoiMotionEnergyInterface(camera_name=camera_name, **interface_kwargs))
     
     if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
@@ -239,7 +234,6 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
 
 def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
     # Returns a list of the data interfaces to build the raw NWB file for this session
-
     data_interfaces = []
 
     # get the pid/pname mapping for this eid
