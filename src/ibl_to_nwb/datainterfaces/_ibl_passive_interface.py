@@ -59,10 +59,10 @@ class PassivePeriodDataInterface(BaseDataInterface):
         # replay
         if self.present_datasets["has_replay"]:
             self.taskreplay_events_df = one.load_dataset(session, "alf/_ibl_passiveStims.table.csv")
+            self.gabor_events_df = one.load_dataset(session, "alf/_ibl_passiveGabor.table.csv")
 
         # receptrive field mapping
         if self.present_datasets["has_rfm"]:
-            self.gabor_events_df = one.load_dataset(session, "alf/_ibl_passiveGabor.table.csv")
             self.rfm_times = one.load_dataset(session, "alf/_ibl_passiveRFM.times.npy")
             path = one.load_dataset(session, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
             self.rfm_data = np.fromfile(path, dtype=np.uint8).reshape((self.rfm_times.shape[0], 15, 15))

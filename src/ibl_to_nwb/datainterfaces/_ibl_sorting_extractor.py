@@ -152,6 +152,11 @@ class IblSortingExtractor(BaseSorting):
                         )
                     )
                 )
+            else:
+                n_units = clusters['uuids'].shape[0]
+                all_unit_properties["allen_location"].extend(['no_histology'] * n_units)
+                all_unit_properties["beryl_location"].extend(['no_histology'] * n_units)
+                all_unit_properties["cosmos_location"].extend(['no_histology'] * n_units)
 
         # this is obsolete now
         for unit_id in spike_times_by_id:  # Cast as arrays for fancy indexing

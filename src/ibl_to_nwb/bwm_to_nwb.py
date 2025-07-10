@@ -7,6 +7,7 @@ from pathlib import Path
 import spikeglx
 from one.alf.spec import is_uuid_string
 from one.api import ONE
+from brainbox.io.one import SessionLoader
 
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import (
@@ -33,6 +34,10 @@ from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 ##        ##     ##    ##    ##     ##
 """
 
+def get_logger(eid: str):
+    # helper to get the eid specific logger
+    _logger = logging.getLogger(f"bwm_to_nwb.{eid}")
+    return _logger
 
 def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path = None) -> dict:
     """
@@ -90,7 +95,6 @@ def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path =
 
 def remove_uuid_from_filepath(file_path: Path) -> Path:
     # if the filename contains an uuid string, it is removed. Otherwise, just returns the path.
-
     dir, name = file_path.parent, file_path.name
     name_parts = name.split(".")
     if is_uuid_string(name_parts[-2]):
@@ -167,24 +171,48 @@ def get_camera_name_from_file(filepath):
     camera_name = filename.split(".")[0]  # remove suffixes
     return camera_name
 
+# def check_camera_health(one: ONE = None, session: str = None, revision: str = None):
+#     try:
+#         session_loader = SessionLoader(one=one, eid=session, revision=revision)
+#         session_loader.load_pose(tracker='dlc')
+#         return True
+#     except: # ALFObjectNotFound or ValueError
+#         return False
+
+# def get_healthy_cameras(eid):
+#     camera_views = ['body','left','right']
+#     for view in camera_views:
+#         if qc[eid][f'video{view}'] is in ['CRITICAL', 'FAIL']:
+
+def check_camera_health(bwm_qc, eid, camera_name):
+    view = camera_name.split('Camera')[0].capitalize()
+    qc = bwm_qc[eid][f'video{view}']
+    if qc in ['CRITICAL','FAIL']:
+        return False
+    else:
+        return True
 
 def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> list:
     # Returns a list of the data interfaces to build the processed NWB file for this session
+    bwm_qc = load_fixtures.load_bwm_qc()
+    _logger = get_logger(eid)
 
     data_interfaces = []
     interface_kwargs = dict(one=one, session=eid, revision=revision)
-    # data_interfaces.append(IblSortingInterface(**interface_kwargs))
-    # data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
-    # data_interfaces.append(WheelInterface(**interface_kwargs))
-    # data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
+    data_interfaces.append(IblSortingInterface(**interface_kwargs))
+    data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
+    data_interfaces.append(WheelInterface(**interface_kwargs))
+    data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
 
     # These interfaces may not be present; check if they are before adding to list
     # pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
     # ugly hack, but workaround for one.list_datasets() with revision behavior
     pose_estimation_files = set([Path(f).name for f in one.list_datasets(eid=eid, filename="*.dlc*")])
     for pose_estimation_file in pose_estimation_files:
+        # parse file name to camera
         camera_name = get_camera_name_from_file(pose_estimation_file)
-        data_interfaces.append(IblPoseEstimationInterface(camera_name=camera_name, **interface_kwargs))
+        if check_camera_health(bwm_qc, eid, camera_name):
+            data_interfaces.append(IblPoseEstimationInterface(camera_name=camera_name, **interface_kwargs))
 
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     camera_names = []
@@ -192,7 +220,8 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         camera_names.append(get_camera_name_from_file(pupil_tracking_file))
     camera_names = set(camera_names)
     for camera_name in camera_names:
-        data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
+        if check_camera_health(bwm_qc, eid, camera_name):
+            data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
 
     roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
     camera_names = []
@@ -200,8 +229,9 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         camera_names.append(get_camera_name_from_file(roi_motion_energy_file))
     camera_names = set(camera_names)
     for camera_name in camera_names:
-        data_interfaces.append(RoiMotionEnergyInterface(camera_name=camera_name, **interface_kwargs))
-
+        if check_camera_health(bwm_qc, eid, camera_name):
+            data_interfaces.append(RoiMotionEnergyInterface(camera_name=camera_name, **interface_kwargs))
+    
     if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
         data_interfaces.append(LickInterface(**interface_kwargs))
     return data_interfaces
@@ -369,6 +399,9 @@ def convert_session(
     Path
         The path to the created NWB file.
     """
+    # temporary injection
+    if eid == "dc21e80d-97d7-44ca-a729-a8e3f9b14305":
+        revision = "2025-06-04"
 
     # path setup
     paths = setup_paths(one, eid, base_path=base_path, scratch_path=scratch_path)
@@ -381,7 +414,7 @@ def convert_session(
         handler = logging.FileHandler(base_path / f"{eid}.log")
         handler.setLevel(logging.DEBUG)
         _logger.addHandler(handler)
-        _logger.debug(f"initializing data interfaces for mode {mode} ")
+        _logger.debug(f"initializing data interfaces for {eid} with mode {mode} ")
 
     match mode:
         case "raw":

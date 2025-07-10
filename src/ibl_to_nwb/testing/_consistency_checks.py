@@ -145,8 +145,12 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
     revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
+    session_loader = SessionLoader(one=one, eid=eid, revision=revision)
+    session_loader.load_pose(tracker='dlc') # TODO to be externalized
+
     camera_views = ["body", "left", "right"]
     for view in camera_views:
+        pose_data = session_loader.pose[f'{view}Camera']
         data_interface_name = f"PoseEstimation{view.capitalize()}Camera"
         if data_interface_name in processing_module.data_interfaces.keys():
             pose_estimation_container = processing_module.data_interfaces[data_interface_name]
@@ -155,19 +159,17 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
             for node in nodes:
                 # x
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 0]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_x"].values
+                data_from_ONE = pose_data[f"{node}_x"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # y
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 1]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_y"].values
+                data_from_ONE = pose_data[f"{node}_y"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # confidence
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].confidence[:]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
-                    f"{node}_likelihood"
-                ].values
+                data_from_ONE = pose_data[f"{node}_likelihood"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # timestamps
@@ -237,13 +239,18 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
             ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
+            # timestamps
+            timestamps_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].timestamps[:]
+            timestamps_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times.npy", **load_kwargs)
+            assert_array_equal(x=timestamps_from_NWB, y=timestamps_from_ONE)
+
             # smooth
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}SmoothedPupilDiameter"].data[:]
             data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
                 "pupilDiameter_smooth"
             ].values
-
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+
             _logger.debug(f"pupil data for {view} passed")
 
 
@@ -252,8 +259,11 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
     bwm_df = load_fixtures.load_bwm_df()
-    pids, probe_names = eid2pid(eid, bwm_df)
-    pids = dict(zip(probe_names, pids))
+
+    raw_ephys_datasets = one.list_datasets(eid=eid, collection="raw_ephys_data/*")
+    probe_names = set([filename.split("/")[1] for filename in raw_ephys_datasets])
+    # pids, probe_names = eid2pid(eid, bwm_df)
+    # pids = dict(zip(probe_names, pids))
 
     units_table = nwbfile.units[:]
     # probe_names = units_table["probe_name"].unique()
