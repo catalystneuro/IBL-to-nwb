@@ -29,7 +29,7 @@ class PupilTrackingInterface(BaseDataInterface):
         return metadata
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
-        camera_view = re.search(r'(left|right|body)Camera*', self.camera_name).group(1)
+        camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
 
         camera_data = self.one.load_object(
             id=self.session, obj=self.camera_name, collection="alf", revision=self.revision

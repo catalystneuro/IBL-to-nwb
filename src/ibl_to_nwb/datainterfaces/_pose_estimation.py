@@ -50,7 +50,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
             set(field.replace("_x", "").replace("_y", "").replace("_likelihood", "") for field in dlc_data.keys())
         )
 
-        camera_view = re.search(r'(left|right|body)Camera*', self.camera_name).group(1)
+        camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
         # left_right_or_body = self.camera_name[:5].rstrip("C")
         reused_timestamps = None
         all_pose_estimation_series = list()

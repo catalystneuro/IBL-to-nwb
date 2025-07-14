@@ -164,7 +164,9 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
 
                 # confidence
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].confidence[:]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_likelihood"].values
+                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[
+                    f"{node}_likelihood"
+                ].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # timestamps
@@ -229,12 +231,16 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
             # raw
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_raw"].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
+                "pupilDiameter_raw"
+            ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # smooth
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}SmoothedPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_smooth"].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
+                "pupilDiameter_smooth"
+            ].values
 
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
             _logger.debug(f"pupil data for {view} passed")
@@ -282,7 +288,9 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
         cluster_id = np.where(clusters[probe_name]["uuids"] == uuid)[0][0]
         # spikes[probe_name]["clusters"]
-        spike_times_from_ONE = get_spikes_for_cluster(spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id)
+        spike_times_from_ONE = get_spikes_for_cluster(
+            spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id
+        )
 
         # more verbose but slower for more than ~20 checks
         # spike_times_from_ONE = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
@@ -375,7 +383,9 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()[:]
 
             # from brainbox.io
-            brainbox_timestamps = spike_sorting_loader.samples2times(np.arange(0, n_samples_one), direction="forward", band=band)
+            brainbox_timestamps = spike_sorting_loader.samples2times(
+                np.arange(0, n_samples_one), direction="forward", band=band
+            )
 
             np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
             _logger.debug(f"ephys data timestamps for {pname}/{band} passed")
