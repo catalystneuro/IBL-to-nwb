@@ -83,7 +83,6 @@ class IblSortingExtractor(BaseSorting):
                 spike_times_by_id[unit_id] = spikes["times"][ix]
                 spike_amplitudes_by_id[unit_id] = spikes["amps"][ix]
                 spike_depths_by_id[unit_id] = spikes["depths"][ix]
-
             # should outperform but doesn't
             # pre-sort for fast access
             # sort_ix = np.argsort(spikes["clusters"])
@@ -125,10 +124,18 @@ class IblSortingExtractor(BaseSorting):
                 label="label",
                 cluster_uuid="cluster_uuid",
                 cluster_id="cluster_id",
+                ml='ML',
+                ap='AP',
+                dv='DV',
             )
 
             cluster_metrics = clusters["metrics"].reset_index(drop=True).join(pd.DataFrame(clusters["uuids"]))
             cluster_metrics.rename(columns={"uuids": "cluster_uuid"}, inplace=True)
+
+            # adding ml ap dv locations to clusters
+            cluster_metrics['ml'] = channels['x'][clusters['channels']] * 1e6
+            cluster_metrics['ap'] = channels['y'][clusters['channels']] * 1e6
+            cluster_metrics['dv'] = channels['z'][clusters['channels']] * 1e6
 
             for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
                 all_unit_properties[property_name].extend(list(cluster_metrics[ibl_metric_key]))

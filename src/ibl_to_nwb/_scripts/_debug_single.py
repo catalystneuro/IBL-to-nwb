@@ -30,8 +30,8 @@ base_path.mkdir(exist_ok=True, parents=True)
 
 REVISION = "2025-05-06"
 CONVERT = True
-VERIFY = True
-RESET_CACHE = True
+VERIFY = False
+RESET_CACHE = False
 ALYX = 'openalyx'
 
 # channel IDs are not part of the extractor bug
