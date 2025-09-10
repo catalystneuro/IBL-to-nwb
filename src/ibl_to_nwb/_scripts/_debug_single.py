@@ -6,7 +6,7 @@ from pynwb import NWBHDF5IO
 
 from ibl_to_nwb import bwm_to_nwb
 from ibl_to_nwb.testing import check_nwbfile_for_consistency
-
+from ibl_to_nwb.fixtures import load_fixtures
 # Set the filter to show each warning only once for a specific module
 
 # if running on SDSC, use the OneSdsc, else normal
@@ -30,15 +30,16 @@ base_path.mkdir(exist_ok=True, parents=True)
 
 REVISION = "2025-05-06"
 CONVERT = True
-VERIFY = False
+VERIFY = True
 RESET_CACHE = True
 ALYX = 'openalyx'
 
-# eid = "d832d9f7-c96a-4f63-8921-516ba4a7b61f" # no camera issue
-# eid = "b81e3e11-9a60-4114-b894-09f85074d9c3" # cluster__uuid / eid issue
-# eid = "4b7fbad4-f6de-43b4-9b15-c7c7ef44db4b" # duplicate camera interface
-eid = "a8a8af78-16de-4841-ab07-fde4b5281a03"
-# eid = "0841d188-8ef2-4f20-9828-76a94d5343a4" #skeletons issue
+# channel IDs are not part of the extractor bug
+eid = "6fb1e12c-883b-46d1-a745-473cde3232c8"
+# bwm_df = load_fixtures.load_bwm_df()
+# eid = bwm_df['eid'].values[10]
+
+
 
 # instantiating one
 if ALYX == 'openalyx':
@@ -63,13 +64,14 @@ else:
 
 # %%
 if RESET_CACHE:
-    print(f"resetting cache table for base_url {one_url}")
+    print(f"attempting to reset cache tables ... ")
     one = ONE(base_url=one_url)
     # remove cache tables if present
     if next(one._tables_dir.glob('*sessions.pqt')).exists():
         one._remove_table_files()
+        print(f"... removed cache tables for base_url {one_url}")
     else:
-        print("no cache files found at directory. Can't remove anything.")
+        print("... no cache files found at directory.")
     one.load_cache()
     del one
 
@@ -90,11 +92,10 @@ kwargs = dict(
     base_path=base_path,
     cleanup=False,
     log_to_file=False,
-    verify=False,
+    verify=True,
     debug=True,
     overwrite=True,
 )
-
 
 def eid2nwbfilename(eid, one, mode="processed"):
     ref = one.eid2ref(eid)
@@ -104,12 +105,14 @@ def eid2nwbfilename(eid, one, mode="processed"):
     nwbfile_path = base_path / f"sub-{ref['subject']}" / f"sub-{ref['subject']}_ses-{eid}_desc-{suffix}.nwb"
     return nwbfile_path
 
-
 if CONVERT:
+    print(f"converting {eid} ... ")
     bwm_to_nwb.convert_session(eid=eid, **kwargs)
+    print(f" ... done")
 
 if VERIFY:
+    print(f"verifying {eid} ... ")
     nwbfile_path = eid2nwbfilename(eid, one, mode="processed")
-
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
+    print(f" ... all checks passed!")

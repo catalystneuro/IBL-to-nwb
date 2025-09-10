@@ -33,14 +33,12 @@ REVISION = "2025-05-06"
 N_JOBS = 64
 DEBUG = True
 USE_JOBLIB = False
-RESET_CACHE = True
+RESET_CACHE = False
 OVERWRITE = True
+ALYX = 'openalyx'
 
 if DEBUG:
-    # eid = "09394481-8dd2-4d5c-9327-f2753ede92d7"  # the spike timestamps issue for Heberto
-    eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d"  # the LF timestamps issue
-    # eid = "d32876dd-8303-4720-8e7e-20678dc2fd71"  # no spikes['clusters'] ????
-    # eid = "b81e3e11-9a60-4114-b894-09f85074d9c3" # cluster__uuid / eid issue
+    eid = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # the broken session
     N_JOBS = 1
     # crashes locally
 else:
@@ -71,20 +69,30 @@ else:
     eids_ = eids[:N_JOBS]
 
 # instantiating one
+if ALYX == 'openalyx':
+    one_url = "https://openalyx.internationalbrainlab.org"
+    tables_dir = Path.home() / "Downloads" / "ONE" / "openalyx.internationalbrainlab.org"
+if ALYX == 'alyx':
+    one_url = "https://alyx.internationalbrainlab.org"
+    tables_dir = Path.home() / "Downloads" / "ONE" / "alyx.internationalbrainlab.org"
+
 if "USE_SDSC_ONE" in os.environ:
     one_kwargs = dict(
         mode="local",  # required for SDSC use
         cache_rest=None,  # at SDSC, no write permissions at the location of the rest cache
+        tables_dir=tables_dir
     )
+
 else:
     one_kwargs = dict(
-        base_url="https://openalyx.internationalbrainlab.org",
+        base_url=one_url,
         mode="local",
     )
 
+
 # %%
 if RESET_CACHE:
-    one = ONE(base_url="https://openalyx.internationalbrainlab.org")
+    one = ONE(base_url="https://alyx.internationalbrainlab.org")
     one._remove_table_files()
     one.load_cache()
     del one
@@ -93,8 +101,8 @@ if RESET_CACHE:
 one = ONE(**one_kwargs)
 
 # %% mode selection
-mode = "raw"
-# mode = "processed"
+# mode = "raw"
+mode = "processed"
 
 # %% the full thing
 kwargs = dict(
@@ -102,8 +110,8 @@ kwargs = dict(
     revision=REVISION,
     mode=mode,
     base_path=base_path,
-    cleanup=False,
-    log_to_file=False,
+    cleanup=True,
+    log_to_file=True,
     verify=False,
     debug=DEBUG,
     overwrite=OVERWRITE,
