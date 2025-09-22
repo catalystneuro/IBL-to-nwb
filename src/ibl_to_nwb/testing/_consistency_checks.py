@@ -8,6 +8,7 @@ from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
+import pandas as pd
 
 # from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
@@ -440,3 +441,57 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
 
         assert one_video_bytes == nwb_video_bytes
         _logger.debug(f"video values for {camera} passed")
+
+
+def _check_passive_data(*, one: ONE, nwbfile: NWBFile):
+    eid = nwbfile.session_id
+    _logger = get_logger(eid)
+    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    load_kwargs = dict(collection="alf", revision=revision)
+
+    # check which datasets are present
+    datasets = one.list_datasets(eid)
+
+    # has passive epochs
+    if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets:
+        passive_intervals_df = one.load_dataset(eid, "alf/_ibl_passivePeriods.intervalsTable.csv")
+        epochs = nwbfile.intervals['epochs'][:]
+        for protocol, group in epochs.groupby('protocol_name'):
+            if protocol != 'experiment':
+                start_time, stop_time = passive_intervals_df[protocol]
+                assert group['start_time'].values == start_time
+                assert group['stop_time'].values == stop_time
+
+    # has replay
+    if "alf/_ibl_passiveGabor.table.csv" in datasets:
+        taskreplay_events_df = one.load_dataset(eid, "alf/_ibl_passiveStims.table.csv")
+        one_passive_df = []
+
+        for col_name in ['valve','tone','noise']:
+            cols = [col for col in taskreplay_events_df.columns if col.startswith(col_name)]
+            df = taskreplay_events_df[cols].copy()
+            df.loc[:, 'stim_type'] = col_name
+            df.columns = ['start_time','stop_time','stim_type']
+            one_passive_df.append(df)
+        one_passive_df = pd.concat(one_passive_df,axis=0).sort_values('start_time').reset_index(drop=True)
+        one_passive_df.index.name = 'id'
+        nwb_passive_df = nwbfile.processing['passive'].data_interfaces['passive_task_replay'][:]
+        assert_frame_equal(one_passive_df, nwb_passive_df)
+
+        one_gabor_events_df = one.load_dataset(eid, "alf/_ibl_passiveGabor.table.csv")
+        drop_cols = [col for col in one_gabor_events_df.columns if col.startswith('Unnamed')]
+        one_gabor_events_df = one_gabor_events_df.drop(drop_cols, axis=1)
+        one_gabor_events_df.index.name = 'id'
+        one_gabor_events_df = one_gabor_events_df.rename(columns={'start':'start_time', 'stop':'stop_time'})
+        nwb_gabor_events_df = nwbfile.processing['passive'].data_interfaces['gabor_table'][:]
+        assert_frame_equal(one_gabor_events_df, nwb_gabor_events_df)
+
+    # receptrive field mapping
+    if "alf/_ibl_passiveRFM.times.npy" in datasets:
+        nwb_timestamps = nwbfile.processing['passive'].data_interfaces['rfm_stim'].timestamps[:]
+        one_timestamps = one.load_dataset(eid, "alf/_ibl_passiveRFM.times.npy")
+        assert_array_equal(nwb_timestamps, one_timestamps)
+        nwb_data = nwbfile.processing['passive'].data_interfaces['rfm_stim'].data[:]
+        path = one.load_dataset(eid, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
+        one_data = np.fromfile(path, dtype=np.uint8).reshape((one_timestamps.shape[0], 15, 15))
+        assert_array_equal(nwb_data, one_data)
