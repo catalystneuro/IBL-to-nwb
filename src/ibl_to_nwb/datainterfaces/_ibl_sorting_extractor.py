@@ -124,18 +124,26 @@ class IblSortingExtractor(BaseSorting):
                 label="label",
                 cluster_uuid="cluster_uuid",
                 cluster_id="cluster_id",
-                ml='ML',
-                ap='AP',
-                dv='DV',
+                x='x',
+                y='y',
+                z='z',
+                ML='ML',
+                AP='AP',
+                DV='DV',
             )
 
             cluster_metrics = clusters["metrics"].reset_index(drop=True).join(pd.DataFrame(clusters["uuids"]))
             cluster_metrics.rename(columns={"uuids": "cluster_uuid"}, inplace=True)
 
-            # adding ml ap dv locations to clusters
-            cluster_metrics['ml'] = channels['x'][clusters['channels']] * 1e6
-            cluster_metrics['ap'] = channels['y'][clusters['channels']] * 1e6
-            cluster_metrics['dv'] = channels['z'][clusters['channels']] * 1e6
+            # adding locations to clusters
+            for d in ['x','y','z']:
+                cluster_metrics[d] = channels[d][clusters['channels']]
+
+            # allen atlas coordinates
+            mlapdv = atlas.xyz2ccf(cluster_metrics[['x','y','z']].values)
+            cluster_metrics['ML'] = mlapdv[:,0]
+            cluster_metrics['AP'] = mlapdv[:,1]
+            cluster_metrics['DV'] = mlapdv[:,2]
 
             for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
                 all_unit_properties[property_name].extend(list(cluster_metrics[ibl_metric_key]))
