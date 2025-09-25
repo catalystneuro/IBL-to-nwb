@@ -30,15 +30,14 @@ base_path.mkdir(exist_ok=True, parents=True)
 
 REVISION = "2025-05-06"
 CONVERT = True
-VERIFY = False
-RESET_CACHE = False
+VERIFY = True
+RESET_CACHE = True
 ALYX = 'openalyx'
+MODE = "raw"
 
-# channel IDs are not part of the extractor bug
-eid = "6fb1e12c-883b-46d1-a745-473cde3232c8"
-# bwm_df = load_fixtures.load_bwm_df()
-# eid = bwm_df['eid'].values[10]
-
+# eid = "6fb1e12c-883b-46d1-a745-473cde3232c8" # channel IDs are not part of the extractor when using alyx
+# eid = "dd4da095-4a99-4bf3-9727-f735077dba66" # z value outside the atlas volume
+eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d" # timestamps issue (for heberto)
 
 
 # instantiating one
@@ -80,15 +79,12 @@ one = ONE(**one_kwargs)
 
 print(f'using cache tables from {one._tables_dir}')
 
-# %% mode selection
-# mode = "raw"
-mode = "processed"
 
 # %% the full thing
 kwargs = dict(
     one=one,
     revision=REVISION,
-    mode=mode,
+    mode=MODE,
     base_path=base_path,
     cleanup=False,
     log_to_file=False,

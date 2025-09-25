@@ -140,7 +140,7 @@ class IblSortingExtractor(BaseSorting):
                 cluster_metrics[d] = channels[d][clusters['channels']]
 
             # allen atlas coordinates
-            mlapdv = atlas.xyz2ccf(cluster_metrics[['x','y','z']].values)
+            mlapdv = atlas.xyz2ccf(cluster_metrics[['x','y','z']].values, mode='clip')
             cluster_metrics['ML'] = mlapdv[:,0]
             cluster_metrics['AP'] = mlapdv[:,1]
             cluster_metrics['DV'] = mlapdv[:,2]
