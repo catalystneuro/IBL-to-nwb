@@ -1,15 +1,6 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
-
-[tool.hatch.version]
-source = "vcs"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/ibl_to_nwb"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
+requires = ["uv_build"]
+build-backend = "uv_build"
 
 [project]
 name = "ibl_to_nwb"
@@ -32,10 +23,11 @@ dependencies = [
     "iblatlas",
     "ndx-ibl",
     "ndx-events",
-    "ndx-ibl-bwm@git+https://github.com/int-brain-lab/ndx-ibl-bwm#egg=main",
-    "ibllib@git+https://github.com/int-brain-lab/ibllib#egg=NWB_conversion",
-    "ibl-neuropixel@git@github.com:int-brain-lab/ibl-neuropixel#egg=NWB_conversion",
+    "ibl-neuropixel",
+    "ndx-ibl-bwm",
+    "ibllib",
 ]
+
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.9",
@@ -49,6 +41,10 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
 ]
 
+[tool.uv.sources]
+ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "NWB_conversion"}
+ndx-ibl-bwm = {git = "https://github.com/int-brain-lab/ndx-ibl-bwm", branch = "main" }
+ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 
 
 [tool.black]
