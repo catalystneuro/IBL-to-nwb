@@ -11,6 +11,7 @@ from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
 from pynwb.behavior import PupilTracking
+import pandas as pd
 
 
 class PupilTrackingInterface(BaseDataInterface):
@@ -30,10 +31,13 @@ class PupilTrackingInterface(BaseDataInterface):
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
-
         camera_data = self.one.load_object(
             id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
         )
+
+        # extra dirty hack to be removed
+        # if self.session == "dc21e80d-97d7-44ca-a729-a8e3f9b14305" and camera_view == 'right': # the broken session
+        #     camera_data["features"] = pd.read_parquet(Path("/mnt/sdceph/users/ibl/data/wittenlab/Subjects/ibl_witten_26/2021-01-31/001/alf/#2025-06-04#/_ibl_rightCamera.features.c9658c1b-1d93-469c-9faf-76d535205485.pqt"))
 
         pupil_time_series = list()
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:

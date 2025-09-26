@@ -18,6 +18,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
         session: str,
         camera_name: str,
         revision: Optional[str] = None,
+        tracker: str = 'lightningPose',
     ) -> None:
         """
         Interface for the pose estimation (DLC) data from the IBL Brainwide Map release.
@@ -36,6 +37,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
         self.one = one
         self.session = session
         self.camera_name = camera_name
+        self.tracker = tracker
 
         self.revision = revision
         if self.revision is None:
@@ -43,7 +45,7 @@ class IblPoseEstimationInterface(BaseDataInterface):
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
         session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
-        session_loader.load_pose(tracker='dlc') # TODO to be externalized
+        session_loader.load_pose(tracker=self.tracker)
         pose_data = session_loader.pose[self.camera_name]
 
         timestamps = pose_data["times"].values
