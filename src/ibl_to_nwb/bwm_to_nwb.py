@@ -174,7 +174,7 @@ def get_camera_name_from_file(filepath):
 def check_camera_health_by_loading(one: ONE = None, session: str = None, revision: str = None):
     try:
         session_loader = SessionLoader(one=one, eid=session, revision=revision)
-        session_loader.load_pose(tracker='dlc')
+        session_loader.load_pose(tracker='lightningPose')
         return True
     except: # ALFObjectNotFound or ValueError
         return False
@@ -197,7 +197,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
     data_interfaces.append(IblSortingInterface(**interface_kwargs))
     data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
     data_interfaces.append(WheelInterface(**interface_kwargs))
-    # data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
+    data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
 
     # These interfaces may not be present; check if they are before adding to list
     # pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
@@ -207,7 +207,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         # parse file name to camera
         camera_name = get_camera_name_from_file(pose_estimation_file)
         if check_camera_health_by_qc(bwm_qc, eid, camera_name) and check_camera_health_by_loading(**interface_kwargs):
-            data_interfaces.append(IblPoseEstimationInterface(camera_name=camera_name, **interface_kwargs))
+            data_interfaces.append(IblPoseEstimationInterface(camera_name=camera_name, tracker='lightningPose', **interface_kwargs))
 
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     camera_names = []
