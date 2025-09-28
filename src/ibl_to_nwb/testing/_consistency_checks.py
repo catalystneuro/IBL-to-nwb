@@ -350,12 +350,12 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 
     imec_to_pname = dict(zip(pname_to_imec.values(), pname_to_imec.keys()))
     imecs = [key.split(band.upper())[1] for key in list(nwbfile.acquisition.keys()) if band.upper() in key]
-    pnames_nwb = [imec_to_pname[imec] for imec in imecs]
-
-    assert set(pnames_one) == set(pnames_nwb)
+    if len(pnames_one) > 1:
+        pnames_nwb = [imec_to_pname[imec] for imec in imecs]
+        assert set(pnames_one) == set(pnames_nwb)
 
     # comparing ephys samples
-    for pname in pnames_nwb:
+    for pname in pnames_one:
         for band in ["lf", "ap"]:
             # pid = pidname_map[pname]
             spike_sorting_loader = SpikeSortingLoader(eid=eid, pname=pname, one=one, revision=revision)
@@ -366,7 +366,10 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             data_one = sglx_streamer._raw
 
             # nwb ephys data
-            imec = pname_to_imec[pname]
+            if len(pnames_one) > 1: # this hack deals with single probe recordings
+                imec = pname_to_imec[pname]
+            else:
+                imec = ''
             data_nwb = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].data
 
             # compare number of samples in both
