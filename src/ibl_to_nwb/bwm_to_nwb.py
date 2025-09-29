@@ -68,17 +68,12 @@ def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path =
     """
 
     base_path = Path.home() / "ibl_bmw_to_nwb" if base_path is None else base_path
-    scratch_path = Path("/scratch") if scratch_path is None else scratch_path
     subject = one.eid2ref(eid)["subject"]
     paths = dict(
         output_folder=base_path / "nwbfiles" / f"sub-{subject}",
         session_folder=one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
-        scratch_folder=scratch_path,  # <- this is to be changed to /scratch on the node
+        scratch_folder=Path("/scratch") if scratch_path is None else scratch_path,  # <- this is to be changed to /scratch on the node
     )
-    if "USE_SDSC_ONE" in os.environ:
-        paths["scratch_folder"] = Path("/scratch")  # <- on SDSC, a per node /scratch folder exists for this purpose
-    else:
-        paths["scratch_folder"] = Path.home() / "ibl_scratch"  # for local usage
 
     # inferred from above
     paths["session_scratch_folder"] = paths["scratch_folder"] / eid
