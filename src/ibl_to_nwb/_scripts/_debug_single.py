@@ -30,17 +30,19 @@ base_path.mkdir(exist_ok=True, parents=True)
 
 REVISION = "2025-05-06"
 CONVERT = True
-VERIFY = True
-RESET_CACHE = True
+VERIFY = False
+RESET_CACHE = False
 ALYX = 'openalyx'
 MODE = "raw"
 
 # eid = "6fb1e12c-883b-46d1-a745-473cde3232c8" # channel IDs are not part of the extractor when using alyx
 # eid = "dd4da095-4a99-4bf3-9727-f735077dba66" # z value outside the atlas volume
 eid = "6713a4a7-faed-4df2-acab-ee4e63326f8d" # timestamps issue (for heberto)
+eid = "004d8fd5-41e7-4f1b-a45b-0d4ad76fe446" # KeyError: ''
+eid = "1f095590-6669-46c9-986b-ccaf0620c5e9" # npx 4?
 
 
-# instantiating one
+# instantiating onegit
 if ALYX == 'openalyx':
     one_url = "https://openalyx.internationalbrainlab.org"
     tables_dir = Path.home() / "Downloads" / "ONE" / "openalyx.internationalbrainlab.org"
@@ -88,16 +90,21 @@ kwargs = dict(
     base_path=base_path,
     cleanup=False,
     log_to_file=False,
-    verify=True,
+    verify=False,
     debug=True,
     overwrite=True,
+    scratch_path=Path.home() / "scratch"
 )
 
 def eid2nwbfilename(eid, one, mode="processed"):
     ref = one.eid2ref(eid)
     base_path = Path("/mnt/home/graiser/quarantine/BWM_to_NWB/nwbfiles")
-    if mode == "processed":
-        suffix = "processed_behavior+ecephys"
+    match mode:
+        case "processed":
+            suffix = "processed_behavior+ecephys"
+        case "raw":
+            suffix = "raw_ecephys+image"
+
     nwbfile_path = base_path / f"sub-{ref['subject']}" / f"sub-{ref['subject']}_ses-{eid}_desc-{suffix}.nwb"
     return nwbfile_path
 
@@ -108,7 +115,7 @@ if CONVERT:
 
 if VERIFY:
     print(f"verifying {eid} ... ")
-    nwbfile_path = eid2nwbfilename(eid, one, mode="processed")
+    nwbfile_path = eid2nwbfilename(eid, one, mode=MODE)
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
     print(f" ... all checks passed!")

@@ -29,13 +29,16 @@ else:
     base_path = Path.home() / "ibl_scratch"  # local directory
 base_path.mkdir(exist_ok=True, parents=True)
 
-REVISION = "2025-05-06"
-N_JOBS = 64
-DEBUG = True
-USE_JOBLIB = False
-RESET_CACHE = False
+MODE = "raw"
+# N_JOBS = 64 # 64 good value for processed
+N_JOBS = 4 # for raw
+DEBUG = False
+USE_JOBLIB = True
+RESET_CACHE = True
 OVERWRITE = True
+VERIFY=True
 ALYX = 'openalyx'
+REVISION = "2025-05-06"
 
 if DEBUG:
     eid = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # the broken session
@@ -82,7 +85,6 @@ if "USE_SDSC_ONE" in os.environ:
         cache_rest=None,  # at SDSC, no write permissions at the location of the rest cache
         tables_dir=tables_dir
     )
-
 else:
     one_kwargs = dict(
         base_url=one_url,
@@ -100,19 +102,15 @@ if RESET_CACHE:
 # instantiate one
 one = ONE(**one_kwargs)
 
-# %% mode selection
-# mode = "raw"
-mode = "processed"
-
 # %% the full thing
 kwargs = dict(
     one=one,
     revision=REVISION,
-    mode=mode,
+    mode=MODE,
     base_path=base_path,
     cleanup=True,
     log_to_file=True,
-    verify=False,
+    verify=VERIFY,
     debug=DEBUG,
     overwrite=OVERWRITE,
 )
