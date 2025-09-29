@@ -47,6 +47,7 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
             _check_trials_data(nwbfile=nwbfile, one=one)
             _check_wheel_data(nwbfile=nwbfile, one=one)
             _check_spike_sorting_data(nwbfile=nwbfile, one=one)
+            _check_passive_data(nwbfile=nwbfile, one=one)
 
             # these are not always present for all datasets, therefore check for existence first
             if "camera" in nwbfile.processing:
