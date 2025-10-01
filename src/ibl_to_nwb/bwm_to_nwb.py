@@ -197,7 +197,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
     # These interfaces may not be present; check if they are before adding to list
     # pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
     # ugly hack, but workaround for one.list_datasets() with revision behavior
-    pose_estimation_files = set([Path(f).name for f in one.list_datasets(eid=eid, filename="*.dlc*")])
+    pose_estimation_files = set([Path(f).name for f in one.list_datasets(eid=eid, filename="*.lightningPose*")])
     for pose_estimation_file in pose_estimation_files:
         # parse file name to camera
         camera_name = get_camera_name_from_file(pose_estimation_file)
