@@ -22,10 +22,28 @@ class BrainwideMapTrialsInterface(BaseDataInterface):
         metadata.update(trial_metadata)
         return metadata
 
-    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
+    def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict, stub_test: bool = False, stub_trials: int = 10):
+        """
+        Add trial data to NWBFile.
+
+        Parameters
+        ----------
+        nwbfile : NWBFile
+            The NWBFile to add data to.
+        metadata : dict
+            Metadata dictionary.
+        stub_test : bool, default: False
+            If True, only add the first stub_trials trials for testing.
+        stub_trials : int, default: 10
+            Number of trials to include when stub_test=True.
+        """
         session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
         session_loader.load_trials()
         trials = session_loader.trials
+
+        # Subset trials if stub_test
+        if stub_test:
+            trials = trials.iloc[:stub_trials]
 
         column_ordering = [
             "choice",

@@ -9,6 +9,7 @@ from ._wheel_movement_interface import WheelInterface
 from ._brainwide_map_trials_interface import BrainwideMapTrialsInterface
 from ._raw_video_interface import RawVideoInterface
 from ._ibl_passive_interface import PassivePeriodDataInterface
+from ._ibl_anatomical_localization_interface import IblAnatomicalLocalizationInterface
 
 __all__ = [
     "BrainwideMapTrialsInterface",
@@ -22,5 +23,6 @@ __all__ = [
     "RoiMotionEnergyInterface",
     "WheelInterface",
     "RawVideoInterface",
-    "PassivePeriodDataInterface"
+    "PassivePeriodDataInterface",
+    "IblAnatomicalLocalizationInterface"
 ]

@@ -116,10 +116,10 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
         # Add custom devices and groups
         if len(self.available_streams) > 1:
             device_name = f"NeuropixelsProbe{self.probe_number}"
-            group_name = f"NeuropixelsShank{self.probe_number}"
+            group_name = device_name
         else:
             device_name = "NeuropixelsProbe"
-            group_name = "NeuropixelsShank"
+            group_name = "NeuropixelsProbe"
         # set_channel_groups removes probe
         self.recording_extractor.set_property(
             key="group_name", values=np.array([group_name] * self.recording_extractor.get_num_channels())

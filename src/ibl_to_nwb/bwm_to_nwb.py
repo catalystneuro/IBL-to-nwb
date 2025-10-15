@@ -4,6 +4,7 @@ import shutil
 import traceback
 from pathlib import Path
 
+import one
 import spikeglx
 from one.alf.spec import is_uuid_string
 from one.api import ONE
@@ -12,6 +13,7 @@ from brainbox.io.one import SessionLoader
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import (
     BrainwideMapTrialsInterface,
+    IblAnatomicalLocalizationInterface,
     IblSortingInterface,
     IblPoseEstimationInterface,
     LickInterface,
@@ -68,17 +70,20 @@ def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path =
     """
 
     base_path = Path.home() / "ibl_bmw_to_nwb" if base_path is None else base_path
-    scratch_path = Path("/scratch") if scratch_path is None else scratch_path
+
+    # Only apply environment-based logic if scratch_path was not explicitly provided
+    if scratch_path is None:
+        if "USE_SDSC_ONE" in os.environ:
+            scratch_path = Path("/scratch")  # <- on SDSC, a per node /scratch folder exists for this purpose
+        else:
+            scratch_path = Path.home() / "ibl_scratch"  # for local usage
+
     subject = one.eid2ref(eid)["subject"]
     paths = dict(
         output_folder=base_path / "nwbfiles" / f"sub-{subject}",
         session_folder=one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
-        scratch_folder=scratch_path,  # <- this is to be changed to /scratch on the node
+        scratch_folder=scratch_path,
     )
-    if "USE_SDSC_ONE" in os.environ:
-        paths["scratch_folder"] = Path("/scratch")  # <- on SDSC, a per node /scratch folder exists for this purpose
-    else:
-        paths["scratch_folder"] = Path.home() / "ibl_scratch"  # for local usage
 
     # inferred from above
     paths["session_scratch_folder"] = paths["scratch_folder"] / eid
@@ -195,6 +200,14 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
     data_interfaces = []
     interface_kwargs = dict(one=one, session=eid, revision=revision)
     data_interfaces.append(IblSortingInterface(**interface_kwargs))
+
+    # Add anatomical localization after sorting (creates electrodes and links units)
+    insertions = one.alyx.rest('insertions', 'list', session=eid)
+    pname_pid_map = {ins['name']: ins['id'] for ins in insertions}
+    data_interfaces.append(IblAnatomicalLocalizationInterface(
+        one=one, eid=eid, pname_pid_map=pname_pid_map, revision=revision
+    ))
+
     data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
     data_interfaces.append(WheelInterface(**interface_kwargs))
     data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
@@ -237,9 +250,8 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
     data_interfaces = []
 
     # get the pid/pname mapping for this eid
-    bwm_df = load_fixtures.load_bwm_df()
-    df = bwm_df.groupby("eid").get_group(eid)
-    pname_pid_map = df.set_index("probe_name")["pid"].to_dict()
+    insertions = one.alyx.rest('insertions', 'list', session=eid)
+    pname_pid_map = {ins['name']: ins['id'] for ins in insertions}
 
     # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
     spikeglx_subconverter = IblSpikeGlxConverter(
@@ -250,6 +262,11 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
         revision=revision,
     )
     data_interfaces.append(spikeglx_subconverter)
+
+    # Add anatomical localization after SpikeGLX (links to existing electrodes from recording)
+    data_interfaces.append(IblAnatomicalLocalizationInterface(
+        one=one, eid=eid, pname_pid_map=pname_pid_map, revision=revision
+    ))
 
     # video
     metadata_retrieval = BrainwideMapConverter(one=one, session=eid, data_interfaces=[], verbose=False)
@@ -491,10 +508,10 @@ def convert_session(
         check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
         _logger.info(f"all checks passed for {eid} with mode:{mode}")
 
-    if not debug:
-        # for keeping track of the jobs
-        running_dir = base_path / "eids_running"
-        done_dir = base_path / "eids_done"
-        shutil.move(running_dir / f"{eid}", done_dir / f"{eid}")
+    # if not debug:
+    #     # for keeping track of the jobs
+    #     running_dir = base_path / "eids_running"
+    #     done_dir = base_path / "eids_done"
+    #     shutil.move(running_dir / f"{eid}", done_dir / f"{eid}")
 
     return nwbfile_path

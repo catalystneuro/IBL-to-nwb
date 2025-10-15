@@ -24,9 +24,35 @@ class WheelInterface(BaseDataInterface):
 
         return metadata
 
-    def add_to_nwbfile(self, nwbfile, metadata: dict):
+    def add_to_nwbfile(self, nwbfile, metadata: dict, stub_test: bool = False, stub_duration: float = 10.0):
+        """
+        Add wheel movement data to NWBFile.
+
+        Parameters
+        ----------
+        nwbfile : NWBFile
+            The NWBFile to add data to.
+        metadata : dict
+            Metadata dictionary.
+        stub_test : bool, default: False
+            If True, only add the first stub_duration seconds of data for testing.
+        stub_duration : float, default: 10.0
+            Duration in seconds to include when stub_test=True.
+        """
         wheel_moves = self.one.load_object(id=self.session, obj="wheelMoves", collection="alf", revision=self.revision)
         wheel = self.one.load_object(id=self.session, obj="wheel", collection="alf", revision=self.revision)
+
+        # Subset data if stub_test
+        if stub_test:
+            # Subset wheel position timeseries
+            time_mask = wheel["timestamps"] <= stub_duration
+            wheel["timestamps"] = wheel["timestamps"][time_mask]
+            wheel["position"] = wheel["position"][time_mask]
+
+            # Subset wheel movement intervals
+            interval_mask = wheel_moves["intervals"][:, 0] <= stub_duration
+            wheel_moves["intervals"] = wheel_moves["intervals"][interval_mask]
+            wheel_moves["peakAmplitude"] = wheel_moves["peakAmplitude"][interval_mask]
 
         # Estimate velocity and acceleration
         interpolation_frequency = 1000.0  # Hz

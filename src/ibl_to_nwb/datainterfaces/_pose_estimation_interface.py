@@ -51,9 +51,32 @@ class IblPoseEstimationInterface(BaseDataInterface):
         timestamps = pose_data["times"].values
         pose_data = pose_data.drop("times", axis=1)
         number_of_frames = len(timestamps)
+
+
         body_parts = list(
             set(field.replace("_x", "").replace("_y", "").replace("_likelihood", "") for field in pose_data.keys())
         )
+
+        # TODO: Discuss with team how to handle Lightning Pose ensemble/uncertainty data
+        # Lightning Pose provides additional data beyond basic x,y,likelihood:
+        # - ensemble_median: more robust predictions from multiple models
+        # - ensemble_variance: disagreement between models (quality measure)
+        # - posterior_variance: Bayesian uncertainty estimates
+        # Currently filtering these out to maintain compatibility with existing NWB structure.
+        # Consider: separate data objects, metadata fields, or extended pose schema.
+
+        # Filter out ensemble and posterior columns, extract body parts
+        # body_parts = set()
+        # for field in pose_data.keys():
+        #     # Skip ensemble and posterior variance columns
+        #     if any(suffix in field for suffix in ['_ens_', '_posterior_']):
+        #         continue
+        #     # Extract body part name from basic x, y, likelihood columns
+        #     if field.endswith('_x') or field.endswith('_y') or field.endswith('_likelihood'):
+        #         body_part = field.replace('_x', '').replace('_y', '').replace('_likelihood', '')
+        #         body_parts.add(body_part)
+
+        body_parts = list(body_parts)
 
         camera_view = re.search(r'(left|right|body)Camera*', self.camera_name).group(1)
 

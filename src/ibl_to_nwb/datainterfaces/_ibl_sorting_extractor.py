@@ -39,72 +39,105 @@ class IblSortingExtractor(BaseSorting):
         session: str,
         revision: Optional[str] = None,
     ):
-        if revision is None:  # if no revision is specified, use the latest
-            revision = one.list_revisions(session)[-1]
+        # Store parameters for lazy loading
+        self.one = one
+        self.session = session
+        self.revision = revision if revision is not None else one.list_revisions(session)[-1]
 
-        atlas = AllenAtlas()
-        brain_regions = BrainRegions()
-
-        # although clearner this fails when probes are present in alyx but not openalyx
-        # probe_names = [probe_description["label"] for probe_description in one.load_dataset(session, "probes.description")]
+        # Get probe names
         raw_ephys_datasets = one.list_datasets(eid=session, collection="raw_ephys_data/*")
-        probe_names = set([filename.split("/")[1] for filename in raw_ephys_datasets])
+        self.probe_names = set([filename.split("/")[1] for filename in raw_ephys_datasets])
 
-        sorting_loaders = dict()
-        spike_times_by_id = defaultdict(list)  # Cast lists per key as arrays after assembly
-        spike_amplitudes_by_id = defaultdict(list)
-        spike_depths_by_id = defaultdict(list)
+        # Create sorting loaders but DON'T load data yet
+        atlas = AllenAtlas()
+        self.atlas = atlas
+        self.brain_regions = BrainRegions()
+        self.sorting_loaders = dict()
+        for probe_name in self.probe_names:
+            sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
+            self.sorting_loaders[probe_name] = sorting_loader
+
+        # Store sampling frequency but defer BaseSorting.__init__() until data is loaded
+        self._sampling_frequency = 30000.0
+
+        # Flag to track if data has been loaded
+        self._data_loaded = False
+
+    def load_and_process_data(
+        self, stub_test: bool = False, stub_units: Optional[int] = None, skip_properties: Optional[list[str]] = None
+    ):
+        """Load spike data and process into per-unit arrays.
+
+        This method separates spike data by cluster/unit using np.where to index spike arrays.
+        For full sessions with ~2000 units and ~60M spikes, this takes ~60-70 seconds.
+
+        Alternative approaches tested but found slower:
+        - Direct iteration over all spikes (too slow)
+        - Pre-sorting + binary search (argsort + searchsorted overhead negates gains)
+
+        Current limitation: O(n_spikes * n_units) complexity makes this the primary bottleneck.
+        Mitigation: Use stub_test=True to process only a subset of units for testing/development.
+
+        Parameters
+        ----------
+        stub_test : bool, default: False
+            If True, only load a subset of units for testing
+        stub_units : int, optional
+            Number of units to load per probe when stub_test=True. Default is 10.
+        skip_properties : list of str, optional
+            Properties to skip computing/loading. Useful for memory optimization.
+            For example: skip_properties=["spike_amplitudes", "spike_relative_depths"]
+        """
+        if self._data_loaded:
+            return  # Already loaded
+
+        if stub_units is None:
+            stub_units = 10
+
+        if skip_properties is None:
+            skip_properties = []
+
+        spike_times_by_id = defaultdict(list)
+        spike_amplitudes_by_id = defaultdict(list) if "spike_amplitudes" not in skip_properties else None
+        spike_depths_by_id = defaultdict(list) if "spike_relative_depths" not in skip_properties else None
         all_unit_properties = defaultdict(list)
         cluster_ids = list()
         unit_id_per_probe_shift = 0
-        for probe_name in probe_names:
-            # verify probe data exists
-            sorting_loader = SpikeSortingLoader(eid=session, one=one, pname=probe_name, atlas=atlas)
-            sorting_loaders.update({probe_name: sorting_loader})
-            spikes, clusters, channels = sorting_loader.load_spike_sorting(revision=revision)
-            # cluster_ids.extend(list(np.array(clusters["metrics"]["cluster_id"]) + unit_id_per_probe_shift))
-            number_of_units = len(np.unique(spikes["clusters"]))
+
+        for probe_name in self.probe_names:
+            # Load spike sorting data
+            sorting_loader = self.sorting_loaders[probe_name]
+            spikes, clusters, channels = sorting_loader.load_spike_sorting(revision=self.revision)
+
+            # Determine which clusters to process
+            unique_clusters = np.unique(spikes["clusters"])
+            if stub_test:
+                # Only process first N units for testing
+                unique_clusters = unique_clusters[:stub_units]
+
+            number_of_units = len(unique_clusters)
             cluster_ids.extend(list(np.arange(number_of_units).astype("int32") + unit_id_per_probe_shift))
 
-            # previous by cody
-            # TODO - compare speed against iterating over unique cluster IDs + vector index search
-            # for spike_cluster, spike_times, spike_amplitudes, spike_depths in zip(
-            #     spikes["clusters"], spikes["times"], spikes["amps"], spikes["depths"]
-            # ):
-            #     unit_id = unit_id_per_probe_shift + spike_cluster
-            #     spike_times_by_id[unit_id].append(spike_times)
-            #     spike_amplitudes_by_id[unit_id].append(spike_amplitudes)
-            #     spike_depths_by_id[unit_id].append(spike_depths)
-
-            # simply numpy indexing - here 2x faster than searchsorted ... ?
-            for spike_cluster in tqdm(np.unique(spikes["clusters"])):
-                ix = np.where(spikes["clusters"] == spike_cluster)[0]
-                unit_id = unit_id_per_probe_shift + spike_cluster
-                spike_times_by_id[unit_id] = spikes["times"][ix]
-                spike_amplitudes_by_id[unit_id] = spikes["amps"][ix]
-                spike_depths_by_id[unit_id] = spikes["depths"][ix]
-            # should outperform but doesn't
-            # pre-sort for fast access
-            # sort_ix = np.argsort(spikes["clusters"])
-            # spikes_times = spikes["times"][sort_ix]
-            # spikes_clusters = spikes["clusters"][sort_ix]
-            # spikes_amps = spikes["amps"][sort_ix]
-            # spikes_depths = spikes["depths"][sort_ix]
-
-            # for spike_cluster in tqdm(np.unique(spikes["clusters"])):
-            #     start_ix, stop_ix = np.searchsorted(spikes_clusters, [spike_cluster, spike_cluster + 1])
-            #     unit_id = unit_id_per_probe_shift + spike_cluster
-            #     spike_times_by_id[unit_id] = spikes_times[start_ix:stop_ix]
-            #     spike_amplitudes_by_id[unit_id] = spikes_amps[start_ix:stop_ix]
-            #     spike_depths_by_id[unit_id] = spikes_depths[start_ix:stop_ix]
+            # Separate spikes by cluster using np.where indexing
+            for cluster_index, spike_cluster in enumerate(
+                tqdm(unique_clusters, desc=f"Separating spikes by cluster ({probe_name})", unit="cluster")
+            ):
+                spike_indices = np.where(spikes["clusters"] == spike_cluster)[0]
+                unit_id = unit_id_per_probe_shift + cluster_index
+                spike_times_by_id[unit_id] = spikes["times"][spike_indices]
+                if spike_amplitudes_by_id is not None:
+                    spike_amplitudes_by_id[unit_id] = spikes["amps"][spike_indices]
+                if spike_depths_by_id is not None:
+                    spike_depths_by_id[unit_id] = spikes["depths"][spike_indices]
 
             unit_id_per_probe_shift += number_of_units
             all_unit_properties["probe_name"].extend([probe_name] * number_of_units)
 
-            # Maximum amplitude channel and locations
-            unit_id_to_channel_id = clusters["channels"]
+            # Maximum amplitude channel and locations (subset if stub_test)
+            unit_id_to_channel_id = clusters["channels"][:number_of_units] if stub_test else clusters["channels"]
             all_unit_properties["maximum_amplitude_channel"].extend(unit_id_to_channel_id)
-            all_unit_properties["mean_relative_depth"].extend(clusters["depths"])
+            mean_depths = clusters["depths"][:number_of_units] if stub_test else clusters["depths"]
+            all_unit_properties["mean_relative_depth"].extend(mean_depths)
 
             ibl_metric_key_to_property_name = dict(
                 amp_max="maximum_amplitude",
@@ -124,82 +157,53 @@ class IblSortingExtractor(BaseSorting):
                 label="label",
                 cluster_uuid="cluster_uuid",
                 cluster_id="cluster_id",
-                x='x',
-                y='y',
-                z='z',
-                ML='ML',
-                AP='AP',
-                DV='DV',
+                # NOTE: Removed x, y, z, ML, AP, DV - these are now accessed via electrodes table
             )
 
             cluster_metrics = clusters["metrics"].reset_index(drop=True).join(pd.DataFrame(clusters["uuids"]))
             cluster_metrics.rename(columns={"uuids": "cluster_uuid"}, inplace=True)
 
-            # adding locations to clusters
-            for d in ['x','y','z']:
-                cluster_metrics[d] = channels[d][clusters['channels']]
+            # Subset cluster metrics if stub_test
+            if stub_test:
+                cluster_metrics = cluster_metrics.iloc[:number_of_units]
 
-            # allen atlas coordinates
-            mlapdv = atlas.xyz2ccf(cluster_metrics[['x','y','z']].values, mode='clip')
-            cluster_metrics['ML'] = mlapdv[:,0]
-            cluster_metrics['AP'] = mlapdv[:,1]
-            cluster_metrics['DV'] = mlapdv[:,2]
-
+            # Add cluster metrics (spike count, firing rate, quality metrics, etc.)
             for ibl_metric_key, property_name in ibl_metric_key_to_property_name.items():
                 all_unit_properties[property_name].extend(list(cluster_metrics[ibl_metric_key]))
 
-            if sorting_loader.histology in ["alf", "resolved"]:  # Assume if one probe has histology, the other does too
-                channel_id_to_allen_regions = channels["acronym"]
-                channel_id_to_atlas_id = channels["atlas_id"]
+            # NOTE: Removed anatomical location properties (allen_location, beryl_location, cosmos_location)
+            # and coordinate properties (x, y, z, ML, AP, DV).
+            # These are now accessed via the electrodes table through the unit-to-electrode link.
 
-                all_unit_properties["allen_location"].extend(list(channel_id_to_allen_regions[unit_id_to_channel_id]))
-                all_unit_properties["beryl_location"].extend(
-                    list(
-                        brain_regions.id2acronym(
-                            atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Beryl"
-                        )
-                    )
-                )
-                all_unit_properties["cosmos_location"].extend(
-                    list(
-                        brain_regions.id2acronym(
-                            atlas_id=channel_id_to_atlas_id[unit_id_to_channel_id], mapping="Cosmos"
-                        )
-                    )
-                )
-            else:
-                n_units = clusters['uuids'].shape[0]
-                all_unit_properties["allen_location"].extend(['no_histology'] * n_units)
-                all_unit_properties["beryl_location"].extend(['no_histology'] * n_units)
-                all_unit_properties["cosmos_location"].extend(['no_histology'] * n_units)
+        # Initialize BaseSorting now that we know the unit_ids
+        BaseSorting.__init__(self, sampling_frequency=self._sampling_frequency, unit_ids=cluster_ids)
 
-        # this is obsolete now
-        for unit_id in spike_times_by_id:  # Cast as arrays for fancy indexing
-            spike_times_by_id[unit_id] = np.array(spike_times_by_id[unit_id])
-            spike_amplitudes_by_id[unit_id] = np.array(spike_amplitudes_by_id[unit_id])
-
-        sampling_frequency = 30000.0  # Hard-coded to match SpikeGLX probe
-        BaseSorting.__init__(self, sampling_frequency=sampling_frequency, unit_ids=list(spike_times_by_id.keys()))
+        # Add sorting segment with spike times
         sorting_segment = IblSortingSegment(
-            sampling_frequency=sampling_frequency,
+            sampling_frequency=self._sampling_frequency,
             spike_times_by_id=spike_times_by_id,
         )
         self.add_sorting_segment(sorting_segment)
 
-        # I know it looks weird, but it's the only way I could find
-        self.set_property(
-            key="spike_amplitudes",
-            values=np.array(list(spike_amplitudes_by_id.values()), dtype=object),
-            ids=cluster_ids,
-        )
-        self.set_property(
-            key="spike_relative_depths",
-            values=np.array(list(spike_depths_by_id.values()), dtype=object),
-            ids=cluster_ids,
-        )
+        # Set ragged array properties (spike-level data) if not skipped
+        if spike_amplitudes_by_id is not None:
+            self.set_property(
+                key="spike_amplitudes",
+                values=np.array(list(spike_amplitudes_by_id.values()), dtype=object),
+                ids=cluster_ids,
+            )
+        if spike_depths_by_id is not None:
+            self.set_property(
+                key="spike_relative_depths",
+                values=np.array(list(spike_depths_by_id.values()), dtype=object),
+                ids=cluster_ids,
+            )
 
         for property_name, values in all_unit_properties.items():
             self.set_property(key=property_name, values=values, ids=cluster_ids)
+
+        # Mark as loaded
+        self._data_loaded = True
 
     def get_unit_spike_train(
         self,
@@ -212,23 +216,24 @@ class IblSortingExtractor(BaseSorting):
     ):
         segment_index = self._check_segment_index(segment_index)
 
-        if return_times is False:
-            raise ValueError("return_times must be True for IblSortingExtractor.get_unit_spike_train()")
-
         segment = self._sorting_segments[segment_index]
-        segment.get_unit_spike_times(unit_id=unit_id)
-
         spike_times = segment.get_unit_spike_times(unit_id=unit_id)
 
+        # Apply time/frame filtering
         start_time = start_frame / self.get_sampling_frequency() if start_frame is not None else None
         end_time = end_frame / self.get_sampling_frequency() if end_frame is not None else None
 
-        spike_times = segment.get_unit_spike_times(unit_id=unit_id)
         if start_time is not None:
             spike_times = spike_times[spike_times >= start_time]
         if end_time is not None:
             spike_times = spike_times[spike_times < end_time]
-        return spike_times
+
+        # Return times or frames based on parameter
+        if return_times:
+            return spike_times
+        else:
+            # Convert times to frames
+            return (spike_times * self.get_sampling_frequency()).astype(np.int64)
 
 
 class IblSortingSegment(BaseSortingSegment):
