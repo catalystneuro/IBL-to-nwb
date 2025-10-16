@@ -5,16 +5,10 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import numpy as np
-from brainbox.io.one import SpikeSortingLoader
-from iblatlas.atlas import AllenAtlas
-from iblatlas.regions import BrainRegions
-from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import (
-    BaseSortingExtractorInterface,
-)
+from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import BaseSortingExtractorInterface
 from neuroconv.utils import DeepDict, load_dict_from_file
 from one.api import ONE
 from pynwb import NWBFile
-from pynwb.device import Device
 
 from ._ibl_sorting_extractor import IblSortingExtractor
 
@@ -77,111 +71,23 @@ class IblSortingInterface(BaseSortingExtractorInterface):
         dict
             Channel-to-electrode mapping: {probe_name: {channel_idx: electrode_idx}}
         """
-        atlas = AllenAtlas()
-        brain_regions = BrainRegions()
+        if nwbfile.electrodes is None or len(nwbfile.electrodes) == 0:
+            raise RuntimeError("Electrodes table must be populated before adding sorting data.")
+
         channel_to_electrode_map = {}
-
-        # Get probe names and insertion IDs from sorting extractor
-        one = self.sorting_extractor.one
-        eid = self.sorting_extractor.session
-        revision = self.sorting_extractor.revision
-        probe_names = self.sorting_extractor.probe_names
-
-        # Get insertion IDs
-        insertions = one.alyx.rest('insertions', 'list', session=eid)
-        pname_pid_map = {ins['name']: ins['id'] for ins in insertions}
-
-        # Add custom columns to electrodes table first (before adding any rows)
-        nwbfile.add_electrode_column(
-            name='beryl_location',
-            description='Brain region in IBL Beryl atlas (coarse functional grouping)'
-        )
-        nwbfile.add_electrode_column(
-            name='cosmos_location',
-            description='Brain region in IBL Cosmos atlas (very coarse functional grouping)'
-        )
-
-        electrode_offset = 0  # Track global electrode index across probes
-
-        for probe_name in probe_names:
-            if probe_name not in pname_pid_map:
-                continue
-
-            pid = pname_pid_map[probe_name]
-
-            # Load histology data
-            ssl = SpikeSortingLoader(pid=pid, eid=eid, pname=probe_name, one=one, atlas=atlas)
-
-            try:
-                _, _, channels = ssl.load_spike_sorting(revision=revision)
-            except Exception as e:
-                print(f"Warning: Could not load histology for {probe_name}: {e}")
-                continue
-
-            # Check histology quality
-            histology_quality = ssl.histology
-            if not histology_quality:
-                insertion = one.alyx.rest('insertions', 'read', id=pid)
-                extended_qc = insertion.get('json', {}).get('extended_qc', {})
-                if extended_qc.get('tracing_exists') and extended_qc.get('alignment_resolved'):
-                    histology_quality = 'resolved'
-
-            if histology_quality not in ['alf', 'resolved']:
-                print(f"Skipping {probe_name}: histology quality '{histology_quality}' not sufficient")
-                continue
-
-            n_channels = len(channels['x'])
-
-            # Create device
-            device_name = _format_probe_label(probe_name)
-            if device_name not in nwbfile.devices:
-                device = Device(
-                    name=device_name,
-                    description=f"Neuropixels probe {probe_name}",
-                    manufacturer="IMEC",
-                )
-                nwbfile.add_device(device)
-            else:
-                device = nwbfile.devices[device_name]
-
-            # Create electrode group
+        for probe_name in self.sorting_extractor.probe_names:
             group_name = _format_probe_label(probe_name)
-            if group_name not in nwbfile.electrode_groups:
-                electrode_group = nwbfile.create_electrode_group(
-                    name=group_name,
-                    description=f"Electrode group for {probe_name}",
-                    location=", ".join(np.unique(channels['acronym'].astype(str))),
-                    device=device,
-                )
-            else:
-                electrode_group = nwbfile.electrode_groups[group_name]
+            electrode_indices = [
+                index for index in range(len(nwbfile.electrodes))
+                if nwbfile.electrodes['group_name'][index] == group_name
+            ]
+            if not electrode_indices:
+                raise RuntimeError(f"No electrodes found for probe '{probe_name}'.")
 
-            # Convert IBL coordinates to CCF
-            ibl_coords_m = np.column_stack([channels['x'], channels['y'], channels['z']])
-            ccf_coords_um = atlas.xyz2ccf(ibl_coords_m)
-
-            # Compute Beryl/Cosmos locations
-            channel_atlas_ids = channels['atlas_id']
-            beryl_locations = brain_regions.id2acronym(atlas_id=channel_atlas_ids, mapping="Beryl")
-            cosmos_locations = brain_regions.id2acronym(atlas_id=channel_atlas_ids, mapping="Cosmos")
-
-            # Store channel-to-electrode mapping
-            channel_to_electrode_map[probe_name] = {}
-
-            # Add electrodes
-            for i in range(n_channels):
-                nwbfile.add_electrode(
-                    x=float(ccf_coords_um[i, 0]),
-                    y=float(ccf_coords_um[i, 1]),
-                    z=float(ccf_coords_um[i, 2]),
-                    location=str(channels['acronym'][i]),
-                    group=electrode_group,
-                    beryl_location=str(beryl_locations[i]),
-                    cosmos_location=str(cosmos_locations[i]),
-                )
-                channel_to_electrode_map[probe_name][i] = electrode_offset + i
-
-            electrode_offset += n_channels
+            channel_to_electrode_map[probe_name] = {
+                channel_idx: electrode_index
+                for channel_idx, electrode_index in enumerate(sorted(electrode_indices))
+            }
 
         return channel_to_electrode_map
 

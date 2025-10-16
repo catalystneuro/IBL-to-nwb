@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 from brainbox.behavior import wheel as wheel_methods
 from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
@@ -44,15 +45,31 @@ class WheelInterface(BaseDataInterface):
 
         # Subset data if stub_test
         if stub_test:
-            # Subset wheel position timeseries
-            time_mask = wheel["timestamps"] <= stub_duration
-            wheel["timestamps"] = wheel["timestamps"][time_mask]
-            wheel["position"] = wheel["position"][time_mask]
+            original_times = wheel["timestamps"].copy()
+            original_position = wheel["position"].copy()
 
-            # Subset wheel movement intervals
-            interval_mask = wheel_moves["intervals"][:, 0] <= stub_duration
+            if original_times.size == 0:
+                raise ValueError("Wheel timestamps array is empty; cannot create stub dataset.")
+
+            stub_limit = original_times[0] + stub_duration
+            time_mask = original_times <= stub_limit
+            if not time_mask.any():
+                sample_limit = min(1000, original_times.size)
+                time_mask = np.zeros_like(original_times, dtype=bool)
+                time_mask[:sample_limit] = True
+
+            wheel["timestamps"] = original_times[time_mask]
+            wheel["position"] = original_position[time_mask]
+
+            interval_mask = wheel_moves["intervals"][:, 0] <= stub_limit
+            if not interval_mask.any():
+                interval_mask = np.zeros(len(wheel_moves["intervals"]), dtype=bool)
+                interval_mask[: min(100, len(interval_mask))] = True
             wheel_moves["intervals"] = wheel_moves["intervals"][interval_mask]
             wheel_moves["peakAmplitude"] = wheel_moves["peakAmplitude"][interval_mask]
+
+        if wheel["timestamps"].size < 2:
+            raise ValueError("Wheel timestamps must contain at least two samples.")
 
         # Estimate velocity and acceleration
         interpolation_frequency = 1000.0  # Hz

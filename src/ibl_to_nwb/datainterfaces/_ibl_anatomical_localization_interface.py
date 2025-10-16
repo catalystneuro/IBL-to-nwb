@@ -166,16 +166,16 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
 
         # Create coordinate space objects
         self.ccf_space = Space(
-            name="CCFv3_space",
-            space_name="CCFv3",
+            name="CCFV3",
+            space_name="CCFV3",
             origin="corner (0,0,0) of the Allen CCF atlas volume",
             units="um",
             orientation="RAS",  # Right-Anterior-Superior
         )
 
         self.ibl_space = Space(
-            name="IBL_Bregma_space",
-            space_name="IBL_Bregma",
+            name="IBLBregma",
+            space_name="IBLBregma",
             origin="bregma",
             units="um",
             orientation="RAS",

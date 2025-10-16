@@ -45,6 +45,7 @@ from ibl_to_nwb.bwm_to_nwb import (
     tree_copy,
 )
 from ibl_to_nwb.fixtures import load_fixtures
+from ibl_to_nwb.utils import add_probe_electrodes_with_localization
 
 
 # ============================================================================
@@ -98,7 +99,9 @@ def download_session_data(
     eid: str,
     one: ONE,
     redownload_data: bool = False,
-    logger: logging.Logger = None,
+    stub_test: bool = False,
+    revision: str | None = None,
+    logger: logging.Logger | None = None,
 ) -> dict:
     """Download all datasets for a session from ONE API.
 
@@ -110,6 +113,8 @@ def download_session_data(
         ONE API instance
     redownload_data : bool, optional
         If True, always re-download data. If False, use cached data when available.
+    stub_test : bool, optional
+        If True, skip downloading large raw ephys datasets for faster testing.
     logger : logging.Logger, optional
         Logger instance
 
@@ -119,7 +124,10 @@ def download_session_data(
         Dictionary with download timing and size information
     """
     if logger:
-        logger.info("Downloading session data from ONE...")
+        logger.info(
+            "Downloading session data from ONE%s..."
+            % (f" (revision {revision})" if revision else "")
+        )
     download_start = time.time()
 
     # Setup paths to check cache location
@@ -134,7 +142,35 @@ def download_session_data(
         paths["session_folder"].mkdir(parents=True, exist_ok=True)
 
     # Download all datasets for this session
-    datasets = one.list_datasets(eid)
+    datasets = one.list_datasets(eid, revision=revision) if revision else one.list_datasets(eid)
+    skipped_datasets = []
+    if stub_test:
+        skip_patterns = (
+            "raw_ephys_data",
+            "raw_video_data",
+            "spikes.amps",
+            "spikes.depths",
+            "spikes.waveforms",
+            "spikes.samples",
+            "spikes.templates",
+            "templates.waveforms",
+            "templates.amps",
+            "clusters.waveforms",
+            "waveforms.",
+        )
+        filtered_datasets = []
+        for dataset in datasets:
+            if any(pattern in dataset for pattern in skip_patterns):
+                skipped_datasets.append(dataset)
+                continue
+            filtered_datasets.append(dataset)
+        if logger and skipped_datasets:
+            logger.info(
+                "Stub mode active: skipping download of %d heavy datasets"
+                % len(skipped_datasets)
+            )
+        datasets = filtered_datasets
+
     if logger:
         logger.info(f"Found {len(datasets)} datasets to download")
 
@@ -216,30 +252,37 @@ def convert_raw_session(
     insertions = one.alyx.rest("insertions", "list", session=eid)
     pname_pid_map = {ins["name"]: ins["id"] for ins in insertions}
 
+    include_ecephys = not stub_test
+    run_anatomical_localization = True
+
     # ========================================================================
     # STEP 1: Decompress raw ephys data
     # ========================================================================
-    if logger:
-        logger.info("Decompressing raw ephys data...")
-    decompress_start = time.time()
+    if include_ecephys:
+        if logger:
+            logger.info("Decompressing raw ephys data...")
+        decompress_start = time.time()
 
-    # Decompress .cbin files from ONE cache to scratch folder
-    if logger:
-        logger.info("Decompressing .cbin files...")
-    decompress_ephys_cbins(paths["session_folder"], paths["session_scratch_folder"])
+        # Decompress .cbin files from ONE cache to scratch folder
+        if logger:
+            logger.info("Decompressing .cbin files...")
+        decompress_ephys_cbins(paths["session_folder"], paths["session_scratch_folder"])
 
-    # Copy metadata files (.meta, .ch, etc.) to scratch folder
-    if logger:
-        logger.info("Copying metadata files...")
-    tree_copy(
-        paths["session_folder"] / "raw_ephys_data",
-        paths["session_scratch_folder"] / "raw_ephys_data",
-        exclude=".cbin",
-    )
+        # Copy metadata files (.meta, .ch, etc.) to scratch folder
+        if logger:
+            logger.info("Copying metadata files...")
+        tree_copy(
+            paths["session_folder"] / "raw_ephys_data",
+            paths["session_scratch_folder"] / "raw_ephys_data",
+            exclude=".cbin",
+        )
 
-    decompress_time = time.time() - decompress_start
-    if logger:
-        logger.info(f"Decompression completed in {decompress_time:.2f}s")
+        decompress_time = time.time() - decompress_start
+        if logger:
+            logger.info(f"Decompression completed in {decompress_time:.2f}s")
+    else:
+        if logger:
+            logger.info("Stub test mode active: skipping raw ephys decompression")
 
     # ========================================================================
     # STEP 2: Define data interfaces
@@ -250,40 +293,50 @@ def convert_raw_session(
 
     data_interfaces = []
 
-    # SpikeGLX converter
-    spikeglx_converter = IblSpikeGlxConverter(
-        folder_path=str(paths["spikeglx_source_folder"]),
-        one=one,
-        eid=eid,
-        pname_pid_map=pname_pid_map,
-        revision=revision,
-    )
-    data_interfaces.append(spikeglx_converter)
+    spikeglx_converter = None
+    if include_ecephys:
+        # SpikeGLX converter
+        spikeglx_converter = IblSpikeGlxConverter(
+            folder_path=str(paths["spikeglx_source_folder"]),
+            one=one,
+            eid=eid,
+            pname_pid_map=pname_pid_map,
+            revision=revision,
+        )
+        data_interfaces.append(spikeglx_converter)
+    elif logger:
+        logger.info("Stub test mode active: skipping SpikeGLX converter setup")
 
     # Anatomical localization
-    anat_interface = IblAnatomicalLocalizationInterface(
-        one=one,
-        eid=eid,
-        pname_pid_map=pname_pid_map,
-        revision=revision,
-    )
-    data_interfaces.append(anat_interface)
-
-    # Raw video interfaces
-    metadata_retrieval = BrainwideMapConverter(one=one, session=eid, data_interfaces=[], verbose=False)
-    subject_id = metadata_retrieval.get_metadata()["Subject"]["subject_id"]
-
-    pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
-    for pose_estimation_file in pose_estimation_files:
-        camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
-        video_interface = RawVideoInterface(
-            nwbfiles_folder_path=base_path,
-            subject_id=subject_id,
+    if pname_pid_map:
+        anat_interface = IblAnatomicalLocalizationInterface(
             one=one,
-            session=eid,
-            camera_name=camera_name,
+            eid=eid,
+            pname_pid_map=pname_pid_map,
+            revision=revision,
         )
-        data_interfaces.append(video_interface)
+        data_interfaces.append(anat_interface)
+        if not include_ecephys and logger:
+            logger.info("Stub mode active: using metadata-only electrodes for anatomical localization")
+
+    # Raw video interfaces (skip in stub mode to avoid large downloads)
+    if not stub_test:
+        metadata_retrieval = BrainwideMapConverter(one=one, session=eid, data_interfaces=[], verbose=False)
+        subject_id = metadata_retrieval.get_metadata()["Subject"]["subject_id"]
+
+        pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
+        for pose_estimation_file in pose_estimation_files:
+            camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
+            video_interface = RawVideoInterface(
+                nwbfiles_folder_path=base_path,
+                subject_id=subject_id,
+                one=one,
+                session=eid,
+                camera_name=camera_name,
+            )
+            data_interfaces.append(video_interface)
+    elif logger:
+        logger.info("Stub test mode active: skipping raw video interfaces")
 
     interface_creation_time = time.time() - interface_creation_start
     if logger:
@@ -298,6 +351,8 @@ def convert_raw_session(
     # STEP 4: Get metadata
     # ========================================================================
     metadata = converter.get_metadata()
+    nwbfile_metadata = metadata.setdefault("NWBFile", {})
+    subject_metadata_block = metadata.setdefault("Subject", {})
 
     # Add IBL-specific metadata
     (session_metadata,) = one.alyx.rest(url="sessions", action="list", id=eid)
@@ -308,31 +363,33 @@ def convert_raw_session(
     tzinfo = ZoneInfo(lab_metadata["timezone"])
     session_start_time = session_start_time.replace(tzinfo=tzinfo)
 
-    metadata["NWBFile"]["session_start_time"] = session_start_time
-    metadata["NWBFile"]["session_id"] = session_metadata["id"]
-    metadata["NWBFile"]["lab"] = session_metadata["lab"].replace("lab", "").capitalize()
-    metadata["NWBFile"]["institution"] = lab_metadata["institution"]
-    metadata["NWBFile"]["protocol"] = session_metadata["task_protocol"]
-    metadata["NWBFile"]["session_description"] = "IBL Brain Wide Map raw electrophysiology session"
-    metadata["NWBFile"]["experiment_description"] = "Steinmetz et al. Neuropixels recordings across brain regions"
+    nwbfile_metadata["session_start_time"] = session_start_time
+    nwbfile_metadata["session_id"] = session_metadata["id"]
+    nwbfile_metadata["lab"] = lab_metadata.get("name", session_metadata["lab"])
+    nwbfile_metadata["institution"] = lab_metadata.get("institution")
+    if session_metadata.get("task_protocol"):
+        nwbfile_metadata["protocol"] = session_metadata["task_protocol"]
 
     # Subject metadata
     subject_metadata_list = one.alyx.rest("subjects", "list", nickname=session_metadata["subject"])
     subject_metadata = subject_metadata_list[0]
 
-    metadata["Subject"]["subject_id"] = subject_metadata["nickname"]
-    metadata["Subject"]["sex"] = subject_metadata["sex"]
-    metadata["Subject"]["species"] = "Mus musculus"
-    metadata["Subject"]["weight"] = subject_metadata["reference_weight"] * 1e-3
+    subject_metadata_block["subject_id"] = subject_metadata["nickname"]
+    subject_metadata_block["sex"] = subject_metadata["sex"]
+    subject_metadata_block["species"] = subject_metadata_block.get("species", "Mus musculus")
+    if subject_metadata.get("reference_weight"):
+        subject_metadata_block["weight"] = subject_metadata["reference_weight"] * 1e-3
     date_of_birth = datetime.strptime(subject_metadata["birth_date"], "%Y-%m-%d")
-    metadata["Subject"]["date_of_birth"] = date_of_birth.replace(tzinfo=tzinfo)
+    subject_metadata_block["date_of_birth"] = date_of_birth.replace(tzinfo=tzinfo)
 
-    for ibl_key, nwb_name in [("last_water_restriction", "last_water_restriction"),
-                               ("remaining_water", "remaining_water_ml"),
-                               ("expected_water", "expected_water_ml"),
-                               ("url", "url")]:
-        if ibl_key in subject_metadata:
-            metadata["Subject"][nwb_name] = subject_metadata[ibl_key]
+    for ibl_key, nwb_name in [
+        ("last_water_restriction", "last_water_restriction"),
+        ("remaining_water", "remaining_water_ml"),
+        ("expected_water", "expected_water_ml"),
+        ("url", "url"),
+    ]:
+        if ibl_key in subject_metadata and subject_metadata[ibl_key] is not None:
+            subject_metadata_block[nwb_name] = subject_metadata[ibl_key]
 
     # ========================================================================
     # STEP 5: Configure conversion options
@@ -340,16 +397,17 @@ def convert_raw_session(
     conversion_options = {}
 
     # Apply stub_test to SpikeGLX interfaces and enable progress bars
-    spikeglx_options = {}
-    for interface_name in spikeglx_converter.data_interface_objects.keys():
-        spikeglx_options[interface_name] = {
-            "stub_test": stub_test,
-            "iterator_opts": {
-                "display_progress": True,
-                "progress_bar_options": {"desc": f"Writing {interface_name}"},
-            },
-        }
-    conversion_options["IblSpikeGlxConverter"] = spikeglx_options
+    if include_ecephys and spikeglx_converter is not None:
+        spikeglx_options = {}
+        for interface_name in spikeglx_converter.data_interface_objects.keys():
+            spikeglx_options[interface_name] = {
+                "stub_test": stub_test,
+                "iterator_opts": {
+                    "display_progress": True,
+                    "progress_bar_options": {"desc": f"Writing {interface_name}"},
+                },
+            }
+        conversion_options["IblSpikeGlxConverter"] = spikeglx_options
 
     # ========================================================================
     # STEP 6: Create NWBFile and add data
@@ -364,6 +422,19 @@ def convert_raw_session(
     nwbfile = NWBFile(**metadata["NWBFile"])
     nwbfile.subject = ibl_subject
     nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision=revision))
+
+    if not include_ecephys:
+        if logger:
+            logger.info("Adding Neuropixels electrodes from metadata (stub mode)...")
+        for probe_name, pid in pname_pid_map.items():
+            add_probe_electrodes_with_localization(
+                nwbfile=nwbfile,
+                one=one,
+                eid=eid,
+                probe_name=probe_name,
+                pid=pid,
+                revision=revision,
+            )
 
     # Add data from all interfaces
     for interface_name, data_interface in converter.data_interface_objects.items():
@@ -382,7 +453,9 @@ def convert_raw_session(
     write_start = time.time()
 
     subject_id = nwbfile.subject.subject_id
-    nwbfile_path = paths["output_folder"] / f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys.nwb"
+    output_dir = Path(paths["output_folder"]) / ("stub" if stub_test else "full")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    nwbfile_path = output_dir / f"sub-{subject_id}_ses-{eid}_desc-raw_ecephys.nwb"
 
     configure_and_write_nwbfile(
         nwbfile=nwbfile,
@@ -491,21 +564,21 @@ def convert_processed_session(
     pose_estimation_files = set([Path(f).name for f in one.list_datasets(eid=eid, filename="*.dlc*")])
     for pose_estimation_file in pose_estimation_files:
         camera_name = get_camera_name_from_file(pose_estimation_file)
-        if check_camera_health_by_qc(bwm_qc, eid, camera_name) and check_camera_health_by_loading(**interface_kwargs):
+        if stub_test or (check_camera_health_by_qc(bwm_qc, eid, camera_name) and check_camera_health_by_loading(**interface_kwargs)):
             data_interfaces.append(IblPoseEstimationInterface(camera_name=camera_name, tracker='lightningPose', **interface_kwargs))
 
     # Pupil tracking
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     camera_names = set([get_camera_name_from_file(f) for f in pupil_tracking_files])
     for camera_name in camera_names:
-        if check_camera_health_by_qc(bwm_qc, eid, camera_name):
+        if stub_test or check_camera_health_by_qc(bwm_qc, eid, camera_name):
             data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
 
     # ROI motion energy
     roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
     camera_names = set([get_camera_name_from_file(f) for f in roi_motion_energy_files])
     for camera_name in camera_names:
-        if check_camera_health_by_qc(bwm_qc, eid, camera_name):
+        if stub_test or check_camera_health_by_qc(bwm_qc, eid, camera_name):
             data_interfaces.append(RoiMotionEnergyInterface(camera_name=camera_name, **interface_kwargs))
 
     interface_creation_time = time.time() - interface_creation_start
@@ -521,6 +594,8 @@ def convert_processed_session(
     # STEP 3: Get metadata
     # ========================================================================
     metadata = converter.get_metadata()
+    nwbfile_metadata = metadata.setdefault("NWBFile", {})
+    subject_metadata_block = metadata.setdefault("Subject", {})
 
     # Add IBL-specific metadata
     (session_metadata,) = one.alyx.rest(url="sessions", action="list", id=eid)
@@ -531,31 +606,33 @@ def convert_processed_session(
     tzinfo = ZoneInfo(lab_metadata["timezone"])
     session_start_time = session_start_time.replace(tzinfo=tzinfo)
 
-    metadata["NWBFile"]["session_start_time"] = session_start_time
-    metadata["NWBFile"]["session_id"] = session_metadata["id"]
-    metadata["NWBFile"]["lab"] = session_metadata["lab"].replace("lab", "").capitalize()
-    metadata["NWBFile"]["institution"] = lab_metadata["institution"]
-    metadata["NWBFile"]["protocol"] = session_metadata["task_protocol"]
-    metadata["NWBFile"]["session_description"] = "IBL Brain Wide Map processed behavioral and neural data"
-    metadata["NWBFile"]["experiment_description"] = "Steinmetz et al. Neuropixels recordings across brain regions"
+    nwbfile_metadata["session_start_time"] = session_start_time
+    nwbfile_metadata["session_id"] = session_metadata["id"]
+    nwbfile_metadata["lab"] = lab_metadata.get("name", session_metadata["lab"])
+    nwbfile_metadata["institution"] = lab_metadata.get("institution")
+    if session_metadata.get("task_protocol"):
+        nwbfile_metadata["protocol"] = session_metadata["task_protocol"]
 
     # Subject metadata
     subject_metadata_list = one.alyx.rest("subjects", "list", nickname=session_metadata["subject"])
     subject_metadata = subject_metadata_list[0]
 
-    metadata["Subject"]["subject_id"] = subject_metadata["nickname"]
-    metadata["Subject"]["sex"] = subject_metadata["sex"]
-    metadata["Subject"]["species"] = "Mus musculus"
-    metadata["Subject"]["weight"] = subject_metadata["reference_weight"] * 1e-3
+    subject_metadata_block["subject_id"] = subject_metadata["nickname"]
+    subject_metadata_block["sex"] = subject_metadata["sex"]
+    subject_metadata_block["species"] = subject_metadata_block.get("species", "Mus musculus")
+    if subject_metadata.get("reference_weight"):
+        subject_metadata_block["weight"] = subject_metadata["reference_weight"] * 1e-3
     date_of_birth = datetime.strptime(subject_metadata["birth_date"], "%Y-%m-%d")
-    metadata["Subject"]["date_of_birth"] = date_of_birth.replace(tzinfo=tzinfo)
+    subject_metadata_block["date_of_birth"] = date_of_birth.replace(tzinfo=tzinfo)
 
-    for ibl_key, nwb_name in [("last_water_restriction", "last_water_restriction"),
-                               ("remaining_water", "remaining_water_ml"),
-                               ("expected_water", "expected_water_ml"),
-                               ("url", "url")]:
-        if ibl_key in subject_metadata:
-            metadata["Subject"][nwb_name] = subject_metadata[ibl_key]
+    for ibl_key, nwb_name in [
+        ("last_water_restriction", "last_water_restriction"),
+        ("remaining_water", "remaining_water_ml"),
+        ("expected_water", "expected_water_ml"),
+        ("url", "url"),
+    ]:
+        if ibl_key in subject_metadata and subject_metadata[ibl_key] is not None:
+            subject_metadata_block[nwb_name] = subject_metadata[ibl_key]
 
     # ========================================================================
     # STEP 4: Configure conversion options
@@ -563,10 +640,8 @@ def convert_processed_session(
     conversion_options = {}
 
     # Sorting interface options
-    sorting_options = {
-        "stub_test": stub_test,
-    }
-    if skip_spike_properties:
+    sorting_options = {"stub_test": stub_test}
+    if skip_spike_properties and stub_test:
         sorting_options["skip_properties"] = skip_spike_properties
     conversion_options["IblSortingInterface"] = sorting_options
 
@@ -594,6 +669,16 @@ def convert_processed_session(
     nwbfile.subject = ibl_subject
     nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision=revision))
 
+    for probe_name, pid in pname_pid_map.items():
+        add_probe_electrodes_with_localization(
+            nwbfile=nwbfile,
+            one=one,
+            eid=eid,
+            probe_name=probe_name,
+            pid=pid,
+            revision=revision,
+        )
+
     # Add data from all interfaces
     for interface_name, data_interface in converter.data_interface_objects.items():
         interface_conversion_options = conversion_options.get(interface_name, {})
@@ -611,7 +696,9 @@ def convert_processed_session(
     write_start = time.time()
 
     subject_id = nwbfile.subject.subject_id
-    nwbfile_path = paths["output_folder"] / f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+    output_dir = Path(paths["output_folder"]) / ("stub" if stub_test else "full")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    nwbfile_path = output_dir / f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
 
     configure_and_write_nwbfile(
         nwbfile=nwbfile,
@@ -711,8 +798,8 @@ if __name__ == "__main__":
     # Conversion options
     CONVERT_RAW = True
     CONVERT_PROCESSED = True
-    STUB_TEST = False             # Use stub mode for faster testing (subset of data)
-    REDOWNLOAD_DATA = True        # If True, always re-download; if False, use cached data when available
+    STUB_TEST = True          # Use stub mode for faster testing (subset of data)
+    REDOWNLOAD_DATA = False   # If True, always re-download; if False, use cached data when available
     CLEANUP_DECOMPRESSED = False  # Remove decompressed .bin files after conversion
     CLEANUP_DOWNLOADED = False    # CAUTION: Remove downloaded .cbin files (NOT recommended)
 
@@ -739,7 +826,7 @@ if __name__ == "__main__":
     print(f"Total sessions to process: {len(all_eids)}")
 
     # Loop through all sessions
-    for session_idx, eid in enumerate(all_eids[:10]):
+    for session_idx, eid in enumerate(all_eids):
         print(f"\nProcessing session {session_idx + 1}/{len(all_eids)}: {eid}")
 
         # Setup logging for this session
@@ -771,6 +858,8 @@ if __name__ == "__main__":
             eid=eid,
             one=one,
             redownload_data=REDOWNLOAD_DATA,
+            stub_test=STUB_TEST,
+            revision=revision,
             logger=logger,
         )
 

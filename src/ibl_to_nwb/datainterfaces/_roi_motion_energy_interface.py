@@ -23,6 +23,17 @@ class RoiMotionEnergyInterface(BaseDataInterface):
         camera_data = self.one.load_object(
             id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
         )
+
+        if "ROIMotionEnergy" not in camera_data or "times" not in camera_data:
+            raise RuntimeError(
+                f"ROI motion energy data for camera '{self.camera_name}' in session '{self.session}' is incomplete"
+            )
+
+        if camera_data["times"].size == 0:
+            raise RuntimeError(
+                f"ROI motion energy timestamps for camera '{self.camera_name}' in session '{self.session}' are empty"
+            )
+
         motion_energy_video_region = self.one.load_object(
             id=self.session, obj=f"{camera_view}ROIMotionEnergy", collection="alf"
         )
@@ -30,6 +41,11 @@ class RoiMotionEnergyInterface(BaseDataInterface):
         # extra dirty hack to be removed
         # if self.session == "dc21e80d-97d7-44ca-a729-a8e3f9b14305" and camera_view == 'right': # the broken session
         #     camera_data["features"] = pd.read_parquet(Path("/mnt/sdceph/users/ibl/data/wittenlab/Subjects/ibl_witten_26/2021-01-31/001/alf/#2025-06-04#/_ibl_rightCamera.features.c9658c1b-1d93-469c-9faf-76d535205485.pqt"))
+
+        if "position" not in motion_energy_video_region:
+            raise RuntimeError(
+                f"ROI motion energy metadata missing position for camera '{self.camera_name}' in session '{self.session}'"
+            )
 
         width, height, x, y = motion_energy_video_region["position"]
 
