@@ -101,6 +101,8 @@ def download_session_data(
     redownload_data: bool = False,
     stub_test: bool = False,
     revision: str | None = None,
+    base_path: Path | None = None,
+    scratch_path: Path | None = None,
     logger: logging.Logger | None = None,
 ) -> dict:
     """Download all datasets for a session from ONE API.
@@ -115,6 +117,12 @@ def download_session_data(
         If True, always re-download data. If False, use cached data when available.
     stub_test : bool, optional
         If True, skip downloading large raw ephys datasets for faster testing.
+    revision : str, optional
+        Data revision identifier.
+    base_path : Path, optional
+        Base path for outputs; used to keep caching consistent with conversion.
+    scratch_path : Path, optional
+        Scratch directory for temporary files and session cache.
     logger : logging.Logger, optional
         Logger instance
 
@@ -131,7 +139,7 @@ def download_session_data(
     download_start = time.time()
 
     # Setup paths to check cache location
-    paths = setup_paths(one, eid, base_path=None, scratch_path=None)
+    paths = setup_paths(one, eid, base_path=base_path, scratch_path=scratch_path)
 
     # Check if we need to clear cached data
     if redownload_data and paths["session_folder"].exists():
@@ -233,6 +241,8 @@ def convert_raw_session(
         Data revision
     base_path : Path, optional
         Base path for output files
+    scratch_path : Path, optional
+        Scratch path for temporary files
     scratch_path : Path, optional
         Scratch path for temporary files
     logger : logging.Logger, optional
@@ -490,6 +500,7 @@ def convert_processed_session(
     stub_test: bool = False,
     revision: str = None,
     base_path: Path = None,
+    scratch_path: Path = None,
     skip_spike_properties: list = None,
     logger: logging.Logger = None,
 ):
@@ -518,7 +529,7 @@ def convert_processed_session(
 
     # Setup paths
     start_time = time.time()
-    paths = setup_paths(one, eid, base_path=base_path, scratch_path=None)
+    paths = setup_paths(one, eid, base_path=base_path, scratch_path=scratch_path)
     if logger:
         logger.info(f"Paths setup completed in {time.time() - start_time:.2f}s")
 
@@ -860,6 +871,8 @@ if __name__ == "__main__":
             redownload_data=REDOWNLOAD_DATA,
             stub_test=STUB_TEST,
             revision=revision,
+            base_path=base_path,
+            scratch_path=scratch_path,
             logger=logger,
         )
 
@@ -896,6 +909,7 @@ if __name__ == "__main__":
                 stub_test=STUB_TEST,
                 revision=revision,
                 base_path=base_path,
+                scratch_path=scratch_path,
                 skip_spike_properties=["spike_amplitudes", "spike_relative_depths"],
                 logger=logger,
             )

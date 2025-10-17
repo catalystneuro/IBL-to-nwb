@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+import os
 from pathlib import Path
 from typing import Iterable, List, Literal, Optional
 
@@ -10,10 +11,76 @@ from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
 from one.api import ONE
 from pynwb import NWBFile
+from probeinterface import Probe
 from probeinterface.neuropixels_tools import read_spikeglx
 
 
-def _resolve_meta_path(one: ONE, eid: str, probe_name: str, revision: Optional[str], meta_path: Optional[Path]) -> Path:
+DEFAULT_FALLBACK_PROBE_MANUFACTURER = "imec"
+DEFAULT_FALLBACK_PROBE_MODEL = "PRB_1_4_0480_1"
+
+
+def _load_fallback_probe(model_name: str = DEFAULT_FALLBACK_PROBE_MODEL) -> Probe:
+    """
+    Generate the Neuropixels 1.0 probe geometry programmatically to avoid external files.
+    """
+    if model_name != DEFAULT_FALLBACK_PROBE_MODEL:
+        raise ValueError(f"Unsupported fallback probe model: {model_name}")
+
+    probe = Probe(
+        ndim=2,
+        si_units="um",
+        model_name=DEFAULT_FALLBACK_PROBE_MODEL,
+        manufacturer=DEFAULT_FALLBACK_PROBE_MANUFACTURER.upper(),
+    )
+
+    probe.annotations.update(
+        {
+            "model_name": DEFAULT_FALLBACK_PROBE_MODEL,
+            "manufacturer": DEFAULT_FALLBACK_PROBE_MANUFACTURER,
+            "description": "Neuropixels 1.0 probe",
+            "shank_tips": [(24.0, -220.0)],
+        }
+    )
+
+    num_rows = 240
+    positions: list[tuple[float, float]] = []
+    for row in range(num_rows):
+        base_y = float(row * 40)
+        positions.extend(
+            [
+                (16.0, base_y),
+                (48.0, base_y),
+                (0.0, base_y + 20.0),
+                (32.0, base_y + 20.0),
+            ]
+        )
+
+    contact_positions = np.asarray(positions, dtype=np.float64)
+    plane_axes = np.broadcast_to(np.eye(2, dtype=np.float64), (contact_positions.shape[0], 2, 2)).copy()
+    contact_ids = [f"e{index}" for index in range(contact_positions.shape[0])]
+    shank_ids = ["0"] * contact_positions.shape[0]
+
+    probe.set_contacts(
+        positions=contact_positions,
+        shapes="square",
+        shape_params={"width": 12.0},
+        plane_axes=plane_axes,
+        contact_ids=contact_ids,
+        shank_ids=shank_ids,
+    )
+    probe.set_device_channel_indices(np.arange(contact_positions.shape[0], dtype=np.int64))
+    probe.set_planar_contour([[-11.0, 9989.0], [-11.0, -11.0], [24.0, -220.0], [59.0, -11.0], [59.0, 9989.0]])
+
+    return probe
+
+
+def _resolve_meta_path(
+    one: ONE,
+    eid: str,
+    probe_name: str,
+    revision: Optional[str],
+    meta_path: Optional[Path],
+) -> Optional[Path]:
     """
     Resolve the local path to the SpikeGLX `.meta` file for a given probe.
     """
@@ -24,9 +91,7 @@ def _resolve_meta_path(one: ONE, eid: str, probe_name: str, revision: Optional[s
     datasets = one.list_datasets(eid=eid, collection=collection)
     meta_datasets = [dataset for dataset in datasets if dataset.endswith(".ap.meta")]
     if not meta_datasets:
-        raise FileNotFoundError(
-            f"No `.ap.meta` datasets found for probe '{probe_name}' in collection '{collection}'."
-        )
+        return None
 
     local_path = one.load_dataset(eid, dataset=meta_datasets[0])
     return Path(local_path)
@@ -45,25 +110,23 @@ def _ensure_electrode_columns(
             nwbfile.add_electrode_column(name=name, description=description)
 
 
-def add_spikeglx_probe_to_nwbfile(
-    meta_file: str | Path,
+def add_probe_definition_to_nwbfile(
+    probe: Probe,
     nwbfile: NWBFile,
     *,
     group_mode: Literal["by_probe", "by_shank"] = "by_probe",
     metadata: Optional[dict] = None,
+    source_description: str,
 ) -> None:
     """
-    Minimal helper to populate the electrodes table using a SpikeGLX `.meta` file.
-    Only the per-probe grouping mode is currently supported.
+    Minimal helper to populate the electrodes table using a `probeinterface.Probe` object.
     """
     if group_mode != "by_probe":
         raise ValueError("Only group_mode='by_probe' is supported in this lightweight implementation.")
 
-    meta_path = Path(meta_file)
-    probe = read_spikeglx(meta_path)
     contacts = probe.to_numpy(complete=True)
     if contacts.size == 0:
-        raise ValueError(f"No contacts found in SpikeGLX metadata: {meta_path}")
+        raise ValueError(f"No contacts found in probe definition: {source_description}")
 
     metadata_copy = metadata.copy() if metadata is not None else {}
     ecephys_metadata = metadata_copy.setdefault("Ecephys", {})
@@ -110,6 +173,8 @@ def add_spikeglx_probe_to_nwbfile(
         ("contact_ids", "Contact identifiers supplied by the probe definition."),
         ("electrode_name", "Unique identifier derived from probe contact ids."),
         ("contact_shapes", "Contact shape per electrode as defined by the probe."),
+        ("beryl_location", "Brain region in IBL Beryl atlas (coarse grouping)."),
+        ("cosmos_location", "Brain region in IBL Cosmos atlas (very coarse grouping)."),
     ]
     if "shank_ids" in contacts.dtype.names:
         required_columns.append(("shank_ids", "Shank identifier from the probe definition."))
@@ -171,6 +236,28 @@ def add_spikeglx_probe_to_nwbfile(
         nwbfile.add_electrode(**electrode_kwargs)
 
 
+def add_spikeglx_probe_to_nwbfile(
+    meta_file: str | Path,
+    nwbfile: NWBFile,
+    *,
+    group_mode: Literal["by_probe", "by_shank"] = "by_probe",
+    metadata: Optional[dict] = None,
+) -> None:
+    """
+    Convenience wrapper that reads a SpikeGLX `.meta` file and delegates to
+    :func:`add_probe_definition_to_nwbfile`.
+    """
+    meta_path = Path(meta_file)
+    probe = read_spikeglx(meta_path)
+    add_probe_definition_to_nwbfile(
+        probe=probe,
+        nwbfile=nwbfile,
+        group_mode=group_mode,
+        metadata=metadata,
+        source_description=str(meta_path),
+    )
+
+
 def add_probe_electrodes_with_localization(
     *,
     nwbfile: NWBFile,
@@ -216,41 +303,105 @@ def add_probe_electrodes_with_localization(
     device_name = f"NeuropixelsProbe{probe_name[-2:]}"
     group_name = device_name
 
+    atlas = atlas or AllenAtlas()
+    brain_regions = brain_regions or BrainRegions()
+
     meta_path = _resolve_meta_path(one=one, eid=eid, probe_name=probe_name, revision=revision, meta_path=meta_path)
+    fallback_used = False
 
-    # Seed metadata so probeinterface creates expected device/group names.
-    metadata = {
-        "Ecephys": {
-            "Device": [
-                dict(name=device_name, description="Neuropixels probe imported from SpikeGLX metadata.", manufacturer="IMEC")
-            ],
-            "ElectrodeGroup": [
-                dict(
-                    name=group_name,
-                    description=f"Electrode group for {probe_name}",
-                    location="Unresolved",
-                    device=device_name,
-                )
-            ],
-            "Electrodes": [
-                dict(name="contact_ids", description="Original contact identifiers supplied by SpikeGLX."),
-                dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
-                dict(name="location", description="Brain region acronym per electrode."),
-                dict(name="x", description="CCF x coordinate (um)."),
-                dict(name="y", description="CCF y coordinate (um)."),
-                dict(name="z", description="CCF z coordinate (um)."),
-                dict(name="beryl_location", description="Brain region in IBL Beryl atlas (coarse grouping)."),
-                dict(name="cosmos_location", description="Brain region in IBL Cosmos atlas (very coarse grouping)."),
-            ],
+    if meta_path is None:
+        warnings.warn(
+            f"No SpikeGLX metadata found for probe '{probe_name}' in session '{eid}'. "
+            f"Falling back to {DEFAULT_FALLBACK_PROBE_MANUFACTURER} {DEFAULT_FALLBACK_PROBE_MODEL} geometry.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+        try:
+            fallback_probe = _load_fallback_probe()
+        except Exception as exc:
+            warnings.warn(
+                f"Unable to load fallback probe definition for '{probe_name}': {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return []
+
+        fallback_metadata = {
+            "Ecephys": {
+                "Device": [
+                    dict(
+                        name=device_name,
+                        description="Neuropixels probe imported from fallback probeinterface definition.",
+                        manufacturer="IMEC",
+                    )
+                ],
+                "ElectrodeGroup": [
+                    dict(
+                        name=group_name,
+                        description=f"Electrode group for {probe_name}",
+                        location="Unresolved",
+                        device=device_name,
+                    )
+                ],
+                "Electrodes": [
+                    dict(name="contact_ids", description="Original contact identifiers supplied by SpikeGLX."),
+                    dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
+                    dict(name="location", description="Brain region acronym per electrode."),
+                    dict(name="x", description="CCF x coordinate (um)."),
+                    dict(name="y", description="CCF y coordinate (um)."),
+                    dict(name="z", description="CCF z coordinate (um)."),
+                    dict(name="beryl_location", description="Brain region in IBL Beryl atlas (coarse grouping)."),
+                    dict(name="cosmos_location", description="Brain region in IBL Cosmos atlas (very coarse grouping)."),
+                ],
+            }
         }
-    }
 
-    add_spikeglx_probe_to_nwbfile(
-        meta_file=meta_path,
-        nwbfile=nwbfile,
-        group_mode="by_probe",
-        metadata=metadata,
-    )
+        add_probe_definition_to_nwbfile(
+            probe=fallback_probe,
+            nwbfile=nwbfile,
+            group_mode="by_probe",
+            metadata=fallback_metadata,
+            source_description=f"{DEFAULT_FALLBACK_PROBE_MANUFACTURER}/{DEFAULT_FALLBACK_PROBE_MODEL}",
+        )
+        fallback_used = True
+    else:
+        meta_metadata = {
+            "Ecephys": {
+                "Device": [
+                    dict(
+                        name=device_name,
+                        description="Neuropixels probe imported from SpikeGLX metadata.",
+                        manufacturer="IMEC",
+                    )
+                ],
+                "ElectrodeGroup": [
+                    dict(
+                        name=group_name,
+                        description=f"Electrode group for {probe_name}",
+                        location="Unresolved",
+                        device=device_name,
+                    )
+                ],
+                "Electrodes": [
+                    dict(name="contact_ids", description="Original contact identifiers supplied by SpikeGLX."),
+                    dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
+                    dict(name="location", description="Brain region acronym per electrode."),
+                    dict(name="x", description="CCF x coordinate (um)."),
+                    dict(name="y", description="CCF y coordinate (um)."),
+                    dict(name="z", description="CCF z coordinate (um)."),
+                    dict(name="beryl_location", description="Brain region in IBL Beryl atlas (coarse grouping)."),
+                    dict(name="cosmos_location", description="Brain region in IBL Cosmos atlas (very coarse grouping)."),
+                ],
+            }
+        }
+
+        add_spikeglx_probe_to_nwbfile(
+            meta_file=meta_path,
+            nwbfile=nwbfile,
+            group_mode="by_probe",
+            metadata=meta_metadata,
+        )
 
     # Identify electrode indices for this probe.
     electrode_indices: List[int] = []
@@ -280,8 +431,53 @@ def add_probe_electrodes_with_localization(
             stacklevel=2,
         )
         return electrode_indices
+    if channels is None:
+        if fallback_used:
+            warnings.warn(
+                f"Histology channels unavailable for probe '{probe_name}'; keeping fallback geometry only.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            warnings.warn(
+                f"Histology channels missing required coordinates for probe '{probe_name}'.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        return electrode_indices
 
-    n_channels = len(channels["x"])
+    def _has_channel_field(field: str) -> bool:
+        if isinstance(channels, np.ndarray):
+            return channels.dtype.names is not None and field in channels.dtype.names
+        if hasattr(channels, "keys"):
+            return field in channels.keys()
+        return hasattr(channels, field)
+
+    def _get_channel_field(field: str):
+        if isinstance(channels, np.ndarray):
+            return channels[field]
+        if hasattr(channels, "keys"):
+            return channels[field]
+        if hasattr(channels, field):
+            return getattr(channels, field)
+        raise KeyError(field)
+
+    if not all(_has_channel_field(field) for field in ("x", "y", "z", "atlas_id", "acronym")):
+        if fallback_used:
+            warnings.warn(
+                f"Histology channels missing fields for probe '{probe_name}'; keeping fallback geometry only.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            warnings.warn(
+                f"Histology channels missing fields for probe '{probe_name}'.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        return electrode_indices
+
+    n_channels = len(_get_channel_field("x"))
     if n_channels == 0:
         warnings.warn(
             f"No histology channels available for probe '{probe_name}'.",
@@ -310,12 +506,19 @@ def add_probe_electrodes_with_localization(
         ],
     )
 
-    ibl_coords_m = np.column_stack([channels["x"], channels["y"], channels["z"]])
+    ibl_coords_m = np.column_stack(
+        [
+            np.asarray(_get_channel_field("x")),
+            np.asarray(_get_channel_field("y")),
+            np.asarray(_get_channel_field("z")),
+        ]
+    )
     ccf_coords_um = atlas.xyz2ccf(ibl_coords_m).astype(np.float64)
 
-    beryl_locations = brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Beryl")
-    cosmos_locations = brain_regions.id2acronym(atlas_id=channels["atlas_id"], mapping="Cosmos")
-    acronyms = channels["acronym"].astype(str)
+    atlas_ids = np.asarray(_get_channel_field("atlas_id"))
+    beryl_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Beryl")
+    cosmos_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Cosmos")
+    acronyms = np.asarray(_get_channel_field("acronym")).astype(str)
 
     electrode_indices_sorted = sorted(electrode_indices)
 
