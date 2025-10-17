@@ -16,6 +16,7 @@ class RawVideoInterface(BaseDataInterface):
         one: ONE,
         session: str,
         camera_name: Literal["left", "right", "body"],
+        revision: str | None = None,
     ) -> None:
         """
         Interface for the raw video data from the IBL Brainwide Map release.
@@ -43,17 +44,26 @@ class RawVideoInterface(BaseDataInterface):
         self.one = one
         self.session = session
         self.camera_name = camera_name
+        self.revision = revision
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
-        camera_data = self.one.load_object(id=self.session, obj=self.camera_name, collection="alf")
+        camera_data = self.one.load_object(
+            id=self.session,
+            obj=self.camera_name,
+            collection="alf",
+            revision=self.revision,
+        )
         timestamps = camera_data["times"]
 
         camera_view = self.camera_name.split("Camera")[0]  # left, right or body
         video_filename = f"raw_video_data/_iblrig_{self.camera_name}.raw.mp4"
-        if self.one.list_datasets(eid=self.session, filename=video_filename):
+        if self.one.list_datasets(eid=self.session, revision=self.revision, filename=video_filename):
             original_video_file_path = self.one.load_dataset(
-                id=self.session, dataset=video_filename, download_only=True
-            )
+                id=self.session,
+                dataset=video_filename,
+                download_only=True,
+                revision=self.revision,
+            )   
 
             # Rename to DANDI format and relative organization
             dandi_sub_stem = f"sub-{self.subject_id}"

@@ -300,7 +300,8 @@ def add_probe_electrodes_with_localization(
         Electrode indices (in NWB electrode table order) corresponding to the probe channels.
     """
 
-    device_name = f"NeuropixelsProbe{probe_name[-2:]}"
+    suffix = probe_name[5:] if probe_name.lower().startswith("probe") else probe_name
+    device_name = f"NeuropixelsProbe{suffix}"
     group_name = device_name
 
     atlas = atlas or AllenAtlas()

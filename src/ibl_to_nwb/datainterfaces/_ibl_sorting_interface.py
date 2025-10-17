@@ -136,7 +136,10 @@ class IblSortingInterface(BaseSortingExtractorInterface):
             channel_idx = int(channel_id)
 
             if channel_idx not in channel_map:
-                raise ValueError(f"Channel {channel_idx} not found for {pname}")
+                raise ValueError(
+                    f"Channel {channel_idx} not found for {pname}. "
+                    f"Available channels: {sorted(channel_map.keys())[:10]}{'...' if len(channel_map) > 10 else ''}"
+                )
 
             electrode_idx = channel_map[channel_idx]
             unit_electrode_indices.append([electrode_idx])

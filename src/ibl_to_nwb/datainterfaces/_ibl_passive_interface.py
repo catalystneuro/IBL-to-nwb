@@ -43,9 +43,10 @@ class PassivePeriodDataInterface(BaseDataInterface):
         # if no revision is specified, use the latest
         if revision is None:
             revision = one.list_revisions(session)[-1]
+        self.revision = revision
 
         # check which datasets are present
-        datasets = one.list_datasets(session)
+        datasets = one.list_datasets(session, revision=self.revision)
         self.present_datasets = dict(
             has_passive=True if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets else False,
             has_replay=True if "alf/_ibl_passiveGabor.table.csv" in datasets else False,
@@ -54,17 +55,23 @@ class PassivePeriodDataInterface(BaseDataInterface):
 
         # passive epochs
         if self.present_datasets["has_passive"]:
-            self.passive_intervals_df = one.load_dataset(session, "alf/_ibl_passivePeriods.intervalsTable.csv")
+            self.passive_intervals_df = one.load_dataset(
+                session, "alf/_ibl_passivePeriods.intervalsTable.csv", revision=self.revision
+            )
 
         # replay
         if self.present_datasets["has_replay"]:
-            self.taskreplay_events_df = one.load_dataset(session, "alf/_ibl_passiveStims.table.csv")
-            self.gabor_events_df = one.load_dataset(session, "alf/_ibl_passiveGabor.table.csv")
+            self.taskreplay_events_df = one.load_dataset(
+                session, "alf/_ibl_passiveStims.table.csv", revision=self.revision
+            )
+            self.gabor_events_df = one.load_dataset(
+                session, "alf/_ibl_passiveGabor.table.csv", revision=self.revision
+            )
 
         # receptrive field mapping
         if self.present_datasets["has_rfm"]:
-            self.rfm_times = one.load_dataset(session, "alf/_ibl_passiveRFM.times.npy")
-            path = one.load_dataset(session, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
+            self.rfm_times = one.load_dataset(session, "alf/_ibl_passiveRFM.times.npy", revision=self.revision)
+            path = one.load_dataset(session, "raw_passive_data/_iblrig_RFMapStim.raw.bin", revision=self.revision)
             self.rfm_data = np.fromfile(path, dtype=np.uint8).reshape((self.rfm_times.shape[0], 15, 15))
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):

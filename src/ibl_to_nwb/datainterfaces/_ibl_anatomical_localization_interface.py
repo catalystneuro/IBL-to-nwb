@@ -64,18 +64,35 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
         super().__init__(verbose=verbose)
         self.one = one
         self.eid = eid
-        self.pname_pid_map = pname_pid_map
         self.revision = revision
         self.atlas = AllenAtlas()
         self.brain_regions = BrainRegions()
 
         # Load histology data for all probes
         self.probe_data = {}
+        filtered_pname_pid: dict[str, str] = {}
         for pname, pid in pname_pid_map.items():
+            if not self._probe_has_histology_files(
+                one=self.one,
+                eid=self.eid,
+                probe_name=pname,
+                revision=self.revision,
+            ):
+                if self.verbose:
+                    print(f"Skipping {pname}: no electrodeSites histology files found.")
+                continue
+
             ssl = SpikeSortingLoader(pid=pid, eid=eid, pname=pname, one=one, atlas=self.atlas)
 
             # Load spike sorting to get channels data
             _, _, channels = ssl.load_spike_sorting(revision=revision)
+
+            required_fields = {"x", "y", "z", "acronym"}
+            missing_fields = required_fields - set(channels.keys())
+            if missing_fields:
+                raise ValueError(
+                    f"Histology channels for probe '{pname}' are missing required fields: {sorted(missing_fields)}"
+                )
 
             # Check histology quality - if ssl.histology is empty, check insertion directly
             histology_quality = ssl.histology
@@ -114,6 +131,11 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
             else:
                 if self.verbose:
                     print(f"Skipping {pname}: histology quality '{histology_quality}' not sufficient")
+                continue
+
+            filtered_pname_pid[pname] = pid
+
+        self.pname_pid_map = filtered_pname_pid
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
         """
@@ -206,7 +228,12 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
 
         for pname, data in self.probe_data.items():
             channels = data['channels']
-            n_channels = len(channels['x'])
+            channels_x = np.asarray(channels["x"], dtype=np.float64)
+            channels_y = np.asarray(channels["y"], dtype=np.float64)
+            channels_z = np.asarray(channels["z"], dtype=np.float64)
+            acronyms = np.asarray(channels["acronym"]).astype(str)
+
+            n_channels = len(channels_x)
 
             # Get electrode indices for this probe
             electrode_indices = []
@@ -220,12 +247,12 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
 
             # Convert IBL coordinates (meters) to micrometers
             # Ensure float64 dtype for proper NWB serialization
-            ibl_x_um = np.array(channels['x'], dtype=np.float64) * 1e6
-            ibl_y_um = np.array(channels['y'], dtype=np.float64) * 1e6
-            ibl_z_um = np.array(channels['z'], dtype=np.float64) * 1e6
+            ibl_x_um = channels_x * 1e6
+            ibl_y_um = channels_y * 1e6
+            ibl_z_um = channels_z * 1e6
 
             # Convert to CCF coordinates
-            ibl_coords_m = np.column_stack([channels['x'], channels['y'], channels['z']])
+            ibl_coords_m = np.column_stack([channels_x, channels_y, channels_z])
             ccf_coords_um = self.atlas.xyz2ccf(ibl_coords_m)
             # Ensure float64 dtype for proper NWB serialization
             ccf_coords_x_um = np.array(ccf_coords_um[:, 0], dtype=np.float64)
@@ -239,12 +266,14 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
 
                 # Add rows to AnatomicalCoordinatesTable (ONLY - no longer modifying electrodes table)
                 # Ensure all values are scalar float64 for proper NWB serialization
+                acronym_value = acronyms[channel_index]
+
                 ibl_table.add_row(
                     localized_entity=electrode_index,
                     x=float(ibl_x_um[channel_index]),
                     y=float(ibl_y_um[channel_index]),
                     z=float(ibl_z_um[channel_index]),
-                    brain_region=str(channels['acronym'][channel_index]),
+                    brain_region=acronym_value,
                 )
 
                 ccf_table.add_row(
@@ -252,8 +281,13 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
                     x=float(ccf_coords_x_um[channel_index]),
                     y=float(ccf_coords_y_um[channel_index]),
                     z=float(ccf_coords_z_um[channel_index]),
-                    brain_region=str(channels['acronym'][channel_index]),
+                    brain_region=acronym_value,
                 )
 
         # Add tables to localization
         localization.add_anatomical_coordinates_tables([ibl_table, ccf_table])
+
+    @staticmethod
+    def _probe_has_histology_files(one: ONE, eid: str, probe_name: str, revision: Optional[str]) -> bool:
+        datasets = one.list_datasets(eid, collection=f"alf/{probe_name}", revision=revision)
+        return any("electrodeSites" in dataset for dataset in datasets)
