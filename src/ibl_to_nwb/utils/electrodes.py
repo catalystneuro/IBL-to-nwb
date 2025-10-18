@@ -170,7 +170,6 @@ def add_probe_definition_to_nwbfile(
     existing_columns = set(nwbfile.electrodes.colnames) if nwbfile.electrodes is not None else set()
 
     required_columns = [
-        ("contact_ids", "Contact identifiers supplied by the probe definition."),
         ("electrode_name", "Unique identifier derived from probe contact ids."),
         ("contact_shapes", "Contact shape per electrode as defined by the probe."),
         ("beryl_location", "Brain region in IBL Beryl atlas (coarse grouping)."),
@@ -217,7 +216,6 @@ def add_probe_definition_to_nwbfile(
             location=group_entry.get("location", "Unknown"),
             filtering="",
             group=electrode_group,
-            contact_ids=contact_id,
             electrode_name=contact_id,
             beryl_location="",
             cosmos_location="",
@@ -346,7 +344,6 @@ def add_probe_electrodes_with_localization(
                     )
                 ],
                 "Electrodes": [
-                    dict(name="contact_ids", description="Original contact identifiers supplied by SpikeGLX."),
                     dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
                     dict(name="location", description="Brain region acronym per electrode."),
                     dict(name="x", description="CCF x coordinate (um)."),
@@ -385,7 +382,6 @@ def add_probe_electrodes_with_localization(
                     )
                 ],
                 "Electrodes": [
-                    dict(name="contact_ids", description="Original contact identifiers supplied by SpikeGLX."),
                     dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
                     dict(name="location", description="Brain region acronym per electrode."),
                     dict(name="x", description="CCF x coordinate (um)."),

@@ -35,7 +35,7 @@ class RoiMotionEnergyInterface(BaseDataInterface):
             )
 
         motion_energy_video_region = self.one.load_object(
-            id=self.session, obj=f"{camera_view}ROIMotionEnergy", collection="alf"
+            id=self.session, obj=f"{camera_view}ROIMotionEnergy", collection="alf", revision=self.revision
         )
 
         # extra dirty hack to be removed

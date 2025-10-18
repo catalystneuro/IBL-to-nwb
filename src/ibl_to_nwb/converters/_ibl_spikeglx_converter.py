@@ -71,25 +71,17 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
 
     def get_metadata(self):
         """
-        Override to use IBL naming convention for electrode groups, devices, and channels.
+        Override to use IBL naming convention for electrode groups and devices.
 
         IBL naming:
         - Devices: NeuropixelsProbe00, NeuropixelsProbe01
         - Electrode groups: NeuropixelsProbe00, NeuropixelsProbe01
-        - Channel names:
-            * If both AP and LF exist: "AP0,LF0", "AP1,LF1", ... (shared electrodes)
-            * If only one band exists: "AP0", "AP1", ... or "LF0", "LF1", ...
-
-        This ensures AP and LF bands share the same electrode table entries when both exist,
-        avoiding duplication in the electrodes table while maintaining clarity about which
-        bands are associated with each electrode.
-
-        Instead of NeuroConv's default:
-        - Devices: NeuropixelsImec0, NeuropixelsImec1
-        - Electrode groups: NeuropixelsImec0, NeuropixelsImec1
-        - Channel names: "AP0", "LF0", etc. (would cause duplicates without modification)
+        Channel naming is handled upstream by NeuroConv (>=0.8.2), which ensures AP and LF
+        bands share electrode table entries while avoiding duplicates. Earlier NeuroConv
+        versions used the NeuropixelsImec* naming scheme, so we still remap devices and
+        groups here to keep the IBL convention.
         """
-        # First, update group_name and channel_name properties in all recording extractors
+        # First, update group_name properties in all recording extractors
         for key, recording_interface in self.data_interface_objects.items():
             if key != "nidq":
                 imec_name, band = key.split(".")
@@ -103,41 +95,6 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                     key="group_name",
                     ids=channel_ids,
                     values=[ibl_group_name] * len(channel_ids)
-                )
-
-                # Set channel names that allow AP and LF to share electrodes
-                # Check if companion stream exists (AP has LF, LF has AP)
-                companion_band = "lf" if band == "ap" else "ap"
-                companion_key = f"{imec_name}.{companion_band}"
-                has_companion_stream = companion_key in self.data_interface_objects
-
-                # Build channel names
-                original_channel_names = recording_interface.recording_extractor.get_property("channel_name")
-                new_channel_names = []
-
-                for ch_name in original_channel_names:
-                    # Extract channel number from name (e.g., "AP0" -> "0", "LF123" -> "123")
-                    import re
-                    match = re.search(r'\d+$', ch_name)
-                    if match:
-                        channel_number = match.group()
-
-                        if has_companion_stream:
-                            # Multi-stream: use combined name (alphabetically: AP,LF)
-                            new_name = f"AP{channel_number},LF{channel_number}"
-                        else:
-                            # Single stream: use simple band prefix
-                            new_name = f"{band.upper()}{channel_number}"
-                    else:
-                        # Fallback: keep original
-                        new_name = ch_name
-
-                    new_channel_names.append(new_name)
-
-                recording_interface.recording_extractor.set_property(
-                    key="channel_name",
-                    ids=channel_ids,
-                    values=new_channel_names
                 )
 
         # Now generate metadata with updated group names

@@ -48,14 +48,6 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     return logger
 
 
-def cleanup_decompressed_files(eid: str, scratch_path: Path) -> None:
-    """Remove decompressed raw ephys data from the scratch directory."""
-
-    session_scratch = scratch_path / eid / "raw_ephys_data"
-    if session_scratch.exists():
-        shutil.rmtree(session_scratch)
-
-
 def cleanup_downloaded_files(eid: str, one: ONE) -> None:
     """Remove all cached datasets for a session. Use with caution."""
 
@@ -222,7 +214,9 @@ if __name__ == "__main__":
             logger.info("\n" + "=" * 80)
             logger.info("CLEANING UP DECOMPRESSED FILES")
             logger.info("=" * 80)
-            cleanup_decompressed_files(eid, scratch_path)
+            session_scratch = scratch_path / eid / "raw_ephys_data"
+            if session_scratch.exists():
+                shutil.rmtree(session_scratch)
             logger.info("Decompressed files cleaned up")
 
         if CLEANUP_DOWNLOADED:

@@ -41,7 +41,19 @@ def download_session_data(
         paths["session_folder"].mkdir(parents=True, exist_ok=True)
 
     # Download all datasets for this session
-    datasets = one.list_datasets(eid, revision=revision) if revision else one.list_datasets(eid)
+    base_datasets = set(one.list_datasets(eid))
+    if revision:
+        revision_datasets = set(one.list_datasets(eid, revision=revision))
+        # Keep default datasets that are not revision-tagged ALF entries; we'll rely on the
+        # explicit revision query for those.
+        base_datasets = {
+            dataset
+            for dataset in base_datasets
+            if not (dataset.startswith("alf/") and "#" in dataset)
+        }
+        datasets = sorted(base_datasets | revision_datasets)
+    else:
+        datasets = sorted(base_datasets)
     skipped_datasets = []
     if stub_test:
         skip_patterns = (
@@ -83,7 +95,13 @@ def download_session_data(
             logger.info("Downloading data from ONE API...")
 
     for dataset in datasets:
-        one.load_dataset(eid, dataset)
+        # ONE does not allow specifying revision when requesting a relative path that already includes
+        # the collection (and potentially the revision folder, e.g., "alf/#2024-05-06#/file.ext").
+        # In those cases we rely on the relative path itself to target the correct asset.
+        if revision and "/" not in dataset:
+            one.load_dataset(eid, dataset, revision=revision)
+        else:
+            one.load_dataset(eid, dataset)
 
     download_time = time.time() - download_start
 
