@@ -141,13 +141,13 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
 
         return metadata
 
-    def add_to_nwbfile(self, iterator_opts: dict, progress_position: int, **kwargs):
+    def add_to_nwbfile(self, iterator_options: dict, progress_position: int, **kwargs):
         # The buffer and chunk shapes must be set explicitly for good performance with the streaming
         # Otherwise, the default buffer/chunk shapes might re-request the same data packet multiple times
         # chunk_frames = 100 if kwargs.get("stub_test", False) else 30_000
         # buffer_frames = 100 if kwargs.get("stub_test", False) else 5 * 30_000
         kwargs.update(
-            iterator_opts=dict(
+            iterator_options=dict(
                 display_progress=True,
                 # chunk_shape=(chunk_frames, 16),  # ~1 MB
                 # buffer_shape=(buffer_frames, 384),  # 100 MB
@@ -158,7 +158,7 @@ class IblStreamingApInterface(BaseRecordingExtractorInterface):
                 ),
             )
         )
-        kwargs["iterator_opts"].update(iterator_opts)
+        kwargs["iterator_options"].update(iterator_options)
         if "progress_position" in kwargs:
             kwargs.pop("progress_position")
         super().add_to_nwbfile(**kwargs)

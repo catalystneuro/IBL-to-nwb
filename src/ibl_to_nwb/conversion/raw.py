@@ -242,7 +242,7 @@ def convert_raw_session(
         for interface_name in spikeglx_converter.data_interface_objects.keys():
             spikeglx_options[interface_name] = {
                 "stub_test": stub_test,
-                "iterator_opts": {
+                "iterator_options": {
                     "display_progress": True,
                     "progress_bar_options": {"desc": f"Writing {interface_name}"},
                 },

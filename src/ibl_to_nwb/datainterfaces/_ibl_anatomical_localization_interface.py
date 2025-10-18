@@ -289,5 +289,8 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
 
     @staticmethod
     def _probe_has_histology_files(one: ONE, eid: str, probe_name: str, revision: Optional[str]) -> bool:
-        datasets = one.list_datasets(eid, collection=f"alf/{probe_name}", revision=revision)
+        collection = f"alf/{probe_name}"
+        datasets = set(one.list_datasets(eid, collection=collection))
+        if revision:
+            datasets.update(one.list_datasets(eid, collection=collection, revision=revision))
         return any("electrodeSites" in dataset for dataset in datasets)
