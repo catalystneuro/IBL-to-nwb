@@ -45,8 +45,22 @@ class PassivePeriodDataInterface(BaseDataInterface):
             revision = one.list_revisions(session)[-1]
         self.revision = revision
 
-        # check which datasets are present
-        datasets = one.list_datasets(session, revision=self.revision)
+        # list datasets from both default and revisioned namespaces
+        default_datasets = set(one.list_datasets(session))
+        revision_datasets = set()
+        if self.revision:
+            revision_datasets = set(one.list_datasets(session, revision=self.revision))
+        datasets = default_datasets | revision_datasets
+
+        def load_with_fallback(dataset_path: str):
+            """Try loading with revision when appropriate, otherwise fall back to default."""
+            if self.revision and "#" not in dataset_path and dataset_path in revision_datasets:
+                try:
+                    return one.load_dataset(session, dataset_path, revision=self.revision)
+                except ValueError:
+                    pass
+            return one.load_dataset(session, dataset_path)
+
         self.present_datasets = dict(
             has_passive=True if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets else False,
             has_replay=True if "alf/_ibl_passiveGabor.table.csv" in datasets else False,
@@ -55,23 +69,17 @@ class PassivePeriodDataInterface(BaseDataInterface):
 
         # passive epochs
         if self.present_datasets["has_passive"]:
-            self.passive_intervals_df = one.load_dataset(
-                session, "alf/_ibl_passivePeriods.intervalsTable.csv", revision=self.revision
-            )
+            self.passive_intervals_df = load_with_fallback("alf/_ibl_passivePeriods.intervalsTable.csv")
 
         # replay
         if self.present_datasets["has_replay"]:
-            self.taskreplay_events_df = one.load_dataset(
-                session, "alf/_ibl_passiveStims.table.csv", revision=self.revision
-            )
-            self.gabor_events_df = one.load_dataset(
-                session, "alf/_ibl_passiveGabor.table.csv", revision=self.revision
-            )
+            self.taskreplay_events_df = load_with_fallback("alf/_ibl_passiveStims.table.csv")
+            self.gabor_events_df = load_with_fallback("alf/_ibl_passiveGabor.table.csv")
 
         # receptrive field mapping
         if self.present_datasets["has_rfm"]:
-            self.rfm_times = one.load_dataset(session, "alf/_ibl_passiveRFM.times.npy", revision=self.revision)
-            path = one.load_dataset(session, "raw_passive_data/_iblrig_RFMapStim.raw.bin", revision=self.revision)
+            self.rfm_times = load_with_fallback("alf/_ibl_passiveRFM.times.npy")
+            path = load_with_fallback("raw_passive_data/_iblrig_RFMapStim.raw.bin")
             self.rfm_data = np.fromfile(path, dtype=np.uint8).reshape((self.rfm_times.shape[0], 15, 15))
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):

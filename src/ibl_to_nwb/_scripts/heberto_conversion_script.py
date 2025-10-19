@@ -28,10 +28,10 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
 
     log_file_path.parent.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(log_file_path, mode="a")
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(formatter)

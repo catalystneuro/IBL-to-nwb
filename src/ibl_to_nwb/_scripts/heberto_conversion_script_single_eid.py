@@ -24,7 +24,7 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     """Configure a logger that writes to disk and stdout."""
 
     logger = logging.getLogger("IBL_Conversion_Single_EID")
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     logger.handlers = []
 
     log_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,11 +73,11 @@ if __name__ == "__main__":
 
     CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = False                # Work on lightweight subsets of data
+    STUB_TEST = True                # Work on lightweight subsets of data
     REDOWNLOAD_DATA = False         # Force re-download even if cached
     CLEANUP_DECOMPRESSED = False    # Delete decompressed scratch files after conversion
     CLEANUP_DOWNLOADED = False      # Delete cached datasets (use with caution)
-    OVERWRITE = False               # Regenerate NWBs even if existing files validate
+    OVERWRITE = True               # Regenerate NWBs even if existing files validate
 
     base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_data"

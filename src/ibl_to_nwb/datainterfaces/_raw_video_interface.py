@@ -63,7 +63,7 @@ class RawVideoInterface(BaseDataInterface):
                 dataset=video_filename,
                 download_only=True,
                 revision=self.revision,
-            )   
+            )
 
             # Rename to DANDI format and relative organization
             dandi_sub_stem = f"sub-{self.subject_id}"

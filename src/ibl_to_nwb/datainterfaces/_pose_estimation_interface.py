@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Optional
 
@@ -46,7 +47,86 @@ class IblPoseEstimationInterface(BaseDataInterface):
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
         session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
-        session_loader.load_pose(tracker=self.tracker, views=[camera_view])
+        tracker_to_use = self.tracker
+
+        try:
+            session_loader.load_pose(tracker=tracker_to_use, views=[camera_view])
+        except KeyError as exc:
+            if tracker_to_use != "lightningPose":
+                raise exc
+
+            # Attempt to repair LightningPose cache first
+            lightning_filename = f"_ibl_{camera_view}Camera.lightningPose.pqt"
+            lightning_candidates = []
+            try:
+                lightning_candidates.extend(self.one.list_datasets(self.session, filename=lightning_filename))
+                if self.revision:
+                    lightning_candidates.extend(
+                        self.one.list_datasets(self.session, filename=lightning_filename, revision=self.revision)
+                    )
+            except Exception:
+                lightning_candidates = []
+
+            lightning_candidates = sorted(set(lightning_candidates))
+            lightning_success = False
+            if lightning_candidates:
+                dataset_path = lightning_candidates[0]
+                try:
+                    self.one.load_dataset(
+                        self.session,
+                        dataset=dataset_path,
+                        download_only=True,
+                    )
+                    session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
+                    session_loader.load_pose(tracker=tracker_to_use, views=[camera_view])
+                    lightning_success = True
+                except ALFObjectNotFound:
+                    lightning_success = False
+
+            if not lightning_success:
+                # Fall back to DLC if available
+                dlc_filename = f"_ibl_{camera_view}Camera.dlc.pqt"
+                dlc_candidates = []
+                try:
+                    dlc_candidates.extend(self.one.list_datasets(self.session, filename=dlc_filename))
+                    if self.revision:
+                        dlc_candidates.extend(
+                            self.one.list_datasets(self.session, filename=dlc_filename, revision=self.revision)
+                        )
+                except Exception:
+                    dlc_candidates = []
+
+                dlc_candidates = sorted(set(dlc_candidates))
+                if not dlc_candidates:
+                    raise FileNotFoundError(
+                        "Pose estimation datasets missing for camera '%s' (session %s) -- "
+                        "neither LightningPose nor DLC available." % (self.camera_name, self.session)
+                    )
+
+                dataset_path = dlc_candidates[0]
+                try:
+                    self.one.load_dataset(
+                        self.session,
+                        dataset=dataset_path,
+                        download_only=True,
+                    )
+                except ALFObjectNotFound:
+                    raise FileNotFoundError(
+                        "Pose estimation dataset '%s' (tracker=dlc, session=%s) is unavailable; aborting conversion." % (
+                            dataset_path,
+                            self.session,
+                        )
+                    )
+
+                tracker_to_use = "dlc"
+                session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
+                session_loader.load_pose(tracker=tracker_to_use, views=[camera_view])
+
+                logging.warning(
+                    "Falling back to DLC pose estimates for %s (session %s); LightningPose data not found.",
+                    self.camera_name,
+                    self.session,
+                )
 
         if self.camera_name not in session_loader.pose:
             raise RuntimeError(

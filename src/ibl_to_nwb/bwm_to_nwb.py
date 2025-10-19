@@ -143,8 +143,15 @@ def tree_copy(source_dir: Path, target_dir: Path, remove_uuid: bool = True, incl
             target_file_path = target_dir / source_file_path.relative_to(source_dir)
             if remove_uuid:
                 target_file_path = remove_uuid_from_filepath(target_file_path)
-            if not target_file_path.exists():
-                # _logger.debug(f"copying {source_file_path} to {target_file_path}")
+            if target_file_path.exists():
+                continue
+
+            target_file_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.copy(source_file_path, target_file_path)
+            except FileNotFoundError:
+                # Re-attempt after ensuring parent directories exist (handles race conditions)
+                target_file_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(source_file_path, target_file_path)
             # else:
             #     _logger.debug(f"skipping copy for {source_file_path} to {target_file_path}, exists already")

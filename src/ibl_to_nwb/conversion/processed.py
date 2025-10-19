@@ -298,6 +298,7 @@ def convert_processed_session(
         logger.info(f"Write speed: {nwb_size_gb / (write_time / 3600):.2f} GB/hour")
         logger.info(f"PROCESSED conversion total time: {time.time() - start_time:.2f}s")
         logger.info(f"PROCESSED conversion completed: {nwbfile_path}")
+        logger.info(f"PROCESSED NWB saved to: {nwbfile_path}")
 
     return {
         "nwbfile_path": nwbfile_path,

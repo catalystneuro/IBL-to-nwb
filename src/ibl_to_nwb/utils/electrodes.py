@@ -97,19 +97,6 @@ def _resolve_meta_path(
     return Path(local_path)
 
 
-def _ensure_electrode_columns(
-    nwbfile: NWBFile,
-    column_definitions: Iterable[tuple[str, str]],
-) -> None:
-    """
-    Add electrode table columns if they do not already exist.
-    """
-    existing = set(nwbfile.electrodes.colnames)
-    for name, description in column_definitions:
-        if name not in existing:
-            nwbfile.add_electrode_column(name=name, description=description)
-
-
 def add_probe_definition_to_nwbfile(
     probe: Probe,
     nwbfile: NWBFile,
@@ -316,15 +303,7 @@ def add_probe_electrodes_with_localization(
             stacklevel=2,
         )
 
-        try:
-            fallback_probe = _load_fallback_probe()
-        except Exception as exc:
-            warnings.warn(
-                f"Unable to load fallback probe definition for '{probe_name}': {exc}",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return []
+        fallback_probe = _load_fallback_probe()
 
         fallback_metadata = {
             "Ecephys": {
@@ -451,6 +430,14 @@ def add_probe_electrodes_with_localization(
         return hasattr(channels, field)
 
     def _get_channel_field(field: str):
+        """Return a channel field from the histology payload regardless of container type.
+
+        Depending on the loader and Alyx revision, `channels` can be:
+
+        - A structured ``numpy.ndarray`` accessed via ``array['x']`` etc.
+        - A mapping/Series-like object (supports ``channels['x']``).
+        - An object with attributes (e.g. ``channels.x``).
+        """
         if isinstance(channels, np.ndarray):
             return channels[field]
         if hasattr(channels, "keys"):
@@ -491,26 +478,71 @@ def add_probe_electrodes_with_localization(
             stacklevel=2,
         )
 
-    _ensure_electrode_columns(
-        nwbfile,
-        [
-            ("x", "CCF x coordinate (um)."),
-            ("y", "CCF y coordinate (um)."),
-            ("z", "CCF z coordinate (um)."),
-            ("location", "Brain region acronym per electrode."),
-            ("beryl_location", "Brain region in IBL Beryl atlas (coarse grouping)."),
-            ("cosmos_location", "Brain region in IBL Cosmos atlas (very coarse grouping)."),
-        ],
-    )
+    columns_to_add = [
+        ("x", "CCF x coordinate (um)."),
+        ("y", "CCF y coordinate (um)."),
+        ("z", "CCF z coordinate (um)."),
+        ("location", "Brain region acronym per electrode."),
+        ("beryl_location", "Brain region in IBL Beryl atlas (coarse grouping)."),
+        ("cosmos_location", "Brain region in IBL Cosmos atlas (very coarse grouping)."),
+    ]
+    existing_columns = set(nwbfile.electrodes.colnames)
+    for name, description in columns_to_add:
+        if name not in existing_columns:
+            nwbfile.add_electrode_column(name=name, description=description)
+            existing_columns.add(name)
 
-    ibl_coords_m = np.column_stack(
+    ibl_coords = np.column_stack(
         [
             np.asarray(_get_channel_field("x")),
             np.asarray(_get_channel_field("y")),
             np.asarray(_get_channel_field("z")),
         ]
+    ).astype(np.float64)
+
+    # Convert to meters if values look like micrometers (common for BWM releases)
+    coords_for_ccf = ibl_coords.copy()
+    if np.nanmax(np.abs(coords_for_ccf)) > 0.1:  # assume coordinates provided in micrometers
+        coords_for_ccf *= 1e-6
+
+    # Determine which coordinates fall outside the Allen CCF volume
+    lims = np.array([atlas.bc.lim(axis) for axis in range(3)])
+    outside_mask = (
+        (coords_for_ccf[:, 0] < lims[0][0])
+        | (coords_for_ccf[:, 0] > lims[0][1])
+        | (coords_for_ccf[:, 1] < lims[1][1])
+        | (coords_for_ccf[:, 1] > lims[1][0])
+        | (coords_for_ccf[:, 2] < lims[2][1])
+        | (coords_for_ccf[:, 2] > lims[2][0])
     )
-    ccf_coords_um = atlas.xyz2ccf(ibl_coords_m).astype(np.float64)
+
+    ccf_coords_um = np.full_like(ibl_coords, fill_value=np.nan, dtype=np.float64)
+
+    valid_indices = ~outside_mask
+    if valid_indices.any():
+        try:
+            converted = atlas.xyz2ccf(coords_for_ccf[valid_indices]).astype(np.float64)
+            ccf_coords_um[valid_indices] = converted
+        except ValueError as exc:
+            warnings.warn(
+                f"Unable to convert a subset of IBL coordinates to CCF for probe '{probe_name}' "
+                f"(session {eid}): {exc}. Filling CCF coordinates with NaN values.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    if outside_mask.any():
+        out_indices = np.where(outside_mask)[0]
+        warnings.warn(
+            "Probe '%s' (session %s) has %d electrode(s) outside the Allen atlas volume: indices %s." % (
+                probe_name,
+                eid,
+                out_indices.size,
+                out_indices.tolist(),
+            ),
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     atlas_ids = np.asarray(_get_channel_field("atlas_id"))
     beryl_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Beryl")
@@ -527,18 +559,5 @@ def add_probe_electrodes_with_localization(
         nwbfile.electrodes["location"].data[electrode_index] = acronyms[idx]
         nwbfile.electrodes["beryl_location"].data[electrode_index] = str(beryl_locations[idx])
         nwbfile.electrodes["cosmos_location"].data[electrode_index] = str(cosmos_locations[idx])
-
-    # Update electrode group metadata with localization summary.
-    unique_regions = ", ".join(sorted(set(acronyms)))
-    electrode_group = nwbfile.electrode_groups[group_name]
-    if unique_regions:
-        try:
-            electrode_group.location = unique_regions
-        except AttributeError:
-            pass
-        try:
-            electrode_group.description = f"Electrode group for {probe_name} ({unique_regions})"
-        except AttributeError:
-            pass
 
     return electrode_indices_sorted

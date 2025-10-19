@@ -3,6 +3,7 @@
 from typing import Optional
 
 import numpy as np
+import warnings
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
@@ -162,8 +163,9 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
         if nwbfile.electrodes is None or len(nwbfile.electrodes) == 0:
             raise ValueError(
                 "Electrodes table is empty or doesn't exist. "
-                "IblSpikeGlxConverter (raw mode) or IblSortingInterface (processed mode) "
-                "must be run first to create the electrodes table with anatomical localization."
+                "Populate the electrodes table first (e.g., via add_probe_electrodes_with_localization "
+                "in the raw pipeline or IblSortingInterface in the processed pipeline) "
+                "before running the anatomical localization interface."
             )
 
         # Check that required columns exist in electrodes table
@@ -252,12 +254,33 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
             ibl_z_um = channels_z * 1e6
 
             # Convert to CCF coordinates
-            ibl_coords_m = np.column_stack([channels_x, channels_y, channels_z])
-            ccf_coords_um = self.atlas.xyz2ccf(ibl_coords_m)
-            # Ensure float64 dtype for proper NWB serialization
-            ccf_coords_x_um = np.array(ccf_coords_um[:, 0], dtype=np.float64)
-            ccf_coords_y_um = np.array(ccf_coords_um[:, 1], dtype=np.float64)
-            ccf_coords_z_um = np.array(ccf_coords_um[:, 2], dtype=np.float64)
+            ibl_coords_m = np.column_stack([channels_x, channels_y, channels_z]).astype(np.float64)
+
+            # Determine which coordinates fall within the Allen atlas volume
+            lims = np.array([np.sort(self.atlas.bc.lim(axis)) for axis in range(3)], dtype=np.float64)
+            outside_mask = (
+                (ibl_coords_m[:, 0] < lims[0][0]) | (ibl_coords_m[:, 0] > lims[0][1]) |
+                (ibl_coords_m[:, 1] < lims[1][0]) | (ibl_coords_m[:, 1] > lims[1][1]) |
+                (ibl_coords_m[:, 2] < lims[2][0]) | (ibl_coords_m[:, 2] > lims[2][1])
+            )
+
+            ccf_coords_um = np.full_like(ibl_coords_m, fill_value=np.nan, dtype=np.float64)
+            valid_indices = ~outside_mask
+            if valid_indices.any():
+                try:
+                    converted = self.atlas.xyz2ccf(ibl_coords_m[valid_indices]).astype(np.float64)
+                    ccf_coords_um[valid_indices] = converted
+                except ValueError as exc:
+                    warnings.warn(
+                        f"Unable to convert some IBL coordinates to CCF for probe '{pname}' (session {self.eid}): {exc}. "
+                        "Filling invalid CCF coordinates with NaN values.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+
+            ccf_coords_x_um = ccf_coords_um[:, 0]
+            ccf_coords_y_um = ccf_coords_um[:, 1]
+            ccf_coords_z_um = ccf_coords_um[:, 2]
 
             # The electrode indices may include duplicates for AP and LF bands
             # Map electrode index to channel index using modulo
@@ -267,6 +290,16 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
                 # Add rows to AnatomicalCoordinatesTable (ONLY - no longer modifying electrodes table)
                 # Ensure all values are scalar float64 for proper NWB serialization
                 acronym_value = acronyms[channel_index]
+                if outside_mask[channel_index]:
+                    ccf_x = float('nan')
+                    ccf_y = float('nan')
+                    ccf_z = float('nan')
+                    ccf_region = "out-of-atlas"
+                else:
+                    ccf_x = float(ccf_coords_x_um[channel_index])
+                    ccf_y = float(ccf_coords_y_um[channel_index])
+                    ccf_z = float(ccf_coords_z_um[channel_index])
+                    ccf_region = acronym_value
 
                 ibl_table.add_row(
                     localized_entity=electrode_index,
@@ -278,10 +311,10 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
 
                 ccf_table.add_row(
                     localized_entity=electrode_index,
-                    x=float(ccf_coords_x_um[channel_index]),
-                    y=float(ccf_coords_y_um[channel_index]),
-                    z=float(ccf_coords_z_um[channel_index]),
-                    brain_region=acronym_value,
+                    x=ccf_x,
+                    y=ccf_y,
+                    z=ccf_z,
+                    brain_region=ccf_region,
                 )
 
         # Add tables to localization

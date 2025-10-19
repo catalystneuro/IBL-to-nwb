@@ -313,6 +313,7 @@ def convert_raw_session(
         logger.info(f"Write speed: {nwb_size_gb / (write_time / 3600):.2f} GB/hour")
         logger.info(f"RAW conversion total time: {time.time() - start_time:.2f}s")
         logger.info(f"RAW conversion completed: {nwbfile_path}")
+        logger.info(f"RAW NWB saved to: {nwbfile_path}")
 
     return {
         "nwbfile_path": nwbfile_path,
