@@ -74,6 +74,99 @@ def _load_fallback_probe(model_name: str = DEFAULT_FALLBACK_PROBE_MODEL) -> Prob
     return probe
 
 
+def _ensure_ibl_coordinates_um(
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return IBL coordinates in micrometres along with their metre representation."""
+    coords_m = np.column_stack([x, y, z]).astype(np.float64)
+    if np.nanmax(np.abs(coords_m)) > 0.1:  # heuristically treat values as micrometres
+        coords_m *= 1e-6
+    coords_um = coords_m * 1e6
+    return coords_um, coords_m
+
+
+def convert_ibl_to_ccf3_coordinates(
+    *,
+    atlas: AllenAtlas,
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    acronyms: np.ndarray,
+    probe_name: str | None = None,
+    eid: str | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Convert IBL (bregma-centered) coordinates into the Allen CCFv3 frame.
+
+    The spike-sorting loaders often provide histology coordinates in micrometers. This helper
+    normalizes inputs to meters when necessary, performs the atlas transformation, and labels
+    out-of-volume points as ``"out-of-atlas"`` while returning CCF coordinates in micrometers.
+
+    Parameters
+    ----------
+    atlas : AllenAtlas
+        Atlas instance used for the coordinate transformation.
+    x, y, z : np.ndarray
+        Coordinates in meters in the IBL frame. If the magnitudes indicate micrometers, the values
+        are rescaled automatically.
+    acronyms : np.ndarray
+        Brain region acronyms associated with each coordinate.
+    probe_name : str, optional
+        Probe identifier included in warning messages.
+    eid : str, optional
+        Session identifier included in warning messages.
+
+   -------
+    ccf_coords_um : np.ndarray
+        Allen CCF coordinates in micrometers (NaN for entries outside the atlas volume).
+    ccf_regions : np.ndarray
+        Region labels for the CCF coordinates, with ``"out-of-atlas"`` marking out-of-bounds
+        points.
+    outside_mask : np.ndarray
+        Boolean mask indicating which coordinates fell outside the atlas bounds.
+    """
+
+    _, coords_m = _ensure_ibl_coordinates_um(x, y, z)
+    lims = np.array([np.sort(atlas.bc.lim(axis)) for axis in range(3)], dtype=np.float64)
+    outside_mask = (
+        (coords_m[:, 0] < lims[0][0]) | (coords_m[:, 0] > lims[0][1])
+        | (coords_m[:, 1] < lims[1][0]) | (coords_m[:, 1] > lims[1][1])
+        | (coords_m[:, 2] < lims[2][0]) | (coords_m[:, 2] > lims[2][1])
+    )
+
+    ccf_coords_um = np.full_like(coords_m, fill_value=np.nan, dtype=np.float64)
+    valid_indices = ~outside_mask
+
+    if valid_indices.any():
+        try:
+            converted = atlas.xyz2ccf(coords_m[valid_indices]).astype(np.float64)
+            ccf_coords_um[valid_indices] = converted
+        except ValueError as exc:
+            warnings.warn(
+                (
+                    "Unable to convert some IBL coordinates to CCF for probe "
+                    f"'{probe_name}' (session {eid}): {exc}. Filling invalid entries with NaN."
+                ),
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    if outside_mask.any():
+        out_indices = np.where(outside_mask)[0].tolist()
+        warnings.warn(
+            "Probe '%s' (session %s) has %d electrode(s) outside the Allen atlas volume: indices %s."
+            % (probe_name, eid, len(out_indices), out_indices),
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    ccf_regions = np.array(acronyms, dtype=str)
+    ccf_regions[outside_mask] = "out-of-atlas"
+
+    return ccf_coords_um, ccf_regions, outside_mask
+
+
 def _resolve_meta_path(
     one: ONE,
     eid: str,
@@ -423,28 +516,7 @@ def add_probe_electrodes_with_localization(
         return electrode_indices
 
     def _has_channel_field(field: str) -> bool:
-        if isinstance(channels, np.ndarray):
-            return channels.dtype.names is not None and field in channels.dtype.names
-        if hasattr(channels, "keys"):
-            return field in channels.keys()
-        return hasattr(channels, field)
-
-    def _get_channel_field(field: str):
-        """Return a channel field from the histology payload regardless of container type.
-
-        Depending on the loader and Alyx revision, `channels` can be:
-
-        - A structured ``numpy.ndarray`` accessed via ``array['x']`` etc.
-        - A mapping/Series-like object (supports ``channels['x']``).
-        - An object with attributes (e.g. ``channels.x``).
-        """
-        if isinstance(channels, np.ndarray):
-            return channels[field]
-        if hasattr(channels, "keys"):
-            return channels[field]
-        if hasattr(channels, field):
-            return getattr(channels, field)
-        raise KeyError(field)
+        return field in channels
 
     if not all(_has_channel_field(field) for field in ("x", "y", "z", "atlas_id", "acronym")):
         if fallback_used:
@@ -461,7 +533,7 @@ def add_probe_electrodes_with_localization(
             )
         return electrode_indices
 
-    n_channels = len(_get_channel_field("x"))
+    n_channels = len(channels["x"])
     if n_channels == 0:
         warnings.warn(
             f"No histology channels available for probe '{probe_name}'.",
@@ -492,72 +564,33 @@ def add_probe_electrodes_with_localization(
             nwbfile.add_electrode_column(name=name, description=description)
             existing_columns.add(name)
 
-    ibl_coords = np.column_stack(
-        [
-            np.asarray(_get_channel_field("x")),
-            np.asarray(_get_channel_field("y")),
-            np.asarray(_get_channel_field("z")),
-        ]
-    ).astype(np.float64)
+    channels_x = np.asarray(channels["x"], dtype=np.float64)
+    channels_y = np.asarray(channels["y"], dtype=np.float64)
+    channels_z = np.asarray(channels["z"], dtype=np.float64)
 
-    # Convert to meters if values look like micrometers (common for BWM releases)
-    coords_for_ccf = ibl_coords.copy()
-    if np.nanmax(np.abs(coords_for_ccf)) > 0.1:  # assume coordinates provided in micrometers
-        coords_for_ccf *= 1e-6
-
-    # Determine which coordinates fall outside the Allen CCF volume
-    lims = np.array([atlas.bc.lim(axis) for axis in range(3)])
-    outside_mask = (
-        (coords_for_ccf[:, 0] < lims[0][0])
-        | (coords_for_ccf[:, 0] > lims[0][1])
-        | (coords_for_ccf[:, 1] < lims[1][1])
-        | (coords_for_ccf[:, 1] > lims[1][0])
-        | (coords_for_ccf[:, 2] < lims[2][1])
-        | (coords_for_ccf[:, 2] > lims[2][0])
-    )
-
-    ccf_coords_um = np.full_like(ibl_coords, fill_value=np.nan, dtype=np.float64)
-
-    valid_indices = ~outside_mask
-    if valid_indices.any():
-        try:
-            converted = atlas.xyz2ccf(coords_for_ccf[valid_indices]).astype(np.float64)
-            ccf_coords_um[valid_indices] = converted
-        except ValueError as exc:
-            warnings.warn(
-                f"Unable to convert a subset of IBL coordinates to CCF for probe '{probe_name}' "
-                f"(session {eid}): {exc}. Filling CCF coordinates with NaN values.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-
-    if outside_mask.any():
-        out_indices = np.where(outside_mask)[0]
-        warnings.warn(
-            "Probe '%s' (session %s) has %d electrode(s) outside the Allen atlas volume: indices %s." % (
-                probe_name,
-                eid,
-                out_indices.size,
-                out_indices.tolist(),
-            ),
-            RuntimeWarning,
-            stacklevel=2,
-        )
-
-    atlas_ids = np.asarray(_get_channel_field("atlas_id"))
+    atlas_ids = np.asarray(channels["atlas_id"])
     beryl_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Beryl")
     cosmos_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Cosmos")
-    acronyms = np.asarray(_get_channel_field("acronym")).astype(str)
+    acronyms = np.asarray(channels["acronym"]).astype(str)
+
+    ccf_coords_um, ccf_regions, _ = convert_ibl_to_ccf3_coordinates(
+        atlas=atlas,
+        x=channels_x,
+        y=channels_y,
+        z=channels_z,
+        acronyms=acronyms,
+        probe_name=probe_name,
+        eid=eid,
+    )
 
     electrode_indices_sorted = sorted(electrode_indices)
-
     for channel_index, electrode_index in enumerate(electrode_indices_sorted):
-        idx = min(channel_index, n_channels - 1)
-        nwbfile.electrodes["x"].data[electrode_index] = float(ccf_coords_um[idx, 0])
-        nwbfile.electrodes["y"].data[electrode_index] = float(ccf_coords_um[idx, 1])
-        nwbfile.electrodes["z"].data[electrode_index] = float(ccf_coords_um[idx, 2])
-        nwbfile.electrodes["location"].data[electrode_index] = acronyms[idx]
-        nwbfile.electrodes["beryl_location"].data[electrode_index] = str(beryl_locations[idx])
-        nwbfile.electrodes["cosmos_location"].data[electrode_index] = str(cosmos_locations[idx])
+        index = min(channel_index, n_channels - 1)
+        nwbfile.electrodes["x"].data[electrode_index] = float(ccf_coords_um[index, 0])
+        nwbfile.electrodes["y"].data[electrode_index] = float(ccf_coords_um[index, 1])
+        nwbfile.electrodes["z"].data[electrode_index] = float(ccf_coords_um[index, 2])
+        nwbfile.electrodes["location"].data[electrode_index] = ccf_regions[index]
+        nwbfile.electrodes["beryl_location"].data[electrode_index] = str(beryl_locations[index])
+        nwbfile.electrodes["cosmos_location"].data[electrode_index] = str(cosmos_locations[index])
 
     return electrode_indices_sorted
