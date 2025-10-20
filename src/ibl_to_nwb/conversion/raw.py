@@ -182,8 +182,11 @@ def convert_raw_session(
             revision=revision,
         )
         data_interfaces.append(spikeglx_converter)
+    elif stub_test and not stub_include_ecephys:
+        if logger:
+            logger.info("Stub test mode active (without ephys): skipping SpikeGLX converter setup")
     elif logger:
-        logger.info("Stub test mode active: skipping SpikeGLX converter setup")
+        logger.info("SpikeGLX data not available: skipping SpikeGLX converter setup (see message above for details)")
 
     # Anatomical localization
     if pname_pid_map:

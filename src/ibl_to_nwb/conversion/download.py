@@ -90,12 +90,21 @@ def download_session_data(
 
     # Check if data is already cached
     cached_files = list(paths["session_folder"].rglob("*")) if paths["session_folder"].exists() else []
-    if cached_files and not redownload_data:
+    has_cached_data = len(cached_files) > 0 and not redownload_data
+
+    if has_cached_data:
         if logger:
-            logger.info(f"Using cached data from {paths['session_folder']} ({len(cached_files)} files)")
+            logger.info(f"Found {len(cached_files)} cached files in {paths['session_folder']}")
+            logger.info("Verifying cached data (ONE will download any missing/corrupted files)...")
     else:
         if logger:
-            logger.info("Downloading data from ONE API...")
+            if redownload_data:
+                logger.info("Redownload flag set: downloading all data from ONE API...")
+            else:
+                logger.info("No cached data found: downloading from ONE API...")
+
+    # Track which files were actually downloaded (new files)
+    files_before = set(paths["session_folder"].rglob("*")) if paths["session_folder"].exists() else set()
 
     for dataset in datasets:
         if dataset == "default_revision":
@@ -110,7 +119,11 @@ def download_session_data(
 
     download_time = time.time() - download_start
 
-    # Calculate total size of downloaded data
+    # Calculate total size and track what was actually downloaded
+    files_after = set(paths["session_folder"].rglob("*")) if paths["session_folder"].exists() else set()
+    newly_downloaded_files = files_after - files_before
+    num_new_files = len([f for f in newly_downloaded_files if f.is_file()])
+
     total_size_bytes = 0
     if paths["session_folder"].exists():
         for file_path in paths["session_folder"].rglob("*"):
@@ -121,12 +134,21 @@ def download_session_data(
 
     if logger:
         logger.info(f"Download step completed in {download_time:.2f}s")
-        logger.info(f"Total downloaded data size: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
-        if download_time > 0:
-            download_rate = total_size_gb / (download_time / 3600)
-            logger.info(f"Download rate: {download_rate:.2f} GB/hour")
+
+        if num_new_files > 0:
+            # Some files were actually downloaded
+            logger.info(f"Downloaded {num_new_files} new/updated files")
+            logger.info(f"Total data after download: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
+            if download_time > 0:
+                download_rate = total_size_gb / (download_time / 3600)
+                logger.info(f"Download rate: {download_rate:.2f} GB/hour")
+        elif has_cached_data:
+            # All data was cached, nothing new downloaded
+            logger.info(f"All data was already cached - no new downloads needed")
+            logger.info(f"Total cached data size: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
         else:
-            logger.info("Download rate: not applicable")
+            # No files at all (shouldn't happen)
+            logger.info(f"Total data size: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
 
     return {
         "download_time": download_time,

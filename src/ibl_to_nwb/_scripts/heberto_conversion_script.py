@@ -45,6 +45,13 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     except AttributeError:
         pass
 
+    # Capture Python warnings in the logging system
+    # This ensures warnings.warn() calls appear in the log file
+    logging.captureWarnings(True)
+    warnings_logger = logging.getLogger('py.warnings')
+    warnings_logger.addHandler(file_handler)
+    warnings_logger.addHandler(console_handler)
+
     return logger
 
 
