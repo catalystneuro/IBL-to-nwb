@@ -14,6 +14,7 @@ from ibl_to_nwb.conversion import (
     convert_raw_session,
     convert_processed_session,
 )
+from ibl_to_nwb.conversion.one_patches import apply_one_patches
 
 # TODO: 2025-10-17 21:53:06 WARNING  spikeglx.py:699  Meta data doesn't have geometry (snsShankMap/snsGeomMap field), returning defaults
 # What outputs this warning?
@@ -67,6 +68,7 @@ if __name__ == "__main__":
     scratch_path = base_folder / "temporary_files"
 
     TARGET_EID = "bd456d8f-d36e-434a-8051-ff3997253802"  # This one has full raw data
+    TARGET_EID = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # has mismatch in timestamps between pupil and data
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":
@@ -77,6 +79,10 @@ if __name__ == "__main__":
 
     log_file_path = scratch_path / f"conversion_log_{target_eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
     logger = setup_logger(log_file_path)
+
+    # Apply ONE API patches to fix cache validation issues
+    one = apply_one_patches(one, logger=logger)
+
     logger.info("=" * 80)
     logger.info("IBL SINGLE-EID CONVERSION SCRIPT STARTED")
     logger.info(f"EID: {target_eid}")

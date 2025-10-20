@@ -45,9 +45,35 @@ class PupilTrackingInterface(BaseDataInterface):
                 f"Pupil tracking data for camera '{self.camera_name}' in session '{self.session}' contains no timestamps"
             )
 
-        # extra dirty hack to be removed
-        # if self.session == "dc21e80d-97d7-44ca-a729-a8e3f9b14305" and camera_view == 'right': # the broken session
-        #     camera_data["features"] = pd.read_parquet(Path("/mnt/sdceph/users/ibl/data/wittenlab/Subjects/ibl_witten_26/2021-01-31/001/alf/#2025-06-04#/_ibl_rightCamera.features.c9658c1b-1d93-469c-9faf-76d535205485.pqt"))
+        # Check for dimension mismatch between features and times
+        features_len = len(camera_data["features"])
+        times_len = len(camera_data["times"])
+
+        if features_len != times_len:
+            import warnings
+
+            if features_len > times_len:
+                # Data is longer than timestamps - this is an error!
+                # We have data samples without corresponding time information
+                error_msg = (
+                    f"Pupil tracking data for {self.camera_name} in session {self.session} has "
+                    f"more data samples ({features_len}) than timestamps ({times_len}). "
+                    f"Cannot proceed without time information for all samples."
+                )
+                warnings.warn(error_msg, RuntimeWarning, stacklevel=2)
+                raise RuntimeError(error_msg)
+            else:
+                # Timestamps are longer than data - we can truncate timestamps
+                # This means we have extra timestamps at the end without corresponding data
+                missing_samples = times_len - features_len
+                warnings.warn(
+                    f"Truncating timestamps for {self.camera_name} in session {self.session}: "
+                    f"timestamps length ({times_len}) exceeds features length ({features_len}) by {missing_samples} samples. "
+                    f"Using first {features_len} timestamps.",
+                    RuntimeWarning,
+                    stacklevel=2
+                )
+                camera_data["times"] = camera_data["times"][:features_len]
 
         pupil_time_series = list()
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:

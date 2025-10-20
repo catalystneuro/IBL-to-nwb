@@ -15,6 +15,7 @@ from ibl_to_nwb.conversion import (
     convert_raw_session,
     convert_processed_session,
 )
+from ibl_to_nwb.conversion.one_patches import apply_one_patches
 from ibl_to_nwb.fixtures import load_fixtures
 
 
@@ -69,6 +70,11 @@ if __name__ == "__main__":
     revision = "2024-05-06"
 
     one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, silent=True)
+
+    # Apply ONE API patches to fix cache validation issues
+    print("Applying ONE API patches for cache validation...")
+    one = apply_one_patches(one, logger=None)
+    print("ONE API patches applied successfully\n")
 
     bwm_df = load_fixtures.load_bwm_df()
     unique_sessions = bwm_df.drop_duplicates("eid").reset_index(drop=True)
