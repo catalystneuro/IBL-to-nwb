@@ -1,7 +1,4 @@
-import numpy as np
 from brainbox.io.one import SpikeSortingLoader
-from iblatlas.atlas import AllenAtlas
-from iblatlas.regions import BrainRegions
 from neuroconv.converters import SpikeGLXConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
@@ -53,7 +50,8 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
         for interface in interfaces_to_drop:
             self.data_interface_objects.pop(interface)
 
-        # Override electrical series names to use IBL convention
+        # Override electrical series names and group names to use IBL convention
+        # This must happen in __init__ before any metadata/electrode operations
         for key, recording_interface in self.data_interface_objects.items():
             if key != "nidq":
                 imec_name, band = key.split(".")
@@ -69,26 +67,8 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 ibl_es_key = f"ElectricalSeries{probe_name.capitalize()}{band_caps}"
                 recording_interface.es_key = ibl_es_key
 
-    def get_metadata(self):
-        """
-        Override to use IBL naming convention for electrode groups and devices.
-
-        IBL naming:
-        - Devices: NeuropixelsProbe00, NeuropixelsProbe01
-        - Electrode groups: NeuropixelsProbe00, NeuropixelsProbe01
-        Channel naming is handled upstream by NeuroConv (>=0.8.2), which ensures AP and LF
-        bands share electrode table entries while avoiding duplicates. Earlier NeuroConv
-        versions used the NeuropixelsImec* naming scheme, so we still remap devices and
-        groups here to keep the IBL convention.
-        """
-        # First, update group_name properties in all recording extractors
-        for key, recording_interface in self.data_interface_objects.items():
-            if key != "nidq":
-                imec_name, band = key.split(".")
-                imec_num = int(imec_name[-1])
-                probe_name = self.imec_to_probe_map[imec_num]
-
-                # Set IBL-style group name for all channels
+                # Update group_name property in recording extractor
+                # This is critical for electrode deduplication in NeuroConv
                 channel_ids = recording_interface.recording_extractor.get_channel_ids()
                 ibl_group_name = _format_probe_label(probe_name)
                 recording_interface.recording_extractor.set_property(
@@ -97,7 +77,18 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                     values=[ibl_group_name] * len(channel_ids)
                 )
 
-        # Now generate metadata with updated group names
+    def get_metadata(self):
+        """
+        Override to use IBL naming convention for electrode groups and devices.
+
+        IBL naming:
+        - Devices: NeuropixelsProbe00, NeuropixelsProbe01
+        - Electrode groups: NeuropixelsProbe00, NeuropixelsProbe01
+
+        Note: group_name properties in recording extractors are already updated in __init__,
+        so we only need to update the metadata dictionaries here.
+        """
+        # Generate metadata with already-updated group names
         metadata = super().get_metadata()
 
         # Update device names to IBL convention
@@ -167,132 +158,6 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 )
                 recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
 
-    def _add_electrode_localization(self, nwbfile: NWBFile) -> None:
-        """
-        Add anatomical localization (CCF coordinates and brain regions) to electrodes table.
-
-        This method:
-        1. Loads histology data for each probe from IBL
-        2. Adds CCF coordinate columns (x, y, z) to electrodes table
-        3. Adds brain region columns (location, beryl_location, cosmos_location) to electrodes table
-        4. Populates the columns with electrode-specific anatomical information
-
-        Only probes with high-quality histology ('alf' or 'resolved') are processed.
-
-        Parameters
-        ----------
-        nwbfile : NWBFile
-            The NWB file containing the electrodes table to populate
-        """
-        atlas = AllenAtlas()
-        brain_regions = BrainRegions()
-
-        # Add columns to electrodes table if they don't exist
-        num_electrodes = len(nwbfile.electrodes)
-
-        if 'x' not in nwbfile.electrodes.colnames:
-            nwbfile.add_electrode_column(
-                name='x',
-                description='CCF x coordinate (medio-lateral) in micrometers',
-                data=[float('nan')] * num_electrodes
-            )
-
-        if 'y' not in nwbfile.electrodes.colnames:
-            nwbfile.add_electrode_column(
-                name='y',
-                description='CCF y coordinate (antero-posterior) in micrometers',
-                data=[float('nan')] * num_electrodes
-            )
-
-        if 'z' not in nwbfile.electrodes.colnames:
-            nwbfile.add_electrode_column(
-                name='z',
-                description='CCF z coordinate (dorso-ventral) in micrometers',
-                data=[float('nan')] * num_electrodes
-            )
-
-        if 'beryl_location' not in nwbfile.electrodes.colnames:
-            nwbfile.add_electrode_column(
-                name='beryl_location',
-                description='Brain region in IBL Beryl atlas (coarse functional grouping)',
-                data=[''] * num_electrodes
-            )
-
-        if 'cosmos_location' not in nwbfile.electrodes.colnames:
-            nwbfile.add_electrode_column(
-                name='cosmos_location',
-                description='Brain region in IBL Cosmos atlas (very coarse functional grouping)',
-                data=[''] * num_electrodes
-            )
-
-        # Process each probe
-        for key in self.data_interface_objects.keys():
-            if key == "nidq":
-                continue
-
-            imec_name, band = key.split(".")
-            imec_num = int(imec_name[-1])
-            probe_name = self.imec_to_probe_map[imec_num]
-            pid = self.pname_pid_map[probe_name]
-
-            # Load histology data
-            ssl = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one, atlas=atlas)
-
-            try:
-                _, _, channels = ssl.load_spike_sorting(revision=self.revision)
-            except Exception as e:
-                print(f"Warning: Could not load histology for {probe_name}: {e}")
-                continue
-
-            # Check histology quality
-            histology_quality = ssl.histology
-            if not histology_quality:
-                # Fallback: check insertion extended_qc
-                insertion = self.one.alyx.rest('insertions', 'read', id=pid)
-                extended_qc = insertion.get('json', {}).get('extended_qc', {})
-                if extended_qc.get('tracing_exists') and extended_qc.get('alignment_resolved'):
-                    histology_quality = 'resolved'
-                elif extended_qc.get('alignment_count', 0) > 0:
-                    histology_quality = 'aligned'
-
-            # Only process high-quality histology
-            if histology_quality not in ['alf', 'resolved']:
-                print(f"Skipping {probe_name}: histology quality '{histology_quality}' not sufficient")
-                continue
-
-            n_channels = len(channels['x'])
-
-            # Convert IBL coordinates to CCF
-            ibl_coords_m = np.column_stack([channels['x'], channels['y'], channels['z']])
-            ccf_coords_um = atlas.xyz2ccf(ibl_coords_m)
-            ccf_coords_x_um = ccf_coords_um[:, 0]
-            ccf_coords_y_um = ccf_coords_um[:, 1]
-            ccf_coords_z_um = ccf_coords_um[:, 2]
-
-            # Compute Beryl/Cosmos locations
-            channel_atlas_ids = channels['atlas_id']
-            beryl_locations = brain_regions.id2acronym(atlas_id=channel_atlas_ids, mapping="Beryl")
-            cosmos_locations = brain_regions.id2acronym(atlas_id=channel_atlas_ids, mapping="Cosmos")
-
-            # Find electrodes for this probe
-            ibl_group_name = _format_probe_label(probe_name)
-            electrode_indices = []
-            for index in range(len(nwbfile.electrodes)):
-                if nwbfile.electrodes['group_name'][index] == ibl_group_name:
-                    electrode_indices.append(index)
-
-            # Populate electrodes table
-            # Note: AP and LF bands create duplicate electrodes, so we use modulo to map to channel index
-            for electrode_index in electrode_indices:
-                channel_index = electrode_index % n_channels
-
-                nwbfile.electrodes['x'].data[electrode_index] = float(ccf_coords_x_um[channel_index])
-                nwbfile.electrodes['y'].data[electrode_index] = float(ccf_coords_y_um[channel_index])
-                nwbfile.electrodes['z'].data[electrode_index] = float(ccf_coords_z_um[channel_index])
-                nwbfile.electrodes['location'].data[electrode_index] = str(channels['acronym'][channel_index])
-                nwbfile.electrodes['beryl_location'].data[electrode_index] = str(beryl_locations[channel_index])
-                nwbfile.electrodes['cosmos_location'].data[electrode_index] = str(cosmos_locations[channel_index])
-
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata, **conversion_options_kwargs) -> None:
         # Build conversion options from kwargs (which come from IblConverter unpacking)
         conversion_options = conversion_options_kwargs
@@ -307,6 +172,3 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
 
         # self.temporally_align_data_interfaces()
         super().add_to_nwbfile(nwbfile=nwbfile, metadata=metadata, conversion_options=conversion_options)
-
-        # Add anatomical localization to electrodes table
-        self._add_electrode_localization(nwbfile)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -49,11 +50,13 @@ def convert_raw_session(
     eid: str,
     one: ONE,
     stub_test: bool = False,
+    stub_include_ecephys: bool = False,
     revision: str | None = None,
     base_path: Path | None = None,
     scratch_path: Path | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
+    redecompress_ephys: bool = False,
 ) -> dict:
     """Convert IBL raw session to NWB."""
 
@@ -92,21 +95,57 @@ def convert_raw_session(
     insertions = one.alyx.rest("insertions", "list", session=eid)
     pname_pid_map = {ins["name"]: ins["id"] for ins in insertions}
 
-    include_ecephys = not stub_test
+    scratch_ephys_folder = paths["session_scratch_folder"] / "raw_ephys_data"
+    existing_bins = (
+        scratch_ephys_folder.exists() and next(scratch_ephys_folder.rglob("*.bin"), None) is not None
+    )
+
+    include_stub_ephys = stub_test and stub_include_ecephys
+    include_ecephys = (not stub_test) or include_stub_ephys
+
+    if include_stub_ephys and not existing_bins and not redecompress_ephys:
+        include_ecephys = False
+        if logger:
+            logger.info(
+                "Stub mode requested Neuropixels data but no decompressed binaries found in %s; "
+                "skipping SpikeGLX interfaces. Use REDECOMPRESS_EPHYS=True to regenerate or run a "
+                "non-stub conversion first.",
+                scratch_ephys_folder,
+            )
 
     # ========================================================================
     # STEP 1: Decompress raw ephys data
     # ========================================================================
     if include_ecephys:
         if logger:
-            logger.info("Decompressing raw ephys data...")
+            logger.info("Preparing raw ephys data on scratch...")
         decompress_start = time.time()
 
-        # Decompress .cbin files from ONE cache to scratch folder
-        if logger:
-            logger.info("Decompressing .cbin files...")
-        decompress_ephys_cbins(paths["session_folder"], paths["session_scratch_folder"])
+        bins_available = existing_bins
 
+        if scratch_ephys_folder.exists() and redecompress_ephys:
+            if logger:
+                logger.info(
+                    "REDECOMPRESS_EPHYS is True - removing existing decompressed data at %s",
+                    scratch_ephys_folder,
+                )
+            shutil.rmtree(scratch_ephys_folder)
+            scratch_ephys_folder.mkdir(parents=True, exist_ok=True)
+            bins_available = False
+
+        if bins_available:
+            if logger:
+                logger.info(
+                    "Reusing existing decompressed Neuropixels data from %s (set REDECOMPRESS_EPHYS=True to refresh).",
+                    scratch_ephys_folder,
+                )
+        else:
+            if logger:
+                logger.info("Decompressing .cbin files...")
+            decompress_ephys_cbins(paths["session_folder"], paths["session_scratch_folder"])
+            bins_available = True
+
+        # Decompress .cbin files from ONE cache to scratch folder
         # Copy metadata files (.meta, .ch, etc.) to scratch folder
         if logger:
             logger.info("Copying metadata files...")
@@ -118,7 +157,7 @@ def convert_raw_session(
 
         decompress_time = time.time() - decompress_start
         if logger:
-            logger.info(f"Decompression completed in {decompress_time:.2f}s")
+            logger.info(f"Scratch data preparation completed in {decompress_time:.2f}s")
     else:
         if logger:
             logger.info("Stub test mode active: skipping raw ephys decompression")
@@ -263,9 +302,14 @@ def convert_raw_session(
     nwbfile.subject = ibl_subject
     nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision=revision))
 
-    if not include_ecephys:
+    if pname_pid_map:
         if logger:
-            logger.info("Adding Neuropixels electrodes from metadata (stub mode)...")
+            if include_ecephys:
+                logger.info(
+                    "Pre-populating electrode table from anatomical localization before SpikeGLX data."
+                )
+            else:
+                logger.info("Adding Neuropixels electrodes from metadata (stub mode)...")
         for probe_name, pid in pname_pid_map.items():
             add_probe_electrodes_with_localization(
                 nwbfile=nwbfile,

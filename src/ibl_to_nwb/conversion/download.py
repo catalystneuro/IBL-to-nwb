@@ -42,18 +42,21 @@ def download_session_data(
 
     # Download all datasets for this session
     base_datasets = set(one.list_datasets(eid))
+
+    revision_datasets: set[str] = set()
     if revision:
         revision_datasets = set(one.list_datasets(eid, revision=revision))
-        # Keep default datasets that are not revision-tagged ALF entries; we'll rely on the
-        # explicit revision query for those.
-        base_datasets = {
-            dataset
-            for dataset in base_datasets
-            if not (dataset.startswith("alf/") and "#" in dataset)
+        revision_datasets.discard("default_revision")
+
+        revision_folder = f"/#{revision}#/"
+        revision_bases = {
+            dataset.replace(revision_folder, "/")
+            for dataset in revision_datasets
+            if revision_folder in dataset
         }
-        datasets = sorted(base_datasets | revision_datasets)
-    else:
-        datasets = sorted(base_datasets)
+        base_datasets -= revision_bases
+
+    datasets = sorted(base_datasets | revision_datasets)
     skipped_datasets = []
     if stub_test:
         skip_patterns = (
@@ -95,10 +98,12 @@ def download_session_data(
             logger.info("Downloading data from ONE API...")
 
     for dataset in datasets:
-        # ONE does not allow specifying revision when requesting a relative path that already includes
-        # the collection (and potentially the revision folder, e.g., "alf/#2024-05-06#/file.ext").
-        # In those cases we rely on the relative path itself to target the correct asset.
-        if revision and "/" not in dataset:
+        if dataset == "default_revision":
+            continue
+
+        # If the dataset path already contains an explicit revision collection,
+        # request it directly without passing the revision argument.
+        if revision and dataset in revision_datasets and f"/#{revision}#/" not in dataset:
             one.load_dataset(eid, dataset, revision=revision)
         else:
             one.load_dataset(eid, dataset)
@@ -117,7 +122,11 @@ def download_session_data(
     if logger:
         logger.info(f"Download step completed in {download_time:.2f}s")
         logger.info(f"Total downloaded data size: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
-        logger.info(f"Download rate: {total_size_gb / (download_time / 3600):.2f} GB/hour")
+        if download_time > 0:
+            download_rate = total_size_gb / (download_time / 3600)
+            logger.info(f"Download rate: {download_rate:.2f} GB/hour")
+        else:
+            logger.info("Download rate: not applicable")
 
     return {
         "download_time": download_time,

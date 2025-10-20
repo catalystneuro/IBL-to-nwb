@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import random
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -48,35 +47,18 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     return logger
 
 
-def cleanup_downloaded_files(eid: str, one: ONE) -> None:
-    """Remove all cached datasets for a session. Use with caution."""
-
-    datasets = one.list_datasets(eid=eid)
-    session_dir = one.eid2path(eid)
-
-    for dataset in datasets:
-        file_path = session_dir / dataset
-        if file_path.exists():
-            file_path.unlink()
-
-    if session_dir.exists():
-        for directory in sorted(session_dir.glob("**/*"), reverse=True):
-            if directory.is_dir() and not any(directory.iterdir()):
-                directory.rmdir()
-
-
 if __name__ == "__main__":
     # ========================================================================
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = True              # Write raw-ephys NWBs
-    CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = True                # Work on lightweight subsets of data
-    REDOWNLOAD_DATA = False         # Force re-download even if cached
-    CLEANUP_DECOMPRESSED = False    # Delete decompressed scratch files after conversion
-    CLEANUP_DOWNLOADED = False      # Delete cached datasets (use with caution)
-    OVERWRITE = False               # Regenerate NWBs even if existing files validate
+    CONVERT_RAW = True             # Write raw-ephys NWBs
+    CONVERT_PROCESSED = True       # Write processed/behavior NWBs
+    STUB_TEST = True               # Work on lightweight subsets of data
+    STUB_INCLUDE_EPHYS = False     # When stub-testing, write a short SpikeGLX excerpt if data is already decompressed
+    REDOWNLOAD_DATA = False        # Force re-download even if cached
+    REDECOMPRESS_EPHYS = False     # Force regeneration of decompressed SpikeGLX binaries
+    OVERWRITE = False              # Regenerate NWBs even if existing files validate
 
     base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_data"
@@ -109,7 +91,9 @@ if __name__ == "__main__":
         logger.info(f"Convert RAW: {CONVERT_RAW}")
         logger.info(f"Convert PROCESSED: {CONVERT_PROCESSED}")
         logger.info(f"Stub test mode: {STUB_TEST}")
+        logger.info(f"Stub includes ephys: {STUB_INCLUDE_EPHYS}")
         logger.info(f"Re-download data: {REDOWNLOAD_DATA}")
+        logger.info(f"Re-decompress ephys: {REDECOMPRESS_EPHYS}")
         logger.info(f"Overwrite existing NWB: {OVERWRITE}")
         logger.info(f"Log file: {log_file_path}")
         logger.info("=" * 80)
@@ -141,11 +125,13 @@ if __name__ == "__main__":
                 eid=eid,
                 one=one,
                 stub_test=STUB_TEST,
+                stub_include_ecephys=STUB_INCLUDE_EPHYS,
                 revision=revision,
                 base_path=base_path,
                 scratch_path=scratch_path,
                 logger=logger,
                 overwrite=OVERWRITE,
+                redecompress_ephys=REDECOMPRESS_EPHYS,
             )
 
         if CONVERT_PROCESSED:
@@ -209,22 +195,6 @@ if __name__ == "__main__":
             )
             logger.info(f"Total NWB output: {total_nwb_size_gb:.2f} GB ({total_nwb_size_bytes:,} bytes)")
             logger.info(f"Overall compression ratio: {overall_compression:.2f}x (source/combined output)")
-
-        if CLEANUP_DECOMPRESSED:
-            logger.info("\n" + "=" * 80)
-            logger.info("CLEANING UP DECOMPRESSED FILES")
-            logger.info("=" * 80)
-            session_scratch = scratch_path / eid / "raw_ephys_data"
-            if session_scratch.exists():
-                shutil.rmtree(session_scratch)
-            logger.info("Decompressed files cleaned up")
-
-        if CLEANUP_DOWNLOADED:
-            logger.info("\n" + "=" * 80)
-            logger.info("CLEANING UP DOWNLOADED FILES (CAUTION)")
-            logger.info("=" * 80)
-            cleanup_downloaded_files(eid, one)
-            logger.info("Downloaded files cleaned up")
 
         script_total_time = time.time() - script_start_time
         logger.info("\n" + "=" * 80)

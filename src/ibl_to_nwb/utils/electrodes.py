@@ -208,6 +208,9 @@ def add_probe_definition_to_nwbfile(
     if contacts.size == 0:
         raise ValueError(f"No contacts found in probe definition: {source_description}")
 
+    # Get contact positions for rel_x, rel_y (probe-relative coordinates)
+    contact_positions = probe.contact_positions
+
     metadata_copy = metadata.copy() if metadata is not None else {}
     ecephys_metadata = metadata_copy.setdefault("Ecephys", {})
 
@@ -254,9 +257,12 @@ def add_probe_definition_to_nwbfile(
         ("contact_shapes", "Contact shape per electrode as defined by the probe."),
         ("beryl_location", "Brain region in IBL Beryl atlas (coarse grouping)."),
         ("cosmos_location", "Brain region in IBL Cosmos atlas (very coarse grouping)."),
+        ("channel_name", "The name of this channel, showing all recording streams for the electrode (e.g., 'AP379,LF379')."),
+        ("rel_x", "Relative x coordinate on the probe (µm)."),
+        ("rel_y", "Relative y coordinate on the probe (µm)."),
     ]
-    if "shank_ids" in contacts.dtype.names:
-        required_columns.append(("shank_ids", "Shank identifier from the probe definition."))
+    # Note: contact_ids and shank_ids are added by NeuroConv's SpikeGLX interface automatically,
+    # so we don't add them here to avoid duplication
     required_columns.extend(
         (column["name"], column.get("description", ""))
         for column in ecephys_metadata.get("Electrodes", [])
@@ -271,12 +277,11 @@ def add_probe_definition_to_nwbfile(
 
     dtype_names = contacts.dtype.names
     has_z = "z" in dtype_names
-    has_contact_ids = "contact_ids" in dtype_names
     has_contact_shapes = "contact_shapes" in dtype_names
-    has_shank_ids = "shank_ids" in dtype_names
 
     def _contact_id(index: int) -> str:
-        if has_contact_ids:
+        # Use contact_ids from probe if available
+        if "contact_ids" in dtype_names:
             raw_value = contacts["contact_ids"][index]
             if isinstance(raw_value, bytes):
                 raw_value = raw_value.decode()
@@ -284,9 +289,9 @@ def add_probe_definition_to_nwbfile(
                 return str(raw_value)
         return f"{group_name}_contact_{index}"
 
-    for idx in range(contacts.size):
-        contact = contacts[idx]
-        contact_id = _contact_id(idx)
+    for index in range(contacts.size):
+        contact = contacts[index]
+        contact_id = _contact_id(index)
 
         electrode_kwargs = dict(
             x=float(contact["x"]),
@@ -296,20 +301,21 @@ def add_probe_definition_to_nwbfile(
             location=group_entry.get("location", "Unknown"),
             filtering="",
             group=electrode_group,
+            group_name=group_name,
             electrode_name=contact_id,
             beryl_location="",
             cosmos_location="",
+            rel_x=float(contact_positions[index, 0]),
+            rel_y=float(contact_positions[index, 1]),
         )
 
         if has_contact_shapes:
             shape_value = contact["contact_shapes"]
             electrode_kwargs["contact_shapes"] = shape_value.tolist() if hasattr(shape_value, "tolist") else shape_value
 
-        if has_shank_ids:
-            shank_value = contact["shank_ids"]
-            if isinstance(shank_value, bytes):
-                shank_value = shank_value.decode()
-            electrode_kwargs["shank_ids"] = str(shank_value)
+        # Add channel_name following SpikeGLX convention: "AP{index},LF{index}"
+        # This matches the format used by NeuroConv's SpikeGLXRecordingInterface
+        electrode_kwargs["channel_name"] = f"AP{index},LF{index}"
 
         nwbfile.add_electrode(**electrode_kwargs)
 
