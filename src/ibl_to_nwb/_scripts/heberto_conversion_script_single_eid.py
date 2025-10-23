@@ -63,8 +63,7 @@ if __name__ == "__main__":
 
     CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = True               # Work on lightweight subsets of data
-    STUB_INCLUDE_EPHYS = True      # When stub-testing, write a short SpikeGLX excerpt if data is already decompressed
+    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False         # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
@@ -76,6 +75,7 @@ if __name__ == "__main__":
 
     TARGET_EID = "bd456d8f-d36e-434a-8051-ff3997253802"  # This one has full raw data
     TARGET_EID = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # has mismatch in timestamps between pupil and data
+    # TARGET_EID = "1f095590-6669-46c9-986b-ccaf0620c5e9"  # Failure with probe
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":
@@ -97,7 +97,8 @@ if __name__ == "__main__":
     logger.info(f"Convert RAW: {CONVERT_RAW}")
     logger.info(f"Convert PROCESSED: {CONVERT_PROCESSED}")
     logger.info(f"Stub test mode: {STUB_TEST}")
-    logger.info(f"Stub includes ephys: {STUB_INCLUDE_EPHYS}")
+    if STUB_TEST:
+        logger.info("  (Stub mode auto-includes cached videos & decompressed ephys)")
     logger.info(f"Re-download data: {REDOWNLOAD_DATA}")
     logger.info(f"Re-decompress ephys: {REDECOMPRESS_EPHYS}")
     logger.info(f"Overwrite existing NWB: {OVERWRITE}")
@@ -131,7 +132,6 @@ if __name__ == "__main__":
             eid=target_eid,
             one=one,
             stub_test=STUB_TEST,
-            stub_include_ecephys=STUB_INCLUDE_EPHYS,
             revision=revision,
             base_path=base_path,
             scratch_path=scratch_path,

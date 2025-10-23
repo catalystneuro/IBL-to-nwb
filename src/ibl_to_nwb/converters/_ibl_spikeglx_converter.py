@@ -33,13 +33,37 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
         }
         self.imec_to_probe_map = dict(zip(probe_to_imec_map.values(), probe_to_imec_map.keys()))
 
+        # Build stream-to-probe mapping to handle both single and multi-probe cases
+        # Single-probe: streams are "imec.ap", "imec.lf" (no number)
+        # Multi-probe: streams are "imec0.ap", "imec1.lf", etc. (with number)
+        self.stream_to_probe_map = {}
+        self.device_name_to_probe_map = {}  # Maps "NeuropixelsImec" or "NeuropixelsImec0" -> "probe01"
+
+        for key in self.data_interface_objects.keys():
+            if key != "nidq" and not key.endswith("-SYNC"):
+                imec_name, _ = key.split(".")
+                if imec_name == "imec":
+                    # Single-probe case: map "imec" to whichever probe is in pname_pid_map
+                    if len(pname_pid_map) == 1:
+                        probe_name = list(pname_pid_map.keys())[0]
+                        self.stream_to_probe_map[imec_name] = probe_name
+                        # Map device name format (parent class uses "NeuropixelsImec" for single probe)
+                        self.device_name_to_probe_map["NeuropixelsImec"] = probe_name
+                else:
+                    # Multi-probe case: extract number and map to probe
+                    imec_num = int(imec_name.replace("imec", ""))
+                    probe_name = self.imec_to_probe_map[imec_num]
+                    self.stream_to_probe_map[imec_name] = probe_name
+                    # Map device name format (parent class uses "NeuropixelsImec0", "NeuropixelsImec1")
+                    self.device_name_to_probe_map[f"NeuropixelsImec{imec_num}"] = probe_name
+
         # excluding probes
         interfaces_to_drop = []
         for key, recording_interface in self.data_interface_objects.items():
             if key != "nidq":
                 imec_name, band = key.split(".")
-                probe_name = self.imec_to_probe_map[int(imec_name[-1])]
-                if probe_name not in self.pname_pid_map:
+                probe_name = self.stream_to_probe_map.get(imec_name)
+                if probe_name is None or probe_name not in self.pname_pid_map:
                     interfaces_to_drop.append(key)
 
         # TEMPORARY: Exclude NIDQ interface to avoid large memory allocation from event memmap
@@ -55,8 +79,7 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
         for key, recording_interface in self.data_interface_objects.items():
             if key != "nidq":
                 imec_name, band = key.split(".")
-                imec_num = int(imec_name[-1])
-                probe_name = self.imec_to_probe_map[imec_num]
+                probe_name = self.stream_to_probe_map[imec_name]
 
                 # Update electrical series key to use IBL probe naming
                 # e.g., "ElectricalSeriesAPImec0" -> "ElectricalSeriesAP_probe00"
@@ -94,11 +117,10 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
         # Update device names to IBL convention
         if "Device" in metadata.get("Ecephys", {}):
             for device in metadata["Ecephys"]["Device"]:
-                # Extract imec number from "NeuropixelsImec0" -> 0
+                # Map device name using pre-built mapping
                 original_name = device["name"]
-                if "NeuropixelsImec" in original_name:
-                    imec_num = int(original_name.replace("NeuropixelsImec", ""))
-                    probe_name = self.imec_to_probe_map[imec_num]
+                if original_name in self.device_name_to_probe_map:
+                    probe_name = self.device_name_to_probe_map[original_name]
                     device["name"] = _format_probe_label(probe_name)
 
         # Update electrode groups to reference new device names and use IBL convention
@@ -107,17 +129,15 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 # Update device reference
                 if "device" in group:
                     original_device = group["device"]
-                    if "NeuropixelsImec" in original_device:
-                        imec_num = int(original_device.replace("NeuropixelsImec", ""))
-                        probe_name = self.imec_to_probe_map[imec_num]
+                    if original_device in self.device_name_to_probe_map:
+                        probe_name = self.device_name_to_probe_map[original_device]
                         group["device"] = _format_probe_label(probe_name)
 
                 # Group name is already updated from the property change above
                 if "name" in group:
                     original_name = group["name"]
-                    if "NeuropixelsImec" in original_name:
-                        imec_num = int(original_name.replace("NeuropixelsImec", ""))
-                        probe_name = self.imec_to_probe_map[imec_num]
+                    if original_name in self.device_name_to_probe_map:
+                        probe_name = self.device_name_to_probe_map[original_name]
                         group["name"] = _format_probe_label(probe_name)
                     elif original_name.startswith("NeuropixelsShank_"):
                         probe_name = original_name.replace("NeuropixelsShank_", "")
@@ -134,7 +154,7 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
         for key, recording_interface in self.data_interface_objects.items():
             if key != "nidq":
                 imec_name, band = key.split(".")
-                probe_name = self.imec_to_probe_map[int(imec_name[-1])]
+                probe_name = self.stream_to_probe_map[imec_name]
                 pid = self.pname_pid_map[probe_name]
 
                 spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)

@@ -50,7 +50,6 @@ def convert_raw_session(
     eid: str,
     one: ONE,
     stub_test: bool = False,
-    stub_include_ecephys: bool = False,
     revision: str | None = None,
     base_path: Path | None = None,
     scratch_path: Path | None = None,
@@ -58,7 +57,11 @@ def convert_raw_session(
     overwrite: bool = False,
     redecompress_ephys: bool = False,
 ) -> dict:
-    """Convert IBL raw session to NWB."""
+    """Convert IBL raw session to NWB.
+
+    In stub mode, ephys data is automatically included if decompressed binaries
+    are already available (similar to how videos are auto-included if cached).
+    """
 
     if logger:
         logger.info(f"Starting RAW conversion for session {eid}")
@@ -76,7 +79,9 @@ def convert_raw_session(
     if not subject_nickname:
         subject_nickname = "unknown"
 
-    output_dir = Path(paths["output_folder"]) / ("stub" if stub_test else "full")
+    # New structure: nwbfiles/{full|stub}/sub-{subject}/*.nwb
+    conversion_type = "stub" if stub_test else "full"
+    output_dir = Path(paths["output_folder"]) / conversion_type / f"sub-{subject_nickname}"
     output_dir.mkdir(parents=True, exist_ok=True)
     provisional_nwbfile_path = output_dir / f"sub-{subject_nickname}_ses-{eid}_desc-raw_ecephys.nwb"
 
@@ -95,23 +100,38 @@ def convert_raw_session(
     insertions = one.alyx.rest("insertions", "list", session=eid)
     pname_pid_map = {ins["name"]: ins["id"] for ins in insertions}
 
+    # Log probe information
+    if logger:
+        if len(pname_pid_map) == 0:
+            logger.warning("No probe insertions found for session %s", eid)
+        elif len(pname_pid_map) == 1:
+            probe_name = list(pname_pid_map.keys())[0]
+            logger.info("Single-probe session detected: %s", probe_name)
+        else:
+            logger.info(
+                "Multi-probe session detected: %d probes (%s)",
+                len(pname_pid_map),
+                ", ".join(pname_pid_map.keys()),
+            )
+
     scratch_ephys_folder = paths["session_scratch_folder"] / "raw_ephys_data"
     existing_bins = (
         scratch_ephys_folder.exists() and next(scratch_ephys_folder.rglob("*.bin"), None) is not None
     )
 
-    include_stub_ephys = stub_test and stub_include_ecephys
-    include_ecephys = (not stub_test) or include_stub_ephys
-
-    if include_stub_ephys and not existing_bins and not redecompress_ephys:
-        include_ecephys = False
-        if logger:
+    # In stub mode: auto-include ephys if decompressed binaries are available
+    # In full mode: always include ephys (will decompress if needed)
+    if stub_test:
+        include_ecephys = existing_bins and not redecompress_ephys
+        if not include_ecephys and logger:
             logger.info(
-                "Stub mode requested Neuropixels data but no decompressed binaries found in %s; "
-                "skipping SpikeGLX interfaces. Use REDECOMPRESS_EPHYS=True to regenerate or run a "
-                "non-stub conversion first.",
+                "Stub mode: No decompressed Neuropixels binaries found in %s; "
+                "skipping SpikeGLX interfaces. Run a full conversion first to decompress data, "
+                "or set REDECOMPRESS_EPHYS=True to force decompression in stub mode.",
                 scratch_ephys_folder,
             )
+    else:
+        include_ecephys = True
 
     # ========================================================================
     # STEP 1: Decompress raw ephys data
@@ -174,6 +194,8 @@ def convert_raw_session(
     spikeglx_converter = None
     if include_ecephys:
         # SpikeGLX converter
+        if logger and stub_test:
+            logger.info("✓ Stub mode: Including SpikeGLX ephys data (decompressed binaries available)")
         spikeglx_converter = IblSpikeGlxConverter(
             folder_path=str(paths["spikeglx_source_folder"]),
             one=one,
@@ -182,11 +204,9 @@ def convert_raw_session(
             revision=revision,
         )
         data_interfaces.append(spikeglx_converter)
-    elif stub_test and not stub_include_ecephys:
-        if logger:
-            logger.info("Stub test mode active (without ephys): skipping SpikeGLX converter setup")
     elif logger:
-        logger.info("SpikeGLX data not available: skipping SpikeGLX converter setup (see message above for details)")
+        if not stub_test:
+            logger.info("SpikeGLX data not available: skipping SpikeGLX converter setup (see message above for details)")
 
     # Anatomical localization
     if pname_pid_map:
@@ -200,29 +220,92 @@ def convert_raw_session(
         if not include_ecephys and logger:
             logger.info("Stub mode active: using metadata-only electrodes for anatomical localization")
 
-    # Raw video interfaces (skip in stub mode to avoid large downloads)
-    if not stub_test:
-        metadata_retrieval = BrainwideMapConverter(one=one, session=eid, data_interfaces=[], verbose=False)
-        subject_id = metadata_retrieval.get_metadata()["Subject"]["subject_id"]
+    # Raw video interfaces
+    # In stub mode, only include videos if already downloaded (avoid triggering large downloads)
+    # In full mode, always include videos (they will be downloaded if needed)
+    metadata_retrieval = BrainwideMapConverter(one=one, session=eid, data_interfaces=[], verbose=False)
+    subject_id = metadata_retrieval.get_metadata()["Subject"]["subject_id"]
 
-        pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
-        for pose_estimation_file in pose_estimation_files:
-            camera_name = pose_estimation_file.replace("alf/_ibl_", "").replace(".dlc.pqt", "")
-            video_interface = RawVideoInterface(
-                nwbfiles_folder_path=base_path,
-                subject_id=subject_id,
-                one=one,
-                session=eid,
-                camera_name=camera_name,
-                revision=revision,
-            )
-            data_interfaces.append(video_interface)
-    elif logger:
-        logger.info("Stub test mode active: skipping raw video interfaces")
+    # Video files should be organized alongside NWB files: nwbfiles/full/sub-{subject}/
+    video_base_path = Path(paths["output_folder"]) / "full"
+
+    # Add video interfaces for cameras that have timestamps
+    # Check all camera types (left, right, body)
+    for camera_view in ["left", "right", "body"]:
+        camera_times_pattern = f"*{camera_view}Camera.times*"
+        video_filename = f"raw_video_data/_iblrig_{camera_view}Camera.raw.mp4"
+
+        # Check if camera has timestamps (required for video interface)
+        has_timestamps = bool(one.list_datasets(eid=eid, filename=camera_times_pattern))
+        if not has_timestamps:
+            continue
+
+        # Check if video dataset exists
+        has_video = bool(one.list_datasets(eid=eid, filename=video_filename))
+        if not has_video:
+            if logger:
+                logger.debug(f"No video file found for {camera_view}Camera - skipping")
+            continue
+
+        # In stub mode, check if video is already in cache (avoid triggering downloads)
+        if stub_test:
+            video_path = one.load_dataset(eid, video_filename, download_only=True)
+            video_in_cache = video_path is not None and Path(video_path).exists()
+
+            if not video_in_cache:
+                if logger:
+                    logger.info(f"✗ Stub mode: {camera_view}Camera video not in cache - skipping to avoid download")
+                continue
+
+            if logger:
+                logger.info(f"✓ Stub mode: Including {camera_view}Camera video (already in cache)")
+        else:
+            if logger:
+                logger.info(f"Adding {camera_view}Camera video interface")
+
+        # Add video interface
+        video_interface = RawVideoInterface(
+            nwbfiles_folder_path=video_base_path,
+            subject_id=subject_id,
+            one=one,
+            session=eid,
+            camera_name=camera_view,
+            revision=revision,
+        )
+        data_interfaces.append(video_interface)
 
     interface_creation_time = time.time() - interface_creation_start
     if logger:
         logger.info(f"Data interfaces created in {interface_creation_time:.2f}s")
+
+        # Log data availability summary
+        datasets = one.list_datasets(eid)
+        dataset_strs = [str(d) for d in datasets]
+
+        # Check key data sources
+        has_lightning_left = any("leftCamera.lightningPose" in ds for ds in dataset_strs)
+        has_lightning_right = any("rightCamera.lightningPose" in ds for ds in dataset_strs)
+        has_dlc_left = any("leftCamera.dlc" in ds for ds in dataset_strs)
+        has_dlc_right = any("rightCamera.dlc" in ds for ds in dataset_strs)
+        has_video_body = any("bodyCamera.raw.mp4" in ds for ds in dataset_strs)
+
+        logger.info("Data availability summary:")
+        logger.info("  Pose estimation:")
+        logger.info(f"    Lightning Pose (left): {'✓' if has_lightning_left else '✗'}")
+        logger.info(f"    Lightning Pose (right): {'✓' if has_lightning_right else '✗'}")
+        logger.info(f"    DLC (left): {'✓' if has_dlc_left else '✗'}")
+        logger.info(f"    DLC (right): {'✓' if has_dlc_right else '✗'}")
+        logger.info(f"  Body camera video: {'✓' if has_video_body else '✗'}")
+
+        # Warn about missing key data
+        missing = []
+        if not has_lightning_left and not has_dlc_left:
+            missing.append("left camera pose estimation")
+        if not has_lightning_right and not has_dlc_right:
+            missing.append("right camera pose estimation")
+
+        if missing:
+            logger.warning("Missing data sources: %s", ", ".join(missing))
 
     # ========================================================================
     # STEP 3: Create converter
@@ -355,10 +438,13 @@ def convert_raw_session(
     nwb_size_gb = nwb_size_bytes / (1024**3)
 
     if logger:
+        total_time_seconds = time.time() - start_time
+        total_time_hours = total_time_seconds / 3600
         logger.info(f"NWB file written in {write_time:.2f}s")
         logger.info(f"RAW NWB file size: {nwb_size_gb:.2f} GB ({nwb_size_bytes:,} bytes)")
         logger.info(f"Write speed: {nwb_size_gb / (write_time / 3600):.2f} GB/hour")
-        logger.info(f"RAW conversion total time: {time.time() - start_time:.2f}s")
+        logger.info(f"RAW conversion total time: {total_time_seconds:.2f}s")
+        logger.info(f"RAW conversion total time: {total_time_hours:.2f} hours")
         logger.info(f"RAW conversion completed: {nwbfile_path}")
         logger.info(f"RAW NWB saved to: {nwbfile_path}")
 

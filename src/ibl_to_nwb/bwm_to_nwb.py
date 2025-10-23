@@ -80,7 +80,8 @@ def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path =
 
     subject = one.eid2ref(eid)["subject"]
     paths = dict(
-        output_folder=base_path / "nwbfiles" / f"sub-{subject}",
+        output_folder=base_path / "nwbfiles",  # Changed: removed subject, will be added per conversion type
+        subject=subject,  # Store subject for later use in constructing full paths
         session_folder=one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
         scratch_folder=scratch_path,
     )
@@ -91,9 +92,11 @@ def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path =
         paths["session_scratch_folder"] / "raw_ephys_data"
     )  # <- this will be based on the session_scratch_folder
 
-    # just to be on the safe side
-    for _, path in paths.items():
-        path.mkdir(exist_ok=True, parents=True)
+    # Create base directories (but not subject-specific ones - those are created in conversion functions)
+    paths["output_folder"].mkdir(exist_ok=True, parents=True)
+    paths["scratch_folder"].mkdir(exist_ok=True, parents=True)
+    paths["session_scratch_folder"].mkdir(exist_ok=True, parents=True)
+    paths["spikeglx_source_folder"].mkdir(exist_ok=True, parents=True)
 
     return paths
 

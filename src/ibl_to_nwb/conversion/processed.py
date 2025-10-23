@@ -84,7 +84,9 @@ def convert_processed_session(
     if not subject_nickname:
         subject_nickname = "unknown"
 
-    output_dir = Path(paths["output_folder"]) / ("stub" if stub_test else "full")
+    # New structure: nwbfiles/{full|stub}/sub-{subject}/*.nwb
+    conversion_type = "stub" if stub_test else "full"
+    output_dir = Path(paths["output_folder"]) / conversion_type / f"sub-{subject_nickname}"
     output_dir.mkdir(parents=True, exist_ok=True)
     provisional_nwbfile_path = output_dir / f"sub-{subject_nickname}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
 
@@ -293,10 +295,13 @@ def convert_processed_session(
     nwb_size_gb = nwb_size_bytes / (1024**3)
 
     if logger:
+        total_time_seconds = time.time() - start_time
+        total_time_hours = total_time_seconds / 3600
         logger.info(f"NWB file written in {write_time:.2f}s")
         logger.info(f"PROCESSED NWB file size: {nwb_size_gb:.2f} GB ({nwb_size_bytes:,} bytes)")
         logger.info(f"Write speed: {nwb_size_gb / (write_time / 3600):.2f} GB/hour")
-        logger.info(f"PROCESSED conversion total time: {time.time() - start_time:.2f}s")
+        logger.info(f"PROCESSED conversion total time: {total_time_seconds:.2f}s")
+        logger.info(f"PROCESSED conversion total time: {total_time_hours:.2f} hours")
         logger.info(f"PROCESSED conversion completed: {nwbfile_path}")
         logger.info(f"PROCESSED NWB saved to: {nwbfile_path}")
 

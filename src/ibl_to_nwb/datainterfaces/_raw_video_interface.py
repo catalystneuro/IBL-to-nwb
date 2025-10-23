@@ -47,22 +47,24 @@ class RawVideoInterface(BaseDataInterface):
         self.revision = revision
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
+        # Convert camera_name ("left", "right", "body") to ONE object name ("leftCamera", etc.)
+        camera_object_name = f"{self.camera_name}Camera"
+
         camera_data = self.one.load_object(
             id=self.session,
-            obj=self.camera_name,
+            obj=camera_object_name,
             collection="alf",
             revision=self.revision,
         )
         timestamps = camera_data["times"]
 
-        camera_view = self.camera_name.split("Camera")[0]  # left, right or body
-        video_filename = f"raw_video_data/_iblrig_{self.camera_name}.raw.mp4"
-        if self.one.list_datasets(eid=self.session, revision=self.revision, filename=video_filename):
+        video_filename = f"raw_video_data/_iblrig_{camera_object_name}.raw.mp4"
+        # Note: Don't filter videos by revision - they may not have the same revision as other data
+        if self.one.list_datasets(eid=self.session, filename=video_filename):
             original_video_file_path = self.one.load_dataset(
                 id=self.session,
                 dataset=video_filename,
                 download_only=True,
-                revision=self.revision,
             )
 
             # Rename to DANDI format and relative organization
@@ -73,7 +75,7 @@ class RawVideoInterface(BaseDataInterface):
             dandi_video_folder_path = dandi_subject_folder / f"{dandi_sub_ses_stem}_ecephys+image"
             dandi_video_folder_path.mkdir(exist_ok=True, parents=True)
 
-            nwb_video_name = f"OriginalVideo{camera_view.capitalize()}Camera"
+            nwb_video_name = f"OriginalVideo{self.camera_name.capitalize()}Camera"
             dandi_video_file_path = dandi_video_folder_path / f"{dandi_sub_ses_stem}_{nwb_video_name}.mp4"
 
             # A little bit of data duplication to copy, but easier for re-running since original file stays in cache
