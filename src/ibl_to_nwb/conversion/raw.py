@@ -20,9 +20,11 @@ from ..bwm_to_nwb import (
     decompress_ephys_cbins,
     setup_paths,
     tree_copy,
+    check_camera_health_by_qc,
 )
 from ..converters import IblSpikeGlxConverter
 from ..datainterfaces import IblAnatomicalLocalizationInterface, RawVideoInterface
+from ..fixtures import load_fixtures
 from ..utils import add_probe_electrodes_with_localization
 
 
@@ -56,11 +58,43 @@ def convert_raw_session(
     logger: logging.Logger | None = None,
     overwrite: bool = False,
     redecompress_ephys: bool = False,
+    exclude_by_qc: bool = False,
 ) -> dict:
     """Convert IBL raw session to NWB.
 
     In stub mode, ephys data is automatically included if decompressed binaries
     are already available (similar to how videos are auto-included if cached).
+
+    Parameters
+    ----------
+    eid : str
+        Experiment ID (session UUID)
+    one : ONE
+        ONE API instance
+    stub_test : bool, optional
+        If True, creates minimal NWB for testing without downloading large files.
+        Ephys and videos are auto-included if already available locally.
+    revision : str, optional
+        Data revision to use (e.g., "2024-05-06" for spike sorting)
+    base_path : Path, optional
+        Base output directory for NWB files
+    scratch_path : Path, optional
+        Scratch directory for temporary files (ephys decompression, etc.)
+    logger : logging.Logger, optional
+        Logger instance for conversion progress
+    overwrite : bool, optional
+        If True, overwrite existing NWB files
+    redecompress_ephys : bool, optional
+        If True, force re-decompression of ephys data even if already decompressed
+    exclude_by_qc : bool, optional
+        If True, exclude raw video data that fails QC checks (FAIL/CRITICAL status).
+        Follows the original BWM conversion approach where only PASS/WARNING
+        video data is included. Default is False (include all available videos).
+
+    Returns
+    -------
+    dict
+        Conversion result information including NWB file path and timing
     """
 
     if logger:
@@ -229,6 +263,9 @@ def convert_raw_session(
     # Video files should be organized alongside NWB files: nwbfiles/full/sub-{subject}/
     video_base_path = Path(paths["output_folder"]) / "full"
 
+    # Load QC data if filtering is enabled
+    bwm_qc = load_fixtures.load_bwm_qc() if exclude_by_qc else None
+
     # Add video interfaces for cameras that have timestamps
     # Check all camera types (left, right, body)
     for camera_view in ["left", "right", "body"]:
@@ -246,6 +283,17 @@ def convert_raw_session(
             if logger:
                 logger.debug(f"No video file found for {camera_view}Camera - skipping")
             continue
+
+        # Apply QC filtering if enabled
+        if exclude_by_qc:
+            camera_name = f"{camera_view}Camera"
+            passes_qc = check_camera_health_by_qc(bwm_qc, eid, camera_name)
+            if not passes_qc:
+                if logger:
+                    logger.debug(f"Excluding {camera_view}Camera video (failed QC)")
+                continue
+            if logger:
+                logger.debug(f"Including {camera_view}Camera video (passed QC)")
 
         # In stub mode, check if video is already in cache (avoid triggering downloads)
         if stub_test:

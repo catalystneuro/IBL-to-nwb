@@ -28,11 +28,15 @@ from one.api import ONE
 
 # Add parent directory to path to import fixtures
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from ibl_to_nwb.fixtures.load_fixtures import load_bwm_df
+from ibl_to_nwb.fixtures.load_fixtures import load_bwm_df, load_bwm_qc
 
 
 # Target revision for spike sorting data (used in PROCESSED conversions)
 TARGET_REVISION = "2024-05-06"
+
+# QC status values that indicate data is usable (matches original BWM conversion logic)
+QC_USABLE_STATUSES = ["PASS", "WARNING"]
+QC_EXCLUDE_STATUSES = ["FAIL", "CRITICAL"]
 
 # Data sources to check - organized by conversion type
 # These correspond to actual data interfaces used in conversions:
@@ -156,7 +160,7 @@ DATA_SOURCES = {
 }
 
 
-def check_session_data_availability(eid: str, one: ONE) -> Dict:
+def check_session_data_availability(eid: str, one: ONE, bwm_qc: Dict = None) -> Dict:
     """Check data availability for a single session.
 
     Parameters
@@ -165,12 +169,18 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
         Session ID
     one : ONE
         ONE API instance
+    bwm_qc : Dict, optional
+        BWM QC dictionary. If None, will be loaded.
 
     Returns
     -------
     Dict
-        Dictionary with session info and data availability
+        Dictionary with session info, data availability, and QC status
     """
+    # Load QC data if not provided
+    if bwm_qc is None:
+        bwm_qc = load_bwm_qc()
+
     result = {
         "eid": eid,
         "subject": None,
@@ -180,6 +190,8 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
         "probe_names": [],
         "single_probe": False,
         "data_sources": {},
+        "qc_status": {},
+        "qc_usable": {},
         "missing_sources": [],
         "errors": [],
     }
@@ -245,6 +257,30 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
                 if not found:
                     result["missing_sources"].append(source_name)
 
+        # Add QC status information from BWM fixtures
+        # Map our data source names to QC fixture keys
+        qc_mapping = {
+            # Videos
+            "video_left": "videoLeft",
+            "video_right": "videoRight",
+            "video_body": "videoBody",
+            # DLC
+            "dlc_left": "dlcLeft",
+            "dlc_right": "dlcRight",
+            # Lightning Pose
+            "lightning_pose_left": "lightningPoseLeft",
+            "lightning_pose_right": "lightningPoseRight",
+            # Combined pose estimation gets QC from video (since that's what original code checked)
+            "pose_estimation_left": "videoLeft",
+            "pose_estimation_right": "videoRight",
+        }
+
+        session_qc = bwm_qc.get(eid, {})
+        for source_name, qc_key in qc_mapping.items():
+            qc_value = session_qc.get(qc_key, "NOT_SET")
+            result["qc_status"][source_name] = qc_value
+            result["qc_usable"][source_name] = qc_value in QC_USABLE_STATUSES
+
     except Exception as e:
         result["errors"].append(str(e))
 
@@ -268,6 +304,10 @@ def diagnose_sessions(eids: List[str], one: ONE, output_path: Path = None) -> pd
     pd.DataFrame
         DataFrame with diagnosis results
     """
+    # Load QC data once for all sessions
+    print("Loading BWM QC data...")
+    bwm_qc = load_bwm_qc()
+
     results = []
     total = len(eids)
 
@@ -281,7 +321,7 @@ def diagnose_sessions(eids: List[str], one: ONE, output_path: Path = None) -> pd
         # Print progress with percentage and counts
         print(f"[{i:3d}/{total}] ({progress_pct:5.1f}%) Checking {eid}...", end="", flush=True)
 
-        result = check_session_data_availability(eid, one)
+        result = check_session_data_availability(eid, one, bwm_qc=bwm_qc)
         results.append(result)
 
         # Print summary on same line
@@ -310,9 +350,14 @@ def diagnose_sessions(eids: List[str], one: ONE, output_path: Path = None) -> pd
             "missing_sources": ", ".join(result["missing_sources"]),
         }
 
-        # Add columns for each data source
+        # Add columns for each data source (availability)
         for source_name in DATA_SOURCES.keys():
             row[f"has_{source_name}"] = result["data_sources"].get(source_name, False)
+
+        # Add QC status columns
+        for source_name in result["qc_status"].keys():
+            row[f"qc_{source_name}"] = result["qc_status"][source_name]
+            row[f"usable_{source_name}"] = result["qc_usable"][source_name]
 
         if result["errors"]:
             row["errors"] = "; ".join(result["errors"])
@@ -369,6 +414,39 @@ def print_summary(df: pd.DataFrame):
                 if source:  # Skip empty
                     pct = count / total * 100
                     print(f"  - {source:30s}: {count:3d} sessions ({pct:5.1f}%)")
+
+    print()
+
+    # QC vs Availability Comparison
+    # Only show for data sources that have QC information
+    qc_sources = [
+        ("video_left", "Video Left"),
+        ("video_right", "Video Right"),
+        ("video_body", "Video Body"),
+        ("dlc_left", "DLC Left"),
+        ("dlc_right", "DLC Right"),
+        ("lightning_pose_left", "Lightning Pose Left"),
+        ("lightning_pose_right", "Lightning Pose Right"),
+        ("pose_estimation_left", "Pose Estimation Left"),
+        ("pose_estimation_right", "Pose Estimation Right"),
+    ]
+
+    print("QC vs File Availability (PASS/WARNING only):")
+    for source_name, display_name in qc_sources:
+        has_col = f"has_{source_name}"
+        usable_col = f"usable_{source_name}"
+
+        if has_col in df.columns and usable_col in df.columns:
+            files_exist = df[has_col].sum()
+            qc_usable = df[usable_col].sum()
+            files_pct = files_exist / total * 100
+            qc_pct = qc_usable / total * 100
+
+            print(
+                f"  {display_name:30s}: "
+                f"Files {files_exist:3d} ({files_pct:5.1f}%), "
+                f"QC Usable {qc_usable:3d} ({qc_pct:5.1f}%)"
+            )
 
 
 def main():

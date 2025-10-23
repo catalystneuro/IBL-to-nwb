@@ -17,6 +17,7 @@ from ibl_to_nwb.conversion import (
 )
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
 from ibl_to_nwb.fixtures import load_fixtures
+from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
 
 def setup_logger(log_file_path: Path) -> logging.Logger:
@@ -66,6 +67,8 @@ if __name__ == "__main__":
     REDOWNLOAD_DATA = False        # Force re-download even if cached
     REDECOMPRESS_EPHYS = False     # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True              # Regenerate NWBs even if existing files validate
+    EXCLUDE_BY_QC = True           # Exclude data that fails QC checks (FAIL/CRITICAL). False = include all data
+    RUN_CONSISTENCY_CHECKS = True  # Validate NWB files against ONE data (slow but thorough)
 
     base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_data"
@@ -108,6 +111,9 @@ if __name__ == "__main__":
         logger.info(f"Re-download data: {REDOWNLOAD_DATA}")
         logger.info(f"Re-decompress ephys: {REDECOMPRESS_EPHYS}")
         logger.info(f"Overwrite existing NWB: {OVERWRITE}")
+        logger.info(f"Exclude by QC: {EXCLUDE_BY_QC}")
+        if EXCLUDE_BY_QC:
+            logger.info("  (Only PASS/WARNING data will be included)")
         logger.info(f"Log file: {log_file_path}")
         logger.info("=" * 80)
 
@@ -144,7 +150,20 @@ if __name__ == "__main__":
                 logger=logger,
                 overwrite=OVERWRITE,
                 redecompress_ephys=REDECOMPRESS_EPHYS,
+                exclude_by_qc=EXCLUDE_BY_QC,
             )
+
+            # Run consistency checks if enabled
+            if RUN_CONSISTENCY_CHECKS and raw_info and not raw_info.get("skipped"):
+                try:
+                    check_start = time.time()
+                    check_nwbfile_for_consistency(one=one, nwbfile_path=raw_info["nwbfile_path"])
+                    check_time = time.time() - check_start
+                    logger.info(f"✓ RAW validation passed ({check_time:.1f}s)")
+                except AssertionError as e:
+                    logger.error(f"✗ RAW validation FAILED: {e}")
+                except Exception as e:
+                    logger.error(f"✗ RAW validation error: {e}")
 
         if CONVERT_PROCESSED:
             logger.info("\n" + "=" * 80)
@@ -160,7 +179,20 @@ if __name__ == "__main__":
                 skip_spike_properties=["spike_amplitudes", "spike_relative_depths"],
                 logger=logger,
                 overwrite=OVERWRITE,
+                exclude_by_qc=EXCLUDE_BY_QC,
             )
+
+            # Run consistency checks if enabled
+            if RUN_CONSISTENCY_CHECKS and processed_info and not processed_info.get("skipped"):
+                try:
+                    check_start = time.time()
+                    check_nwbfile_for_consistency(one=one, nwbfile_path=processed_info["nwbfile_path"])
+                    check_time = time.time() - check_start
+                    logger.info(f"✓ PROCESSED validation passed ({check_time:.1f}s)")
+                except AssertionError as e:
+                    logger.error(f"✗ PROCESSED validation FAILED: {e}")
+                except Exception as e:
+                    logger.error(f"✗ PROCESSED validation error: {e}")
 
         logger.info("\n" + "=" * 80)
         logger.info("COMPRESSION SUMMARY")

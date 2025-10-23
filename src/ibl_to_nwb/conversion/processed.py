@@ -65,8 +65,40 @@ def convert_processed_session(
     skip_spike_properties: list | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
+    exclude_by_qc: bool = False,
 ) -> dict:
-    """Convert IBL processed session to NWB."""
+    """Convert IBL processed session to NWB.
+
+    Parameters
+    ----------
+    eid : str
+        Experiment ID (session UUID)
+    one : ONE
+        ONE API instance
+    stub_test : bool, optional
+        If True, creates minimal NWB for testing without downloading large files
+    revision : str, optional
+        Data revision to use (e.g., "2024-05-06" for spike sorting)
+    base_path : Path, optional
+        Base output directory for NWB files
+    scratch_path : Path, optional
+        Scratch directory for temporary files
+    skip_spike_properties : list, optional
+        List of spike properties to skip during conversion
+    logger : logging.Logger, optional
+        Logger instance for conversion progress
+    overwrite : bool, optional
+        If True, overwrite existing NWB files
+    exclude_by_qc : bool, optional
+        If True, exclude data that fails QC checks (FAIL/CRITICAL status).
+        Follows the original BWM conversion approach where only PASS/WARNING
+        data is included. Default is False (include all available data).
+
+    Returns
+    -------
+    dict
+        Conversion result information including NWB file path and timing
+    """
 
     if logger:
         logger.info(f"Starting PROCESSED conversion for session {eid}")
@@ -143,27 +175,46 @@ def convert_processed_session(
     pose_estimation_files = set(Path(f).name for f in one.list_datasets(eid=eid, filename="*.dlc*"))
     for pose_estimation_file in pose_estimation_files:
         camera_name = get_camera_name_from_file(pose_estimation_file)
-        if stub_test or (
-            check_camera_health_by_qc(bwm_qc, eid, camera_name)
-            and check_camera_health_by_loading(**interface_kwargs)
-        ):
+
+        # Apply QC filtering if enabled
+        passes_qc = not exclude_by_qc or check_camera_health_by_qc(bwm_qc, eid, camera_name)
+
+        if passes_qc and (stub_test or check_camera_health_by_loading(**interface_kwargs)):
             data_interfaces.append(
                 IblPoseEstimationInterface(camera_name=camera_name, tracker="lightningPose", **interface_kwargs)
             )
+            if logger and exclude_by_qc:
+                logger.debug(f"Including {camera_name} pose estimation (passed QC)")
+        elif logger and exclude_by_qc and not passes_qc:
+            logger.debug(f"Excluding {camera_name} pose estimation (failed QC)")
 
     # Pupil tracking
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     camera_names = set(get_camera_name_from_file(f) for f in pupil_tracking_files)
     for camera_name in camera_names:
-        if stub_test or check_camera_health_by_qc(bwm_qc, eid, camera_name):
+        # Apply QC filtering if enabled
+        passes_qc = not exclude_by_qc or check_camera_health_by_qc(bwm_qc, eid, camera_name)
+
+        if passes_qc:
             data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
+            if logger and exclude_by_qc:
+                logger.debug(f"Including {camera_name} pupil tracking (passed QC)")
+        elif logger and exclude_by_qc:
+            logger.debug(f"Excluding {camera_name} pupil tracking (failed QC)")
 
     # ROI motion energy
     roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
     camera_names = set(get_camera_name_from_file(f) for f in roi_motion_energy_files)
     for camera_name in camera_names:
-        if stub_test or check_camera_health_by_qc(bwm_qc, eid, camera_name):
+        # Apply QC filtering if enabled
+        passes_qc = not exclude_by_qc or check_camera_health_by_qc(bwm_qc, eid, camera_name)
+
+        if passes_qc:
             data_interfaces.append(RoiMotionEnergyInterface(camera_name=camera_name, **interface_kwargs))
+            if logger and exclude_by_qc:
+                logger.debug(f"Including {camera_name} ROI motion energy (passed QC)")
+        elif logger and exclude_by_qc:
+            logger.debug(f"Excluding {camera_name} ROI motion energy (failed QC)")
 
     interface_creation_time = time.time() - interface_creation_start
     if logger:
