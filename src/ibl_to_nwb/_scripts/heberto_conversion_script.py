@@ -62,11 +62,10 @@ if __name__ == "__main__":
 
     CONVERT_RAW = True             # Write raw-ephys NWBs
     CONVERT_PROCESSED = True       # Write processed/behavior NWBs
-    STUB_TEST = True               # Work on lightweight subsets of data
-    STUB_INCLUDE_EPHYS = False     # When stub-testing, write a short SpikeGLX excerpt if data is already decompressed
+    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False        # Force re-download even if cached
     REDECOMPRESS_EPHYS = False     # Force regeneration of decompressed SpikeGLX binaries
-    OVERWRITE = False              # Regenerate NWBs even if existing files validate
+    OVERWRITE = True              # Regenerate NWBs even if existing files validate
 
     base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_data"
@@ -104,7 +103,8 @@ if __name__ == "__main__":
         logger.info(f"Convert RAW: {CONVERT_RAW}")
         logger.info(f"Convert PROCESSED: {CONVERT_PROCESSED}")
         logger.info(f"Stub test mode: {STUB_TEST}")
-        logger.info(f"Stub includes ephys: {STUB_INCLUDE_EPHYS}")
+        if STUB_TEST:
+            logger.info("  (Stub mode auto-includes cached videos & decompressed ephys)")
         logger.info(f"Re-download data: {REDOWNLOAD_DATA}")
         logger.info(f"Re-decompress ephys: {REDECOMPRESS_EPHYS}")
         logger.info(f"Overwrite existing NWB: {OVERWRITE}")
@@ -138,7 +138,6 @@ if __name__ == "__main__":
                 eid=eid,
                 one=one,
                 stub_test=STUB_TEST,
-                stub_include_ecephys=STUB_INCLUDE_EPHYS,
                 revision=revision,
                 base_path=base_path,
                 scratch_path=scratch_path,
