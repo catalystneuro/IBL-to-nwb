@@ -1,0 +1,290 @@
+"""Convert assigned IBL sessions to NWB format.
+
+This script is designed for distributed execution on EC2 instances. Each instance:
+  1. Reads its assignment file (list of session EIDs)
+  2. Downloads source data from ONE API
+  3. Converts to NWB (both raw and processed)
+  4. Writes NWB files to /ebs/nwbfiles/full/sub-*/
+
+Upload is handled separately by ec2_userdata_production.sh after all conversions complete.
+
+Example usage (on EC2 with uv):
+
+    uv run python convert_assigned_sessions.py \
+        --assignment-file /ebs/chunk-042.json
+
+    # Or with stub test:
+    uv run python convert_assigned_sessions.py --stub-test
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import sys
+import time
+from pathlib import Path
+
+from one.api import ONE
+
+from ibl_to_nwb._scripts.heberto_conversion_script import setup_logger
+from ibl_to_nwb.conversion import (
+    convert_processed_session,
+    convert_raw_session,
+    download_session_data,
+)
+from ibl_to_nwb.conversion.one_patches import apply_one_patches
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run full conversions with DANDI upload for assigned sessions."
+    )
+    parser.add_argument(
+        "--assignment-file",
+        type=Path,
+        default=Path("/ebs/chunk.json"),
+        help="Path to JSON file containing a list of session EIDs (default: /ebs/chunk.json).",
+    )
+    parser.add_argument(
+        "--stub-test",
+        action="store_true",
+        help="Run in stub mode for testing (lightweight data).",
+    )
+    return parser.parse_args()
+
+
+
+
+def convert_session(
+    eid: str,
+    *,
+    one: ONE,
+    base_folder: Path,
+    scratch_folder: Path,
+    nwb_folder: Path,
+    revision: str,
+    stub_test: bool,
+    convert_raw: bool,
+    convert_processed: bool,
+) -> dict:
+    """Convert one IBL session to NWB format.
+
+    Downloads data from ONE API, converts to raw and processed NWB files,
+    and writes them to disk. Upload is handled separately.
+
+    Returns a dict with conversion statistics.
+    """
+
+    log_file = scratch_folder / f"conversion_log_{eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    logger = setup_logger(log_file)
+
+    logger.info("=" * 80)
+    logger.info(f"Starting conversion for session: {eid}")
+    logger.info(f"Stub test mode: {stub_test}")
+    logger.info(f"Convert RAW: {convert_raw}")
+    logger.info(f"Convert PROCESSED: {convert_processed}")
+    logger.info("=" * 80)
+
+    session_start = time.time()
+
+    # Download session data
+    logger.info("\n" + "=" * 80)
+    logger.info("DOWNLOADING SESSION DATA")
+    logger.info("=" * 80)
+    download_info = download_session_data(
+        eid=eid,
+        one=one,
+        redownload_data=False,
+        stub_test=stub_test,
+        revision=revision,
+        base_path=base_folder,
+        scratch_path=scratch_folder,
+        logger=logger,
+    )
+
+    results = {
+        "eid": eid,
+        "download_size_gb": download_info["total_size_gb"],
+        "raw_converted": False,
+        "processed_converted": False,
+        "success": False,
+    }
+
+    # Convert RAW
+    if convert_raw:
+        logger.info("\n" + "=" * 80)
+        logger.info("CONVERTING RAW EPHYS")
+        logger.info("=" * 80)
+
+        raw_info = convert_raw_session(
+            eid=eid,
+            one=one,
+            stub_test=stub_test,
+            revision=revision,
+            base_path=base_folder,
+            scratch_path=scratch_folder,
+            logger=logger,
+            overwrite=False,
+            redecompress_ephys=False,
+            exclude_by_qc=True,
+        )
+
+        if raw_info and not raw_info.get("skipped"):
+            raw_nwb_path = raw_info["nwbfile_path"]
+            results["raw_nwb_path"] = str(raw_nwb_path)
+            results["raw_size_gb"] = raw_info["nwb_size_gb"]
+            results["raw_converted"] = True
+            logger.info(f"RAW file written to: {raw_nwb_path}")
+
+    # Convert PROCESSED
+    if convert_processed:
+        logger.info("\n" + "=" * 80)
+        logger.info("CONVERTING PROCESSED/BEHAVIOR")
+        logger.info("=" * 80)
+
+        processed_info = convert_processed_session(
+            eid=eid,
+            one=one,
+            stub_test=stub_test,
+            revision=revision,
+            base_path=base_folder,
+            scratch_path=scratch_folder,
+            logger=logger,
+            overwrite=False,
+            exclude_by_qc=True,
+        )
+
+        if processed_info and not processed_info.get("skipped"):
+            processed_nwb_path = processed_info["nwbfile_path"]
+            results["processed_nwb_path"] = str(processed_nwb_path)
+            results["processed_size_gb"] = processed_info["nwb_size_gb"]
+            results["processed_converted"] = True
+            logger.info(f"PROCESSED file written to: {processed_nwb_path}")
+
+    session_time = time.time() - session_start
+    results["total_time_seconds"] = session_time
+    results["success"] = True
+
+    logger.info("\n" + "=" * 80)
+    logger.info("SESSION COMPLETED")
+    logger.info(f"Total time: {session_time:.2f}s ({session_time/60:.2f} minutes)")
+    logger.info(f"RAW converted: {results['raw_converted']}")
+    logger.info(f"PROCESSED converted: {results['processed_converted']}")
+    logger.info("=" * 80)
+
+    return results
+
+
+def main() -> None:
+    args = parse_args()
+
+    # Hardcoded configuration
+    BASE_FOLDER = Path("/ebs")
+    SCRATCH_SUBDIR = "temporary_files"
+    CACHE_SUBDIR = "ibl_data"
+    NWB_SUBDIR = "nwbfiles"
+    REVISION = "2024-05-06"
+    CONVERT_RAW = True
+    CONVERT_PROCESSED = True
+
+    # DANDI_API_KEY is set by ec2_userdata_production.sh via 'export DANDI_API_KEY=...'
+    # No need to load from .env file
+
+    # Hardcoded log level: INFO for main script, individual sessions log to files
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s: %(message)s",
+    )
+
+    # Load assignment file (inlined)
+    try:
+        text = args.assignment_file.read_text()
+    except FileNotFoundError as exc:
+        raise SystemExit(f"Assignment file not found: {args.assignment_file}") from exc
+    eids = json.loads(text)
+    if not isinstance(eids, list):
+        raise SystemExit(f"Assignment file is not a JSON list: {args.assignment_file}")
+    if not eids:
+        raise SystemExit(f"Assignment file is empty: {args.assignment_file}")
+    eids = [str(eid) for eid in eids]
+
+    logging.info("Loaded %d sessions from %s", len(eids), args.assignment_file)
+
+    # Create directory structure (inlined)
+    for subdir in [SCRATCH_SUBDIR, CACHE_SUBDIR, NWB_SUBDIR]:
+        (BASE_FOLDER / subdir).mkdir(parents=True, exist_ok=True)
+
+    cache_dir = BASE_FOLDER / CACHE_SUBDIR
+    scratch_folder = BASE_FOLDER / SCRATCH_SUBDIR
+    nwb_folder = BASE_FOLDER / NWB_SUBDIR
+
+    # Configure ONE with public IBL data access
+    one = ONE(
+        base_url="https://openalyx.internationalbrainlab.org",
+        password="international",  # Public access password for IBL data
+        cache_dir=cache_dir,
+        silent=True,
+    )
+    apply_one_patches(one, logger=None)
+
+    # Track overall statistics
+    total_sessions = len(eids)
+    successful = 0
+    failed = 0
+    session_results = []
+
+    batch_start = time.time()
+
+    for index, eid in enumerate(eids, start=1):
+        logging.info("\n" + "=" * 100)
+        logging.info(f"PROCESSING SESSION {index}/{total_sessions}: {eid}")
+        logging.info("=" * 100)
+
+        try:
+            result = convert_session(
+                eid,
+                one=one,
+                base_folder=BASE_FOLDER,
+                scratch_folder=scratch_folder,
+                nwb_folder=nwb_folder,
+                revision=REVISION,
+                stub_test=args.stub_test,
+                convert_raw=CONVERT_RAW,
+                convert_processed=CONVERT_PROCESSED,
+            )
+            session_results.append(result)
+            successful += 1
+            logging.info(f"Session {eid} completed successfully")
+        except Exception:
+            failed += 1
+            logging.exception(f"Session {eid} FAILED")
+
+    batch_time = time.time() - batch_start
+
+    # Write summary
+    logging.info("\n" + "=" * 100)
+    logging.info("BATCH PROCESSING COMPLETED")
+    logging.info("=" * 100)
+    logging.info(f"Total sessions: {total_sessions}")
+    logging.info(f"Successful: {successful}")
+    logging.info(f"Failed: {failed}")
+    logging.info(f"Total batch time: {batch_time:.2f}s ({batch_time/3600:.2f} hours)")
+    logging.info("=" * 100)
+
+    # Save results summary
+    summary_file = scratch_folder / f"batch_summary_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    summary = {
+        "total_sessions": total_sessions,
+        "successful": successful,
+        "failed": failed,
+        "batch_time_seconds": batch_time,
+        "session_results": session_results,
+    }
+    summary_file.write_text(json.dumps(summary, indent=2))
+    logging.info(f"Summary written to: {summary_file}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

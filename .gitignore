@@ -136,3 +136,6 @@ endpoint_schemas/
 tests/
 src/ibl_to_nwb/local/
 .vscode
+
+# IBL AWS conversion secrets
+src/ibl_to_nwb/_aws_run/network_config.env
