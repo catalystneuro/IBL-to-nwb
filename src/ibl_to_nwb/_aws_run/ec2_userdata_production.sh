@@ -20,6 +20,7 @@ set -euxo pipefail
 MOUNT_POINT="/ebs"
 REPO_URL="https://github.com/h-mayorquin/IBL-to-nwb.git"  # Personal fork (where heberto_conversion branch exists)
 REPO_BRANCH="heberto_conversion"
+DANDISET_ID="217706"  # DANDI sandbox dandiset for IBL BWM data
 
 # Fetch instance metadata (IMDSv2 - requires token)
 IMDS_TOKEN="$(curl -X PUT -fsS "http://169.254.169.254/latest/api/token" \
@@ -190,20 +191,22 @@ else
     python convert_assigned_sessions.py
 fi
 
-# Download dandiset.yaml - this creates the 217706/ folder automatically
-echo "Downloading dandiset.yaml..."
+# Download dandiset.yaml - this creates the ${DANDISET_ID}/ folder automatically
+echo "Downloading dandiset.yaml for dandiset ${DANDISET_ID}..."
 cd "${MOUNT_POINT}/nwbfiles"
-dandi download --download dandiset.yaml https://sandbox.dandiarchive.org/dandiset/217706
+dandi download --download dandiset.yaml https://sandbox.dandiarchive.org/dandiset/${DANDISET_ID}
 
-# Now 217706/ folder exists with dandiset.yaml inside it
-DANDISET_FOLDER="${MOUNT_POINT}/nwbfiles/217706"
+# Now ${DANDISET_ID}/ folder exists with dandiset.yaml inside it
+DANDISET_FOLDER="${MOUNT_POINT}/nwbfiles/${DANDISET_ID}"
 
-# Move converted NWB files into dandiset folder
-echo "Moving NWB files into dandiset folder..."
+# Move converted NWB files and videos into dandiset folder
+# Only stub or full is run at the same time, no danger of collisions
+echo "Moving NWB files and videos into dandiset folder..."
 for conversion_type in full stub; do
     CONVERSION_OUTPUT="${MOUNT_POINT}/nwbfiles/${conversion_type}"
     if [ -d "${CONVERSION_OUTPUT}" ] && [ -n "$(ls -A ${CONVERSION_OUTPUT} 2>/dev/null)" ]; then
         echo "Moving files from ${conversion_type}/ to dandiset folder..."
+        # Move entire subject directories (includes NWB files and video subdirectories)
         mv "${CONVERSION_OUTPUT}"/sub-* "${DANDISET_FOLDER}/" 2>/dev/null || true
     fi
 done

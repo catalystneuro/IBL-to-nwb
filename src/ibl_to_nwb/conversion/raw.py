@@ -260,8 +260,10 @@ def convert_raw_session(
     metadata_retrieval = BrainwideMapConverter(one=one, session=eid, data_interfaces=[], verbose=False)
     subject_id = metadata_retrieval.get_metadata()["Subject"]["subject_id"]
 
-    # Video files should be organized alongside NWB files: nwbfiles/full/sub-{subject}/
-    video_base_path = Path(paths["output_folder"]) / "full"
+    # Video files should be organized alongside NWB files
+    # In stub mode: nwbfiles/stub/sub-{subject}/, in full mode: nwbfiles/full/sub-{subject}/
+    conversion_mode = "stub" if stub_test else "full"
+    video_base_path = Path(paths["output_folder"]) / conversion_mode
 
     # Load QC data if filtering is enabled
     bwm_qc = load_fixtures.load_bwm_qc() if exclude_by_qc else None
@@ -297,8 +299,16 @@ def convert_raw_session(
 
         # In stub mode, check if video is already in cache (avoid triggering downloads)
         if stub_test:
-            video_path = one.load_dataset(eid, video_filename, download_only=True)
-            video_in_cache = video_path is not None and Path(video_path).exists()
+            # Check cache without downloading - construct expected path from eid2path
+            session_path = one.eid2path(eid)
+            if session_path is None:
+                # Session path not in cache, skip video
+                if logger:
+                    logger.info(f"✗ Stub mode: {camera_view}Camera video not in cache - skipping to avoid download")
+                continue
+
+            expected_video_path = session_path / video_filename
+            video_in_cache = expected_video_path.exists()
 
             if not video_in_cache:
                 if logger:
