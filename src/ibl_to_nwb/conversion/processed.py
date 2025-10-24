@@ -32,7 +32,7 @@ from ..datainterfaces import (
     RoiMotionEnergyInterface,
 )
 from ..fixtures import load_fixtures
-from ..utils import add_probe_electrodes_with_localization
+from ..utils import add_probe_electrodes_with_localization, sanitize_subject_id_for_dandi
 
 
 def _valid_existing_nwb(nwb_path: Path, overwrite: bool, logger: logging.Logger | None = None) -> bool:
@@ -118,9 +118,11 @@ def convert_processed_session(
 
     # New structure: nwbfiles/{full|stub}/sub-{subject}/*.nwb
     conversion_type = "stub" if stub_test else "full"
-    output_dir = Path(paths["output_folder"]) / conversion_type / f"sub-{subject_nickname}"
+    # Sanitize subject nickname for DANDI compliance (replace underscores with hyphens)
+    subject_id_for_filenames = sanitize_subject_id_for_dandi(subject_nickname)
+    output_dir = Path(paths["output_folder"]) / conversion_type / f"sub-{subject_id_for_filenames}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    provisional_nwbfile_path = output_dir / f"sub-{subject_nickname}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+    provisional_nwbfile_path = output_dir / f"sub-{subject_id_for_filenames}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
 
     if _valid_existing_nwb(provisional_nwbfile_path, overwrite=overwrite, logger=logger):
         size_bytes = provisional_nwbfile_path.stat().st_size
@@ -330,8 +332,9 @@ def convert_processed_session(
         logger.info("Writing NWB file...")
     write_start = time.time()
 
-    subject_id = nwbfile.subject.subject_id
-    nwbfile_path = output_dir / f"sub-{subject_id}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+    # Use sanitized subject ID for filename (DANDI compliance)
+    subject_id_for_filename = sanitize_subject_id_for_dandi(nwbfile.subject.subject_id)
+    nwbfile_path = output_dir / f"sub-{subject_id_for_filename}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
 
     configure_and_write_nwbfile(
         nwbfile=nwbfile,
