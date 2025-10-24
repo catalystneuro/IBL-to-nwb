@@ -71,6 +71,9 @@ DEVICE=$(lsblk -ndo NAME,SIZE,TYPE | \
         else if (size ~ /G$/) { gsub(/G/, "", size); }
         else if (size ~ /M$/) { gsub(/M/, "", size); size = size / 1024; }
 
+        # Force numeric conversion by adding 0
+        size = size + 0;
+
         # Only consider disks >= 90GB (our EBS volumes are 100GB or 400GB)
         if (size >= 90) print $1, size;
     }' | \
