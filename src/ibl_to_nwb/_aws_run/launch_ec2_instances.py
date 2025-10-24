@@ -315,8 +315,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--total-sessions",
         type=int,
-        default=699,
-        help="Total number of sessions to process from bwm_df.pqt (default: 699, all sessions)",
+        default=459,
+        help="Total number of sessions to process from bwm_df.pqt (default: 459, all unique sessions)",
     )
     return parser.parse_args()
 

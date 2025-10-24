@@ -2,12 +2,15 @@
 
 This script is designed for distributed execution on EC2 instances. Each instance:
   1. Reads its ShardRange tag from IMDSv2 (e.g., "0-13")
-  2. Loads session EIDs from bwm_df.pqt fixtures by slicing the range
+  2. Loads unique session EIDs from bwm_session_eids.json by slicing the range
   3. Downloads source data from ONE API
   4. Converts to NWB (both raw and processed)
   5. Writes NWB files to /ebs/nwbfiles/full/sub-*/
 
 Upload is handled separately by ec2_userdata_production.sh after all conversions complete.
+
+The bwm_session_eids.json file contains 459 unique session EIDs (deduplicated from
+the 699 rows in bwm_df.pqt which contains duplicates due to multiple probes per session).
 
 Example usage (on EC2):
 
@@ -36,7 +39,6 @@ from ibl_to_nwb.conversion import (
     download_session_data,
 )
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
-from ibl_to_nwb.fixtures.load_fixtures import load_bwm_df
 
 
 def get_imdsv2_tag(tag_name: str) -> str:
@@ -244,20 +246,24 @@ def main() -> None:
     except ValueError as e:
         raise SystemExit(f"Invalid shard range format '{shard_range}': expected 'START-END'") from e
 
-    # Load sessions from parquet fixtures
-    logging.info("Loading sessions from bwm_df.pqt fixtures...")
-    df = load_bwm_df()
-    logging.info(f"Total sessions in fixtures: {len(df)}")
+    # Load unique session EIDs from JSON
+    eids_json_path = Path(__file__).parent / "bwm_session_eids.json"
+    logging.info(f"Loading unique session EIDs from {eids_json_path.name}...")
+
+    with open(eids_json_path, "r") as f:
+        eids_data = json.load(f)
+
+    all_eids = eids_data["eids"]
+    total_sessions = len(all_eids)
+    logging.info(f"Total unique sessions available: {total_sessions}")
 
     # Slice by range
-    if start_idx < 0 or end_idx >= len(df) or start_idx > end_idx:
+    if start_idx < 0 or end_idx >= total_sessions or start_idx > end_idx:
         raise SystemExit(
-            f"Invalid range {start_idx}-{end_idx} for {len(df)} sessions in fixtures"
+            f"Invalid range {start_idx}-{end_idx} for {total_sessions} unique sessions"
         )
 
-    assigned_df = df.iloc[start_idx : end_idx + 1]
-    eids = assigned_df["eid"].tolist()
-
+    eids = all_eids[start_idx : end_idx + 1]
     logging.info(f"Assigned sessions [{start_idx}-{end_idx}]: {len(eids)} sessions")
 
     # Create directory structure (inlined)
