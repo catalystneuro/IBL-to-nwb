@@ -44,33 +44,85 @@ fi
 echo "Instance ${INSTANCE_ID} processing shard ${SHARD_ID}"
 echo "Stub test mode: ${STUB_TEST}"
 
-# Setup EBS volume
+# Setup EBS volume with bulletproof device detection
 echo "Setting up EBS volume at ${MOUNT_POINT}..."
-DEVICE=$(lsblk -ndo NAME,TYPE | awk '$2=="disk"{print $1}' | grep -v "$(df / | tail -1 | awk '{print $1}' | sed 's|/dev/||;s|[0-9]*$||')" | head -1)
+
+# Strategy: Find the EBS volume by size (100GB for stub test, 400GB for production)
+# This is more reliable than device naming which can vary
+echo "Detecting EBS volume by characteristics..."
+
+# Get root device to exclude it
+ROOT_DEVICE=$(findmnt -n -o SOURCE / | sed 's|/dev/||;s|p\?[0-9]*$||')
+echo "Root device: ${ROOT_DEVICE}"
+
+# List all block devices with size in GB (excluding root device)
+echo "Available block devices:"
+lsblk -ndo NAME,SIZE,TYPE | awk '$3=="disk"{print $1, $2}'
+
+# Find the largest non-root disk (our EBS volume)
+# EBS volume is either 100GB (stub test) or 400GB (production), always larger than 50GB root
+DEVICE=$(lsblk -ndo NAME,SIZE,TYPE | \
+    awk '$3=="disk"{print $1, $2}' | \
+    grep -v "^${ROOT_DEVICE}" | \
+    awk '{
+        # Convert size to GB (handle G, T suffixes)
+        size = $2;
+        if (size ~ /T$/) { gsub(/T/, "", size); size = size * 1024; }
+        else if (size ~ /G$/) { gsub(/G/, "", size); }
+        else if (size ~ /M$/) { gsub(/M/, "", size); size = size / 1024; }
+
+        # Only consider disks >= 90GB (our EBS volumes are 100GB or 400GB)
+        if (size >= 90) print $1, size;
+    }' | \
+    sort -k2 -nr | \
+    head -1 | \
+    awk '{print $1}')
 
 if [[ -z "${DEVICE}" ]]; then
-    echo "WARNING: No additional EBS volume found. Using root volume."
-    MOUNT_POINT="/opt/ebs"
-    mkdir -p "${MOUNT_POINT}"
+    echo "ERROR: No EBS volume found (looking for disk >= 90GB)"
+    echo "This should not happen - EBS volume was specified in launch config"
+    exit 1
+fi
+
+DEVICE_PATH="/dev/${DEVICE}"
+echo "Selected EBS volume: ${DEVICE_PATH}"
+
+# Verify this is NOT the root device (safety check)
+if [[ "${DEVICE}" == "${ROOT_DEVICE}" ]]; then
+    echo "ERROR: Selected device ${DEVICE} is the root device! Aborting."
+    exit 1
+fi
+
+# Check if device is already mounted
+if mount | grep -q "^${DEVICE_PATH}"; then
+    echo "ERROR: ${DEVICE_PATH} is already mounted. Aborting."
+    exit 1
+fi
+
+# Check if device has a filesystem (not just partition table metadata)
+if ! blkid -s TYPE "${DEVICE_PATH}" | grep -q 'TYPE='; then
+    echo "No filesystem found on ${DEVICE_PATH}. Formatting..."
+    mkfs.ext4 -F "${DEVICE_PATH}"
 else
-    DEVICE_PATH="/dev/${DEVICE}"
+    echo "Found existing filesystem on ${DEVICE_PATH}"
+fi
 
-    # Check if device has a filesystem (not just partition table metadata)
-    if ! blkid -s TYPE "${DEVICE_PATH}" | grep -q 'TYPE='; then
-        echo "No filesystem found on ${DEVICE_PATH}. Formatting..."
-        mkfs.ext4 -F "${DEVICE_PATH}"
-    else
-        echo "Found existing filesystem on ${DEVICE_PATH}"
-    fi
+mkdir -p "${MOUNT_POINT}"
+mount "${DEVICE_PATH}" "${MOUNT_POINT}"
 
-    mkdir -p "${MOUNT_POINT}"
-    mount "${DEVICE_PATH}" "${MOUNT_POINT}"
+# Verify mount succeeded
+if ! mountpoint -q "${MOUNT_POINT}"; then
+    echo "ERROR: Failed to mount ${DEVICE_PATH} to ${MOUNT_POINT}"
+    exit 1
+fi
 
-    # Add to fstab for persistence across reboots (though we auto-terminate)
-    if ! grep -q "${MOUNT_POINT}" /etc/fstab; then
-        UUID=$(blkid -s UUID -o value "${DEVICE_PATH}")
-        echo "UUID=${UUID} ${MOUNT_POINT} ext4 defaults,nofail 0 2" >> /etc/fstab
-    fi
+echo "Successfully mounted ${DEVICE_PATH} to ${MOUNT_POINT}"
+df -h "${MOUNT_POINT}"
+
+# Add to fstab for persistence across reboots (though we auto-terminate)
+if ! grep -q "${MOUNT_POINT}" /etc/fstab; then
+    UUID=$(blkid -s UUID -o value "${DEVICE_PATH}")
+    echo "UUID=${UUID} ${MOUNT_POINT} ext4 defaults,nofail 0 2" >> /etc/fstab
 fi
 
 chmod 777 "${MOUNT_POINT}"
