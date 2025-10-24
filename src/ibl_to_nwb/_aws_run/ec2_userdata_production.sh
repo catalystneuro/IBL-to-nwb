@@ -140,8 +140,8 @@ apt-get install -y git curl ca-certificates
 # Install uv
 echo "Installing uv..."
 curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="/root/.cargo/bin:${PATH}"
-echo 'export PATH="/root/.cargo/bin:${PATH}"' >> /root/.bashrc
+export PATH="/root/.local/bin:${PATH}"  # uv installs to .local/bin, not .cargo/bin
+echo 'export PATH="/root/.local/bin:${PATH}"' >> /root/.bashrc
 
 # Clone repository
 echo "Cloning IBL-to-nwb repository..."
@@ -152,8 +152,8 @@ cd "${REPO_DIR}"
 
 # Setup virtual environment with uv
 echo "Setting up Python environment with uv..."
-/root/.cargo/bin/uv venv --seed  # Create venv with pip, setuptools, wheel
-/root/.cargo/bin/uv sync         # Install project dependencies from pyproject.toml
+uv venv --seed  # Create venv with pip, setuptools, wheel
+uv sync         # Install project dependencies from pyproject.toml
 
 # Activate virtual environment
 source .venv/bin/activate
