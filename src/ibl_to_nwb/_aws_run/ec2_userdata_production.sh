@@ -194,11 +194,11 @@ fi
 echo "Moving NWB files into dandiset folder..."
 DANDISET_FOLDER="${MOUNT_POINT}/nwbfiles/217706"
 
-# Download dandiset.yaml from dandi-staging
+# Download dandiset.yaml from sandbox.dandiarchive.org
 echo "Downloading dandiset.yaml..."
-mkdir -p "${MOUNT_POINT}/nwbfiles/217706"
-cd "${MOUNT_POINT}/nwbfiles/217706"
-dandi download --download dandiset.yaml dandi://dandi-staging/217706
+mkdir -p "${DANDISET_FOLDER}"
+cd "${DANDISET_FOLDER}"
+dandi download --download dandiset.yaml https://sandbox.dandiarchive.org/dandiset/217706
 
 # Check both full and stub folders (conversion writes to one or the other)
 for conversion_type in full stub; do
@@ -215,7 +215,19 @@ echo "Files moved to dandiset folder"
 # Upload to DANDI
 echo "Uploading to DANDI..."
 cd "${DANDISET_FOLDER}"
-dandi upload -i dandi-staging .
+
+# Debug: Show directory structure before upload
+echo "=== Contents of dandiset folder ==="
+ls -lah "${DANDISET_FOLDER}"
+echo ""
+echo "=== Subject directories ==="
+ls -d "${DANDISET_FOLDER}"/sub-*/ 2>/dev/null || echo "No subject directories found"
+echo ""
+echo "=== NWB files ==="
+find "${DANDISET_FOLDER}" -name "*.nwb" -type f
+echo ""
+
+dandi upload .
 
 # Cleanup and shutdown
 echo "Upload complete. Shutting down in 60 seconds..."
