@@ -56,15 +56,6 @@ def load_network_config(config_path: Path) -> dict:
     return config
 
 
-def read_user_data_script(script_path: Path, dandi_api_key: str) -> str:
-    """Read user-data script template and substitute DANDI API key."""
-    if not script_path.exists():
-        raise FileNotFoundError(f"User-data script not found: {script_path}")
-
-    template = script_path.read_text()
-    return template.replace("{{DANDI_API_KEY}}", dandi_api_key)
-
-
 def get_latest_ubuntu_ami(ec2_client, region: str = "us-east-2") -> str:
     """Find the latest Ubuntu 22.04 LTS AMI."""
     logger = logging.getLogger(__name__)
@@ -143,6 +134,7 @@ def launch_instances(
     ebs_volume_size: int,
     total_sessions: int = 699,
     use_spot: bool = True,
+    stub_test: bool = False,
     key_name: Optional[str] = None,
     subnet_id: Optional[str] = None,
 ) -> list[str]:
@@ -150,6 +142,7 @@ def launch_instances(
 
     Args:
         total_sessions: Total number of sessions in bwm_df.pqt fixtures (default: 699)
+        stub_test: If True, adds StubTest=true tag to instances
     """
     logger = logging.getLogger(__name__)
 
@@ -210,6 +203,7 @@ def launch_instances(
                         {"Key": "Name", "Value": f"ibl-conversion-shard-{shard_id}"},
                         {"Key": "ShardId", "Value": shard_id},
                         {"Key": "ShardRange", "Value": shard_range},
+                        {"Key": "StubTest", "Value": "true" if stub_test else "false"},
                         {"Key": "Project", "Value": "IBL-NWB-Conversion"},
                     ],
                 }
@@ -233,15 +227,11 @@ def launch_instances(
                 },
             }
 
-        try:
-            response = ec2_client.run_instances(**launch_params)
-            instance_id = response["Instances"][0]["InstanceId"]
-            instance_ids.append(instance_id)
-            logger.info(f"  Launched instance: {instance_id}")
-
-        except ClientError as e:
-            logger.error(f"  Failed to launch instance for shard {shard_id}: {e}")
-            continue
+        # Launch instance - let exceptions propagate to caller
+        response = ec2_client.run_instances(**launch_params)
+        instance_id = response["Instances"][0]["InstanceId"]
+        instance_ids.append(instance_id)
+        logger.info(f"  Launched instance: {instance_id}")
 
     return instance_ids
 
@@ -339,7 +329,10 @@ def main() -> None:
 
     # Read user-data script and substitute DANDI API key
     logger.info("Reading user-data script and substituting DANDI API key...")
-    user_data = read_user_data_script(USER_DATA_SCRIPT, dandi_api_key)
+    if not USER_DATA_SCRIPT.exists():
+        raise FileNotFoundError(f"User-data script not found: {USER_DATA_SCRIPT}")
+    template = USER_DATA_SCRIPT.read_text()
+    user_data = template.replace("{{DANDI_API_KEY}}", dandi_api_key)
 
     # Get AMI
     logger.info("Finding latest Ubuntu 22.04 AMI...")
@@ -369,6 +362,7 @@ def main() -> None:
         num_instances=args.num_instances,
         ebs_volume_size=EBS_VOLUME_SIZE,
         use_spot=not args.use_on_demand,
+        stub_test=args.stub_test,
         key_name=args.key_name,
         subnet_id=subnet_id,  # From config file or CLI
     )

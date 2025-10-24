@@ -30,9 +30,11 @@ INSTANCE_ID="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
 REGION="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
     http://169.254.169.254/latest/meta-data/placement/region)"
 
-# Get the ShardId tag from instance metadata (no AWS CLI/IAM role needed!)
+# Get the ShardId and StubTest tags from instance metadata (no AWS CLI/IAM role needed!)
 SHARD_ID="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
     http://169.254.169.254/latest/meta-data/tags/instance/ShardId)"
+STUB_TEST="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+    http://169.254.169.254/latest/meta-data/tags/instance/StubTest)"
 
 if [[ -z "${SHARD_ID}" || "${SHARD_ID}" == "None" ]]; then
     echo "ERROR: Missing ShardId tag on instance ${INSTANCE_ID}" >&2
@@ -40,6 +42,7 @@ if [[ -z "${SHARD_ID}" || "${SHARD_ID}" == "None" ]]; then
 fi
 
 echo "Instance ${INSTANCE_ID} processing shard ${SHARD_ID}"
+echo "Stub test mode: ${STUB_TEST}"
 
 # Setup EBS volume
 echo "Setting up EBS volume at ${MOUNT_POINT}..."
@@ -126,7 +129,14 @@ echo "Starting conversion process..."
 cd "${REPO_DIR}/src/ibl_to_nwb/_aws_run"
 
 # Virtual environment is already activated, just run python directly
-python convert_assigned_sessions.py
+# Pass --stub-test flag if StubTest tag is "true"
+if [[ "${STUB_TEST}" == "true" ]]; then
+    echo "Running in STUB TEST mode (only metadata, no raw data)"
+    python convert_assigned_sessions.py --stub-test
+else
+    echo "Running in PRODUCTION mode (full data conversion)"
+    python convert_assigned_sessions.py
+fi
 
 # Move converted NWB files into dandiset folder
 echo "Moving NWB files into dandiset folder..."
