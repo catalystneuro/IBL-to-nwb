@@ -45,6 +45,7 @@ This creates a **dedicated VPC** isolated from your other infrastructure:
 Edit `network_config.env` and add your DANDI API key:
 
 ```bash
+cp network_config.env.template network_config.env  # First-time setup
 vim src/ibl_to_nwb/_aws_run/network_config.env
 ```
 
@@ -62,6 +63,9 @@ python launch_ec2_instances.py --num-instances 3 --stub-test
 
 # Production (50 instances):
 python launch_ec2_instances.py --num-instances 50
+
+# Recommended: watch boot logs in another shell
+./monitor_instances.sh
 ```
 
 **Advanced**: Override network config with CLI arguments:
@@ -242,6 +246,18 @@ sudo tail -f /var/log/cloud-init-output.log
 ---
 
 ## Troubleshooting
+
+### EBS Volume Not Detected (boot log shows “No EBS volume found”)
+
+1. Wait ~60 seconds after launch before checking console output—Nitro instances can surface the data volume a little late.
+2. Confirm the volume is attached:
+   ```bash
+   aws ec2 describe-instances --region us-east-2 \
+       --instance-ids <instance-id> \
+       --query 'Reservations[0].Instances[0].BlockDeviceMappings'
+   ```
+3. If `BlockDeviceMappings` is missing `sdf`, terminate the instance; AWS failed to attach the volume (rare for Spot interruptions).
+4. If `sdf` is present but the script still fails, relaunch the shard; this is almost always a timing race and the next boot succeeds.
 
 ### Instances Not Starting
 

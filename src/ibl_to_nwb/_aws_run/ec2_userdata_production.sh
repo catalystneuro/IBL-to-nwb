@@ -18,7 +18,7 @@ set -euxo pipefail
 
 # Configuration variables
 MOUNT_POINT="/ebs"
-REPO_URL="https://github.com/catalystneuro/IBL-to-nwb.git"
+REPO_URL="https://github.com/h-mayorquin/IBL-to-nwb.git"  # Personal fork (where heberto_conversion branch exists)
 REPO_BRANCH="heberto_conversion"
 
 # Fetch instance metadata (IMDSv2 - requires token)
