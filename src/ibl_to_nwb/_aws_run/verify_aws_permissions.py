@@ -13,6 +13,7 @@ Usage:
 """
 
 import sys
+
 import boto3
 from botocore.exceptions import ClientError
 
@@ -225,8 +226,7 @@ def main():
         print("You can now:")
         print("  1. Run: python configure_networking.py")
         print("  2. Set DANDI API key: export DANDI_API_KEY='your-key'")
-        print("  3. Run: python generate_assignments.py --num-shards 3 --stub-test")
-        print("  4. Run: python launch_ec2_instances.py --num-instances 3 --stub-test")
+        print("  3. Run: python launch_ec2_instances.py --num-instances 3 --stub-test")
         print()
         print("No IAM role needed! No admin dependency!")
     else:

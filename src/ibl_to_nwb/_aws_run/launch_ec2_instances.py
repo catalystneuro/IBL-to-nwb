@@ -1,12 +1,11 @@
 """Launch EC2 instances for distributed IBL NWB conversion.
 
 This script launches N EC2 instances in us-east-2, each tagged with a unique ShardId
-that corresponds to a chunk assignment file.
+and ShardRange (e.g., "0-13") for range-based session assignment.
 
 Prerequisites:
     - AWS CLI configured with appropriate credentials
-    - Assignment files generated (see generate_assignments.py)
-    - DANDI API key configured in ec2_userdata_production.sh
+    - DANDI API key configured in network_config.env
     - ec2:RunInstances permission (no IAM role needed with IMDSv2!)
 
 Usage:
@@ -14,7 +13,6 @@ Usage:
 """
 
 import argparse
-import base64
 import logging
 import os
 import sys
@@ -143,19 +141,35 @@ def launch_instances(
     user_data: str,
     num_instances: int,
     ebs_volume_size: int,
+    total_sessions: int = 699,
     use_spot: bool = True,
     key_name: Optional[str] = None,
     subnet_id: Optional[str] = None,
 ) -> list[str]:
-    """Launch EC2 instances with specified configuration."""
+    """Launch EC2 instances with specified configuration.
+
+    Args:
+        total_sessions: Total number of sessions in bwm_df.pqt fixtures (default: 699)
+    """
     logger = logging.getLogger(__name__)
 
     instance_ids = []
+    sessions_per_shard = total_sessions // num_instances
 
     for i in range(1, num_instances + 1):
         shard_id = f"{i:03d}"  # Format as 001, 002, etc.
 
-        logger.info(f"Launching instance {i}/{num_instances} for shard {shard_id}...")
+        # Calculate session range for this shard
+        start_idx = (i - 1) * sessions_per_shard
+        # Last shard gets any remaining sessions
+        if i == num_instances:
+            end_idx = total_sessions - 1
+        else:
+            end_idx = start_idx + sessions_per_shard - 1
+
+        shard_range = f"{start_idx}-{end_idx}"
+
+        logger.info(f"Launching instance {i}/{num_instances} for shard {shard_id} (sessions {shard_range})...")
 
         # Prepare launch parameters
         launch_params = {
@@ -195,6 +209,7 @@ def launch_instances(
                     "Tags": [
                         {"Key": "Name", "Value": f"ibl-conversion-shard-{shard_id}"},
                         {"Key": "ShardId", "Value": shard_id},
+                        {"Key": "ShardRange", "Value": shard_range},
                         {"Key": "Project", "Value": "IBL-NWB-Conversion"},
                     ],
                 }

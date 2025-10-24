@@ -1,20 +1,20 @@
 """Convert assigned IBL sessions to NWB format.
 
 This script is designed for distributed execution on EC2 instances. Each instance:
-  1. Reads its assignment file (list of session EIDs)
-  2. Downloads source data from ONE API
-  3. Converts to NWB (both raw and processed)
-  4. Writes NWB files to /ebs/nwbfiles/full/sub-*/
+  1. Reads its ShardRange tag from IMDSv2 (e.g., "0-13")
+  2. Loads session EIDs from bwm_df.pqt fixtures by slicing the range
+  3. Downloads source data from ONE API
+  4. Converts to NWB (both raw and processed)
+  5. Writes NWB files to /ebs/nwbfiles/full/sub-*/
 
 Upload is handled separately by ec2_userdata_production.sh after all conversions complete.
 
-Example usage (on EC2 with uv):
+Example usage (on EC2):
 
-    uv run python convert_assigned_sessions.py \
-        --assignment-file /ebs/chunk-042.json
+    python convert_assigned_sessions.py
 
     # Or with stub test:
-    uv run python convert_assigned_sessions.py --stub-test
+    python convert_assigned_sessions.py --stub-test
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -35,22 +36,50 @@ from ibl_to_nwb.conversion import (
     download_session_data,
 )
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
+from ibl_to_nwb.fixtures.load_fixtures import load_bwm_df
+
+
+def get_imdsv2_tag(tag_name: str) -> str:
+    """Read instance tag from IMDSv2 metadata service.
+
+    Args:
+        tag_name: Name of the tag to read (e.g., "ShardRange")
+
+    Returns:
+        Tag value as string
+    """
+    # Get IMDSv2 token
+    token_cmd = [
+        "curl", "-X", "PUT", "-fsS",
+        "http://169.254.169.254/latest/api/token",
+        "-H", "X-aws-ec2-metadata-token-ttl-seconds: 21600"
+    ]
+    token = subprocess.run(token_cmd, capture_output=True, text=True, check=True).stdout.strip()
+
+    # Get tag value
+    tag_cmd = [
+        "curl", "-fsS",
+        f"http://169.254.169.254/latest/meta-data/tags/instance/{tag_name}",
+        "-H", f"X-aws-ec2-metadata-token: {token}"
+    ]
+    tag_value = subprocess.run(tag_cmd, capture_output=True, text=True, check=True).stdout.strip()
+
+    return tag_value
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run full conversions with DANDI upload for assigned sessions."
-    )
-    parser.add_argument(
-        "--assignment-file",
-        type=Path,
-        default=Path("/ebs/chunk.json"),
-        help="Path to JSON file containing a list of session EIDs (default: /ebs/chunk.json).",
+        description="Run full conversions for assigned sessions (reads range from IMDSv2)."
     )
     parser.add_argument(
         "--stub-test",
         action="store_true",
         help="Run in stub mode for testing (lightweight data).",
+    )
+    parser.add_argument(
+        "--shard-range",
+        type=str,
+        help='Override shard range (e.g., "0-13"). If not provided, reads from IMDSv2 ShardRange tag.',
     )
     return parser.parse_args()
 
@@ -198,19 +227,38 @@ def main() -> None:
         format="%(levelname)s: %(message)s",
     )
 
-    # Load assignment file (inlined)
-    try:
-        text = args.assignment_file.read_text()
-    except FileNotFoundError as exc:
-        raise SystemExit(f"Assignment file not found: {args.assignment_file}") from exc
-    eids = json.loads(text)
-    if not isinstance(eids, list):
-        raise SystemExit(f"Assignment file is not a JSON list: {args.assignment_file}")
-    if not eids:
-        raise SystemExit(f"Assignment file is empty: {args.assignment_file}")
-    eids = [str(eid) for eid in eids]
+    # Get shard range from CLI argument or IMDSv2 tag
+    if args.shard_range:
+        shard_range = args.shard_range
+        logging.info(f"Using shard range from CLI: {shard_range}")
+    else:
+        try:
+            shard_range = get_imdsv2_tag("ShardRange")
+            logging.info(f"Read shard range from IMDSv2: {shard_range}")
+        except Exception as e:
+            raise SystemExit(f"Failed to read ShardRange tag from IMDSv2: {e}") from e
 
-    logging.info("Loaded %d sessions from %s", len(eids), args.assignment_file)
+    # Parse range
+    try:
+        start_idx, end_idx = map(int, shard_range.split("-"))
+    except ValueError as e:
+        raise SystemExit(f"Invalid shard range format '{shard_range}': expected 'START-END'") from e
+
+    # Load sessions from parquet fixtures
+    logging.info("Loading sessions from bwm_df.pqt fixtures...")
+    df = load_bwm_df()
+    logging.info(f"Total sessions in fixtures: {len(df)}")
+
+    # Slice by range
+    if start_idx < 0 or end_idx >= len(df) or start_idx > end_idx:
+        raise SystemExit(
+            f"Invalid range {start_idx}-{end_idx} for {len(df)} sessions in fixtures"
+        )
+
+    assigned_df = df.iloc[start_idx : end_idx + 1]
+    eids = assigned_df["eid"].tolist()
+
+    logging.info(f"Assigned sessions [{start_idx}-{end_idx}]: {len(eids)} sessions")
 
     # Create directory structure (inlined)
     for subdir in [SCRATCH_SUBDIR, CACHE_SUBDIR, NWB_SUBDIR]:

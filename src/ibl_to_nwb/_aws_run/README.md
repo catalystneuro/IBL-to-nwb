@@ -52,22 +52,7 @@ Find the line `DANDI_API_KEY=your-dandi-api-key-here` and replace with your actu
 
 **Security**: This file is gitignored. The key is substituted into user-data at launch time and shredded from disk after use.
 
-### Step 4: Generate & Commit Assignments
-
-```bash
-# Testing (10 sessions across 3 instances)
-python generate_assignments.py --num-shards 3 --stub-test
-
-# Production (459 sessions across 50 instances)
-python generate_assignments.py --num-shards 50
-
-# Commit to GitHub (instances download from here)
-git add assignments/
-git commit -m "Add shard assignments"
-git push origin heberto_conversion
-```
-
-### Step 5: Launch Instances
+### Step 4: Launch Instances
 
 The script automatically reads network configuration from `network_config.env`:
 
@@ -140,16 +125,16 @@ python launch_ec2_instances.py --num-instances 3 --stub-test
 **Key Innovation**: Instances discover their work assignment by reading their own tags via the metadata service (no AWS API calls, no IAM role needed).
 
 ```bash
-# Each instance reads its ShardId tag via IMDSv2
+# Each instance reads its shard range via IMDSv2
 TOKEN=$(curl -X PUT http://169.254.169.254/latest/api/token \
   -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-SHARD_ID=$(curl -H "X-aws-ec2-metadata-token: ${TOKEN}" \
-  http://169.254.169.254/latest/meta-data/tags/instance/ShardId)
-# Returns: "023"
+SHARD_RANGE=$(curl -H "X-aws-ec2-metadata-token: ${TOKEN}" \
+  http://169.254.169.254/latest/meta-data/tags/instance/ShardRange)
+# Returns: "322-335" (14 sessions)
 
-# Downloads corresponding assignment file
-wget .../assignments/chunk-023.json
-# Contains: ["eid1", "eid2", ..., "eid9"]
+# Reads sessions from bwm_df.pqt fixtures (already in repo)
+df = load_bwm_df().iloc[322:336]  # Slices rows 322-335
+eids = df['eid'].tolist()  # Gets session IDs
 ```
 
 **Why this works**: AWS allows instances to read their own tags via metadata without IAM permissions.
@@ -271,17 +256,6 @@ aws sts get-caller-identity
 python configure_networking.py
 ```
 
-### Assignment Files Not Found
-
-```bash
-# Verify files are pushed to GitHub
-git status
-git push origin heberto_conversion
-
-# Check branch name in ec2_userdata_production.sh matches
-grep REPO_BRANCH ec2_userdata_production.sh
-```
-
 ### DANDI Upload Failures
 
 - Verify you set `export DANDI_API_KEY="your-key"` before launching instances
@@ -323,7 +297,6 @@ aws ec2 terminate-instances --region us-east-2 \
 |------|---------|-------------|
 | `verify_aws_permissions.py` | Check you have required AWS permissions | Once (before testing) |
 | `configure_networking.py` | Create dedicated VPC, subnets, security groups, S3 endpoint | Once (one-time setup) |
-| `generate_assignments.py` | Create shard assignments | Each test/production run |
 | `launch_ec2_instances.py` | Launch EC2 instances | Each test/production run |
 | `quick_test.sh` | Automated test (runs steps 2-5) | Once (validates setup) |
 
@@ -366,8 +339,6 @@ All hardcoded values (no CLI arguments needed):
 | Revision | 2024-05-06 | `convert_assigned_sessions.py:267` |
 | Instance Type | t3.2xlarge | `launch_ec2_instances.py:216` |
 | Spot Pricing | Enabled by default | Use `--use-on-demand` to disable |
-| Assignment File | /ebs/chunk.json | `convert_assigned_sessions.py:47` |
-| Output Directory | ./assignments | `generate_assignments.py:54` |
 | Repo Branch | heberto_conversion | `ec2_userdata_production.sh:18` |
 
 ---
@@ -450,10 +421,10 @@ shutdown -h now
 - Unblocks users waiting for admin approval
 
 **How It Works**:
-1. You launch instance with tag: `ShardId=023`
+1. You launch instance with tags: `ShardId=023`, `ShardRange=322-335`
 2. You enable metadata tag access: `InstanceMetadataTags=enabled`
-3. Instance reads its own tag via HTTP: `http://169.254.169.254/latest/meta-data/tags/instance/ShardId`
-4. Instance downloads corresponding assignment: `chunk-023.json`
+3. Instance reads its ShardRange tag via HTTP: `http://169.254.169.254/latest/meta-data/tags/instance/ShardRange`
+4. Instance slices bwm_df.pqt fixtures using the range to get session EIDs
 
 See [IMDSV2_MIGRATION.md](IMDSV2_MIGRATION.md) for technical details.
 
@@ -500,8 +471,8 @@ Verify with: `python verify_aws_permissions.py`
 4. Clone IBL-to-nwb repository (branch: heberto_conversion)
 5. Install dandi-cli
 6. Download dandiset.yaml from DANDI:217706
-7. Read ShardId from instance tags via IMDSv2
-8. Download assignment file (chunk-{ShardId}.json)
+7. Read ShardRange from instance tags via IMDSv2
+8. Slice bwm_df.pqt fixtures by range to get assigned session EIDs
 9. Run conversion script
 10. Move NWB files to dandiset folder
 11. Upload to DANDI
@@ -510,12 +481,12 @@ Verify with: `python verify_aws_permissions.py`
 
 ### Conversion Sequence (convert_assigned_sessions.py)
 
-For each session in assignment file:
+For each session in assigned range:
 ```python
 1. Download session data from ONE API
 2. Convert to raw NWB → /ebs/nwbfiles/full/sub-{subject}/
 3. Convert to processed NWB → /ebs/nwbfiles/full/sub-{subject}/
-4. (Repeat for all 9 sessions)
+4. (Repeat for all sessions in range)
 ```
 
 ### Upload Sequence (ec2_userdata_production.sh)

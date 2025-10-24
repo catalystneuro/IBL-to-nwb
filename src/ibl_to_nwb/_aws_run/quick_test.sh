@@ -13,27 +13,19 @@ NUM_INSTANCES=3
 REGION="us-east-2"
 
 echo "IMPORTANT: Before running this script:"
-echo "  1. Edit ec2_userdata_production.sh with your DANDI API key (line 90)"
-echo "  2. Make sure AWS CLI is configured: aws configure"
-echo "  3. Verify permissions: python verify_imdsv2_permissions.py"
+echo "  1. Run: python configure_networking.py (one-time setup)"
+echo "  2. Edit network_config.env with your DANDI API key"
+echo "  3. Make sure AWS CLI is configured: aws configure"
+echo "  4. Verify permissions: python verify_aws_permissions.py"
 echo ""
 read -p "Press Enter to continue or Ctrl+C to exit..."
 
 echo ""
-echo "Step 1: Setting up S3 VPC endpoint..."
-python setup_vpc_endpoint.py
+echo "Step 1: Verifying network configuration..."
+python configure_networking.py
 
 echo ""
-echo "Step 2: Generating stub assignment files..."
-python generate_assignments.py --num-shards ${NUM_INSTANCES} --stub-test
-
-echo ""
-echo "Step 3: Committing assignments to git..."
-git add assignments/
-git commit -m "Add stub test assignments" || echo "Assignments already committed"
-
-echo ""
-echo "Step 4: Launching ${NUM_INSTANCES} test instances (with IMDSv2 tags)..."
+echo "Step 2: Launching ${NUM_INSTANCES} test instances (with ShardRange tags)..."
 python launch_ec2_instances.py --num-instances ${NUM_INSTANCES} --stub-test
 
 echo ""

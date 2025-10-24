@@ -4,16 +4,15 @@
 # This script executes once during instance boot and performs:
 #   1. Mounts and formats the EBS volume for scratch/cache storage
 #   2. Installs uv and required system dependencies
-#   3. Clones the IBL-to-nwb repository
-#   4. Downloads the shard assignment file
-#   5. Runs the conversion + upload script using uv
+#   3. Clones the IBL-to-nwb repository (includes bwm_df.pqt fixtures)
+#   4. Runs the conversion script (reads ShardRange tag from IMDSv2)
+#   5. Uploads NWB files to DANDI
 #   6. Shuts down the instance when complete
 #
 # PREREQUISITES:
-#   - Instance must be tagged with "ShardId" (e.g., "001", "002", ...)
+#   - Instance must be tagged with "ShardId" and "ShardRange" (e.g., "001", "0-13")
 #   - Instance must have IMDSv2 metadata access enabled (for reading tags)
 #   - DANDI_API_KEY is substituted into this script at launch time (template substitution)
-#   - Assignment files must be accessible via GitHub
 
 set -euxo pipefail
 
@@ -21,7 +20,6 @@ set -euxo pipefail
 MOUNT_POINT="/ebs"
 REPO_URL="git@github.com:catalystneuro/IBL-to-nwb.git"
 REPO_BRANCH="heberto_conversion"
-ASSIGNMENT_BASE_URL="https://raw.githubusercontent.com/catalystneuro/IBL-to-nwb/heberto_conversion/assignments"
 
 # Fetch instance metadata (IMDSv2 - requires token)
 IMDS_TOKEN="$(curl -X PUT -fsS "http://169.254.169.254/latest/api/token" \
@@ -53,14 +51,23 @@ if [[ -z "${DEVICE}" ]]; then
     mkdir -p "${MOUNT_POINT}"
 else
     DEVICE_PATH="/dev/${DEVICE}"
-    if ! blkid "${DEVICE_PATH}"; then
-        echo "Formatting ${DEVICE_PATH}..."
+
+    # Check if device has a filesystem (not just partition table metadata)
+    if ! blkid -s TYPE "${DEVICE_PATH}" | grep -q 'TYPE='; then
+        echo "No filesystem found on ${DEVICE_PATH}. Formatting..."
         mkfs.ext4 -F "${DEVICE_PATH}"
+    else
+        echo "Found existing filesystem on ${DEVICE_PATH}"
     fi
+
     mkdir -p "${MOUNT_POINT}"
     mount "${DEVICE_PATH}" "${MOUNT_POINT}"
-    UUID=$(blkid -s UUID -o value "${DEVICE_PATH}")
-    echo "UUID=${UUID} ${MOUNT_POINT} ext4 defaults,nofail 0 2" >> /etc/fstab
+
+    # Add to fstab for persistence across reboots (though we auto-terminate)
+    if ! grep -q "${MOUNT_POINT}" /etc/fstab; then
+        UUID=$(blkid -s UUID -o value "${DEVICE_PATH}")
+        echo "UUID=${UUID} ${MOUNT_POINT} ext4 defaults,nofail 0 2" >> /etc/fstab
+    fi
 fi
 
 chmod 777 "${MOUNT_POINT}"
@@ -110,10 +117,9 @@ fi
 set -x  # Re-enable command echoing for debugging
 
 
-# Download assignment file to standard location
-echo "Downloading assignment file for shard ${SHARD_ID}..."
-ASSIGNMENT_FILE="${MOUNT_POINT}/chunk.json"
-wget -O "${ASSIGNMENT_FILE}" "${ASSIGNMENT_BASE_URL}/chunk-${SHARD_ID}.json"
+# Note: Shard assignments are read from bwm_df.pqt fixtures in the repo
+# The ShardRange tag (e.g., "0-13") is read via IMDSv2 by convert_assigned_sessions.py
+echo "Instance will process sessions based on ShardRange tag (read via IMDSv2)"
 
 # Run conversion (upload happens after in bash)
 echo "Starting conversion process..."
