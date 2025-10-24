@@ -190,17 +190,16 @@ else
     python convert_assigned_sessions.py
 fi
 
-# Move converted NWB files into dandiset folder
-echo "Moving NWB files into dandiset folder..."
-DANDISET_FOLDER="${MOUNT_POINT}/nwbfiles/217706"
-
-# Download dandiset.yaml from sandbox.dandiarchive.org
+# Download dandiset.yaml - this creates the 217706/ folder automatically
 echo "Downloading dandiset.yaml..."
-mkdir -p "${DANDISET_FOLDER}"
-cd "${DANDISET_FOLDER}"
+cd "${MOUNT_POINT}/nwbfiles"
 dandi download --download dandiset.yaml https://sandbox.dandiarchive.org/dandiset/217706
 
-# Check both full and stub folders (conversion writes to one or the other)
+# Now 217706/ folder exists with dandiset.yaml inside it
+DANDISET_FOLDER="${MOUNT_POINT}/nwbfiles/217706"
+
+# Move converted NWB files into dandiset folder
+echo "Moving NWB files into dandiset folder..."
 for conversion_type in full stub; do
     CONVERSION_OUTPUT="${MOUNT_POINT}/nwbfiles/${conversion_type}"
     if [ -d "${CONVERSION_OUTPUT}" ] && [ -n "$(ls -A ${CONVERSION_OUTPUT} 2>/dev/null)" ]; then
