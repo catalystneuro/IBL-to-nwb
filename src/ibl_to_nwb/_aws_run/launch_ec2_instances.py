@@ -138,11 +138,46 @@ def launch_instances(
     key_name: Optional[str] = None,
     subnet_id: Optional[str] = None,
 ) -> list[str]:
-    """Launch EC2 instances with specified configuration.
+    """
+    Launch EC2 instances with specified configuration for IBL conversion processing.
 
-    Args:
-        total_sessions: Total number of sessions in bwm_df.pqt fixtures (default: 699)
-        stub_test: If True, adds StubTest=true tag to instances
+    This function creates multiple EC2 instances configured for data processing,
+    with each instance assigned a specific shard of sessions to process. The 
+    instances are configured with appropriate EBS volumes, security settings,
+    and tags for identification and management.
+
+    Parameters
+    ----------
+    ec2_client : boto3.client
+        Boto3 EC2 client for AWS operations.
+    ami_id : str
+        Amazon Machine Image ID to use for the instances.
+    instance_type : str
+        EC2 instance type (e.g., 'm5.large', 'c5.xlarge').
+    security_group_id : str
+        Security group ID to assign to the instances.
+    user_data : str
+        User data script to run on instance startup.
+    num_instances : int
+        Number of instances to launch.
+    ebs_volume_size : int
+        Size in GB for the additional EBS data volume (/dev/sdf).
+    total_sessions : int, optional
+        Total number of sessions to distribute across instances, by default 699.
+    use_spot : bool, optional
+        Whether to use Spot instances for cost savings, by default True.
+    stub_test : bool, optional
+        If True, adds StubTest=true tag to instances for testing, by default False.
+    key_name : str, optional
+        EC2 key pair name for SSH access, by default None.
+    subnet_id : str, optional
+        Subnet ID to launch instances in, by default None.
+
+    Returns
+    -------
+    list[str]
+        List of instance IDs for the launched instances.
+
     """
     logger = logging.getLogger(__name__)
 
@@ -153,14 +188,14 @@ def launch_instances(
         shard_id = f"{i:03d}"  # Format as 001, 002, etc.
 
         # Calculate session range for this shard
-        start_idx = (i - 1) * sessions_per_shard
+        start_index = (i - 1) * sessions_per_shard
         # Last shard gets any remaining sessions
         if i == num_instances:
             end_idx = total_sessions - 1
         else:
-            end_idx = start_idx + sessions_per_shard - 1
+            end_idx = start_index + sessions_per_shard - 1
 
-        shard_range = f"{start_idx}-{end_idx}"
+        shard_range = f"{start_index}-{end_idx}"
 
         logger.info(f"Launching instance {i}/{num_instances} for shard {shard_id} (sessions {shard_range})...")
 
@@ -277,6 +312,12 @@ def parse_args() -> argparse.Namespace:
         "--security-group-id",
         help="Security group ID (from configure_networking.py output)",
     )
+    parser.add_argument(
+        "--total-sessions",
+        type=int,
+        default=699,
+        help="Total number of sessions to process from bwm_df.pqt (default: 699, all sessions)",
+    )
     return parser.parse_args()
 
 
@@ -353,6 +394,7 @@ def main() -> None:
 
     # Launch instances
     logger.info(f"\nLaunching {args.num_instances} instances...")
+    logger.info(f"Total sessions to process: {args.total_sessions}")
     instance_ids = launch_instances(
         ec2_client=ec2_client,
         ami_id=ami_id,
@@ -361,6 +403,7 @@ def main() -> None:
         user_data=user_data,
         num_instances=args.num_instances,
         ebs_volume_size=EBS_VOLUME_SIZE,
+        total_sessions=args.total_sessions,
         use_spot=not args.use_on_demand,
         stub_test=args.stub_test,
         key_name=args.key_name,
