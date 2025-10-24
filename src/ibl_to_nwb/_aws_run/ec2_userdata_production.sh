@@ -80,10 +80,7 @@ chmod 777 "${MOUNT_POINT}"
 # No build tools needed since nothing is compiled!
 echo "Installing system dependencies..."
 apt-get update
-apt-get install -y \
-    git \                   # Clone repository from GitHub
-    curl \                  # Required for IMDSv2 metadata access and uv install
-    ca-certificates         # Required for HTTPS connections (GitHub, DANDI)
+apt-get install -y git curl ca-certificates
 
 # Install uv
 echo "Installing uv..."
