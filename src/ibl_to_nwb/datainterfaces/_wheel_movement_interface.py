@@ -19,7 +19,7 @@ class WheelInterface(BaseIBLDataInterface):
     """Interface for wheel movement data (revision-dependent processed data)."""
 
     # Wheel data uses BWM standard revision
-    REVISION: str | None = "2024-05-06"
+    REVISION: str | None = "2025-05-06"
 
     def __init__(self, one: ONE, session: str):
         self.one = one

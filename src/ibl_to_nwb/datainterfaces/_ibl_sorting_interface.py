@@ -31,7 +31,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
     """Interface for spike sorting data (revision-dependent processed data)."""
 
     # Spike sorting uses BWM standard revision for consistency across all sessions
-    REVISION: str | None = "2024-05-06"
+    REVISION: str | None = "2025-05-06"
 
     Extractor = IblSortingExtractor
 

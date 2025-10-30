@@ -41,7 +41,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
     """
 
     # Histology alignments use BWM standard revision
-    REVISION: str | None = "2024-05-06"
+    REVISION: str | None = "2025-05-06"
 
     def __init__(
         self,

@@ -15,13 +15,14 @@ from pynwb.behavior import PupilTracking
 import pandas as pd
 
 from ._base_ibl_interface import BaseIBLDataInterface
+from ..fixtures import load_fixtures
 
 
 class PupilTrackingInterface(BaseIBLDataInterface):
     """Interface for pupil tracking data (revision-dependent processed data)."""
 
     # Pupil tracking uses BWM standard revision
-    REVISION: str | None = "2024-05-06"
+    REVISION: str | None = "2025-05-06"
 
     def __init__(self, one: ONE, session: str, camera_name: str):
         self.one = one
@@ -59,6 +60,72 @@ class PupilTrackingInterface(BaseIBLDataInterface):
                 ],
             },
         }
+
+    @classmethod
+    def check_availability(
+        cls,
+        one: ONE,
+        eid: str,
+        camera_name: str,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Check if pupil tracking data is available for a session/camera, including QC filtering.
+
+        This method checks BOTH file existence AND video quality control status.
+        Sessions with CRITICAL or FAIL video QC are excluded to ensure high-quality pupil data.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        camera_name : str
+            Camera name (e.g., "leftCamera", "rightCamera")
+        logger : logging.Logger, optional
+            Logger for progress tracking
+
+        Returns
+        -------
+        dict
+            {"available": bool, "reason": str, "qc_status": str or None}
+        """
+        camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+
+        # STEP 1: Check video quality control from bwm_qc.json
+        # Following revision_2 approach: exclude CRITICAL/FAIL videos
+        # Fail-fast: if bwm_qc.json is missing/corrupted, let exception propagate
+        bwm_qc = load_fixtures.load_bwm_qc()
+
+        if eid not in bwm_qc:
+            # Session not in QC database - allow it (might be new session)
+            if logger:
+                logger.warning(f"Session {eid} not in QC database - allowing pupil tracking")
+            video_qc_status = None
+        else:
+            video_qc_key = f"video{camera_view.capitalize()}"
+            video_qc_status = bwm_qc[eid].get(video_qc_key, None)
+
+            if video_qc_status in ['CRITICAL', 'FAIL']:
+                if logger:
+                    logger.info(f"Pupil tracking for {camera_name} excluded: video QC is {video_qc_status}")
+                return {
+                    "available": False,
+                    "reason": f"Video quality control failed: {video_qc_status}",
+                    "qc_status": video_qc_status
+                }
+
+        # STEP 2: Check if pupil tracking files exist (uses base class implementation)
+        file_check_result = super(PupilTrackingInterface, cls).check_availability(
+            one=one, eid=eid, camera_name=camera_name, logger=logger, **kwargs
+        )
+
+        # Add QC status to result
+        file_check_result["qc_status"] = video_qc_status
+
+        return file_check_result
 
     @classmethod
     def download_data(

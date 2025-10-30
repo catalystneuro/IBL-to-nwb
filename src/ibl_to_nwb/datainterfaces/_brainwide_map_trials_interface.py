@@ -17,7 +17,7 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
     """Interface for trial behavioral data (revision-dependent processed data)."""
 
     # Trials use BWM standard revision
-    REVISION: str | None = "2024-05-06"
+    REVISION: str | None = "2025-05-06"
 
     def __init__(self, one: ONE, session: str):
         self.one = one

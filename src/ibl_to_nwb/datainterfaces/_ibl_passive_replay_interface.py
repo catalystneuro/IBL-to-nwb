@@ -25,7 +25,7 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
     """Interface for passive replay stimuli (revision-dependent processed data)."""
 
     # Passive replay stimuli use BWM standard revision
-    REVISION: str | None = "2024-05-06"
+    REVISION: str | None = "2025-05-06"
 
     """
     Interface for passive task replay stimulation data.
