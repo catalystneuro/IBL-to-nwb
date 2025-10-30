@@ -52,13 +52,11 @@ def convert_raw_session(
     eid: str,
     one: ONE,
     stub_test: bool = False,
-    revision: str | None = None,
     base_path: Path | None = None,
     scratch_path: Path | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
     redecompress_ephys: bool = False,
-    exclude_by_qc: bool = False,
 ) -> dict:
     """Convert IBL raw session to NWB.
 
@@ -74,8 +72,6 @@ def convert_raw_session(
     stub_test : bool, optional
         If True, creates minimal NWB for testing without downloading large files.
         Ephys and videos are auto-included if already available locally.
-    revision : str, optional
-        Data revision to use (e.g., "2024-05-06" for spike sorting)
     base_path : Path, optional
         Base output directory for NWB files
     scratch_path : Path, optional
@@ -86,10 +82,6 @@ def convert_raw_session(
         If True, overwrite existing NWB files
     redecompress_ephys : bool, optional
         If True, force re-decompression of ephys data even if already decompressed
-    exclude_by_qc : bool, optional
-        If True, exclude raw video data that fails QC checks (FAIL/CRITICAL status).
-        Follows the original BWM conversion approach where only PASS/WARNING
-        video data is included. Default is False (include all available videos).
 
     Returns
     -------
@@ -132,22 +124,22 @@ def convert_raw_session(
             "skipped": True,
         }
 
-    # Get probe insertion IDs
-    insertions = one.alyx.rest("insertions", "list", session=eid)
-    pname_pid_map = {ins["name"]: ins["id"] for ins in insertions}
+    # Get probe insertion IDs (fast lookup from histology QC table)
+    # NO fallback - if fixture is missing, installation is broken
+    probe_name_to_probe_id_dict = load_fixtures.get_probe_name_to_probe_id_dict(eid)
 
     # Log probe information
     if logger:
-        if len(pname_pid_map) == 0:
+        if len(probe_name_to_probe_id_dict) == 0:
             logger.warning("No probe insertions found for session %s", eid)
-        elif len(pname_pid_map) == 1:
-            probe_name = list(pname_pid_map.keys())[0]
+        elif len(probe_name_to_probe_id_dict) == 1:
+            probe_name = list(probe_name_to_probe_id_dict.keys())[0]
             logger.info("Single-probe session detected: %s", probe_name)
         else:
             logger.info(
                 "Multi-probe session detected: %d probes (%s)",
-                len(pname_pid_map),
-                ", ".join(pname_pid_map.keys()),
+                len(probe_name_to_probe_id_dict),
+                ", ".join(probe_name_to_probe_id_dict.keys()),
             )
 
     scratch_ephys_folder = paths["session_scratch_folder"] / "raw_ephys_data"
@@ -236,22 +228,16 @@ def convert_raw_session(
             folder_path=str(paths["spikeglx_source_folder"]),
             one=one,
             eid=eid,
-            pname_pid_map=pname_pid_map,
-            revision=revision,
+            probe_name_to_probe_id_dict=probe_name_to_probe_id_dict,
         )
         data_interfaces.append(spikeglx_converter)
     elif logger:
         if not stub_test:
             logger.info("SpikeGLX data not available: skipping SpikeGLX converter setup (see message above for details)")
 
-    # Anatomical localization
-    if pname_pid_map:
-        anat_interface = IblAnatomicalLocalizationInterface(
-            one=one,
-            eid=eid,
-            pname_pid_map=pname_pid_map,
-            revision=revision,
-        )
+    # Anatomical localization (loads probe info and histology QC internally)
+    anat_interface = IblAnatomicalLocalizationInterface(one=one, eid=eid)
+    if anat_interface.probe_name_to_probe_id_dict:  # Only add if has probes with good histology
         data_interfaces.append(anat_interface)
         if not include_ecephys and logger:
             logger.info("Stub mode active: using metadata-only electrodes for anatomical localization")
@@ -268,9 +254,6 @@ def convert_raw_session(
     # In stub mode: nwbfiles/stub/sub-{subject}/, in full mode: nwbfiles/full/sub-{subject}/
     conversion_mode = "stub" if stub_test else "full"
     video_base_path = Path(paths["output_folder"]) / conversion_mode
-
-    # Load QC data if filtering is enabled
-    bwm_qc = load_fixtures.load_bwm_qc() if exclude_by_qc else None
 
     # Add video interfaces for cameras that have timestamps
     # Check all camera types (left, right, body)
@@ -289,17 +272,6 @@ def convert_raw_session(
             if logger:
                 logger.debug(f"No video file found for {camera_view}Camera - skipping")
             continue
-
-        # Apply QC filtering if enabled
-        if exclude_by_qc:
-            camera_name = f"{camera_view}Camera"
-            passes_qc = check_camera_health_by_qc(bwm_qc, eid, camera_name)
-            if not passes_qc:
-                if logger:
-                    logger.debug(f"Excluding {camera_view}Camera video (failed QC)")
-                continue
-            if logger:
-                logger.debug(f"Including {camera_view}Camera video (passed QC)")
 
         # In stub mode, check if video is already in cache (avoid triggering downloads)
         if stub_test:
@@ -332,7 +304,6 @@ def convert_raw_session(
             one=one,
             session=eid,
             camera_name=camera_view,
-            revision=revision,
         )
         data_interfaces.append(video_interface)
 
@@ -448,9 +419,9 @@ def convert_raw_session(
 
     nwbfile = NWBFile(**metadata["NWBFile"])
     nwbfile.subject = ibl_subject
-    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision=revision))
+    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision="2024-05-06"))
 
-    if pname_pid_map:
+    if probe_name_to_probe_id_dict:
         if logger:
             if include_ecephys:
                 logger.info(
@@ -458,14 +429,13 @@ def convert_raw_session(
                 )
             else:
                 logger.info("Adding Neuropixels electrodes from metadata (stub mode)...")
-        for probe_name, pid in pname_pid_map.items():
+        for probe_name, pid in probe_name_to_probe_id_dict.items():
             add_probe_electrodes_with_localization(
                 nwbfile=nwbfile,
                 one=one,
                 eid=eid,
                 probe_name=probe_name,
                 pid=pid,
-                revision=revision,
             )
 
     # Add data from all interfaces

@@ -3,9 +3,10 @@
 import re
 from pathlib import Path
 from typing import Optional
+import logging
+import time
 
 import numpy as np
-from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
@@ -13,13 +14,118 @@ from pynwb import TimeSeries
 from pynwb.behavior import PupilTracking
 import pandas as pd
 
+from ._base_ibl_interface import BaseIBLDataInterface
 
-class PupilTrackingInterface(BaseDataInterface):
-    def __init__(self, one: ONE, session: str, camera_name: str, revision: Optional[str] = None):
+
+class PupilTrackingInterface(BaseIBLDataInterface):
+    """Interface for pupil tracking data (revision-dependent processed data)."""
+
+    # Pupil tracking uses BWM standard revision
+    REVISION: str | None = "2024-05-06"
+
+    def __init__(self, one: ONE, session: str, camera_name: str):
         self.one = one
         self.session = session
         self.camera_name = camera_name
-        self.revision = one.list_revisions(session)[-1] if revision is None else revision
+        self.revision = self.REVISION
+
+    @classmethod
+    def get_data_requirements(cls, camera_name: str) -> dict:
+        """
+        Declare exact data files required for pupil tracking.
+
+        Parameters
+        ----------
+        camera_name : str
+            Camera name (e.g., "leftCamera", "rightCamera")
+
+        Returns
+        -------
+        dict
+            Data requirements with ONE objects and exact file paths
+        """
+        return {
+            "one_objects": [
+                {
+                    "object": camera_name,
+                    "collection": "alf",
+                    "attributes": ["features", "times"],
+                },
+            ],
+            "exact_files_options": {
+                "standard": [
+                    f"alf/{camera_name}.features.pqt",
+                    f"alf/{camera_name}.times.npy",
+                ],
+            },
+        }
+
+    @classmethod
+    def download_data(
+        cls,
+        one: ONE,
+        eid: str,
+        camera_name: str,
+        download_only: bool = True,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Download pupil tracking data for a specific camera.
+
+        NOTE: Uses class-level REVISION attribute automatically.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        camera_name : str
+            Camera name (required)
+        download_only : bool, default=True
+            If True, download but don't load into memory
+        logger : logging.Logger, optional
+            Logger for progress tracking
+
+        Returns
+        -------
+        dict
+            Download status
+        """
+        requirements = cls.get_data_requirements(camera_name=camera_name)
+        camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+
+        # Use class-level REVISION attribute
+        revision = cls.REVISION
+
+        if logger:
+            logger.info(f"Downloading pupil tracking for {camera_view} camera (session {eid})")
+
+        start_time = time.time()
+
+        # Download camera object - NO try-except, let failures propagate
+        one.load_object(
+            id=eid,
+            obj=camera_name,
+            collection="alf",
+            revision=revision,
+            download_only=download_only,
+        )
+
+        download_time = time.time() - start_time
+
+        if logger:
+            logger.info(f"  Downloaded pupil data in {download_time:.2f}s")
+
+        return {
+            "success": True,
+            "downloaded_objects": [camera_name],
+            "downloaded_files": requirements["exact_files_options"]["standard"],
+            "already_cached": [],
+            "alternative_used": None,
+            "data": None,
+        }
 
     def get_metadata(self) -> dict:
         metadata = super().get_metadata()

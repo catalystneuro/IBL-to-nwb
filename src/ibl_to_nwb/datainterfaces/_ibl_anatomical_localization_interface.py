@@ -1,19 +1,21 @@
 """Interface for adding anatomical localization data using ndx-anatomical-localization extension."""
 
 from typing import Optional
+import logging
+import time
 
 import numpy as np
-import warnings
+import pandas as pd
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
-from neuroconv.basedatainterface import BaseDataInterface
 from ndx_anatomical_localization import AnatomicalCoordinatesTable, Localization, Space
 from one.api import ONE
 from pynwb import NWBFile
-from pynwb.device import Device
 
 from ..utils.electrodes import convert_ibl_to_ccf3_coordinates, _ensure_ibl_coordinates_um
+from ._base_ibl_interface import BaseIBLDataInterface
+from ..fixtures.load_fixtures import load_bwm_histology_qc, get_probe_name_to_probe_id_dict
 
 
 def _format_probe_label(probe_name: str) -> str:
@@ -25,7 +27,7 @@ def _format_probe_label(probe_name: str) -> str:
     return f"NeuropixelsProbe{suffix}"
 
 
-class IblAnatomicalLocalizationInterface(BaseDataInterface):
+class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
     """
     Interface for adding anatomical localization information to NWB files using the
     ndx-anatomical-localization extension.
@@ -35,15 +37,16 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
     - Creates Space objects for CCF and IBL-Bregma coordinate systems
     - Creates AnatomicalCoordinatesTable objects with electrode positions in both coordinate systems
 
-    NOTE: The electrodes table must already exist 
+    NOTE: The electrodes table must already exist
     """
+
+    # Histology alignments use BWM standard revision
+    REVISION: str | None = "2024-05-06"
 
     def __init__(
         self,
         one: ONE,
         eid: str,
-        pname_pid_map: dict,
-        revision: Optional[str] = None,
         verbose: bool = False,
     ):
         """
@@ -55,38 +58,51 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
             ONE API instance for data access
         eid : str
             Experiment/session ID
-        pname_pid_map : dict
-            Mapping from probe names (e.g., 'probe00') to probe insertion IDs (PIDs)
-        revision : str, optional
-            Data revision to use
         verbose : bool, default: False
             Whether to print verbose output
         """
         super().__init__(verbose=verbose)
         self.one = one
         self.eid = eid
-        self.revision = revision
+        self.revision = self.REVISION
         self.atlas = AllenAtlas()
         self.brain_regions = BrainRegions()
+
+        # Load histology QC table from fixtures (committed to git)
+        # NO fallback - if fixture is missing, installation is broken
+        histology_qc_df = load_bwm_histology_qc()
+        probe_name_to_probe_id_dict = get_probe_name_to_probe_id_dict(eid, histology_qc_df)
 
         # Load histology data for all probes
         self.probe_data = {}
         filtered_pname_pid: dict[str, str] = {}
-        for pname, pid in pname_pid_map.items():
-            if not self._probe_has_histology_files(
-                one=self.one,
-                eid=self.eid,
-                probe_name=pname,
-                revision=self.revision,
-            ):
+
+        for pname, pid in probe_name_to_probe_id_dict.items():
+            # Check histology quality from pre-computed table
+            probe_qc = histology_qc_df[
+                (histology_qc_df['eid'] == eid) &
+                (histology_qc_df['probe_name'] == pname)
+            ]
+
+            if probe_qc.empty:
+                raise ValueError(
+                    f"Data integrity error: probe {pname} (pid={pid}) found in probe_name_to_probe_id_dict "
+                    f"but not in histology QC table for session {eid}. This indicates corrupted fixture data."
+                )
+
+            probe_qc_row = probe_qc.iloc[0]
+            histology_quality = probe_qc_row['histology_quality']
+            has_files = probe_qc_row['has_histology_files']
+
+            # Skip if no files or insufficient quality
+            if not has_files or histology_quality not in ['alf', 'resolved']:
                 if self.verbose:
-                    print(f"Skipping {pname}: no electrodeSites histology files found.")
+                    print(f"Skipping {pname}: quality '{histology_quality}', has_files={has_files}")
                 continue
 
+            # Load spike sorting data to get channels
             ssl = SpikeSortingLoader(pid=pid, eid=eid, pname=pname, one=one, atlas=self.atlas)
-
-            # Load spike sorting to get channels data
-            _, _, channels = ssl.load_spike_sorting(revision=revision)
+            _, _, channels = ssl.load_spike_sorting(revision=self.revision)
 
             required_fields = {"x", "y", "z", "acronym"}
             missing_fields = required_fields - set(channels.keys())
@@ -95,48 +111,261 @@ class IblAnatomicalLocalizationInterface(BaseDataInterface):
                     f"Histology channels for probe '{pname}' are missing required fields: {sorted(missing_fields)}"
                 )
 
-            # Check histology quality - if ssl.histology is empty, check insertion directly
-            histology_quality = ssl.histology
-            if not histology_quality:
-                # Fallback: check insertion extended_qc directly
-                insertion = one.alyx.rest('insertions', 'read', id=pid)
-                extended_qc = insertion.get('json', {}).get('extended_qc', {})
-                if extended_qc.get('tracing_exists') and extended_qc.get('alignment_resolved'):
-                    histology_quality = 'resolved'
-                elif extended_qc.get('alignment_count', 0) > 0:
-                    histology_quality = 'aligned'
-            else:
-                insertion = None  # Will be loaded later if needed
+            # Get trajectory and insertion information
+            insertion = one.alyx.rest('insertions', 'read', id=pid)
+            trajectories = one.alyx.rest(
+                'trajectories', 'list',
+                probe_insertion=pid,
+                provenance='Ephys aligned histology track'
+            )
 
-            # Only include probes with high-quality histology
-            if histology_quality in ['alf', 'resolved']:
-                # Get trajectory information
-                if insertion is None:
-                    insertion = one.alyx.rest('insertions', 'read', id=pid)
-                trajectories = one.alyx.rest(
-                    'trajectories', 'list',
-                    probe_insertion=pid,
-                    provenance='Ephys aligned histology track'
-                )
+            self.probe_data[pname] = {
+                'pid': pid,
+                'channels': channels,
+                'histology_quality': histology_quality,
+                'insertion': insertion,
+                'trajectory': trajectories[0] if trajectories else None,
+            }
 
-                self.probe_data[pname] = {
-                    'pid': pid,
-                    'channels': channels,
-                    'histology_quality': histology_quality,
-                    'insertion': insertion,
-                    'trajectory': trajectories[0] if trajectories else None,
-                }
-
-                if self.verbose:
-                    print(f"Loaded histology for {pname} (quality: {histology_quality})")
-            else:
-                if self.verbose:
-                    print(f"Skipping {pname}: histology quality '{histology_quality}' not sufficient")
-                continue
+            if self.verbose:
+                print(f"Loaded histology for {pname} (quality: {histology_quality})")
 
             filtered_pname_pid[pname] = pid
 
-        self.pname_pid_map = filtered_pname_pid
+        self.probe_name_to_probe_id_dict = filtered_pname_pid
+
+    @classmethod
+    def get_data_requirements(cls, **kwargs) -> dict:
+        """
+        Declare data file patterns required for anatomical localization.
+
+        Histology data is loaded via SpikeSortingLoader which fetches channel coordinates
+        and brain regions. Only probes with histology quality 'alf' or 'resolved' are included.
+
+        Parameters
+        ----------
+        **kwargs
+            Accepts but ignores kwargs for API consistency with base class.
+
+        Returns
+        -------
+        dict
+            Data requirements with generic file patterns
+        """
+        return {
+            "one_objects": [],  # Uses SpikeSortingLoader abstraction
+            "exact_files_options": {
+                "standard": [
+                    "alf/probe*/channels.localCoordinates.npy",
+                    "alf/probe*/channels.mlapdv.npy",
+                    "alf/probe*/channels.brainLocationIds_ccf_2017.npy",
+                    "alf/probe*/electrodeSites.localCoordinates.npy",
+                    "alf/probe*/electrodeSites.mlapdv.npy",
+                    "alf/probe*/electrodeSites.brainLocationIds_ccf_2017.npy",
+                ],
+            },
+            "quality_filter": "histology quality in ['alf', 'resolved']",
+        }
+
+    @classmethod
+    def check_availability(
+        cls,
+        one: ONE,
+        eid: str,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Check if anatomical localization data is available with quality filtering.
+
+        Uses pre-computed histology QC fixture - NO data downloads, pure metadata lookup.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance (not used for BWM sessions - fixture-based)
+        eid : str
+            Session ID
+        logger : logging.Logger, optional
+            Logger for messages
+
+        Returns
+        -------
+        dict
+            Availability status with detailed breakdown per probe
+        """
+
+        # Load histology QC table from fixtures (committed to git)
+        # NO fallback - if fixture is missing, installation is broken
+        histology_qc_df = load_bwm_histology_qc()
+        probe_name_to_probe_id_dict = get_probe_name_to_probe_id_dict(eid, histology_qc_df)
+
+        available_probes = []
+        unavailable_probes = []
+        missing_files = []
+
+        for pname, pid in probe_name_to_probe_id_dict.items():
+            # Check histology quality from pre-computed table
+            probe_qc = histology_qc_df[
+                (histology_qc_df['eid'] == eid) &
+                (histology_qc_df['probe_name'] == pname)
+            ]
+
+            if probe_qc.empty:
+                raise ValueError(
+                    f"Data integrity error: probe {pname} (pid={pid}) found in probe_name_to_probe_id_dict "
+                    f"but not in histology QC table for session {eid}. This indicates corrupted fixture data."
+                )
+
+            probe_qc_row = probe_qc.iloc[0]
+            histology_quality = probe_qc_row['histology_quality']
+            has_files = probe_qc_row['has_histology_files']
+
+            if not has_files:
+                unavailable_probes.append(pname)
+                missing_files.append(f"alf/{pname}/electrodeSites.*")
+                if logger:
+                    logger.debug(f"  Probe {pname}: no electrodeSites files")
+                continue
+
+            if histology_quality in ['alf', 'resolved']:
+                available_probes.append(pname)
+                if logger:
+                    logger.debug(f"  Probe {pname}: available (quality: {histology_quality})")
+            else:
+                unavailable_probes.append(pname)
+                if logger:
+                    logger.debug(f"  Probe {pname}: insufficient quality ({histology_quality})")
+
+        is_available = len(available_probes) > 0
+
+        return {
+            "available": is_available,
+            "available_probes": available_probes,
+            "unavailable_probes": unavailable_probes,
+            "missing_files": missing_files,
+            "note": "Requires histology quality 'alf' or 'resolved'",
+        }
+
+    @classmethod
+    def download_data(
+        cls,
+        one: ONE,
+        eid: str,
+        download_only: bool = True,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Download anatomical localization data with quality filtering.
+
+        Uses histology QC fixture to filter probes, then checks file availability
+        with list_datasets (not downloading) before actually downloading.
+
+        NOTE: Uses class-level REVISION attribute automatically.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        download_only : bool, default=True
+            If True, download but don't load into memory
+        logger : logging.Logger, optional
+            Logger for progress tracking
+
+        Returns
+        -------
+        dict
+            Download status with list of probes downloaded
+        """
+        # Use class-level REVISION attribute
+        revision = cls.REVISION
+
+        if logger:
+            logger.info(f"Downloading anatomical localization data (session {eid}, revision {revision})")
+
+        start_time = time.time()
+
+        # Load histology QC table from fixtures (committed to git)
+        # NO fallback - if fixture is missing, installation is broken
+        histology_qc_df = load_bwm_histology_qc()
+        probe_name_to_probe_id_dict = get_probe_name_to_probe_id_dict(eid, histology_qc_df)
+
+        downloaded_probes = []
+        skipped_probes = []
+
+        for pname, pid in probe_name_to_probe_id_dict.items():
+            # Check histology quality from pre-computed table
+            probe_qc = histology_qc_df[
+                (histology_qc_df['eid'] == eid) &
+                (histology_qc_df['probe_name'] == pname)
+            ]
+
+            if probe_qc.empty:
+                raise ValueError(
+                    f"Data integrity error: probe {pname} (pid={pid}) found in probe_name_to_probe_id_dict "
+                    f"but not in histology QC table for session {eid}. This indicates corrupted fixture data."
+                )
+
+            probe_qc_row = probe_qc.iloc[0]
+            histology_quality = probe_qc_row['histology_quality']
+            has_files = probe_qc_row['has_histology_files']
+
+            # Skip if no files or insufficient quality
+            if not has_files:
+                skipped_probes.append((pname, "no histology files"))
+                if logger:
+                    logger.info(f"  Skipping {pname}: no electrodeSites files")
+                continue
+
+            if histology_quality not in ['alf', 'resolved']:
+                skipped_probes.append((pname, f"insufficient quality ({histology_quality})"))
+                if logger:
+                    logger.info(f"  Skipping {pname}: quality '{histology_quality}' not sufficient")
+                continue
+
+            # Download histology data via SpikeSortingLoader
+            # NO try-except - let it fail if data missing or invalid
+            if logger:
+                logger.info(f"  Downloading histology for {pname} (quality: {histology_quality})")
+
+            atlas = AllenAtlas()
+            ssl = SpikeSortingLoader(pid=pid, eid=eid, pname=pname, one=one, atlas=atlas)
+            ssl.load_spike_sorting(revision=revision)
+
+            downloaded_probes.append(pname)
+
+        download_time = time.time() - start_time
+
+        if logger:
+            logger.info(
+                f"  Downloaded histology for {len(downloaded_probes)} probe(s) in {download_time:.2f}s "
+                f"({len(skipped_probes)} skipped)"
+            )
+
+        # Build list of downloaded files (specific probes that were downloaded)
+        downloaded_files = []
+        for pname in downloaded_probes:
+            downloaded_files.extend([
+                f"alf/{pname}/channels.localCoordinates.npy",
+                f"alf/{pname}/channels.mlapdv.npy",
+                f"alf/{pname}/channels.brainLocationIds_ccf_2017.npy",
+                f"alf/{pname}/electrodeSites.localCoordinates.npy",
+                f"alf/{pname}/electrodeSites.mlapdv.npy",
+                f"alf/{pname}/electrodeSites.brainLocationIds_ccf_2017.npy",
+            ])
+
+        return {
+            "success": True,
+            "downloaded_probes": downloaded_probes,
+            "skipped_probes": skipped_probes,
+            "downloaded_files": downloaded_files,
+            "already_cached": [],
+            "alternative_used": None,
+            "data": None,
+        }
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
         """

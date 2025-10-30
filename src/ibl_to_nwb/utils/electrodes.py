@@ -171,11 +171,12 @@ def _resolve_meta_path(
     one: ONE,
     eid: str,
     probe_name: str,
-    revision: Optional[str],
     meta_path: Optional[Path],
 ) -> Optional[Path]:
     """
     Resolve the local path to the SpikeGLX `.meta` file for a given probe.
+
+    Note: Raw ephys data is NOT revision-dependent (raw recordings never change).
     """
     if meta_path is not None:
         return Path(meta_path)
@@ -349,7 +350,6 @@ def add_probe_electrodes_with_localization(
     eid: str,
     probe_name: str,
     pid: str,
-    revision: Optional[str],
     atlas: Optional[AllenAtlas] = None,
     brain_regions: Optional[BrainRegions] = None,
     meta_path: Optional[Path] = None,
@@ -369,8 +369,6 @@ def add_probe_electrodes_with_localization(
         Probe name (e.g., 'probe00').
     pid : str
         Probe insertion UUID.
-    revision : str or None
-        Data revision tag.
     atlas : AllenAtlas, optional
         Atlas instance used to convert IBL coordinates to CCF. Created if not provided.
     brain_regions : BrainRegions, optional
@@ -391,7 +389,7 @@ def add_probe_electrodes_with_localization(
     atlas = atlas or AllenAtlas()
     brain_regions = brain_regions or BrainRegions()
 
-    meta_path = _resolve_meta_path(one=one, eid=eid, probe_name=probe_name, revision=revision, meta_path=meta_path)
+    meta_path = _resolve_meta_path(one=one, eid=eid, probe_name=probe_name, meta_path=meta_path)
     fallback_used = False
 
     if meta_path is None:
@@ -493,12 +491,14 @@ def add_probe_electrodes_with_localization(
         return []
 
     # Fetch histology channel data.
+    # Note: Histology data is ALF data (revision-dependent), always use BWM standard revision
     atlas = atlas or AllenAtlas()
     brain_regions = brain_regions or BrainRegions()
 
-    loader = SpikeSortingLoader(pid=pid, eid=eid, pname=probe_name, one=one, atlas=atlas)
+    BWM_REVISION = "2024-05-06"  # Must match IblAnatomicalLocalizationInterface.REVISION
+    loader = SpikeSortingLoader(pid=pid, eid=eid, pname=probe_name, one=one, atlas=atlas, revision=BWM_REVISION)
     try:
-        channels = loader.load_channels(revision=revision)
+        channels = loader.load_channels()
     except Exception as exc:
         warnings.warn(
             f"Unable to load histology channels for probe '{probe_name}': {exc}",

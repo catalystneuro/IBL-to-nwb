@@ -15,16 +15,19 @@ def _format_probe_label(probe_name: str) -> str:
 
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):
+    # Use BWM standard revision for spike sorting data
+    REVISION: str | None = "2024-05-06"
+
     def __init__(
-        self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, revision: str, streams=None
+        self, folder_path: DirectoryPath, one: ONE, eid: str, probe_name_to_probe_id_dict: dict, streams=None
     ) -> None:
         # # debug injection
         # streams = ['imec0.lf','imec1.lf']
         super().__init__(folder_path=folder_path, streams=streams)
         self.one = one
         self.eid = eid
-        self.pname_pid_map = pname_pid_map
-        self.revision = revision
+        self.probe_name_to_probe_id_dict = probe_name_to_probe_id_dict
+        self.revision = self.REVISION
 
         # get valid pnames
         probe_to_imec_map = {
@@ -43,9 +46,9 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
             if key != "nidq" and not key.endswith("-SYNC"):
                 imec_name, _ = key.split(".")
                 if imec_name == "imec":
-                    # Single-probe case: map "imec" to whichever probe is in pname_pid_map
-                    if len(pname_pid_map) == 1:
-                        probe_name = list(pname_pid_map.keys())[0]
+                    # Single-probe case: map "imec" to whichever probe is in probe_name_to_probe_id_dict
+                    if len(probe_name_to_probe_id_dict) == 1:
+                        probe_name = list(probe_name_to_probe_id_dict.keys())[0]
                         self.stream_to_probe_map[imec_name] = probe_name
                         # Map device name format (parent class uses "NeuropixelsImec" for single probe)
                         self.device_name_to_probe_map["NeuropixelsImec"] = probe_name
@@ -63,7 +66,7 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
             if key != "nidq":
                 imec_name, band = key.split(".")
                 probe_name = self.stream_to_probe_map.get(imec_name)
-                if probe_name is None or probe_name not in self.pname_pid_map:
+                if probe_name is None or probe_name not in self.probe_name_to_probe_id_dict:
                     interfaces_to_drop.append(key)
 
         # TEMPORARY: Exclude NIDQ interface to avoid large memory allocation from event memmap
@@ -155,7 +158,7 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
             if key != "nidq":
                 imec_name, band = key.split(".")
                 probe_name = self.stream_to_probe_map[imec_name]
-                pid = self.pname_pid_map[probe_name]
+                pid = self.probe_name_to_probe_id_dict[probe_name]
 
                 spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)
                 # stream = False if "USE_SDSC_ONE" in os.environ else True

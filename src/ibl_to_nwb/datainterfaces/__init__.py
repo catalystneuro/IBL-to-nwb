@@ -8,7 +8,9 @@ from ._roi_motion_energy_interface import RoiMotionEnergyInterface
 from ._wheel_movement_interface import WheelInterface
 from ._brainwide_map_trials_interface import BrainwideMapTrialsInterface
 from ._raw_video_interface import RawVideoInterface
-from ._ibl_passive_interface import PassivePeriodDataInterface
+from ._ibl_passive_intervals_interface import PassiveIntervalsInterface
+from ._ibl_passive_replay_interface import PassiveReplayStimInterface
+from ._ibl_passive_rfm_interface import PassiveRFMInterface
 from ._ibl_anatomical_localization_interface import IblAnatomicalLocalizationInterface
 
 __all__ = [
@@ -23,6 +25,8 @@ __all__ = [
     "RoiMotionEnergyInterface",
     "WheelInterface",
     "RawVideoInterface",
-    "PassivePeriodDataInterface",
+    "PassiveIntervalsInterface",
+    "PassiveReplayStimInterface",
+    "PassiveRFMInterface",
     "IblAnatomicalLocalizationInterface"
 ]

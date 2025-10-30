@@ -1,24 +1,5 @@
-"""
-Diagnostic tool to check data availability for IBL Brain-Wide Map sessions.
-
-This script scans the BWM fixture sessions (459 sessions) to determine:
-1. Number of probes per session
-2. Availability of key data sources (lightning pose, DLC, videos, etc.)
-3. Missing data for conversion
-
-The script uses the BWM fixtures (bwm_df.pqt) which contains the curated list
-of sessions for the Brain-Wide Map project.
-
-Usage:
-    python diagnose_session_data_availability.py
-
-Output:
-    Saves timestamped CSV report to /home/heberto/development/ibl_conversion/
-    Example: session_diagnosis_report_20251022_143015.csv
-"""
-
 import logging
-import sys
+import csv
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
@@ -26,142 +7,67 @@ from typing import Dict, List
 import pandas as pd
 from one.api import ONE
 
-# Add parent directory to path to import fixtures
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from ibl_to_nwb.fixtures.load_fixtures import load_bwm_df, load_bwm_qc
+from ibl_to_nwb.fixtures.load_fixtures import load_bwm_df, get_probe_name_to_probe_id_dict
+from ibl_to_nwb.datainterfaces import (
+    IblSortingInterface,
+    IblAnatomicalLocalizationInterface,
+    BrainwideMapTrialsInterface,
+    WheelInterface,
+    PassiveIntervalsInterface,
+    PassiveReplayStimInterface,
+    PassiveRFMInterface,
+    IblPoseEstimationInterface,
+    PupilTrackingInterface,
+    RoiMotionEnergyInterface,
+    LickInterface,
+    RawVideoInterface,
+)
 
 
 # Target revision for spike sorting data (used in PROCESSED conversions)
 TARGET_REVISION = "2024-05-06"
 
-# QC status values that indicate data is usable (matches original BWM conversion logic)
-QC_USABLE_STATUSES = ["PASS", "WARNING"]
-QC_EXCLUDE_STATUSES = ["FAIL", "CRITICAL"]
-
-# Data sources to check - organized by conversion type
-# These correspond to actual data interfaces used in conversions:
+# Data source descriptions for reporting
+# Note: QC filtering is handled internally by each interface's check_availability() method
+# These map to the interface check_availability() methods called in check_session_data_availability()
 #
-# RAW conversion (raw.py):
-#   - IblSpikeGLXConverter (raw ephys AP/LF bands)
-#   - RawVideoInterface (left/right/body camera videos)
-#   - IblAnatomicalLocalizationInterface (probe insertions with localization)
-#
-# PROCESSED conversion (processed.py):
-#   - IblSortingInterface (spike times, clusters, etc. from TARGET_REVISION)
-#   - BrainwideMapTrialsInterface (trials data)
-#   - WheelInterface (wheel movement)
-#   - PassivePeriodDataInterface (passive stimuli presentations)
-#   - LickInterface (lick times)
-#   - IblPoseEstimationInterface (lightning pose or DLC tracking)
-#   - PupilTrackingInterface (pupil diameter/position from camera features)
-#   - RoiMotionEnergyInterface (motion energy from camera ROIs)
-#
-# Note on revisions:
-#   - Some data (like spike sorting) requires specific revision filtering
-#   - Other data (like videos, pose estimation) is not versioned
-#   - We check both to capture actual availability
-DATA_SOURCES = {
-    # ========================================================================
-    # RAW CONVERSION DATA SOURCES
-    # ========================================================================
-    "raw_ephys_ap": {
-        "description": "Raw AP band electrophysiology (IblSpikeGLXConverter)",
-        "patterns": [".imec", ".ap."],  # Matches both .ap.cbin and .ap.bin
-    },
-    "raw_ephys_lf": {
-        "description": "Raw LF band electrophysiology (IblSpikeGLXConverter)",
-        "patterns": [".imec", ".lf."],  # Matches both .lf.cbin and .lf.bin
-    },
-    "probe_localization": {
-        "description": "Probe insertions with anatomical localization (IblAnatomicalLocalizationInterface)",
-        "check": "insertions",  # Special case: check via Alyx API for trajectory data
-    },
-    "video_left": {
-        "description": "Left camera video (RawVideoInterface)",
-        "patterns": ["leftCamera.raw.mp4"],
-    },
-    "video_right": {
-        "description": "Right camera video (RawVideoInterface)",
-        "patterns": ["rightCamera.raw.mp4"],
-    },
-    "video_body": {
-        "description": "Body camera video (RawVideoInterface)",
-        "patterns": ["bodyCamera.raw.mp4"],
-    },
+# Note: Availability is now checked using interface methods, not hardcoded patterns.
+# See each interface's check_availability() method for exact logic.
+DATA_SOURCE_DESCRIPTIONS = {
+    # Core behavioral data
+    "trials": "Trials data (BrainwideMapTrialsInterface)",
+    "wheel": "Wheel movement data (WheelInterface)",
+    "licks": "Lick times (LickInterface)",
 
-    # ========================================================================
-    # PROCESSED CONVERSION DATA SOURCES
-    # ========================================================================
-    "spike_sorting": {
-        "description": f"Spike sorting from revision {TARGET_REVISION} (IblSortingInterface)",
-        "patterns": [f"#{TARGET_REVISION}#", "spikes.times"],
-        "use_revision": True,  # This data MUST be from specific revision
-    },
-    "trials": {
-        "description": "Trials data (BrainwideMapTrialsInterface)",
-        "patterns": ["trials.table"],
-    },
-    "wheel": {
-        "description": "Wheel movement data (WheelInterface)",
-        "patterns": ["_ibl_wheel"],
-    },
-    "licks": {
-        "description": "Lick times (LickInterface)",
-        "patterns": ["licks.times"],
-    },
-    "passive_stimuli": {
-        "description": "Passive period stimuli presentations (PassivePeriodDataInterface)",
-        "patterns": ["_ibl_passiveGabor", "_ibl_passivePeriods"],
-    },
+    # Passive period data (now separated into three interfaces)
+    "passive_intervals": "Passive period timing intervals (PassiveIntervalsInterface)",
+    "passive_replay": "Passive replay stimuli (PassiveReplayStimInterface)",
+    "passive_rfm": "Passive receptive field mapping (PassiveRFMInterface)",
 
-    # ========================================================================
-    # POSE ESTIMATION - Combined checks (either Lightning Pose OR DLC)
-    # ========================================================================
-    "pose_estimation_left": {
-        "description": "Pose estimation - left camera (Lightning Pose or DLC)",
-        "check": "pose_either",  # Special: check if EITHER lightning OR dlc exists
-        "patterns_any": [["leftCamera.lightningPose"], ["leftCamera.dlc"]],
-    },
-    "pose_estimation_right": {
-        "description": "Pose estimation - right camera (Lightning Pose or DLC)",
-        "check": "pose_either",  # Special: check if EITHER lightning OR dlc exists
-        "patterns_any": [["rightCamera.lightningPose"], ["rightCamera.dlc"]],
-    },
+    # Probe-based data
+    "spike_sorting": f"Spike sorting from revision {TARGET_REVISION} (IblSortingInterface)",
+    "probe_localization": "Probe anatomical localization (IblAnatomicalLocalizationInterface)",
 
-    # Individual pose tracking methods (for detailed breakdown)
-    "lightning_pose_left": {
-        "description": "Lightning Pose - left camera",
-        "patterns": ["leftCamera.lightningPose"],
-    },
-    "lightning_pose_right": {
-        "description": "Lightning Pose - right camera",
-        "patterns": ["rightCamera.lightningPose"],
-    },
-    "dlc_left": {
-        "description": "DeepLabCut - left camera",
-        "patterns": ["leftCamera.dlc"],
-    },
-    "dlc_right": {
-        "description": "DeepLabCut - right camera",
-        "patterns": ["rightCamera.dlc"],
-    },
-
-    # ========================================================================
-    # OTHER PROCESSED DATA
-    # ========================================================================
-    "pupil_tracking": {
-        "description": "Pupil diameter/position (PupilTrackingInterface)",
-        "patterns": ["Camera.features"],
-    },
-    "roi_motion_energy": {
-        "description": "ROI motion energy from camera (RoiMotionEnergyInterface)",
-        "patterns": ["ROIMotionEnergy.npy"],
-    },
+    # Camera-based data (per camera)
+    "video_left": "Left camera video (RawVideoInterface)",
+    "video_right": "Right camera video (RawVideoInterface)",
+    "video_body": "Body camera video (RawVideoInterface)",
+    "pose_estimation_left": "Pose estimation - left camera (IblPoseEstimationInterface)",
+    "pose_estimation_right": "Pose estimation - right camera (IblPoseEstimationInterface)",
+    "pose_estimation_body": "Pose estimation - body camera (IblPoseEstimationInterface)",
+    "pupil_tracking_left": "Pupil tracking - left camera (PupilTrackingInterface)",
+    "pupil_tracking_right": "Pupil tracking - right camera (PupilTrackingInterface)",
+    "pupil_tracking_body": "Pupil tracking - body camera (PupilTrackingInterface)",
+    "roi_motion_energy_left": "ROI motion energy - left camera (RoiMotionEnergyInterface)",
+    "roi_motion_energy_right": "ROI motion energy - right camera (RoiMotionEnergyInterface)",
+    "roi_motion_energy_body": "ROI motion energy - body camera (RoiMotionEnergyInterface)",
 }
 
 
-def check_session_data_availability(eid: str, one: ONE, bwm_qc: Dict = None) -> Dict:
-    """Check data availability for a single session.
+def check_session_data_availability(eid: str, one: ONE) -> Dict:
+    """Check data availability for a single session using interface methods.
+
+    Note: QC filtering is handled internally by each interface's check_availability() method.
 
     Parameters
     ----------
@@ -169,18 +75,12 @@ def check_session_data_availability(eid: str, one: ONE, bwm_qc: Dict = None) -> 
         Session ID
     one : ONE
         ONE API instance
-    bwm_qc : Dict, optional
-        BWM QC dictionary. If None, will be loaded.
 
     Returns
     -------
     Dict
-        Dictionary with session info, data availability, and QC status
+        Dictionary with session info and data availability
     """
-    # Load QC data if not provided
-    if bwm_qc is None:
-        bwm_qc = load_bwm_qc()
-
     result = {
         "eid": eid,
         "subject": None,
@@ -190,105 +90,111 @@ def check_session_data_availability(eid: str, one: ONE, bwm_qc: Dict = None) -> 
         "probe_names": [],
         "single_probe": False,
         "data_sources": {},
-        "qc_status": {},
-        "qc_usable": {},
         "missing_sources": [],
         "errors": [],
     }
 
-    try:
-        # Get session info
-        session_info = one.alyx.rest("sessions", "read", id=eid)
-        result["subject"] = session_info.get("subject")
-        result["date"] = session_info.get("start_time", "").split("T")[0]
-        result["lab"] = session_info.get("lab")
+    # Get session info - let it fail if session doesn't exist
+    session_info = one.alyx.rest("sessions", "read", id=eid)
+    result["subject"] = session_info.get("subject")
+    result["date"] = session_info.get("start_time", "").split("T")[0]
+    result["lab"] = session_info.get("lab")
 
-        # Get probe insertions
-        insertions = one.alyx.rest("insertions", "list", session=eid)
-        result["num_probes"] = len(insertions)
-        result["probe_names"] = [ins["name"] for ins in insertions]
-        result["single_probe"] = len(insertions) == 1
+    # Get probe insertions from fixture (fast, no Alyx query)
+    probe_name_to_probe_id_dict = get_probe_name_to_probe_id_dict(eid)
+    result["num_probes"] = len(probe_name_to_probe_id_dict)
+    result["probe_names"] = list(probe_name_to_probe_id_dict.keys())
+    result["single_probe"] = len(probe_name_to_probe_id_dict) == 1
 
-        # Get all datasets - check both with and without revision filter
-        datasets_no_rev = one.list_datasets(eid)
-        dataset_strings_no_rev = [str(d) for d in datasets_no_rev]
+    # Define interfaces to check using the new interface methods
+    interfaces_to_check = [
+        ("trials", BrainwideMapTrialsInterface, {}),
+        ("wheel", WheelInterface, {}),
+        ("licks", LickInterface, {}),
+        ("passive_intervals", PassiveIntervalsInterface, {}),
+        ("passive_replay", PassiveReplayStimInterface, {}),
+        ("passive_rfm", PassiveRFMInterface, {}),
+        ("spike_sorting", IblSortingInterface, {}),
+        ("probe_localization", IblAnatomicalLocalizationInterface, {}),
+    ]
 
-        # Also get datasets with revision filter for revision-specific data
-        datasets_with_rev = one.list_datasets(eid, revision=TARGET_REVISION)
-        dataset_strings_with_rev = [str(d) for d in datasets_with_rev]
+    # Add camera-based interfaces for each camera
+    for camera_view in ["left", "right", "body"]:
+        camera_name = f"{camera_view}Camera"  # e.g., "leftCamera"
+        # Note: RawVideoInterface expects just "left", others expect "leftCamera"
+        interfaces_to_check.extend([
+            (f"video_{camera_view}", RawVideoInterface, {"camera_name": camera_view}),  # Just "left"
+            (f"pose_estimation_{camera_view}", IblPoseEstimationInterface, {"camera_name": camera_name}),  # "leftCamera"
+            (f"pupil_tracking_{camera_view}", PupilTrackingInterface, {"camera_name": camera_name}),  # "leftCamera"
+            (f"roi_motion_energy_{camera_view}", RoiMotionEnergyInterface, {"camera_name": camera_name}),  # "leftCamera"
+        ])
 
-        # Check each data source
-        for source_name, source_info in DATA_SOURCES.items():
-            check_type = source_info.get("check")
+    # Check each interface using its check_availability() method
+    # No need to pass revision explicitly - each interface has its own REVISION class attribute
+    # This avoids slow one.list_revisions() calls
+    for source_name, interface_class, kwargs in interfaces_to_check:
+        availability = interface_class.check_availability(
+            one=one,
+            eid=eid,
+            # Don't pass revision - let interface use its own REVISION class attribute
+            # This prevents slow one.list_revisions() calls
+            **kwargs
+        )
+        is_available = availability.get("available", False)
+        result["data_sources"][source_name] = is_available
 
-            if check_type == "insertions":
-                # Special case: probe insertions with localization from Alyx API
-                result["data_sources"][source_name] = result["num_probes"] > 0
+        if not is_available:
+            result["missing_sources"].append(source_name)
 
-            elif check_type == "pose_either":
-                # Special case: Check if ANY of the pattern groups are found
-                # Used for pose estimation where either Lightning Pose OR DLC is acceptable
-                patterns_any = source_info["patterns_any"]
-                found = any(
-                    all(
-                        any(pattern in ds for ds in dataset_strings_no_rev)
-                        for pattern in pattern_group
-                    )
-                    for pattern_group in patterns_any
-                )
-                result["data_sources"][source_name] = found
-
-                if not found:
-                    result["missing_sources"].append(source_name)
-
-            else:
-                # Normal pattern check
-                # Use revision filter if specified, otherwise check without revision
-                use_revision = source_info.get("use_revision", False)
-                dataset_strings = dataset_strings_with_rev if use_revision else dataset_strings_no_rev
-
-                patterns = source_info["patterns"]
-                found = all(
-                    any(pattern in ds for ds in dataset_strings)
-                    for pattern in patterns
-                )
-                result["data_sources"][source_name] = found
-
-                if not found:
-                    result["missing_sources"].append(source_name)
-
-        # Add QC status information from BWM fixtures
-        # Map our data source names to QC fixture keys
-        qc_mapping = {
-            # Videos
-            "video_left": "videoLeft",
-            "video_right": "videoRight",
-            "video_body": "videoBody",
-            # DLC
-            "dlc_left": "dlcLeft",
-            "dlc_right": "dlcRight",
-            # Lightning Pose
-            "lightning_pose_left": "lightningPoseLeft",
-            "lightning_pose_right": "lightningPoseRight",
-            # Combined pose estimation gets QC from video (since that's what original code checked)
-            "pose_estimation_left": "videoLeft",
-            "pose_estimation_right": "videoRight",
-        }
-
-        session_qc = bwm_qc.get(eid, {})
-        for source_name, qc_key in qc_mapping.items():
-            qc_value = session_qc.get(qc_key, "NOT_SET")
-            result["qc_status"][source_name] = qc_value
-            result["qc_usable"][source_name] = qc_value in QC_USABLE_STATUSES
-
-    except Exception as e:
-        result["errors"].append(str(e))
+    # Note: QC filtering is handled internally by each interface's check_availability() method
+    # No need to add separate QC columns - availability already reflects QC status
 
     return result
 
 
+def result_to_csv_row(result: Dict) -> Dict:
+    """Convert a result dictionary to a flat CSV row.
+
+    Parameters
+    ----------
+    result : Dict
+        Result from check_session_data_availability()
+
+    Returns
+    -------
+    Dict
+        Flat dictionary suitable for CSV writing
+    """
+    row = {
+        "eid": result["eid"],
+        "subject": result["subject"],
+        "date": result["date"],
+        "lab": result["lab"],
+        "num_probes": result["num_probes"],
+        "probe_names": ", ".join(result["probe_names"]),
+        "single_probe": result["single_probe"],
+        "num_missing": len(result["missing_sources"]),
+        "missing_sources": ", ".join(result["missing_sources"]),
+    }
+
+    # Add columns for each data source (availability only - QC is handled internally)
+    for source_name in DATA_SOURCE_DESCRIPTIONS.keys():
+        row[f"has_{source_name}"] = result["data_sources"].get(source_name, False)
+
+    if result["errors"]:
+        row["errors"] = "; ".join(result["errors"])
+
+    return row
+
+
 def diagnose_sessions(eids: List[str], one: ONE, output_path: Path = None) -> pd.DataFrame:
-    """Diagnose multiple sessions and create a report.
+    """Diagnose multiple sessions and stream results directly to CSV file.
+
+    This version writes results as they are processed, rather than accumulating
+    them in memory. This provides:
+    - Lower memory usage (only one session result in memory at a time)
+    - Progress preservation (partial results saved if script crashes)
+    - Ability to monitor progress by watching the output file
 
     Parameters
     ----------
@@ -297,32 +203,65 @@ def diagnose_sessions(eids: List[str], one: ONE, output_path: Path = None) -> pd
     one : ONE
         ONE API instance
     output_path : Path, optional
-        Path to save CSV report
+        Path to save CSV report. If None, results are not saved (only returned).
 
     Returns
     -------
     pd.DataFrame
-        DataFrame with diagnosis results
+        DataFrame with diagnosis results (loaded from saved CSV if output_path provided)
     """
-    # Load QC data once for all sessions
-    print("Loading BWM QC data...")
-    bwm_qc = load_bwm_qc()
-
-    results = []
     total = len(eids)
 
     print(f"Diagnosing {total} sessions...")
+    if output_path:
+        print(f"Streaming results to: {output_path}")
+        # Ensure output directory exists
+        output_path.parent.mkdir(parents=True, exist_ok=True)
     print()
 
-    for i, eid in enumerate(eids, 1):
+    # Get fieldnames from first result to set up CSV writer
+    # Process first session to determine column structure
+    if eids and output_path:
+        first_result = check_session_data_availability(eids[0], one)
+        first_row = result_to_csv_row(first_result)
+        fieldnames = list(first_row.keys())
+
+        # Open CSV file and keep it open for streaming
+        csvfile = open(output_path, 'w', newline='')
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        # Write first row
+        writer.writerow(first_row)
+
+        # Print progress for first session
+        print(f"[  1/{total}] ({100/total:5.1f}%) Checking {eids[0]}...", end="", flush=True)
+        num_missing = len(first_result["missing_sources"])
+        if num_missing == 0:
+            print(" ✓ All data available")
+        else:
+            print(f" ⚠ {num_missing} missing")
+
+        # Process remaining sessions
+        start_idx = 1
+    else:
+        csvfile = None
+        writer = None
+        start_idx = 0
+
+    for i, eid in enumerate(eids[start_idx:], start_idx + 1):
         # Calculate progress percentage
         progress_pct = (i / total) * 100
 
         # Print progress with percentage and counts
         print(f"[{i:3d}/{total}] ({progress_pct:5.1f}%) Checking {eid}...", end="", flush=True)
 
-        result = check_session_data_availability(eid, one, bwm_qc=bwm_qc)
-        results.append(result)
+        result = check_session_data_availability(eid, one)
+
+        # Convert to CSV row and write immediately if output path provided
+        if writer:
+            row = result_to_csv_row(result)
+            writer.writerow(row)  # Write immediately to CSV (streaming!)
 
         # Print summary on same line
         num_missing = len(result["missing_sources"])
@@ -335,42 +274,17 @@ def diagnose_sessions(eids: List[str], one: ONE, output_path: Path = None) -> pd
         if i % 50 == 0:
             print(f"\n--- Completed {i}/{total} sessions ({progress_pct:.1f}%) ---\n")
 
-    # Convert to DataFrame
-    rows = []
-    for result in results:
-        row = {
-            "eid": result["eid"],
-            "subject": result["subject"],
-            "date": result["date"],
-            "lab": result["lab"],
-            "num_probes": result["num_probes"],
-            "probe_names": ", ".join(result["probe_names"]),
-            "single_probe": result["single_probe"],
-            "num_missing": len(result["missing_sources"]),
-            "missing_sources": ", ".join(result["missing_sources"]),
-        }
+    # Close CSV file
+    if csvfile:
+        csvfile.close()
 
-        # Add columns for each data source (availability)
-        for source_name in DATA_SOURCES.keys():
-            row[f"has_{source_name}"] = result["data_sources"].get(source_name, False)
-
-        # Add QC status columns
-        for source_name in result["qc_status"].keys():
-            row[f"qc_{source_name}"] = result["qc_status"][source_name]
-            row[f"usable_{source_name}"] = result["qc_usable"][source_name]
-
-        if result["errors"]:
-            row["errors"] = "; ".join(result["errors"])
-
-        rows.append(row)
-
-    df = pd.DataFrame(rows)
-
-    # Save to CSV if requested
+    # Load and return the DataFrame from the saved CSV
     if output_path:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(output_path, index=False)
-        print(f"\nReport saved to: {output_path}")
+        print(f"\nResults saved to: {output_path}")
+        df = pd.read_csv(output_path)
+    else:
+        # If no output path, we don't have the data anymore (streaming only)
+        df = pd.DataFrame()
 
     return df
 
@@ -395,13 +309,13 @@ def print_summary(df: pd.DataFrame):
 
     # Data availability
     print("Data Availability:")
-    for source_name, source_info in DATA_SOURCES.items():
+    for source_name, description in DATA_SOURCE_DESCRIPTIONS.items():
         col_name = f"has_{source_name}"
         if col_name in df.columns:
             available = df[col_name].sum()
             pct = available / total * 100
             status = "✓" if pct > 90 else "⚠" if pct > 50 else "✗"
-            print(f"  {status} {source_info['description']:60s}: {available:3d}/{total} ({pct:5.1f}%)")
+            print(f"  {status} {description:60s}: {available:3d}/{total} ({pct:5.1f}%)")
 
     print()
 
@@ -425,10 +339,13 @@ def print_summary(df: pd.DataFrame):
         ("video_body", "Video Body"),
         ("dlc_left", "DLC Left"),
         ("dlc_right", "DLC Right"),
+        ("dlc_body", "DLC Body"),
         ("lightning_pose_left", "Lightning Pose Left"),
         ("lightning_pose_right", "Lightning Pose Right"),
+        ("lightning_pose_body", "Lightning Pose Body"),
         ("pose_estimation_left", "Pose Estimation Left"),
         ("pose_estimation_right", "Pose Estimation Right"),
+        ("pose_estimation_body", "Pose Estimation Body"),
     ]
 
     print("QC vs File Availability (PASS/WARNING only):")

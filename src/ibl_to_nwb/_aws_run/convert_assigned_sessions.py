@@ -95,7 +95,6 @@ def convert_session(
     base_folder: Path,
     scratch_folder: Path,
     nwb_folder: Path,
-    revision: str,
     stub_test: bool,
     convert_raw: bool,
     convert_processed: bool,
@@ -129,7 +128,6 @@ def convert_session(
         one=one,
         redownload_data=False,
         stub_test=stub_test,
-        revision=revision,
         base_path=base_folder,
         scratch_path=scratch_folder,
         logger=logger,
@@ -153,13 +151,11 @@ def convert_session(
             eid=eid,
             one=one,
             stub_test=stub_test,
-            revision=revision,
             base_path=base_folder,
             scratch_path=scratch_folder,
             logger=logger,
             overwrite=False,
             redecompress_ephys=False,
-            exclude_by_qc=True,
         )
 
         if raw_info and not raw_info.get("skipped"):
@@ -179,12 +175,10 @@ def convert_session(
             eid=eid,
             one=one,
             stub_test=stub_test,
-            revision=revision,
             base_path=base_folder,
             scratch_path=scratch_folder,
             logger=logger,
             overwrite=False,
-            exclude_by_qc=True,
         )
 
         if processed_info and not processed_info.get("skipped"):
@@ -303,7 +297,6 @@ def main() -> None:
                 base_folder=BASE_FOLDER,
                 scratch_folder=scratch_folder,
                 nwb_folder=nwb_folder,
-                revision=REVISION,
                 stub_test=args.stub_test,
                 convert_raw=CONVERT_RAW,
                 convert_processed=CONVERT_PROCESSED,

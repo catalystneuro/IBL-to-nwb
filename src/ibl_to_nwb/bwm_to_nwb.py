@@ -17,7 +17,9 @@ from ibl_to_nwb.datainterfaces import (
     IblSortingInterface,
     IblPoseEstimationInterface,
     LickInterface,
-    PassivePeriodDataInterface,
+    PassiveIntervalsInterface,
+    PassiveReplayStimInterface,
+    PassiveRFMInterface,
     PupilTrackingInterface,
     RawVideoInterface,
     RoiMotionEnergyInterface,
@@ -213,14 +215,23 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
 
     # Add anatomical localization after sorting (creates electrodes and links units)
     insertions = one.alyx.rest('insertions', 'list', session=eid)
-    pname_pid_map = {ins['name']: ins['id'] for ins in insertions}
+    probe_name_to_probe_id_dict = {ins['name']: ins['id'] for ins in insertions}
     data_interfaces.append(IblAnatomicalLocalizationInterface(
-        one=one, eid=eid, pname_pid_map=pname_pid_map, revision=revision
+        one=one, eid=eid, probe_name_to_probe_id_dict=probe_name_to_probe_id_dict, revision=revision
     ))
 
     data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
     data_interfaces.append(WheelInterface(**interface_kwargs))
-    data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
+
+    # Passive period data - add each interface if its data is available
+    if PassiveIntervalsInterface.check_availability(one, eid)["available"]:
+        data_interfaces.append(PassiveIntervalsInterface(**interface_kwargs))
+
+    if PassiveReplayStimInterface.check_availability(one, eid)["available"]:
+        data_interfaces.append(PassiveReplayStimInterface(**interface_kwargs))
+
+    if PassiveRFMInterface.check_availability(one, eid)["available"]:
+        data_interfaces.append(PassiveRFMInterface(**interface_kwargs))
 
     # These interfaces may not be present; check if they are before adding to list
     # pose_estimation_files = one.list_datasets(eid=eid, filename="*.dlc*")
@@ -261,21 +272,21 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
 
     # get the pid/pname mapping for this eid
     insertions = one.alyx.rest('insertions', 'list', session=eid)
-    pname_pid_map = {ins['name']: ins['id'] for ins in insertions}
+    probe_name_to_probe_id_dict = {ins['name']: ins['id'] for ins in insertions}
 
     # Specify the path to the SpikeGLX files on the server but use ONE API for timestamps
     spikeglx_subconverter = IblSpikeGlxConverter(
         folder_path=paths["spikeglx_source_folder"],
         one=one,
         eid=eid,
-        pname_pid_map=pname_pid_map,
+        probe_name_to_probe_id_dict=probe_name_to_probe_id_dict,
         revision=revision,
     )
     data_interfaces.append(spikeglx_subconverter)
 
     # Add anatomical localization after SpikeGLX (links to existing electrodes from recording)
     data_interfaces.append(IblAnatomicalLocalizationInterface(
-        one=one, eid=eid, pname_pid_map=pname_pid_map, revision=revision
+        one=one, eid=eid, probe_name_to_probe_id_dict=probe_name_to_probe_id_dict, revision=revision
     ))
 
     # video

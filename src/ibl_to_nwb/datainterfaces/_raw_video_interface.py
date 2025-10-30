@@ -1,14 +1,23 @@
 from shutil import copyfile
-from typing import Literal
+from typing import Literal, Optional
+import logging
+import time
 
-from neuroconv.basedatainterface import BaseDataInterface
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
 from pynwb.image import ImageSeries
 
+from ._base_ibl_interface import BaseIBLDataInterface
 
-class RawVideoInterface(BaseDataInterface):
+
+class RawVideoInterface(BaseIBLDataInterface):
+    """Interface for raw video data and camera timestamps."""
+
+    # Camera timestamps use BWM standard revision (timestamps were corrected/processed)
+    # Raw video .mp4 files themselves are immutable, but timestamps are ALF data
+    REVISION: str | None = "2024-05-06"
+
     def __init__(
         self,
         nwbfiles_folder_path: DirectoryPath,
@@ -16,7 +25,6 @@ class RawVideoInterface(BaseDataInterface):
         one: ONE,
         session: str,
         camera_name: Literal["left", "right", "body"],
-        revision: str | None = None,
     ) -> None:
         """
         Interface for the raw video data from the IBL Brainwide Map release.
@@ -36,15 +44,126 @@ class RawVideoInterface(BaseDataInterface):
             The session ID (EID in ONE).
         camera_name : "left", "right", or "body"
             The name of the camera to load the raw video data for.
-        revision : str, optional
-            The revision of the pose estimation data to use. If not provided, the latest revision will be used.
         """
         self.nwbfiles_folder_path = nwbfiles_folder_path
         self.subject_id = subject_id
         self.one = one
         self.session = session
         self.camera_name = camera_name
-        self.revision = revision
+        self.revision = self.REVISION
+
+    @classmethod
+    def get_data_requirements(cls, camera_name: Literal["left", "right", "body"]) -> dict:
+        """
+        Declare exact data files required for raw video.
+
+        Parameters
+        ----------
+        camera_name : "left", "right", or "body"
+            Camera view name
+
+        Returns
+        -------
+        dict
+            Data requirements with exact file paths
+        """
+        camera_object_name = f"{camera_name}Camera"
+        return {
+            "one_objects": [
+                {
+                    "object": camera_object_name,
+                    "collection": "alf",
+                    "attributes": ["times"],
+                },
+            ],
+            "exact_files_options": {
+                "standard": [
+                    f"alf/{camera_object_name}.times.npy",
+                    f"raw_video_data/_iblrig_{camera_object_name}.raw.mp4",
+                ],
+            },
+        }
+
+    @classmethod
+    def download_data(
+        cls,
+        one: ONE,
+        eid: str,
+        camera_name: Literal["left", "right", "body"],
+        download_only: bool = True,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Download raw video data for a specific camera.
+
+        NOTE: Uses class-level REVISION attribute for camera timestamps.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        camera_name : "left", "right", or "body"
+            Camera view name (required)
+        download_only : bool, default=True
+            If True, download but don't load into memory
+        logger : logging.Logger, optional
+            Logger for progress tracking
+
+        Returns
+        -------
+        dict
+            Download status
+        """
+        requirements = cls.get_data_requirements(camera_name=camera_name)
+        camera_object_name = f"{camera_name}Camera"
+
+        # Use class-level REVISION attribute
+        revision = cls.REVISION
+
+        if logger:
+            logger.info(f"Downloading raw video for {camera_name} camera (session {eid})")
+
+        start_time = time.time()
+
+        # Download timestamps - NO try-except, let failures propagate
+        if logger:
+            logger.info(f"  Loading {camera_object_name} timestamps")
+
+        one.load_object(
+            id=eid,
+            obj=camera_object_name,
+            collection="alf",
+            revision=revision,
+            download_only=download_only,
+        )
+
+        # Download video file - NO try-except, let failures propagate
+        video_filename = f"raw_video_data/_iblrig_{camera_object_name}.raw.mp4"
+        if logger:
+            logger.info(f"  Loading video file: {video_filename}")
+
+        one.load_dataset(
+            eid,
+            video_filename,
+            download_only=download_only,
+        )
+
+        download_time = time.time() - start_time
+
+        if logger:
+            logger.info(f"  Downloaded video data in {download_time:.2f}s")
+
+        return {
+            "success": True,
+            "downloaded_objects": [camera_object_name],
+            "downloaded_files": requirements["exact_files_options"]["standard"],
+            "already_cached": [],
+            "alternative_used": None,
+            "data": None,
+        }
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
         # Convert camera_name ("left", "right", "body") to ONE object name ("leftCamera", etc.)

@@ -7,6 +7,21 @@ from pathlib import Path
 from one.api import ONE
 
 from ..bwm_to_nwb import setup_paths
+from ..fixtures import load_fixtures
+from ..datainterfaces import (
+    IblSortingInterface,
+    IblAnatomicalLocalizationInterface,
+    BrainwideMapTrialsInterface,
+    WheelInterface,
+    PassiveIntervalsInterface,
+    PassiveReplayStimInterface,
+    PassiveRFMInterface,
+    IblPoseEstimationInterface,
+    PupilTrackingInterface,
+    RoiMotionEnergyInterface,
+    LickInterface,
+    RawVideoInterface,
+)
 
 
 def download_session_data(
@@ -14,17 +29,13 @@ def download_session_data(
     one: ONE,
     redownload_data: bool = False,
     stub_test: bool = False,
-    revision: str | None = None,
     base_path: Path | None = None,
     scratch_path: Path | None = None,
     logger: logging.Logger | None = None,
 ) -> dict:
-    """Download all datasets for a session from ONE API."""
+    """Download all datasets for a session using interface-specific download methods."""
     if logger:
-        logger.info(
-            "Downloading session data from ONE%s..."
-            % (f" (revision {revision})" if revision else "")
-        )
+        logger.info("Downloading session data from ONE...")
     download_start = time.time()
 
     # Setup paths to check cache location
@@ -34,96 +45,81 @@ def download_session_data(
     if redownload_data and paths["session_folder"].exists():
         if logger:
             logger.info(f"REDOWNLOAD_DATA is True - clearing cached data for session {eid}")
-        # Remove cached files for this session
         import shutil
-
         shutil.rmtree(paths["session_folder"])
         paths["session_folder"].mkdir(parents=True, exist_ok=True)
 
-    # Download all datasets for this session
-    base_datasets = set(one.list_datasets(eid))
+    # Define all interfaces to download (for both RAW and PROCESSED conversions)
+    interfaces_to_download = []
 
-    revision_datasets: set[str] = set()
-    if revision:
-        revision_datasets = set(one.list_datasets(eid, revision=revision))
-        revision_datasets.discard("default_revision")
+    # Core behavioral/processed data interfaces
+    interfaces_to_download.extend([
+        ("Trials", BrainwideMapTrialsInterface, {}),
+        ("Wheel", WheelInterface, {}),
+        ("Licks", LickInterface, {}),
+    ])
 
-        revision_folder = f"/#{revision}#/"
-        revision_bases = {
-            dataset.replace(revision_folder, "/")
-            for dataset in revision_datasets
-            if revision_folder in dataset
-        }
-        base_datasets -= revision_bases
+    # Passive period interfaces (check availability first - each is optional)
+    if PassiveIntervalsInterface.check_availability(one, eid)["available"]:
+        interfaces_to_download.append(("PassiveIntervals", PassiveIntervalsInterface, {}))
 
-    datasets = sorted(base_datasets | revision_datasets)
-    skipped_datasets = []
-    if stub_test:
-        skip_patterns = (
-            "raw_ephys_data",
-            "raw_video_data",
-            "spikes.amps",
-            "spikes.depths",
-            "spikes.waveforms",
-            "spikes.samples",
-            "spikes.templates",
-            "templates.waveforms",
-            "templates.amps",
-            "clusters.waveforms",
-            "waveforms.",
-        )
-        filtered_datasets = []
-        for dataset in datasets:
-            if any(pattern in dataset for pattern in skip_patterns):
-                skipped_datasets.append(dataset)
-                continue
-            filtered_datasets.append(dataset)
-        if logger and skipped_datasets:
-            logger.info(
-                "Stub mode active: skipping download of %d heavy datasets"
-                % len(skipped_datasets)
-            )
-        datasets = filtered_datasets
+    if PassiveReplayStimInterface.check_availability(one, eid)["available"]:
+        interfaces_to_download.append(("PassiveReplay", PassiveReplayStimInterface, {}))
+
+    if PassiveRFMInterface.check_availability(one, eid)["available"]:
+        interfaces_to_download.append(("PassiveRFM", PassiveRFMInterface, {}))
+
+    # Spike sorting and anatomical localization
+    # Note: Anatomical localization checks availability internally and may skip if no good histology
+    interfaces_to_download.extend([
+        ("SpikeSorting", IblSortingInterface, {}),
+        ("AnatomicalLocalization", IblAnatomicalLocalizationInterface, {}),
+    ])
+
+    # Camera-based interfaces (videos, pose, pupil, motion energy)
+    # Check availability per camera since not all sessions have all cameras
+    for camera_view in ["left", "right", "body"]:
+        # Note: RawVideoInterface expects camera_view ("left"), others expect camera_name ("leftCamera")
+        camera_name = f"{camera_view}Camera"
+
+        # Check and add each camera interface if available
+        if RawVideoInterface.check_availability(one, eid, camera_name=camera_view)["available"]:
+            interfaces_to_download.append((f"RawVideo_{camera_view}", RawVideoInterface, {"camera_name": camera_view}))
+
+        if IblPoseEstimationInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
+            interfaces_to_download.append((f"PoseEstimation_{camera_view}", IblPoseEstimationInterface, {"camera_name": camera_name}))
+
+        if PupilTrackingInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
+            interfaces_to_download.append((f"PupilTracking_{camera_view}", PupilTrackingInterface, {"camera_name": camera_name}))
+
+        if RoiMotionEnergyInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
+            interfaces_to_download.append((f"RoiMotionEnergy_{camera_view}", RoiMotionEnergyInterface, {"camera_name": camera_name}))
 
     if logger:
-        logger.info(f"Found {len(datasets)} datasets to download")
+        logger.info(f"Downloading data for {len(interfaces_to_download)} interface(s)...")
 
-    # Check if data is already cached
-    cached_files = list(paths["session_folder"].rglob("*")) if paths["session_folder"].exists() else []
-    has_cached_data = len(cached_files) > 0 and not redownload_data
+    # Download data for each interface
+    # No try-except - let failures propagate (fail-fast principle)
+    for interface_name, interface_class, kwargs in interfaces_to_download:
+        # Skip heavy data in stub test mode
+        if stub_test:
+            # Skip raw ephys and raw videos in stub mode
+            if "RawVideo" in interface_name:
+                if logger:
+                    logger.info(f"  [{interface_name}] Skipped (stub mode)")
+                continue
+            # For spike sorting, stub mode is handled within the interface
 
-    if has_cached_data:
-        if logger:
-            logger.info(f"Found {len(cached_files)} cached files in {paths['session_folder']}")
-            logger.info("Verifying cached data (ONE will download any missing/corrupted files)...")
-    else:
-        if logger:
-            if redownload_data:
-                logger.info("Redownload flag set: downloading all data from ONE API...")
-            else:
-                logger.info("No cached data found: downloading from ONE API...")
-
-    # Track which files were actually downloaded (new files)
-    files_before = set(paths["session_folder"].rglob("*")) if paths["session_folder"].exists() else set()
-
-    for dataset in datasets:
-        if dataset == "default_revision":
-            continue
-
-        # If the dataset path already contains an explicit revision collection,
-        # request it directly without passing the revision argument.
-        if revision and dataset in revision_datasets and f"/#{revision}#/" not in dataset:
-            one.load_dataset(eid, dataset, revision=revision)
-        else:
-            one.load_dataset(eid, dataset)
+        interface_class.download_data(
+            one=one,
+            eid=eid,
+            logger=logger,
+            **kwargs
+        )
 
     download_time = time.time() - download_start
 
-    # Calculate total size and track what was actually downloaded
-    files_after = set(paths["session_folder"].rglob("*")) if paths["session_folder"].exists() else set()
-    newly_downloaded_files = files_after - files_before
-    num_new_files = len([f for f in newly_downloaded_files if f.is_file()])
-
+    # Calculate total size
     total_size_bytes = 0
     if paths["session_folder"].exists():
         for file_path in paths["session_folder"].rglob("*"):
@@ -134,25 +130,11 @@ def download_session_data(
 
     if logger:
         logger.info(f"Download step completed in {download_time:.2f}s")
-
-        if num_new_files > 0:
-            # Some files were actually downloaded
-            logger.info(f"Downloaded {num_new_files} new/updated files")
-            logger.info(f"Total data after download: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
-            if download_time > 0:
-                download_rate = total_size_gb / (download_time / 3600)
-                logger.info(f"Download rate: {download_rate:.2f} GB/hour")
-        elif has_cached_data:
-            # All data was cached, nothing new downloaded
-            logger.info(f"All data was already cached - no new downloads needed")
-            logger.info(f"Total cached data size: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
-        else:
-            # No files at all (shouldn't happen)
-            logger.info(f"Total data size: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
+        logger.info(f"Total data size: {total_size_gb:.2f} GB ({total_size_bytes:,} bytes)")
 
     return {
         "download_time": download_time,
-        "num_datasets": len(datasets),
+        "num_datasets": len(interfaces_to_download),
         "total_size_bytes": total_size_bytes,
         "total_size_gb": total_size_gb,
     }

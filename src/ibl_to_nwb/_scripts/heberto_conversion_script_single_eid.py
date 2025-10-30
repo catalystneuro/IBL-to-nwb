@@ -68,7 +68,6 @@ if __name__ == "__main__":
     REDOWNLOAD_DATA = False         # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
-    EXCLUDE_BY_QC = True            # Exclude data that fails QC checks (FAIL/CRITICAL). False = include all data
     RUN_CONSISTENCY_CHECKS = True   # Validate NWB files against ONE data (slow but thorough)
 
     base_folder = Path("/media/heberto/Expansion")
@@ -85,7 +84,6 @@ if __name__ == "__main__":
     if target_eid == "INSERT_EID_HERE":
         raise SystemExit("Please provide an EID either by editing TARGET_EID or passing it as a command-line argument.")
 
-    revision = "2024-05-06"
     one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, silent=True)
 
     log_file_path = scratch_path / f"conversion_log_{target_eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
@@ -97,7 +95,6 @@ if __name__ == "__main__":
     logger.info("=" * 80)
     logger.info("IBL SINGLE-EID CONVERSION SCRIPT STARTED")
     logger.info(f"EID: {target_eid}")
-    logger.info(f"Revision: {revision}")
     logger.info(f"Convert RAW: {CONVERT_RAW}")
     logger.info(f"Convert PROCESSED: {CONVERT_PROCESSED}")
     logger.info(f"Stub test mode: {STUB_TEST}")
@@ -106,9 +103,6 @@ if __name__ == "__main__":
     logger.info(f"Re-download data: {REDOWNLOAD_DATA}")
     logger.info(f"Re-decompress ephys: {REDECOMPRESS_EPHYS}")
     logger.info(f"Overwrite existing NWB: {OVERWRITE}")
-    logger.info(f"Exclude by QC: {EXCLUDE_BY_QC}")
-    if EXCLUDE_BY_QC:
-        logger.info("  (Only PASS/WARNING data will be included)")
     logger.info(f"Run consistency checks: {RUN_CONSISTENCY_CHECKS}")
     if RUN_CONSISTENCY_CHECKS:
         logger.info("  (Validates NWB data against ONE - adds time but ensures correctness)")
@@ -125,7 +119,6 @@ if __name__ == "__main__":
         one=one,
         redownload_data=REDOWNLOAD_DATA,
         stub_test=STUB_TEST,
-        revision=revision,
         base_path=base_path,
         scratch_path=scratch_path,
         logger=logger,
@@ -142,13 +135,11 @@ if __name__ == "__main__":
             eid=target_eid,
             one=one,
             stub_test=STUB_TEST,
-            revision=revision,
             base_path=base_path,
             scratch_path=scratch_path,
             logger=logger,
             overwrite=OVERWRITE,
             redecompress_ephys=REDECOMPRESS_EPHYS,
-            exclude_by_qc=EXCLUDE_BY_QC,
         )
 
         # Run consistency checks if enabled
@@ -177,13 +168,11 @@ if __name__ == "__main__":
             eid=target_eid,
             one=one,
             stub_test=STUB_TEST,
-            revision=revision,
             base_path=base_path,
             scratch_path=scratch_path,
             skip_spike_properties=["spike_amplitudes", "spike_relative_depths"],
             logger=logger,
             overwrite=OVERWRITE,
-            exclude_by_qc=EXCLUDE_BY_QC,
         )
 
         # Run consistency checks if enabled

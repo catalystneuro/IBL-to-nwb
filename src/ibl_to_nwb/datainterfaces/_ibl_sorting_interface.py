@@ -3,14 +3,19 @@
 from copy import deepcopy
 from pathlib import Path
 from typing import Literal, Optional
+import logging
+import time
 
 import numpy as np
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import BaseSortingExtractorInterface
 from neuroconv.utils import DeepDict, load_dict_from_file
 from one.api import ONE
 from pynwb import NWBFile
+from brainbox.io.one import SpikeSortingLoader
 
 from ._ibl_sorting_extractor import IblSortingExtractor
+from ._base_ibl_interface import BaseIBLDataInterface
+from ..fixtures import get_probe_name_to_probe_id_dict
 
 
 def _format_probe_label(probe_name: str) -> str:
@@ -22,19 +27,128 @@ def _format_probe_label(probe_name: str) -> str:
     return f"NeuropixelsProbe{suffix}"
 
 
-class IblSortingInterface(BaseSortingExtractorInterface):
+class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
+    """Interface for spike sorting data (revision-dependent processed data)."""
+
+    # Spike sorting uses BWM standard revision for consistency across all sessions
+    REVISION: str | None = "2024-05-06"
+
     Extractor = IblSortingExtractor
 
     def __init__(
         self,
         session: str,
         one: ONE,
-        revision: Optional[str] = None,
     ):
         # Create extractor but don't load data yet (fast initialization)
-        self.sorting_extractor = self.Extractor(session=session, one=one, revision=revision)
+        self.sorting_extractor = self.Extractor(session=session, one=one, revision=self.REVISION)
         self.verbose = False
         self._number_of_segments = 1  # Will be set after loading
+
+    @classmethod
+    def get_data_requirements(cls, **kwargs) -> dict:
+        """
+        Declare exact data files required for spike sorting.
+
+        SpikeSortingLoader loads all spike/cluster files per probe.
+
+        Parameters
+        ----------
+        **kwargs
+            Accepts but ignores kwargs for API consistency with base class.
+
+        Returns
+        -------
+        dict
+            Data requirements for spike sorting
+        """
+        return {
+            "one_objects": [],  # Uses SpikeSortingLoader abstraction
+            "exact_files_options": {
+                "standard": [
+                    # Per-probe spike files
+                    "alf/probe*/spikes.times.npy",
+                    "alf/probe*/spikes.clusters.npy",
+                    "alf/probe*/spikes.amps.npy",
+                    "alf/probe*/spikes.depths.npy",
+                    # Per-probe cluster files
+                    "alf/probe*/clusters.channels.npy",
+                    "alf/probe*/clusters.depths.npy",
+                    "alf/probe*/clusters.metrics.pqt",
+                    "alf/probe*/clusters.uuids.csv",
+                ],
+            },
+        }
+
+    @classmethod
+    def download_data(
+        cls,
+        one: ONE,
+        eid: str,
+        download_only: bool = True,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Download spike sorting data using SpikeSortingLoader.
+
+        NOTE: Uses class-level REVISION attribute automatically.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        download_only : bool, default=True
+            If True, download but don't load into memory
+        logger : logging.Logger, optional
+            Logger for progress tracking
+
+        Returns
+        -------
+        dict
+            Download status
+        """
+        requirements = cls.get_data_requirements()
+
+        # Use class-level REVISION attribute
+        revision = cls.REVISION
+
+        if logger:
+            logger.info(f"Downloading spike sorting data (session {eid}, revision {revision})")
+
+        start_time = time.time()
+
+        # Get probe insertions from fixture (fast, no Alyx query)
+        # NO fallback - if fixture is missing, installation is broken
+        probe_name_to_probe_id_dict = get_probe_name_to_probe_id_dict(eid)
+
+        if logger:
+            logger.info(f"  Found {len(probe_name_to_probe_id_dict)} probe(s)")
+
+        # SpikeSortingLoader.load_spike_sorting() downloads all spike/cluster files
+        # NO try-except - let it fail if files missing
+        for probe_name, pid in probe_name_to_probe_id_dict.items():
+            if logger:
+                logger.info(f"  Downloading spike sorting for probe {probe_name}")
+
+            ssl = SpikeSortingLoader(one=one, eid=eid, pname=probe_name, pid=pid, revision=revision)
+            ssl.load_spike_sorting()
+
+        download_time = time.time() - start_time
+
+        if logger:
+            logger.info(f"  Downloaded spike sorting data for {len(probe_name_to_probe_id_dict)} probe(s) in {download_time:.2f}s")
+
+        return {
+            "success": True,
+            "downloaded_objects": ["spike_sorting"],
+            "downloaded_files": requirements["exact_files_options"]["standard"],
+            "already_cached": [],
+            "alternative_used": None,
+            "data": None,
+        }
 
     def get_metadata(self) -> dict:
         """

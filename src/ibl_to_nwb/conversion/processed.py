@@ -14,18 +14,15 @@ from ndx_ibl_bwm import ibl_bwm_metadata
 from one.api import ONE
 from pynwb import NWBFile, read_nwb
 
-from ..bwm_to_nwb import (
-    setup_paths,
-    get_camera_name_from_file,
-    check_camera_health_by_qc,
-    check_camera_health_by_loading,
-)
+from ..bwm_to_nwb import setup_paths
 from ..datainterfaces import (
     IblSortingInterface,
     IblAnatomicalLocalizationInterface,
     BrainwideMapTrialsInterface,
     WheelInterface,
-    PassivePeriodDataInterface,
+    PassiveIntervalsInterface,
+    PassiveReplayStimInterface,
+    PassiveRFMInterface,
     LickInterface,
     IblPoseEstimationInterface,
     PupilTrackingInterface,
@@ -59,13 +56,11 @@ def convert_processed_session(
     eid: str,
     one: ONE,
     stub_test: bool = False,
-    revision: str | None = None,
     base_path: Path | None = None,
     scratch_path: Path | None = None,
     skip_spike_properties: list | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
-    exclude_by_qc: bool = False,
 ) -> dict:
     """Convert IBL processed session to NWB.
 
@@ -77,8 +72,6 @@ def convert_processed_session(
         ONE API instance
     stub_test : bool, optional
         If True, creates minimal NWB for testing without downloading large files
-    revision : str, optional
-        Data revision to use (e.g., "2024-05-06" for spike sorting)
     base_path : Path, optional
         Base output directory for NWB files
     scratch_path : Path, optional
@@ -89,10 +82,6 @@ def convert_processed_session(
         Logger instance for conversion progress
     overwrite : bool, optional
         If True, overwrite existing NWB files
-    exclude_by_qc : bool, optional
-        If True, exclude data that fails QC checks (FAIL/CRITICAL status).
-        Follows the original BWM conversion approach where only PASS/WARNING
-        data is included. Default is False (include all available data).
 
     Returns
     -------
@@ -135,10 +124,6 @@ def convert_processed_session(
             "skipped": True,
         }
 
-    # Get probe insertion IDs
-    insertions = one.alyx.rest("insertions", "list", session=eid)
-    pname_pid_map = {ins["name"]: ins["id"] for ins in insertions}
-
     # ========================================================================
     # STEP 1: Define data interfaces
     # ========================================================================
@@ -147,76 +132,53 @@ def convert_processed_session(
     interface_creation_start = time.time()
 
     data_interfaces = []
-    interface_kwargs = dict(one=one, session=eid, revision=revision)
+    interface_kwargs = dict(one=one, session=eid)
 
     # Spike sorting
     sorting_interface = IblSortingInterface(**interface_kwargs)
     data_interfaces.append(sorting_interface)
 
-    # Anatomical localization
-    if pname_pid_map:
-        anat_interface = IblAnatomicalLocalizationInterface(
-            one=one,
-            eid=eid,
-            pname_pid_map=pname_pid_map,
-            revision=revision,
-        )
+    # Anatomical localization (loads probe info and histology QC internally)
+    anat_interface = IblAnatomicalLocalizationInterface(one=one, eid=eid)
+    if anat_interface.probe_name_to_probe_id_dict:  # Only add if has probes with good histology
         data_interfaces.append(anat_interface)
 
     # Behavioral data
     data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
     data_interfaces.append(WheelInterface(**interface_kwargs))
-    data_interfaces.append(PassivePeriodDataInterface(**interface_kwargs))
 
-    # Licks
-    if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
+    # Passive period data - add each interface if its data is available
+    if PassiveIntervalsInterface.check_availability(one, eid)["available"]:
+        data_interfaces.append(PassiveIntervalsInterface(**interface_kwargs))
+
+    if PassiveReplayStimInterface.check_availability(one, eid)["available"]:
+        data_interfaces.append(PassiveReplayStimInterface(**interface_kwargs))
+
+    if PassiveRFMInterface.check_availability(one, eid)["available"]:
+        data_interfaces.append(PassiveRFMInterface(**interface_kwargs))
+
+    # Licks - optional interface
+    if LickInterface.check_availability(one, eid)["available"]:
         data_interfaces.append(LickInterface(**interface_kwargs))
 
-    # Video interfaces - pose estimation
-    bwm_qc = load_fixtures.load_bwm_qc()
-    pose_estimation_files = set(Path(f).name for f in one.list_datasets(eid=eid, filename="*.dlc*"))
-    for pose_estimation_file in pose_estimation_files:
-        camera_name = get_camera_name_from_file(pose_estimation_file)
+    # Camera-based interfaces (pose estimation, pupil tracking, ROI motion energy)
+    # Check availability per camera since not all sessions have all cameras
+    for camera_view in ["left", "right", "body"]:
+        camera_name = f"{camera_view}Camera"
 
-        # Apply QC filtering if enabled
-        passes_qc = not exclude_by_qc or check_camera_health_by_qc(bwm_qc, eid, camera_name)
-
-        if passes_qc and (stub_test or check_camera_health_by_loading(**interface_kwargs)):
+        # Pose estimation - check_availability handles Lightning Pose → DLC fallback
+        if IblPoseEstimationInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
             data_interfaces.append(
                 IblPoseEstimationInterface(camera_name=camera_name, tracker="lightningPose", **interface_kwargs)
             )
-            if logger and exclude_by_qc:
-                logger.debug(f"Including {camera_name} pose estimation (passed QC)")
-        elif logger and exclude_by_qc and not passes_qc:
-            logger.debug(f"Excluding {camera_name} pose estimation (failed QC)")
 
-    # Pupil tracking
-    pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
-    camera_names = set(get_camera_name_from_file(f) for f in pupil_tracking_files)
-    for camera_name in camera_names:
-        # Apply QC filtering if enabled
-        passes_qc = not exclude_by_qc or check_camera_health_by_qc(bwm_qc, eid, camera_name)
-
-        if passes_qc:
+        # Pupil tracking
+        if PupilTrackingInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
             data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
-            if logger and exclude_by_qc:
-                logger.debug(f"Including {camera_name} pupil tracking (passed QC)")
-        elif logger and exclude_by_qc:
-            logger.debug(f"Excluding {camera_name} pupil tracking (failed QC)")
 
-    # ROI motion energy
-    roi_motion_energy_files = one.list_datasets(eid=eid, filename="*ROIMotionEnergy.npy*")
-    camera_names = set(get_camera_name_from_file(f) for f in roi_motion_energy_files)
-    for camera_name in camera_names:
-        # Apply QC filtering if enabled
-        passes_qc = not exclude_by_qc or check_camera_health_by_qc(bwm_qc, eid, camera_name)
-
-        if passes_qc:
+        # ROI motion energy
+        if RoiMotionEnergyInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
             data_interfaces.append(RoiMotionEnergyInterface(camera_name=camera_name, **interface_kwargs))
-            if logger and exclude_by_qc:
-                logger.debug(f"Including {camera_name} ROI motion energy (passed QC)")
-        elif logger and exclude_by_qc:
-            logger.debug(f"Excluding {camera_name} ROI motion energy (failed QC)")
 
     interface_creation_time = time.time() - interface_creation_start
     if logger:
@@ -304,16 +266,15 @@ def convert_processed_session(
 
     nwbfile = NWBFile(**metadata["NWBFile"])
     nwbfile.subject = ibl_subject
-    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision=revision))
+    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision="2024-05-06"))
 
-    for probe_name, pid in pname_pid_map.items():
+    for probe_name, pid in anat_interface.probe_name_to_probe_id_dict.items():
         add_probe_electrodes_with_localization(
             nwbfile=nwbfile,
             one=one,
             eid=eid,
             probe_name=probe_name,
             pid=pid,
-            revision=revision,
         )
 
     # Add data from all interfaces

@@ -1,24 +1,30 @@
 import logging
 import re
 from typing import Optional
+import time
 
 import numpy as np
 from brainbox.io.one import SessionLoader
 from ndx_pose import PoseEstimation, PoseEstimationSeries, Skeleton, Skeletons
-from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
 from one.alf.exceptions import ALFObjectNotFound
 
+from ._base_ibl_interface import BaseIBLDataInterface
 
-class IblPoseEstimationInterface(BaseDataInterface):
+
+class IblPoseEstimationInterface(BaseIBLDataInterface):
+    """Interface for pose estimation data (revision-dependent processed data)."""
+
+    # Pose estimation uses BWM standard revision
+    REVISION: str | None = "2024-05-06"
+
     def __init__(
         self,
         one: ONE,
         session: str,
         camera_name: str,
-        revision: Optional[str] = None,
         tracker: str = 'lightningPose',
     ) -> None:
         """
@@ -32,101 +38,146 @@ class IblPoseEstimationInterface(BaseDataInterface):
             The session ID (EID in ONE).
         camera_name : "left", "right", or "body"
             The name of the camera to load the raw video data for.
-        revision : str, optional
-            The revision of the pose estimation data to use. If not provided, the latest revision will be used.
+        tracker : str, optional
+            The tracker to use ('lightningPose' or 'dlc'). Default is 'lightningPose'.
         """
         self.one = one
         self.session = session
         self.camera_name = camera_name
         self.tracker = tracker
+        self.revision = self.REVISION
 
-        self.revision = revision
-        if self.revision is None:
-            self.revision = one.list_revisions(session)[-1]
+    @classmethod
+    def get_data_requirements(cls, camera_name: str) -> dict:
+        """
+        Declare exact data files required for pose estimation with fallback.
+
+        Parameters
+        ----------
+        camera_name : str
+            Camera name (e.g., "leftCamera", "rightCamera", "bodyCamera")
+
+        Returns
+        -------
+        dict
+            Data requirements with fallback alternatives
+        """
+        camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+        return {
+            "one_objects": [],  # Uses SessionLoader, not direct load_object
+            "exact_files_options": {
+                # Lightning Pose (newer, faster tracker)
+                "lightning_pose": [f"alf/_ibl_{camera_view}Camera.lightningPose.pqt"],
+                # DeepLabCut (older tracker)
+                "dlc": [f"alf/_ibl_{camera_view}Camera.dlc.pqt"],
+            },
+        }
+
+    @classmethod
+    def download_data(
+        cls,
+        one: ONE,
+        eid: str,
+        camera_name: str,
+        download_only: bool = True,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Download pose estimation data with fallback from Lightning Pose to DLC.
+
+        NOTE: Uses class-level REVISION attribute automatically.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        camera_name : str
+            Camera name (required)
+        download_only : bool, default=True
+            If True, download but don't load into memory
+        logger : logging.Logger, optional
+            Logger for progress tracking
+
+        Returns
+        -------
+        dict
+            Download status
+        """
+        requirements = cls.get_data_requirements(camera_name=camera_name)
+        camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+
+        # Use class-level REVISION attribute
+        revision = cls.REVISION
+
+        if logger:
+            logger.info(f"Downloading pose estimation for {camera_view} camera (session {eid})")
+
+        start_time = time.time()
+
+        # Try each file option (Lightning Pose or DLC)
+        # No try-except - check availability first, then download
+        for option_name, option_files in requirements["exact_files_options"].items():
+            filename_pattern = option_files[0].split("/")[-1]  # e.g., "_ibl_leftCamera.lightningPose.pqt"
+
+            if logger:
+                logger.info(f"  Checking {option_name}: {filename_pattern}")
+
+            # Find matching datasets
+            candidates = []
+            candidates.extend(one.list_datasets(eid, filename=filename_pattern))
+            if revision:
+                candidates.extend(one.list_datasets(eid, filename=filename_pattern, revision=revision))
+
+            candidates = sorted(set(candidates))
+
+            if not candidates:
+                if logger:
+                    logger.info(f"    No {option_name} files found, trying next option...")
+                continue
+
+            # Files exist - download them (let it fail if download fails)
+            if logger:
+                logger.info(f"  Downloading {option_name}...")
+
+            dataset_path = candidates[0]
+            one.load_dataset(eid, dataset=dataset_path, download_only=download_only)
+
+            download_time = time.time() - start_time
+
+            if logger:
+                logger.info(f"  Downloaded {option_name} in {download_time:.2f}s")
+
+            return {
+                "success": True,
+                "downloaded_objects": [],
+                "downloaded_files": option_files,
+                "already_cached": [],
+                "alternative_used": option_name,
+                "data": None,
+            }
+
+        # If we get here, NONE of the options were found - FAIL LOUDLY
+        raise FileNotFoundError(
+            f"No pose estimation data found for {camera_view} camera (session {eid}). "
+            f"Tried: {list(requirements['exact_files_options'].keys())}"
+        )
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
+        """
+        Add pose estimation data to NWB file.
+
+        Note: Data should already be downloaded via download_data() which handles
+        Lightning Pose → DLC fallback. This method just loads and adds to NWB.
+        """
         session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
-        tracker_to_use = self.tracker
 
-        try:
-            session_loader.load_pose(tracker=tracker_to_use, views=[camera_view])
-        except KeyError as exc:
-            if tracker_to_use != "lightningPose":
-                raise exc
-
-            # Attempt to repair LightningPose cache first
-            lightning_filename = f"_ibl_{camera_view}Camera.lightningPose.pqt"
-            lightning_candidates = []
-            try:
-                lightning_candidates.extend(self.one.list_datasets(self.session, filename=lightning_filename))
-                if self.revision:
-                    lightning_candidates.extend(
-                        self.one.list_datasets(self.session, filename=lightning_filename, revision=self.revision)
-                    )
-            except Exception:
-                lightning_candidates = []
-
-            lightning_candidates = sorted(set(lightning_candidates))
-            lightning_success = False
-            if lightning_candidates:
-                dataset_path = lightning_candidates[0]
-                try:
-                    self.one.load_dataset(
-                        self.session,
-                        dataset=dataset_path,
-                        download_only=True,
-                    )
-                    session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
-                    session_loader.load_pose(tracker=tracker_to_use, views=[camera_view])
-                    lightning_success = True
-                except ALFObjectNotFound:
-                    lightning_success = False
-
-            if not lightning_success:
-                # Fall back to DLC if available
-                dlc_filename = f"_ibl_{camera_view}Camera.dlc.pqt"
-                dlc_candidates = []
-                try:
-                    dlc_candidates.extend(self.one.list_datasets(self.session, filename=dlc_filename))
-                    if self.revision:
-                        dlc_candidates.extend(
-                            self.one.list_datasets(self.session, filename=dlc_filename, revision=self.revision)
-                        )
-                except Exception:
-                    dlc_candidates = []
-
-                dlc_candidates = sorted(set(dlc_candidates))
-                if not dlc_candidates:
-                    raise FileNotFoundError(
-                        "Pose estimation datasets missing for camera '%s' (session %s) -- "
-                        "neither LightningPose nor DLC available." % (self.camera_name, self.session)
-                    )
-
-                dataset_path = dlc_candidates[0]
-                try:
-                    self.one.load_dataset(
-                        self.session,
-                        dataset=dataset_path,
-                        download_only=True,
-                    )
-                except ALFObjectNotFound:
-                    raise FileNotFoundError(
-                        "Pose estimation dataset '%s' (tracker=dlc, session=%s) is unavailable; aborting conversion." % (
-                            dataset_path,
-                            self.session,
-                        )
-                    )
-
-                tracker_to_use = "dlc"
-                session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
-                session_loader.load_pose(tracker=tracker_to_use, views=[camera_view])
-
-                logging.warning(
-                    "Falling back to DLC pose estimates for %s (session %s); LightningPose data not found.",
-                    self.camera_name,
-                    self.session,
-                )
+        # Load pose data using the tracker specified during initialization
+        # If download_data was called, the correct tracker is already set
+        session_loader.load_pose(tracker=self.tracker, views=[camera_view])
 
         if self.camera_name not in session_loader.pose:
             raise RuntimeError(
