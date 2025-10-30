@@ -172,9 +172,10 @@ def convert_processed_session(
                 IblPoseEstimationInterface(camera_name=camera_name, tracker="lightningPose", **interface_kwargs)
             )
 
-        # Pupil tracking
-        if PupilTrackingInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
-            data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
+        # Pupil tracking - only for left/right cameras (body camera doesn't capture eyes)
+        if camera_view in ["left", "right"]:
+            if PupilTrackingInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
+                data_interfaces.append(PupilTrackingInterface(camera_name=camera_name, **interface_kwargs))
 
         # ROI motion energy
         if RoiMotionEnergyInterface.check_availability(one, eid, camera_name=camera_name)["available"]:

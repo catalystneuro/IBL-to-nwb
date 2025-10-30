@@ -89,8 +89,10 @@ def download_session_data(
         if IblPoseEstimationInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
             interfaces_to_download.append((f"PoseEstimation_{camera_view}", IblPoseEstimationInterface, {"camera_name": camera_name}))
 
-        if PupilTrackingInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
-            interfaces_to_download.append((f"PupilTracking_{camera_view}", PupilTrackingInterface, {"camera_name": camera_name}))
+        # Pupil tracking - only for left/right cameras (body camera doesn't capture eyes)
+        if camera_view in ["left", "right"]:
+            if PupilTrackingInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
+                interfaces_to_download.append((f"PupilTracking_{camera_view}", PupilTrackingInterface, {"camera_name": camera_name}))
 
         if RoiMotionEnergyInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
             interfaces_to_download.append((f"RoiMotionEnergy_{camera_view}", RoiMotionEnergyInterface, {"camera_name": camera_name}))

@@ -57,7 +57,6 @@ DATA_SOURCE_DESCRIPTIONS = {
     "pose_estimation_body": "Pose estimation - body camera (IblPoseEstimationInterface)",
     "pupil_tracking_left": "Pupil tracking - left camera (PupilTrackingInterface)",
     "pupil_tracking_right": "Pupil tracking - right camera (PupilTrackingInterface)",
-    "pupil_tracking_body": "Pupil tracking - body camera (PupilTrackingInterface)",
     "roi_motion_energy_left": "ROI motion energy - left camera (RoiMotionEnergyInterface)",
     "roi_motion_energy_right": "ROI motion energy - right camera (RoiMotionEnergyInterface)",
     "roi_motion_energy_body": "ROI motion energy - body camera (RoiMotionEnergyInterface)",
@@ -122,12 +121,19 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
     for camera_view in ["left", "right", "body"]:
         camera_name = f"{camera_view}Camera"  # e.g., "leftCamera"
         # Note: RawVideoInterface expects just "left", others expect "leftCamera"
+
+        # All cameras have video, pose, and motion energy
         interfaces_to_check.extend([
             (f"video_{camera_view}", RawVideoInterface, {"camera_name": camera_view}),  # Just "left"
             (f"pose_estimation_{camera_view}", IblPoseEstimationInterface, {"camera_name": camera_name}),  # "leftCamera"
-            (f"pupil_tracking_{camera_view}", PupilTrackingInterface, {"camera_name": camera_name}),  # "leftCamera"
             (f"roi_motion_energy_{camera_view}", RoiMotionEnergyInterface, {"camera_name": camera_name}),  # "leftCamera"
         ])
+
+        # Pupil tracking - only for left/right cameras (body camera doesn't capture eyes)
+        if camera_view in ["left", "right"]:
+            interfaces_to_check.append(
+                (f"pupil_tracking_{camera_view}", PupilTrackingInterface, {"camera_name": camera_name})
+            )
 
     # Check each interface using its check_availability() method
     # No need to pass revision explicitly - each interface has its own REVISION class attribute
