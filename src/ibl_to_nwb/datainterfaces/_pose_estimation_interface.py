@@ -29,7 +29,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         tracker: str = 'lightningPose',
     ) -> None:
         """
-        Interface for the pose estimation (DLC) data from the IBL Brainwide Map release.
+        Interface for Lightning Pose estimation data from the IBL Brainwide Map release.
 
         Parameters
         ----------
@@ -38,9 +38,9 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         session : str
             The session ID (EID in ONE).
         camera_name : "left", "right", or "body"
-            The name of the camera to load the raw video data for.
+            The name of the camera to load pose estimation data for.
         tracker : str, optional
-            The tracker to use ('lightningPose' or 'dlc'). Default is 'lightningPose'.
+            The tracker to use. Default is 'lightningPose'.
         """
         self.one = one
         self.session = session
@@ -51,7 +51,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
     @classmethod
     def get_data_requirements(cls, camera_name: str) -> dict:
         """
-        Declare exact data files required for pose estimation with fallback.
+        Declare exact data files required for pose estimation.
 
         Parameters
         ----------
@@ -61,16 +61,13 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         Returns
         -------
         dict
-            Data requirements with fallback alternatives
+            Data requirements
         """
         camera_view = re.search(r"(left|right|body)", camera_name).group(1)
         return {
             "one_objects": [],  # Uses SessionLoader, not direct load_object
             "exact_files_options": {
-                # Lightning Pose (newer, faster tracker)
-                "lightning_pose": [f"alf/_ibl_{camera_view}Camera.lightningPose.pqt"],
-                # DeepLabCut (older tracker)
-                "dlc": [f"alf/_ibl_{camera_view}Camera.dlc.pqt"],
+                "standard": [f"alf/_ibl_{camera_view}Camera.lightningPose.pqt"],
             },
         }
 
@@ -151,7 +148,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         **kwargs
     ) -> dict:
         """
-        Download pose estimation data with fallback from Lightning Pose to DLC.
+        Download Lightning Pose estimation data.
 
         NOTE: Uses class-level REVISION attribute automatically.
 
@@ -184,7 +181,6 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
 
         start_time = time.time()
 
-        # Try each file option (Lightning Pose or DLC)
         # No try-except - check availability first, then download
         for option_name, option_files in requirements["exact_files_options"].items():
             filename_pattern = option_files[0].split("/")[-1]  # e.g., "_ibl_leftCamera.lightningPose.pqt"
@@ -234,10 +230,9 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict) -> None:
         """
-        Add pose estimation data to NWB file.
+        Add Lightning Pose estimation data to NWB file.
 
-        Note: Data should already be downloaded via download_data() which handles
-        Lightning Pose → DLC fallback. This method just loads and adds to NWB.
+        Data should already be downloaded via download_data().
         """
         session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
@@ -357,8 +352,8 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         pose_estimation_kwargs = dict(
             name=f"PoseEstimation{camera_view.capitalize()}Camera",
             pose_estimation_series=all_pose_estimation_series,
-            description="Estimated positions of body parts using DeepLabCut.",
-            source_software="DeepLabCut",
+            description="Estimated positions of body parts using Lightning Pose.",
+            source_software="Lightning Pose",
             skeleton=skeleton,
         )
         pose_estimation_container = PoseEstimation(**pose_estimation_kwargs)
