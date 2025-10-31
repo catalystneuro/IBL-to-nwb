@@ -193,15 +193,8 @@ def convert_raw_session(
             decompress_ephys_cbins(paths["session_folder"], paths["session_scratch_folder"])
             bins_available = True
 
-        # Decompress .cbin files from ONE cache to scratch folder
-        # Copy metadata files (.meta, .ch, etc.) to scratch folder
-        if logger:
-            logger.info("Copying metadata files...")
-        tree_copy(
-            paths["session_folder"] / "raw_ephys_data",
-            paths["session_scratch_folder"] / "raw_ephys_data",
-            exclude=".cbin",
-        )
+        # Note: Metadata files (.meta, .ch) are automatically copied alongside .bin files
+        # by spikeglx.Reader.decompress_to_scratch() during decompression above
 
         decompress_time = time.time() - decompress_start
         if logger:
@@ -430,12 +423,21 @@ def convert_raw_session(
             else:
                 logger.info("Adding Neuropixels electrodes from metadata (stub mode)...")
         for probe_name, pid in probe_name_to_probe_id_dict.items():
+            # Resolve .meta file path from ONE cache (already downloaded, no query needed)
+            meta_collection = f"raw_ephys_data/{probe_name}"
+            meta_datasets = [d for d in one.list_datasets(eid=eid, collection=meta_collection) if d.endswith(".ap.meta")]
+            meta_path = None
+            if meta_datasets:
+                # Get path from ONE cache (already cached locally)
+                meta_path = one.eid2path(eid) / meta_datasets[0]
+
             add_probe_electrodes_with_localization(
                 nwbfile=nwbfile,
                 one=one,
                 eid=eid,
                 probe_name=probe_name,
                 pid=pid,
+                meta_path=meta_path,  # Explicit path to ONE cache - no fallback needed
             )
 
     # Add data from all interfaces

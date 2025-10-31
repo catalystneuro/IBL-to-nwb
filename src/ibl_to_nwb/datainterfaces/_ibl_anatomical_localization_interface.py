@@ -196,7 +196,6 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         """
 
         # Load histology QC table from fixtures (committed to git)
-        # NO fallback - if fixture is missing, installation is broken
         histology_qc_df = load_bwm_histology_qc()
         probe_name_to_probe_id_dict = get_probe_name_to_probe_id_dict(eid, histology_qc_df)
 

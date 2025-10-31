@@ -47,6 +47,8 @@ DATA_SOURCE_DESCRIPTIONS = {
     # Probe-based data
     "spike_sorting": f"Spike sorting from revision {TARGET_REVISION} (IblSortingInterface)",
     "probe_localization": "Probe anatomical localization (IblAnatomicalLocalizationInterface)",
+    "meta_probe00": "SpikeGLX .meta file for probe00 (electrode geometry)",
+    "meta_probe01": "SpikeGLX .meta file for probe01 (electrode geometry)",
 
     # Camera-based data (per camera)
     "video_left": "Left camera video (RawVideoInterface)",
@@ -104,6 +106,26 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
     result["num_probes"] = len(probe_name_to_probe_id_dict)
     result["probe_names"] = list(probe_name_to_probe_id_dict.keys())
     result["single_probe"] = len(probe_name_to_probe_id_dict) == 1
+
+    # Check .meta file availability for each probe
+    # This is critical for electrode geometry - conversions will fail without .meta files
+    result["probe_meta_files"] = {}
+    for probe_name in probe_name_to_probe_id_dict.keys():
+        meta_collection = f"raw_ephys_data/{probe_name}"
+        try:
+            datasets = one.list_datasets(eid=eid, collection=meta_collection)
+            has_meta = any(d.endswith(".ap.meta") for d in datasets)
+            result["probe_meta_files"][probe_name] = has_meta
+
+            # Track as data source for overall reporting
+            result["data_sources"][f"meta_{probe_name}"] = has_meta
+            if not has_meta:
+                result["missing_sources"].append(f"meta_{probe_name}")
+        except Exception as e:
+            result["probe_meta_files"][probe_name] = False
+            result["data_sources"][f"meta_{probe_name}"] = False
+            result["missing_sources"].append(f"meta_{probe_name}")
+            result["errors"].append(f"Error checking .meta for {probe_name}: {str(e)}")
 
     # Define interfaces to check using the new interface methods
     interfaces_to_check = [

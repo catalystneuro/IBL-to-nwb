@@ -1,5 +1,9 @@
+from pathlib import Path
+
+import numpy as np
 from brainbox.io.one import SpikeSortingLoader
-from neuroconv.converters import SpikeGLXConverterPipe
+from neuroconv.datainterfaces import SpikeGLXRecordingInterface
+from neuroconv.nwbconverter import ConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
@@ -14,94 +18,93 @@ def _format_probe_label(probe_name: str) -> str:
     return f"NeuropixelsProbe{suffix}"
 
 
-class IblSpikeGlxConverter(SpikeGLXConverterPipe):
+class IblSpikeGlxConverter(ConverterPipe):
     # Use BWM standard revision for spike sorting data
     REVISION: str | None = "2025-05-06"
 
     def __init__(
         self, folder_path: DirectoryPath, one: ONE, eid: str, probe_name_to_probe_id_dict: dict, streams=None
     ) -> None:
-        # # debug injection
-        # streams = ['imec0.lf','imec1.lf']
-        super().__init__(folder_path=folder_path, streams=streams)
+        folder_path = Path(folder_path)
+
+        # IBL data always has imec.ap and imec.lf streams for each probe
+        ibl_streams = ["imec.ap", "imec.lf"]
+
+        # Create interfaces manually from probe subfolders
+        # This avoids Neo's duplicate stream name bug when scanning parent folder
+        data_interfaces = {}
+
+        for probe_name in probe_name_to_probe_id_dict.keys():
+            probe_folder = folder_path / probe_name  # e.g., raw_ephys_data/probe00
+
+            if not probe_folder.exists():
+                continue  # Skip if probe folder doesn't exist
+
+            for stream_id in ibl_streams:
+                # Create interface pointing to probe subfolder
+                # Neo will only see one probe's files, avoiding duplicate stream names
+                interface = SpikeGLXRecordingInterface(
+                    folder_path=str(probe_folder),
+                    stream_id=stream_id
+                )
+
+                # Key format: "probe00.imec.ap", "probe00.imec.lf", etc.
+                # This preserves probe identity throughout the pipeline
+                key = f"{probe_name}.{stream_id}"
+                data_interfaces[key] = interface
+
+        # Initialize parent with pre-built interfaces (bypasses Neo's auto-discovery)
+        ConverterPipe.__init__(self, data_interfaces=data_interfaces, verbose=False)
+
+        # Store ONE, eid, probe mappings
         self.one = one
         self.eid = eid
         self.probe_name_to_probe_id_dict = probe_name_to_probe_id_dict
         self.revision = self.REVISION
 
-        # get valid pnames
-        probe_to_imec_map = {
-            "probe00": 0,
-            "probe01": 1,
-        }
+        # Build mappings for metadata (updated to handle new key format)
+        probe_to_imec_map = {"probe00": 0, "probe01": 1}
         self.imec_to_probe_map = dict(zip(probe_to_imec_map.values(), probe_to_imec_map.keys()))
 
-        # Build stream-to-probe mapping to handle both single and multi-probe cases
-        # Single-probe: streams are "imec.ap", "imec.lf" (no number)
-        # Multi-probe: streams are "imec0.ap", "imec1.lf", etc. (with number)
         self.stream_to_probe_map = {}
-        self.device_name_to_probe_map = {}  # Maps "NeuropixelsImec" or "NeuropixelsImec0" -> "probe01"
+        self.device_name_to_probe_map = {}
 
         for key in self.data_interface_objects.keys():
-            if key != "nidq" and not key.endswith("-SYNC"):
-                imec_name, _ = key.split(".")
-                if imec_name == "imec":
-                    # Single-probe case: map "imec" to whichever probe is in probe_name_to_probe_id_dict
-                    if len(probe_name_to_probe_id_dict) == 1:
-                        probe_name = list(probe_name_to_probe_id_dict.keys())[0]
-                        self.stream_to_probe_map[imec_name] = probe_name
-                        # Map device name format (parent class uses "NeuropixelsImec" for single probe)
-                        self.device_name_to_probe_map["NeuropixelsImec"] = probe_name
-                else:
-                    # Multi-probe case: extract number and map to probe
-                    imec_num = int(imec_name.replace("imec", ""))
-                    probe_name = self.imec_to_probe_map[imec_num]
-                    self.stream_to_probe_map[imec_name] = probe_name
-                    # Map device name format (parent class uses "NeuropixelsImec0", "NeuropixelsImec1")
-                    self.device_name_to_probe_map[f"NeuropixelsImec{imec_num}"] = probe_name
+            # Parse key: "probe00.imec.ap" -> probe_name="probe00", imec_name="imec", band="ap"
+            parts = key.split(".")
+            probe_name = parts[0]  # "probe00"
+            imec_name = parts[1]   # "imec"
+            band = parts[2]        # "ap" or "lf"
 
-        # excluding probes
-        interfaces_to_drop = []
-        for key, recording_interface in self.data_interface_objects.items():
-            if key != "nidq":
-                imec_name, band = key.split(".")
-                probe_name = self.stream_to_probe_map.get(imec_name)
-                if probe_name is None or probe_name not in self.probe_name_to_probe_id_dict:
-                    interfaces_to_drop.append(key)
+            # Map imec -> probe for alignment
+            self.stream_to_probe_map[imec_name] = probe_name
 
-        # TEMPORARY: Exclude NIDQ interface to avoid large memory allocation from event memmap
-        if "nidq" in self.data_interface_objects:
-            interfaces_to_drop.append("nidq")
-
-        # by dropping their data interface
-        for interface in interfaces_to_drop:
-            self.data_interface_objects.pop(interface)
+            # Map device name for metadata
+            # Neo uses "NeuropixelsImec" for single-probe files in subdirectories
+            self.device_name_to_probe_map["NeuropixelsImec"] = probe_name
 
         # Override electrical series names and group names to use IBL convention
         # This must happen in __init__ before any metadata/electrode operations
         for key, recording_interface in self.data_interface_objects.items():
-            if key != "nidq":
-                imec_name, band = key.split(".")
-                probe_name = self.stream_to_probe_map[imec_name]
+            parts = key.split(".")
+            probe_name = parts[0]  # "probe00"
+            band = parts[2]        # "ap" or "lf"
 
-                # Update electrical series key to use IBL probe naming
-                # e.g., "ElectricalSeriesAPImec0" -> "ElectricalSeriesAP_probe00"
-                original_es_key = recording_interface.es_key
-                band_caps = band.upper()
+            # Update electrical series key to use IBL probe naming
+            # e.g., "ElectricalSeriesAPImec" -> "ElectricalSeriesProbe00AP"
+            band_caps = band.upper()
+            ibl_es_key = f"ElectricalSeries{probe_name.capitalize()}{band_caps}"
+            recording_interface.es_key = ibl_es_key
 
-                # Construct IBL-style electrical series name
-                ibl_es_key = f"ElectricalSeries{probe_name.capitalize()}{band_caps}"
-                recording_interface.es_key = ibl_es_key
-
-                # Update group_name property in recording extractor
-                # This is critical for electrode deduplication in NeuroConv
-                channel_ids = recording_interface.recording_extractor.get_channel_ids()
-                ibl_group_name = _format_probe_label(probe_name)
-                recording_interface.recording_extractor.set_property(
-                    key="group_name",
-                    ids=channel_ids,
-                    values=[ibl_group_name] * len(channel_ids)
-                )
+            # Update group_name property in recording extractor
+            # This is critical for electrode deduplication in NeuroConv
+            channel_ids = recording_interface.recording_extractor.get_channel_ids()
+            ibl_group_name = _format_probe_label(probe_name)
+            recording_interface.recording_extractor.set_property(
+                key="group_name",
+                ids=channel_ids,
+                values=[ibl_group_name] * len(channel_ids)
+            )
 
     def get_metadata(self):
         """
@@ -155,31 +158,33 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
 
         # only interate over present data interfaces
         for key, recording_interface in self.data_interface_objects.items():
-            if key != "nidq":
-                imec_name, band = key.split(".")
-                probe_name = self.stream_to_probe_map[imec_name]
-                pid = self.probe_name_to_probe_id_dict[probe_name]
+            # Parse new key format: "probe00.imec.ap" -> probe_name="probe00", band="ap"
+            parts = key.split(".")
+            probe_name = parts[0]  # "probe00"
+            band = parts[2]        # "ap" or "lf"
 
-                spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)
-                # stream = False if "USE_SDSC_ONE" in os.environ else True
-                stream = False
-                sglx_streamer = spike_sorting_loader.raw_electrophysiology(
-                    band=band, stream=stream, revision=self.revision
-                )
+            pid = self.probe_name_to_probe_id_dict[probe_name]
 
-                # data_one = sglx_streamer._raw
+            spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)
+            # stream = False if "USE_SDSC_ONE" in os.environ else True
+            stream = False
+            sglx_streamer = spike_sorting_loader.raw_electrophysiology(
+                band=band, stream=stream, revision=self.revision
+            )
 
-                # if all we need is the number of samples, then this seems a bit overkill
-                # and it is a not possible to get this work offline
-                # sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True)
+            # data_one = sglx_streamer._raw
 
-                # rather, the ns can be retrieved directly from the recording interface
-                # ns = recording_interface._extractor_instance.get_num_samples()
-                # aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
-                aligned_timestamps = spike_sorting_loader.samples2times(
-                    np.arange(0, sglx_streamer.ns), direction="forward", band=band
-                )
-                recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
+            # if all we need is the number of samples, then this seems a bit overkill
+            # and it is a not possible to get this work offline
+            # sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True)
+
+            # rather, the ns can be retrieved directly from the recording interface
+            # ns = recording_interface._extractor_instance.get_num_samples()
+            # aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
+            aligned_timestamps = spike_sorting_loader.samples2times(
+                np.arange(0, sglx_streamer.ns), direction="forward", band=band
+            )
+            recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata, **conversion_options_kwargs) -> None:
         # Build conversion options from kwargs (which come from IblConverter unpacking)

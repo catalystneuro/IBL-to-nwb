@@ -390,91 +390,52 @@ def add_probe_electrodes_with_localization(
     brain_regions = brain_regions or BrainRegions()
 
     meta_path = _resolve_meta_path(one=one, eid=eid, probe_name=probe_name, meta_path=meta_path)
-    fallback_used = False
 
     if meta_path is None:
-        warnings.warn(
-            f"No SpikeGLX metadata found for probe '{probe_name}' in session '{eid}'. "
-            f"Falling back to {DEFAULT_FALLBACK_PROBE_MANUFACTURER} {DEFAULT_FALLBACK_PROBE_MODEL} geometry.",
-            RuntimeWarning,
-            stacklevel=2,
+        # Fail loudly - missing .meta files indicate a data quality issue
+        raise FileNotFoundError(
+            f"No SpikeGLX metadata (.meta file) found for probe '{probe_name}' in session '{eid}'. "
+            f"Cannot create accurate electrode geometry. "
+            f"Ensure raw ephys data has been downloaded from ONE API. "
+            f"Collection: raw_ephys_data/{probe_name}"
         )
 
-        fallback_probe = _load_fallback_probe()
-
-        fallback_metadata = {
-            "Ecephys": {
-                "Device": [
-                    dict(
-                        name=device_name,
-                        description="Neuropixels probe imported from fallback probeinterface definition.",
-                        manufacturer="IMEC",
-                    )
-                ],
-                "ElectrodeGroup": [
-                    dict(
-                        name=group_name,
-                        description=f"Electrode group for {probe_name}",
-                        location="Unresolved",
-                        device=device_name,
-                    )
-                ],
-                "Electrodes": [
-                    dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
-                    dict(name="location", description="Brain region acronym per electrode."),
-                    dict(name="x", description="CCF x coordinate (um)."),
-                    dict(name="y", description="CCF y coordinate (um)."),
-                    dict(name="z", description="CCF z coordinate (um)."),
-                    dict(name="beryl_location", description="Brain region in IBL Beryl atlas (coarse grouping)."),
-                    dict(name="cosmos_location", description="Brain region in IBL Cosmos atlas (very coarse grouping)."),
-                ],
-            }
+    # Create metadata for probe from .meta file
+    meta_metadata = {
+        "Ecephys": {
+            "Device": [
+                dict(
+                    name=device_name,
+                    description="Neuropixels probe imported from SpikeGLX metadata.",
+                    manufacturer="IMEC",
+                )
+            ],
+            "ElectrodeGroup": [
+                dict(
+                    name=group_name,
+                    description=f"Electrode group for {probe_name}",
+                    location="Unresolved",
+                    device=device_name,
+                )
+            ],
+            "Electrodes": [
+                dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
+                dict(name="location", description="Brain region acronym per electrode."),
+                dict(name="x", description="CCF x coordinate (um)."),
+                dict(name="y", description="CCF y coordinate (um)."),
+                dict(name="z", description="CCF z coordinate (um)."),
+                dict(name="beryl_location", description="Brain region in IBL Beryl atlas (coarse grouping)."),
+                dict(name="cosmos_location", description="Brain region in IBL Cosmos atlas (very coarse grouping)."),
+            ],
         }
+    }
 
-        add_probe_definition_to_nwbfile(
-            probe=fallback_probe,
-            nwbfile=nwbfile,
-            group_mode="by_probe",
-            metadata=fallback_metadata,
-            source_description=f"{DEFAULT_FALLBACK_PROBE_MANUFACTURER}/{DEFAULT_FALLBACK_PROBE_MODEL}",
-        )
-        fallback_used = True
-    else:
-        meta_metadata = {
-            "Ecephys": {
-                "Device": [
-                    dict(
-                        name=device_name,
-                        description="Neuropixels probe imported from SpikeGLX metadata.",
-                        manufacturer="IMEC",
-                    )
-                ],
-                "ElectrodeGroup": [
-                    dict(
-                        name=group_name,
-                        description=f"Electrode group for {probe_name}",
-                        location="Unresolved",
-                        device=device_name,
-                    )
-                ],
-                "Electrodes": [
-                    dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
-                    dict(name="location", description="Brain region acronym per electrode."),
-                    dict(name="x", description="CCF x coordinate (um)."),
-                    dict(name="y", description="CCF y coordinate (um)."),
-                    dict(name="z", description="CCF z coordinate (um)."),
-                    dict(name="beryl_location", description="Brain region in IBL Beryl atlas (coarse grouping)."),
-                    dict(name="cosmos_location", description="Brain region in IBL Cosmos atlas (very coarse grouping)."),
-                ],
-            }
-        }
-
-        add_spikeglx_probe_to_nwbfile(
-            meta_file=meta_path,
-            nwbfile=nwbfile,
-            group_mode="by_probe",
-            metadata=meta_metadata,
-        )
+    add_spikeglx_probe_to_nwbfile(
+        meta_file=meta_path,
+        nwbfile=nwbfile,
+        group_mode="by_probe",
+        metadata=meta_metadata,
+    )
 
     # Identify electrode indices for this probe.
     electrode_indices: List[int] = []
@@ -507,36 +468,24 @@ def add_probe_electrodes_with_localization(
         )
         return electrode_indices
     if channels is None:
-        if fallback_used:
-            warnings.warn(
-                f"Histology channels unavailable for probe '{probe_name}'; keeping fallback geometry only.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-        else:
-            warnings.warn(
-                f"Histology channels missing required coordinates for probe '{probe_name}'.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
+        warnings.warn(
+            f"Histology channels unavailable for probe '{probe_name}'. "
+            f"Electrode table will have probe geometry from .meta file but no anatomical localization.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return electrode_indices
 
     def _has_channel_field(field: str) -> bool:
         return field in channels
 
     if not all(_has_channel_field(field) for field in ("x", "y", "z", "atlas_id", "acronym")):
-        if fallback_used:
-            warnings.warn(
-                f"Histology channels missing fields for probe '{probe_name}'; keeping fallback geometry only.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-        else:
-            warnings.warn(
-                f"Histology channels missing fields for probe '{probe_name}'.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
+        warnings.warn(
+            f"Histology channels missing required fields for probe '{probe_name}'. "
+            f"Electrode table will have probe geometry from .meta file but no anatomical localization.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return electrode_indices
 
     n_channels = len(channels["x"])
