@@ -495,7 +495,7 @@ def add_probe_electrodes_with_localization(
     atlas = atlas or AllenAtlas()
     brain_regions = brain_regions or BrainRegions()
 
-    BWM_REVISION = "2024-05-06"  # Must match IblAnatomicalLocalizationInterface.REVISION
+    BWM_REVISION = "2025-05-06"  # Must match IblAnatomicalLocalizationInterface.REVISION
     loader = SpikeSortingLoader(pid=pid, eid=eid, pname=probe_name, one=one, atlas=atlas, revision=BWM_REVISION)
     try:
         channels = loader.load_channels()

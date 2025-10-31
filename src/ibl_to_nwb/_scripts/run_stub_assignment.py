@@ -9,7 +9,7 @@ Example usage (inside the `ibl_conversion` conda environment):
     python run_stub_assignment.py \
         --assignment-file /ebs/chunk-042.json \
         --base-folder /ebs \
-        --revision 2024-05-06
+        --revision 2025-05-06
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--revision",
-        default="2024-05-06",
+        default="2025-05-06",
         help="ONE dataset revision to request (default mirrors local runs).",
     )
     parser.add_argument(

@@ -267,7 +267,7 @@ def convert_processed_session(
 
     nwbfile = NWBFile(**metadata["NWBFile"])
     nwbfile.subject = ibl_subject
-    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision="2024-05-06"))
+    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision="2025-05-06"))
 
     for probe_name, pid in anat_interface.probe_name_to_probe_id_dict.items():
         add_probe_electrodes_with_localization(

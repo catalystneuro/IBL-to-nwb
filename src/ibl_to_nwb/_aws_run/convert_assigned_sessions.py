@@ -210,7 +210,7 @@ def main() -> None:
     SCRATCH_SUBDIR = "temporary_files"
     CACHE_SUBDIR = "ibl_data"
     NWB_SUBDIR = "nwbfiles"
-    REVISION = "2024-05-06"
+    REVISION = "2025-05-06"
     CONVERT_RAW = True
     CONVERT_PROCESSED = True
 

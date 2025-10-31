@@ -25,7 +25,7 @@ from ibl_to_nwb.datainterfaces import (
 
 
 # Target revision for spike sorting data (used in PROCESSED conversions)
-TARGET_REVISION = "2024-05-06"
+TARGET_REVISION = "2025-05-06"
 
 # Data source descriptions for reporting
 # Note: QC filtering is handled internally by each interface's check_availability() method

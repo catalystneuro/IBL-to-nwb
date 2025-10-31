@@ -32,7 +32,7 @@ class BaseIBLDataInterface(BaseDataInterface):
     REVISION : str | None
         Default revision for this interface's data. Subclasses MUST override this.
         - None: Raw data (no revision filtering) - e.g., raw videos, raw ephys
-        - "2024-05-06": Specific revision (Brain-Wide Map standard for processed data)
+        - "2025-05-06": Specific revision (Brain-Wide Map standard for processed data)
         - Can be overridden at runtime by passing revision parameter to methods
 
     Design Principles

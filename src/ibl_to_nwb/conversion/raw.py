@@ -419,7 +419,7 @@ def convert_raw_session(
 
     nwbfile = NWBFile(**metadata["NWBFile"])
     nwbfile.subject = ibl_subject
-    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision="2024-05-06"))
+    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision="2025-05-06"))
 
     if probe_name_to_probe_id_dict:
         if logger:

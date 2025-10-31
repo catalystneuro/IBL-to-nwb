@@ -16,7 +16,7 @@ def _format_probe_label(probe_name: str) -> str:
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):
     # Use BWM standard revision for spike sorting data
-    REVISION: str | None = "2024-05-06"
+    REVISION: str | None = "2025-05-06"
 
     def __init__(
         self, folder_path: DirectoryPath, one: ONE, eid: str, probe_name_to_probe_id_dict: dict, streams=None
