@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = True               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False         # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
@@ -73,7 +73,10 @@ if __name__ == "__main__":
     base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_data"
     base_path = base_folder
-    scratch_path = base_folder / "temporary_files"
+
+    # Separate directories for logs and ephys scratch
+    logs_path = base_folder / "conversion_logs"
+    decompressed_ephys_path = base_folder / "decompressed_ephys"
 
     TARGET_EID = "bd456d8f-d36e-434a-8051-ff3997253802"  # This one has full raw data
     TARGET_EID = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # has mismatch in timestamps between pupil and data
@@ -86,7 +89,7 @@ if __name__ == "__main__":
 
     one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, silent=True)
 
-    log_file_path = scratch_path / f"conversion_log_{target_eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    log_file_path = logs_path / f"conversion_log_{target_eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
     logger = setup_logger(log_file_path)
 
     # Apply ONE API patches to fix cache validation issues
@@ -120,7 +123,7 @@ if __name__ == "__main__":
         redownload_data=REDOWNLOAD_DATA,
         stub_test=STUB_TEST,
         base_path=base_path,
-        scratch_path=scratch_path,
+        decompressed_ephys_path=decompressed_ephys_path,
         logger=logger,
     )
 
@@ -136,7 +139,7 @@ if __name__ == "__main__":
             one=one,
             stub_test=STUB_TEST,
             base_path=base_path,
-            scratch_path=scratch_path,
+            decompressed_ephys_path=decompressed_ephys_path,
             logger=logger,
             overwrite=OVERWRITE,
             redecompress_ephys=REDECOMPRESS_EPHYS,
@@ -169,7 +172,7 @@ if __name__ == "__main__":
             one=one,
             stub_test=STUB_TEST,
             base_path=base_path,
-            scratch_path=scratch_path,
+            decompressed_ephys_path=decompressed_ephys_path,
             skip_spike_properties=["spike_amplitudes", "spike_relative_depths"],
             logger=logger,
             overwrite=OVERWRITE,

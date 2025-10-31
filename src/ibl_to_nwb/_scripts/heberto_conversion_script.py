@@ -72,7 +72,10 @@ if __name__ == "__main__":
     base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_data"
     base_path = base_folder
-    scratch_path = base_folder / "temporary_files"
+
+    # NEW: Separate directories for logs and ephys scratch
+    logs_path = base_folder / "conversion_logs"  # Persistent logs (small, kept for auditing)
+    scratch_path = base_folder / "decompressed_ephys"  # Temporary ephys files (large, can be deleted)
 
     session_identifier = "all"
 
@@ -82,6 +85,12 @@ if __name__ == "__main__":
     print("Applying ONE API patches for cache validation...")
     one = apply_one_patches(one, logger=None)
     print("ONE API patches applied successfully\n")
+
+    # Create logs directory
+    logs_path.mkdir(exist_ok=True, parents=True)
+    print(f"Logs directory: {logs_path}")
+    print(f"Ephys scratch directory: {scratch_path}")
+    print()
 
     bwm_df = load_fixtures.load_bwm_df()
     unique_sessions = bwm_df.drop_duplicates("eid").reset_index(drop=True)
@@ -93,7 +102,8 @@ if __name__ == "__main__":
     for session_index, eid in enumerate(all_eids, start=1):
         print(f"\nProcessing session {session_index}/{len(all_eids)}: {eid}")
 
-        log_file_path = scratch_path / f"conversion_log_{eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
+        # Save logs to dedicated logs folder
+        log_file_path = logs_path / f"conversion_log_{eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
         logger = setup_logger(log_file_path)
         logger.info("=" * 80)
         logger.info("IBL CONVERSION SCRIPT STARTED")
@@ -122,7 +132,7 @@ if __name__ == "__main__":
             redownload_data=REDOWNLOAD_DATA,
             stub_test=STUB_TEST,
             base_path=base_path,
-            scratch_path=scratch_path,
+            decompressed_ephys_path=scratch_path,
             logger=logger,
         )
 
@@ -138,7 +148,7 @@ if __name__ == "__main__":
                 one=one,
                 stub_test=STUB_TEST,
                 base_path=base_path,
-                scratch_path=scratch_path,
+                decompressed_ephys_path=scratch_path,
                 logger=logger,
                 overwrite=OVERWRITE,
                 redecompress_ephys=REDECOMPRESS_EPHYS,
@@ -165,7 +175,7 @@ if __name__ == "__main__":
                 one=one,
                 stub_test=STUB_TEST,
                 base_path=base_path,
-                scratch_path=scratch_path,
+                decompressed_ephys_path=scratch_path,
                 skip_spike_properties=["spike_amplitudes", "spike_relative_depths"],
                 logger=logger,
                 overwrite=OVERWRITE,

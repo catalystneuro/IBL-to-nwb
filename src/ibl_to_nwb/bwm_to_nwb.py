@@ -43,11 +43,22 @@ def get_logger(eid: str):
     _logger = logging.getLogger(f"bwm_to_nwb.{eid}")
     return _logger
 
-def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path = None) -> dict:
+def setup_paths(
+    one: ONE,
+    eid: str,
+    base_path: Path = None,
+    decompressed_ephys_path: Path = None,
+    logs_path: Path = None,
+) -> dict:
     """
     This function creates a structured dictionary of paths necessary for the NWB conversion,
-    including output folders, session folders, and scratch directories. It also ensures
-    that all specified directories exist.
+    including output folders, session folders, logs, and scratch directories for ephys data.
+
+    Architecture:
+    -------------
+    Two separate directories for different purposes:
+    - logs_path: Persistent conversion logs (small, kept for auditing)
+    - decompressed_ephys_path: Temporary decompressed ephys files (large, deleted after conversion)
 
     Parameters:
     -----------
@@ -57,47 +68,62 @@ def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path =
         The experiment ID for the session being converted.
     base_path : Path, optional
         The base path for output files. If None, defaults to ~/ibl_bmw_to_nwb.
-    scratch_path : Path, optional
-        The path for temporary/scratch files. If None, defaults to /scratch.
+    decompressed_ephys_path : Path, optional
+        Path for temporary decompressed ephys files. If None, defaults based on environment.
+        Recommended: Use a location with fast I/O and automatic cleanup (e.g., /scratch on HPC).
+    logs_path : Path, optional
+        Path for persistent conversion logs. If None, defaults to base_path/conversion_logs.
+        Logs are small and should be kept for debugging/auditing.
 
     Returns:
     --------
     dict
         A dictionary containing the following paths:
         - output_folder: Path to store the output NWB files.
-        - session_folder: Path to the original session data.
-        - scratch_folder: Path for temporary files.
-        - session_scratch_folder: Path for session-specific temporary files.
-        - spikeglx_source_folder: Path to the raw ephys data within the scratch folder.
+        - session_folder: Path to the original session data (ONE cache).
+        - logs_folder: Path for conversion logs (persistent).
+        - decompressed_ephys_folder: Path for temporary decompressed ephys files.
+        - session_decompressed_ephys_folder: Path for this session's ephys files.
+        - spikeglx_source_folder: Path to the raw ephys data for this session.
     """
 
     base_path = Path.home() / "ibl_bmw_to_nwb" if base_path is None else base_path
 
-    # Only apply environment-based logic if scratch_path was not explicitly provided
-    if scratch_path is None:
+    # Logs go to a persistent location (defaults to base_path/conversion_logs)
+    if logs_path is None:
+        logs_path = base_path / "conversion_logs"
+
+    # Decompressed ephys uses fast temporary storage (defaults based on environment)
+    if decompressed_ephys_path is None:
         if "USE_SDSC_ONE" in os.environ:
-            scratch_path = Path("/scratch")  # <- on SDSC, a per node /scratch folder exists for this purpose
+            decompressed_ephys_path = Path("/scratch")  # <- on SDSC, a per node /scratch folder exists
         else:
-            scratch_path = Path.home() / "ibl_scratch"  # for local usage
+            decompressed_ephys_path = base_path / "decompressed_ephys"  # for local usage
 
     subject = one.eid2ref(eid)["subject"]
     paths = dict(
-        output_folder=base_path / "nwbfiles",  # Changed: removed subject, will be added per conversion type
+        output_folder=base_path / "nwbfiles",
         subject=subject,  # Store subject for later use in constructing full paths
-        session_folder=one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
-        scratch_folder=scratch_path,
+        session_folder=one.eid2path(eid),  # <- this is the folder on the main storage
+        logs_folder=logs_path,  # Separate logs directory
+        decompressed_ephys_folder=decompressed_ephys_path,  # Explicit name for ephys scratch
     )
 
-    # inferred from above
-    paths["session_scratch_folder"] = paths["scratch_folder"] / eid
-    paths["spikeglx_source_folder"] = (
-        paths["session_scratch_folder"] / "raw_ephys_data"
-    )  # <- this will be based on the session_scratch_folder
+    # Session-specific paths derived from above
+    paths["session_decompressed_ephys_folder"] = paths["decompressed_ephys_folder"] / eid
+    paths["spikeglx_source_folder"] = paths["session_decompressed_ephys_folder"] / "raw_ephys_data"
 
-    # Create base directories (but not subject-specific ones - those are created in conversion functions)
+    # Backward compatibility (deprecated - will be removed in future)
+    paths["scratch_folder"] = paths["decompressed_ephys_folder"]  # Alias for old code
+    paths["session_scratch_folder"] = paths["session_decompressed_ephys_folder"]  # Alias
+    paths["ephys_scratch_folder"] = paths["decompressed_ephys_folder"]  # Alias
+    paths["session_ephys_scratch_folder"] = paths["session_decompressed_ephys_folder"]  # Alias
+
+    # Create base directories
     paths["output_folder"].mkdir(exist_ok=True, parents=True)
-    paths["scratch_folder"].mkdir(exist_ok=True, parents=True)
-    paths["session_scratch_folder"].mkdir(exist_ok=True, parents=True)
+    paths["logs_folder"].mkdir(exist_ok=True, parents=True)
+    paths["decompressed_ephys_folder"].mkdir(exist_ok=True, parents=True)
+    paths["session_decompressed_ephys_folder"].mkdir(exist_ok=True, parents=True)
     paths["spikeglx_source_folder"].mkdir(exist_ok=True, parents=True)
 
     return paths
@@ -394,7 +420,7 @@ def convert_session(
     verify: bool = True,
     log_to_file=False,
     debug=False,
-    scratch_path=None,
+    decompressed_ephys_path=None,
     overwrite=False,
 ) -> Path:
     """
@@ -423,8 +449,8 @@ def convert_session(
         If True, logs the conversion process to a file.
     debug : bool, default=False
         If True, runs in debug mode.
-    scratch_path : Path, optional
-        The path for temporary/scratch files.
+    decompressed_ephys_path : Path, optional
+        Directory for temporary decompressed ephys files.
 
     Returns:
     --------
@@ -436,7 +462,7 @@ def convert_session(
         revision = "2025-06-04"
 
     # path setup
-    paths = setup_paths(one, eid, base_path=base_path, scratch_path=scratch_path)
+    paths = setup_paths(one, eid, base_path=base_path, decompressed_ephys_path=decompressed_ephys_path)
 
     # create sublogger with a seperate file handle to log each conversion into a seperate file
     _logger = logging.getLogger(f"bwm_to_nwb.{eid}")

@@ -93,7 +93,8 @@ def convert_session(
     *,
     one: ONE,
     base_folder: Path,
-    scratch_folder: Path,
+    logs_folder: Path,
+    decompressed_ephys_folder: Path,
     nwb_folder: Path,
     stub_test: bool,
     convert_raw: bool,
@@ -107,7 +108,7 @@ def convert_session(
     Returns a dict with conversion statistics.
     """
 
-    log_file = scratch_folder / f"conversion_log_{eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    log_file = logs_folder / f"conversion_log_{eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
     logger = setup_logger(log_file)
 
     logger.info("=" * 80)
@@ -129,7 +130,7 @@ def convert_session(
         redownload_data=False,
         stub_test=stub_test,
         base_path=base_folder,
-        scratch_path=scratch_folder,
+        decompressed_ephys_path=decompressed_ephys_folder,
         logger=logger,
     )
 
@@ -152,7 +153,7 @@ def convert_session(
             one=one,
             stub_test=stub_test,
             base_path=base_folder,
-            scratch_path=scratch_folder,
+            decompressed_ephys_path=decompressed_ephys_folder,
             logger=logger,
             overwrite=False,
             redecompress_ephys=False,
@@ -176,7 +177,7 @@ def convert_session(
             one=one,
             stub_test=stub_test,
             base_path=base_folder,
-            scratch_path=scratch_folder,
+            decompressed_ephys_path=decompressed_ephys_folder,
             logger=logger,
             overwrite=False,
         )
@@ -207,7 +208,8 @@ def main() -> None:
 
     # Hardcoded configuration
     BASE_FOLDER = Path("/ebs")
-    SCRATCH_SUBDIR = "temporary_files"
+    LOGS_SUBDIR = "conversion_logs"
+    DECOMPRESSED_EPHYS_SUBDIR = "decompressed_ephys"
     CACHE_SUBDIR = "ibl_data"
     NWB_SUBDIR = "nwbfiles"
     REVISION = "2025-05-06"
@@ -261,11 +263,12 @@ def main() -> None:
     logging.info(f"Assigned sessions [{start_idx}-{end_idx}]: {len(eids)} sessions")
 
     # Create directory structure (inlined)
-    for subdir in [SCRATCH_SUBDIR, CACHE_SUBDIR, NWB_SUBDIR]:
+    for subdir in [LOGS_SUBDIR, DECOMPRESSED_EPHYS_SUBDIR, CACHE_SUBDIR, NWB_SUBDIR]:
         (BASE_FOLDER / subdir).mkdir(parents=True, exist_ok=True)
 
     cache_dir = BASE_FOLDER / CACHE_SUBDIR
-    scratch_folder = BASE_FOLDER / SCRATCH_SUBDIR
+    logs_folder = BASE_FOLDER / LOGS_SUBDIR
+    decompressed_ephys_folder = BASE_FOLDER / DECOMPRESSED_EPHYS_SUBDIR
     nwb_folder = BASE_FOLDER / NWB_SUBDIR
 
     # Configure ONE with public IBL data access
@@ -295,7 +298,8 @@ def main() -> None:
                 eid,
                 one=one,
                 base_folder=BASE_FOLDER,
-                scratch_folder=scratch_folder,
+                logs_folder=logs_folder,
+                decompressed_ephys_folder=decompressed_ephys_folder,
                 nwb_folder=nwb_folder,
                 stub_test=args.stub_test,
                 convert_raw=CONVERT_RAW,

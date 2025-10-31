@@ -53,7 +53,7 @@ def convert_raw_session(
     one: ONE,
     stub_test: bool = False,
     base_path: Path | None = None,
-    scratch_path: Path | None = None,
+    decompressed_ephys_path: Path | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
     redecompress_ephys: bool = False,
@@ -74,8 +74,8 @@ def convert_raw_session(
         Ephys and videos are auto-included if already available locally.
     base_path : Path, optional
         Base output directory for NWB files
-    scratch_path : Path, optional
-        Scratch directory for temporary files (ephys decompression, etc.)
+    decompressed_ephys_path : Path, optional
+        Directory for temporary decompressed ephys files
     logger : logging.Logger, optional
         Logger instance for conversion progress
     overwrite : bool, optional
@@ -94,7 +94,7 @@ def convert_raw_session(
 
     # Setup paths
     start_time = time.time()
-    paths = setup_paths(one, eid, base_path=base_path, scratch_path=scratch_path)
+    paths = setup_paths(one, eid, base_path=base_path, decompressed_ephys_path=decompressed_ephys_path)
     if logger:
         logger.info(f"Paths setup completed in {time.time() - start_time:.2f}s")
 
