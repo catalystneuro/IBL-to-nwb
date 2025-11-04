@@ -9,7 +9,7 @@ Prerequisites:
     - ec2:RunInstances permission (no IAM role needed with IMDSv2!)
 
 Usage:
-    python launch_ec2_instances.py --num-instances 50 --instance-type t3.2xlarge
+    python launch_ec2_instances.py --num-instances 50 --instance-type m6i.2xlarge
 """
 
 import argparse
@@ -283,8 +283,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--instance-type",
-        default="t3.2xlarge",
-        help="EC2 instance type (default: t3.2xlarge)",
+        default="m6i.2xlarge",
+        help="EC2 instance type (default: m6i.2xlarge for consistent CPU performance)",
     )
     parser.add_argument(
         "--stub-test",
