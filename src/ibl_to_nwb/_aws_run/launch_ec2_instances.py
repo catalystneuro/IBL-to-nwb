@@ -296,9 +296,9 @@ def parse_args() -> argparse.Namespace:
         help="SSH key pair name (optional, for debugging)",
     )
     parser.add_argument(
-        "--use-on-demand",
+        "--use-spot",
         action="store_true",
-        help="Use on-demand instances instead of Spot",
+        help="Use Spot instances instead of On-Demand (not recommended for production)",
     )
     parser.add_argument(
         "--vpc-id",
@@ -356,7 +356,7 @@ def main() -> None:
     logger.info(f"Instance type: {args.instance_type}")
     logger.info(f"EBS volume size: {EBS_VOLUME_SIZE} GB")
     logger.info(f"Region: {REGION}")
-    logger.info(f"Using Spot: {not args.use_on_demand}")
+    logger.info(f"Instance pricing: {'Spot' if args.use_spot else 'On-Demand'}")
     logger.info(f"Mode: {'STUB TEST' if args.stub_test else 'PRODUCTION'}")
     if network_config:
         logger.info(f"Network config: Loaded from {CONFIG_FILE}")
@@ -404,7 +404,7 @@ def main() -> None:
         num_instances=args.num_instances,
         ebs_volume_size=EBS_VOLUME_SIZE,
         total_sessions=args.total_sessions,
-        use_spot=not args.use_on_demand,
+        use_spot=args.use_spot,
         stub_test=args.stub_test,
         key_name=args.key_name,
         subnet_id=subnet_id,  # From config file or CLI
