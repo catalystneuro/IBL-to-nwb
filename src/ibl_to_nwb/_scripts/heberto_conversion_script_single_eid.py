@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = True               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False         # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
@@ -84,6 +84,7 @@ if __name__ == "__main__":
     TARGET_EID = "28741f91-c837-4147-939e-918d38d849f2"  # Signal already in info dict
     #TARGET_EID = "d2918f52-8280-43c0-924b-029b2317e62c"  # Testing if meta is downloaded
     #TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # Testing: stream matching
+    TARGET_EID = "29a6def1-fc5c-4eea-ac48-47e9b053dcb5" # Time alignment issue
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":

@@ -5,7 +5,6 @@ import traceback
 from pathlib import Path
 
 import one
-import spikeglx
 from one.alf.spec import is_uuid_string
 from one.api import ONE
 from brainbox.io.one import SessionLoader
@@ -27,6 +26,7 @@ from ibl_to_nwb.datainterfaces import (
 )
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
+from ibl_to_nwb.utils import decompress_ephys_cbins
 
 """
 ########     ###    ######## ##     ##
@@ -331,60 +331,6 @@ def _get_raw_data_interfaces(one, eid: str, paths: dict, revision=None) -> list:
         )
         data_interfaces.append(video_interface)
     return data_interfaces
-
-
-"""
-########  ########  ######## ########
-##     ## ##     ## ##       ##     ##
-##     ## ##     ## ##       ##     ##
-########  ########  ######   ########
-##        ##   ##   ##       ##
-##        ##    ##  ##       ##
-##        ##     ## ######## ##
-"""
-
-
-def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = None, remove_uuid: bool = True):
-    # target is the folder to compress into
-
-    # decompress cbin if necessary
-    cbin_files = list(source_folder.rglob("*.cbin"))
-    if len(cbin_files) == 0:
-        # TODO should copmlain
-        # _logger.critical('no .cbin files found to decompress')
-        ...
-
-    for file_cbin in cbin_files:
-        if target_folder is not None:
-            target_bin = (target_folder / file_cbin.relative_to(source_folder)).with_suffix(".bin")
-            # target_bin = target_folder / file_cbin.with_suffix('.bin').name
-        else:
-            target_bin = file_cbin.with_suffix(".bin")
-        target_bin_no_uuid = remove_uuid_from_filepath(target_bin)
-        target_bin_no_uuid.parent.mkdir(parents=True, exist_ok=True)
-
-        if not target_bin_no_uuid.exists():
-            # _logger.info(f"decompressing {file_cbin}")
-
-            # find corresponding meta file
-            name = remove_uuid_from_filepath(file_cbin).stem
-            (file_meta,) = list(file_cbin.parent.glob(f"{name}*.meta"))
-            (file_ch,) = list(file_cbin.parent.glob(f"{name}*.ch"))
-
-            # copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(
-                scratch_dir=target_bin.parent
-            )
-
-            if remove_uuid:
-                shutil.move(target_bin, target_bin_no_uuid)
-
-            # remove uuid from meta file at target directory
-            if target_folder is not None and remove_uuid is True:
-                file_meta_target = remove_uuid_from_filepath(target_bin.parent / file_meta.name)
-                if not file_meta_target.exists():
-                    shutil.move(target_bin.parent / file_meta.name, file_meta_target)
-                    # _logger.info(f"moving {target_bin.parent / file_meta.name} to {file_meta_target}")
 
 
 """

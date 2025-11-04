@@ -319,5 +319,5 @@ class IblSpikeGlxConverter(ConverterPipe):
                 conversion_options[interface_name] = dict()
             conversion_options[interface_name]["always_write_timestamps"] = True
 
-        # self.temporally_align_data_interfaces()
+        self.temporally_align_data_interfaces()
         super().add_to_nwbfile(nwbfile=nwbfile, metadata=metadata, conversion_options=conversion_options)
