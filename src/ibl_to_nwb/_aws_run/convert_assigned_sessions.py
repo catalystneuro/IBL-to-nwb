@@ -210,7 +210,7 @@ def main() -> None:
     BASE_FOLDER = Path("/ebs")
     LOGS_SUBDIR = "conversion_logs"
     DECOMPRESSED_EPHYS_SUBDIR = "decompressed_ephys"
-    CACHE_SUBDIR = "ibl_data"
+    CACHE_SUBDIR = "ibl_cache"
     NWB_SUBDIR = "nwbfiles"
     REVISION = "2025-05-06"
     CONVERT_RAW = True
@@ -325,7 +325,7 @@ def main() -> None:
     logging.info("=" * 100)
 
     # Save results summary
-    summary_file = scratch_folder / f"batch_summary_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    summary_file = logs_folder / f"batch_summary_{time.strftime('%Y%m%d_%H%M%S')}.json"
     summary = {
         "total_sessions": total_sessions,
         "successful": successful,

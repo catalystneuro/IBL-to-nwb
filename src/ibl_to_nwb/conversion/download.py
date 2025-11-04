@@ -8,6 +8,7 @@ from one.api import ONE
 
 from ..bwm_to_nwb import setup_paths
 from ..fixtures import load_fixtures
+from ..converters import IblSpikeGlxConverter
 from ..datainterfaces import (
     IblSortingInterface,
     IblAnatomicalLocalizationInterface,
@@ -52,12 +53,15 @@ def download_session_data(
     # Define all interfaces to download (for both RAW and PROCESSED conversions)
     interfaces_to_download = []
 
-    # Core behavioral/processed data interfaces
+    # Core behavioral/processed data interfaces (always available)
     interfaces_to_download.extend([
         ("Trials", BrainwideMapTrialsInterface, {}),
         ("Wheel", WheelInterface, {}),
-        ("Licks", LickInterface, {}),
     ])
+
+    # Licks are optional - not all sessions have lick detection data
+    if LickInterface.check_availability(one, eid)["available"]:
+        interfaces_to_download.append(("Licks", LickInterface, {}))
 
     # Passive period interfaces (check availability first - each is optional)
     if PassiveIntervalsInterface.check_availability(one, eid)["available"]:
@@ -71,10 +75,16 @@ def download_session_data(
 
     # Spike sorting and anatomical localization
     # Note: Anatomical localization checks availability internally and may skip if no good histology
+    # Note: Anatomical localization downloads .meta files needed for electrode tables
     interfaces_to_download.extend([
         ("SpikeSorting", IblSortingInterface, {}),
         ("AnatomicalLocalization", IblAnatomicalLocalizationInterface, {}),
     ])
+
+    # Raw SpikeGLX data (large .cbin files)
+    # Skip in stub mode to avoid downloading gigabytes of raw ephys data
+    if not stub_test:
+        interfaces_to_download.append(("RawSpikeGLX", IblSpikeGlxConverter, {}))
 
     # Camera-based interfaces (videos, pose, pupil, motion energy)
     # Check availability per camera since not all sessions have all cameras

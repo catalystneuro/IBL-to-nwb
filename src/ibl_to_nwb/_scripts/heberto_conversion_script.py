@@ -63,14 +63,14 @@ if __name__ == "__main__":
 
     CONVERT_RAW = True             # Write raw-ephys NWBs
     CONVERT_PROCESSED = True       # Write processed/behavior NWBs
-    STUB_TEST = True               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False        # Force re-download even if cached
     REDECOMPRESS_EPHYS = False     # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True              # Regenerate NWBs even if existing files validate
     RUN_CONSISTENCY_CHECKS = True  # Validate NWB files against ONE data (slow but thorough)
 
     base_folder = Path("/media/heberto/Expansion")
-    cache_dir = base_folder / "ibl_data"
+    cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 
     # NEW: Separate directories for logs and ephys scratch

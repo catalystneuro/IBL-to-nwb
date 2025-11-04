@@ -140,7 +140,9 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         Declare data file patterns required for anatomical localization.
 
         Histology data is loaded via SpikeSortingLoader which fetches channel coordinates
-        and brain regions. Only probes with histology quality 'alf' or 'resolved' are included.
+        and brain regions. Additionally, SpikeGLX .meta files are required to determine
+        electrode geometry for creating the electrode table.
+        Only probes with histology quality 'alf' or 'resolved' are included.
 
         Parameters
         ----------
@@ -156,12 +158,15 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             "one_objects": [],  # Uses SpikeSortingLoader abstraction
             "exact_files_options": {
                 "standard": [
+                    # Histology files (anatomical coordinates and brain regions)
                     "alf/probe*/channels.localCoordinates.npy",
                     "alf/probe*/channels.mlapdv.npy",
                     "alf/probe*/channels.brainLocationIds_ccf_2017.npy",
                     "alf/probe*/electrodeSites.localCoordinates.npy",
                     "alf/probe*/electrodeSites.mlapdv.npy",
                     "alf/probe*/electrodeSites.brainLocationIds_ccf_2017.npy",
+                    # SpikeGLX metadata files (electrode geometry - required for electrode table)
+                    "raw_ephys_data/probe*/_spikeglx_ephysData_g0_t0.imec*.ap.meta",
                 ],
             },
             "quality_filter": "histology quality in ['alf', 'resolved']",
@@ -334,6 +339,22 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             ssl = SpikeSortingLoader(pid=pid, eid=eid, pname=pname, one=one, atlas=atlas)
             ssl.load_spike_sorting(revision=revision)
 
+            # Download SpikeGLX .meta file for electrode geometry
+            # This is REQUIRED for creating the electrode table
+            meta_collection = f"raw_ephys_data/{pname}"
+            meta_datasets = [d for d in one.list_datasets(eid, collection=meta_collection) if d.endswith('.ap.meta')]
+            if meta_datasets:
+                # NO try-except - fail loudly if .meta file cannot be downloaded
+                one.load_dataset(id=eid, dataset=meta_datasets[0], download_only=True)
+                if logger:
+                    logger.info(f"    Downloaded .meta file for {pname}")
+            else:
+                # Fail loudly - .meta file is required
+                raise FileNotFoundError(
+                    f"No .meta file found for probe {pname} in session {eid}. "
+                    f"Collection: {meta_collection}"
+                )
+
             downloaded_probes.append(pname)
 
         download_time = time.time() - start_time
@@ -354,6 +375,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 f"alf/{pname}/electrodeSites.localCoordinates.npy",
                 f"alf/{pname}/electrodeSites.mlapdv.npy",
                 f"alf/{pname}/electrodeSites.brainLocationIds_ccf_2017.npy",
+                f"raw_ephys_data/{pname}/_spikeglx_ephysData_g0_t0.imec.ap.meta",
             ])
 
         return {

@@ -1,4 +1,7 @@
 from pathlib import Path
+from typing import Optional
+import logging
+import time
 
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
@@ -7,6 +10,8 @@ from neuroconv.nwbconverter import ConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
+
+from ..fixtures import get_probe_name_to_probe_id_dict
 
 
 def _format_probe_label(probe_name: str) -> str:
@@ -105,6 +110,116 @@ class IblSpikeGlxConverter(ConverterPipe):
                 ids=channel_ids,
                 values=[ibl_group_name] * len(channel_ids)
             )
+
+    @classmethod
+    def get_data_requirements(cls, **kwargs) -> dict:
+        """
+        Declare data file patterns required for raw SpikeGLX recordings.
+
+        Returns
+        -------
+        dict
+            Data requirements for raw ephys files (.cbin, .meta, .ch)
+        """
+        return {
+            "one_objects": [],
+            "exact_files_options": {
+                "standard": [
+                    # Compressed binary files (AP and LF bands)
+                    "raw_ephys_data/probe*/_spikeglx_ephysData_g0_t0.imec*.ap.cbin",
+                    "raw_ephys_data/probe*/_spikeglx_ephysData_g0_t0.imec*.lf.cbin",
+                    # Metadata files
+                    "raw_ephys_data/probe*/_spikeglx_ephysData_g0_t0.imec*.ap.meta",
+                    "raw_ephys_data/probe*/_spikeglx_ephysData_g0_t0.imec*.lf.meta",
+                    # Channel map files
+                    "raw_ephys_data/probe*/_spikeglx_ephysData_g0_t0.imec*.ap.ch",
+                    "raw_ephys_data/probe*/_spikeglx_ephysData_g0_t0.imec*.lf.ch",
+                ],
+            },
+        }
+
+    @classmethod
+    def download_data(
+        cls,
+        one: ONE,
+        eid: str,
+        download_only: bool = True,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Download raw SpikeGLX data (.cbin, .meta, .ch files) for all probes.
+
+        Uses SpikeSortingLoader.raw_electrophysiology() which downloads the raw data
+        if not already cached.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        download_only : bool, default=True
+            If True, download but don't load into memory
+        logger : logging.Logger, optional
+            Logger for progress tracking
+
+        Returns
+        -------
+        dict
+            Download status with list of files downloaded
+        """
+        if logger:
+            logger.info(f"Downloading raw SpikeGLX data (session {eid})")
+
+        start_time = time.time()
+
+        # Get probe insertions from fixture (fast, no Alyx query)
+        probe_name_to_probe_id_dict = get_probe_name_to_probe_id_dict(eid)
+
+        if logger:
+            logger.info(f"  Found {len(probe_name_to_probe_id_dict)} probe(s)")
+
+        downloaded_files = []
+
+        # Download raw ephys data for each probe
+        for probe_name, pid in probe_name_to_probe_id_dict.items():
+            if logger:
+                logger.info(f"  Downloading raw ephys data for {probe_name}")
+
+            ssl = SpikeSortingLoader(one=one, eid=eid, pname=probe_name, pid=pid)
+
+            # Download both AP and LF bands
+            # stream=False triggers download if not cached
+            # NO try-except - fail loudly if download fails
+            for band in ['ap', 'lf']:
+                ssl.raw_electrophysiology(band=band, stream=False, revision=cls.REVISION)
+                if logger:
+                    logger.info(f"    Downloaded {band.upper()} band data")
+
+                # Track downloaded files
+                downloaded_files.extend([
+                    f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.cbin",
+                    f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.meta",
+                    f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.ch",
+                ])
+
+        download_time = time.time() - start_time
+
+        if logger:
+            logger.info(
+                f"  Downloaded raw ephys data for {len(probe_name_to_probe_id_dict)} probe(s) "
+                f"in {download_time:.2f}s"
+            )
+
+        return {
+            "success": True,
+            "downloaded_objects": ["raw_spikeglx"],
+            "downloaded_files": downloaded_files,
+            "already_cached": [],
+            "alternative_used": None,
+            "data": None,
+        }
 
     def get_metadata(self):
         """
