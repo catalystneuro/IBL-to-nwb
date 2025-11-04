@@ -10,6 +10,7 @@ from neuroconv.nwbconverter import ConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
+from spikeinterface.extractors import SpikeGLXRecordingExtractor
 
 from ..fixtures import get_probe_name_to_probe_id_dict
 
@@ -32,9 +33,6 @@ class IblSpikeGlxConverter(ConverterPipe):
     ) -> None:
         folder_path = Path(folder_path)
 
-        # IBL data always has imec.ap and imec.lf streams for each probe
-        ibl_streams = ["imec.ap", "imec.lf"]
-
         # Create interfaces manually from probe subfolders
         # This avoids Neo's duplicate stream name bug when scanning parent folder
         data_interfaces = {}
@@ -45,7 +43,13 @@ class IblSpikeGlxConverter(ConverterPipe):
             if not probe_folder.exists():
                 continue  # Skip if probe folder doesn't exist
 
-            for stream_id in ibl_streams:
+            # Auto-detect available streams (handles imec.ap, imec0.ap, imec1.ap variants)
+            available_streams = SpikeGLXRecordingExtractor.get_streams(folder_path=str(probe_folder))[0]
+
+            # Filter to AP/LF bands only (exclude SYNC streams)
+            ap_lf_streams = [s for s in available_streams if s.endswith('.ap') or s.endswith('.lf')]
+
+            for stream_id in ap_lf_streams:
                 # Create interface pointing to probe subfolder
                 # Neo will only see one probe's files, avoiding duplicate stream names
                 interface = SpikeGLXRecordingInterface(
@@ -53,9 +57,11 @@ class IblSpikeGlxConverter(ConverterPipe):
                     stream_id=stream_id
                 )
 
+                # Normalize stream naming: imec0/imec1 → imec for consistent internal keys
                 # Key format: "probe00.imec.ap", "probe00.imec.lf", etc.
                 # This preserves probe identity throughout the pipeline
-                key = f"{probe_name}.{stream_id}"
+                normalized_stream = stream_id.replace('imec0', 'imec').replace('imec1', 'imec')
+                key = f"{probe_name}.{normalized_stream}"
                 data_interfaces[key] = interface
 
         # Initialize parent with pre-built interfaces (bypasses Neo's auto-discovery)
