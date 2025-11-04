@@ -9,7 +9,7 @@ Prerequisites:
     - ec2:RunInstances permission (no IAM role needed with IMDSv2!)
 
 Usage:
-    python launch_ec2_instances.py --num-instances 50 --instance-type m6i.2xlarge
+    python launch_ec2_instances.py --num-instances 50 --instance-type m6a.2xlarge
 """
 
 import argparse
@@ -283,8 +283,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--instance-type",
-        default="m6i.2xlarge",
-        help="EC2 instance type (default: m6i.2xlarge for consistent CPU performance)",
+        default="m6a.2xlarge",
+        help="EC2 instance type (default: m6a.2xlarge for best value - AMD EPYC 3rd gen with same network/EBS as m6i)",
     )
     parser.add_argument(
         "--stub-test",
@@ -329,7 +329,7 @@ def main() -> None:
     REGION = "us-east-2"
     SECURITY_GROUP_NAME = "ibl-conversion-sg"
     USER_DATA_SCRIPT = Path(__file__).parent / "ec2_userdata_production.sh"
-    EBS_VOLUME_SIZE = 100 if args.stub_test else 400  # 100GB for testing, 400GB for production
+    EBS_VOLUME_SIZE = 100 if args.stub_test else 700  # 100GB for testing, 700GB for production
 
     # Load network config from file if not provided via CLI
     CONFIG_FILE = Path(__file__).parent / "network_config.env"

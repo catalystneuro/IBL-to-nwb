@@ -82,7 +82,8 @@ if __name__ == "__main__":
     TARGET_EID = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # has mismatch in timestamps between pupil and data
     TARGET_EID = "1f095590-6669-46c9-986b-ccaf0620c5e9"  # UCLA012 - Testing: previously missing videos in raw NWB
     TARGET_EID = "28741f91-c837-4147-939e-918d38d849f2"  # Signal already in info dict
-    TARGET_EID = "d2918f52-8280-43c0-924b-029b2317e62c"  # Testing if meta is downloaded
+    #TARGET_EID = "d2918f52-8280-43c0-924b-029b2317e62c"  # Testing if meta is downloaded
+    #TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # Testing: stream matching
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":
