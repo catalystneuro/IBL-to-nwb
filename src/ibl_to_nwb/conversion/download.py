@@ -32,7 +32,6 @@ def download_session_data(
     redownload_data: bool = False,
     stub_test: bool = False,
     base_path: Path | None = None,
-    decompressed_ephys_path: Path | None = None,
     logger: logging.Logger | None = None,
 ) -> dict:
     """Download all datasets for a session using interface-specific download methods."""
@@ -41,7 +40,7 @@ def download_session_data(
     download_start = time.time()
 
     # Setup paths to check cache location
-    paths = setup_paths(one, eid, base_path=base_path, decompressed_ephys_path=decompressed_ephys_path)
+    paths = setup_paths(one, eid, base_path=base_path)
 
     # Check if we need to clear cached data
     if redownload_data and paths["session_folder"].exists():

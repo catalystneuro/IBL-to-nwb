@@ -59,7 +59,6 @@ def convert_processed_session(
     one: ONE,
     stub_test: bool = False,
     base_path: Path | None = None,
-    decompressed_ephys_path: Path | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
 ) -> dict:
@@ -77,8 +76,6 @@ def convert_processed_session(
         are automatically skipped to reduce memory usage.
     base_path : Path, optional
         Base output directory for NWB files
-    decompressed_ephys_path : Path, optional
-        Directory for temporary decompressed ephys files (not used in processed conversion)
     logger : logging.Logger, optional
         Logger instance for conversion progress
     overwrite : bool, optional
@@ -108,7 +105,7 @@ def convert_processed_session(
 
     # Setup paths
     start_time = time.time()
-    paths = setup_paths(one, eid, base_path=base_path, decompressed_ephys_path=decompressed_ephys_path)
+    paths = setup_paths(one, eid, base_path=base_path)
     if logger:
         logger.info(f"Paths setup completed in {time.time() - start_time:.2f}s")
 

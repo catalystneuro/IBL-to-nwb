@@ -47,8 +47,6 @@ def setup_paths(
     one: ONE,
     eid: str,
     base_path: Path = None,
-    decompressed_ephys_path: Path = None,
-    logs_path: Path = None,
 ) -> dict:
     """
     This function creates a structured dictionary of paths necessary for the NWB conversion,
@@ -56,9 +54,9 @@ def setup_paths(
 
     Architecture:
     -------------
-    Two separate directories for different purposes:
-    - logs_path: Persistent conversion logs (small, kept for auditing)
-    - decompressed_ephys_path: Temporary decompressed ephys files (large, deleted after conversion)
+    All paths are derived from base_path:
+    - logs_path: base_path/conversion_logs (persistent logs - small, kept for auditing)
+    - decompressed_ephys_path: base_path/decompressed_ephys (temporary decompressed ephys files - large, can be deleted)
 
     Parameters:
     -----------
@@ -68,12 +66,7 @@ def setup_paths(
         The experiment ID for the session being converted.
     base_path : Path, optional
         The base path for output files. If None, defaults to ~/ibl_bmw_to_nwb.
-    decompressed_ephys_path : Path, optional
-        Path for temporary decompressed ephys files. If None, defaults based on environment.
-        Recommended: Use a location with fast I/O and automatic cleanup (e.g., /scratch on HPC).
-    logs_path : Path, optional
-        Path for persistent conversion logs. If None, defaults to base_path/conversion_logs.
-        Logs are small and should be kept for debugging/auditing.
+        All other paths (logs, decompressed ephys) are derived from this base path.
 
     Returns:
     --------
@@ -89,16 +82,14 @@ def setup_paths(
 
     base_path = Path.home() / "ibl_bmw_to_nwb" if base_path is None else base_path
 
-    # Logs go to a persistent location (defaults to base_path/conversion_logs)
-    if logs_path is None:
-        logs_path = base_path / "conversion_logs"
+    # Logs go to a persistent location (derived from base_path)
+    logs_path = base_path / "conversion_logs"
 
-    # Decompressed ephys uses fast temporary storage (defaults based on environment)
-    if decompressed_ephys_path is None:
-        if "USE_SDSC_ONE" in os.environ:
-            decompressed_ephys_path = Path("/scratch")  # <- on SDSC, a per node /scratch folder exists
-        else:
-            decompressed_ephys_path = base_path / "decompressed_ephys"  # for local usage
+    # Decompressed ephys uses fast temporary storage (derived from base_path or environment)
+    if "USE_SDSC_ONE" in os.environ:
+        decompressed_ephys_path = Path("/scratch")  # <- on SDSC, a per node /scratch folder exists
+    else:
+        decompressed_ephys_path = base_path / "decompressed_ephys"  # for local usage
 
     subject = one.eid2ref(eid)["subject"]
     paths = dict(
@@ -366,7 +357,6 @@ def convert_session(
     verify: bool = True,
     log_to_file=False,
     debug=False,
-    decompressed_ephys_path=None,
     overwrite=False,
 ) -> Path:
     """
@@ -388,15 +378,14 @@ def convert_session(
     mode : str, default="raw"
         The conversion mode. Can be "raw", "processed", or "debug".
     base_path : Path, optional
-        The base path for output and temporary files.
+        The base path for output and temporary files. The decompressed ephys path
+        will be derived from this as base_path/decompressed_ephys.
     verify : bool, default=True
         If True, performs consistency checks on the converted NWB file.
     log_to_file : bool, default=False
         If True, logs the conversion process to a file.
     debug : bool, default=False
         If True, runs in debug mode.
-    decompressed_ephys_path : Path, optional
-        Directory for temporary decompressed ephys files.
 
     Returns:
     --------
@@ -408,7 +397,7 @@ def convert_session(
         revision = "2025-06-04"
 
     # path setup
-    paths = setup_paths(one, eid, base_path=base_path, decompressed_ephys_path=decompressed_ephys_path)
+    paths = setup_paths(one, eid, base_path=base_path)
 
     # create sublogger with a seperate file handle to log each conversion into a seperate file
     _logger = logging.getLogger(f"bwm_to_nwb.{eid}")

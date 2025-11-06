@@ -72,10 +72,6 @@ if __name__ == "__main__":
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 
-    # Separate directories for logs and ephys scratch
-    logs_path = base_folder / "conversion_logs"
-    decompressed_ephys_path = base_folder / "decompressed_ephys"
-
     TARGET_EID = "bd456d8f-d36e-434a-8051-ff3997253802"  # This one has full raw data
     TARGET_EID = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # has mismatch in timestamps between pupil and data
     TARGET_EID = "1f095590-6669-46c9-986b-ccaf0620c5e9"  # UCLA012 - Testing: previously missing videos in raw NWB
@@ -91,6 +87,9 @@ if __name__ == "__main__":
 
     one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, silent=True)
 
+    # Logs are derived from base_path
+    logs_path = base_path / "conversion_logs"
+    logs_path.mkdir(exist_ok=True, parents=True)
     log_file_path = logs_path / f"conversion_log_{target_eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
     logger = setup_logger(log_file_path)
 
@@ -125,7 +124,6 @@ if __name__ == "__main__":
         redownload_data=REDOWNLOAD_DATA,
         stub_test=STUB_TEST,
         base_path=base_path,
-        decompressed_ephys_path=decompressed_ephys_path,
         logger=logger,
     )
 
@@ -141,7 +139,6 @@ if __name__ == "__main__":
             one=one,
             stub_test=STUB_TEST,
             base_path=base_path,
-            decompressed_ephys_path=decompressed_ephys_path,
             logger=logger,
             overwrite=OVERWRITE,
             redecompress_ephys=REDECOMPRESS_EPHYS,
@@ -174,7 +171,6 @@ if __name__ == "__main__":
             one=one,
             stub_test=STUB_TEST,
             base_path=base_path,
-            decompressed_ephys_path=decompressed_ephys_path,
             logger=logger,
             overwrite=OVERWRITE,
         )

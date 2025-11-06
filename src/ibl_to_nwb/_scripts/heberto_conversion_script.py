@@ -70,10 +70,6 @@ if __name__ == "__main__":
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 
-    # NEW: Separate directories for logs and ephys scratch
-    logs_path = base_folder / "conversion_logs"  # Persistent logs (small, kept for auditing)
-    scratch_path = base_folder / "decompressed_ephys"  # Temporary ephys files (large, can be deleted)
-
     session_identifier = "all"
 
     one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, silent=True)
@@ -82,12 +78,6 @@ if __name__ == "__main__":
     print("Applying ONE API patches for cache validation...")
     one = apply_one_patches(one, logger=None)
     print("ONE API patches applied successfully\n")
-
-    # Create logs directory
-    logs_path.mkdir(exist_ok=True, parents=True)
-    print(f"Logs directory: {logs_path}")
-    print(f"Ephys scratch directory: {scratch_path}")
-    print()
 
     bwm_df = load_fixtures.load_bwm_df()
     unique_sessions = bwm_df.drop_duplicates("eid").reset_index(drop=True)
@@ -129,7 +119,6 @@ if __name__ == "__main__":
             redownload_data=REDOWNLOAD_DATA,
             stub_test=STUB_TEST,
             base_path=base_path,
-            decompressed_ephys_path=scratch_path,
             logger=logger,
         )
 
@@ -145,7 +134,6 @@ if __name__ == "__main__":
                 one=one,
                 stub_test=STUB_TEST,
                 base_path=base_path,
-                decompressed_ephys_path=scratch_path,
                 logger=logger,
                 overwrite=OVERWRITE,
                 redecompress_ephys=REDECOMPRESS_EPHYS,
@@ -172,7 +160,6 @@ if __name__ == "__main__":
                 one=one,
                 stub_test=STUB_TEST,
                 base_path=base_path,
-                decompressed_ephys_path=scratch_path,
                 logger=logger,
                 overwrite=OVERWRITE,
             )
