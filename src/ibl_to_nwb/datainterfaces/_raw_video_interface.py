@@ -259,7 +259,7 @@ class RawVideoInterface(BaseIBLDataInterface):
             dandi_video_folder_path = dandi_subject_folder / f"{dandi_sub_ses_stem}_ecephys+image"
             dandi_video_folder_path.mkdir(exist_ok=True, parents=True)
 
-            nwb_video_name = f"OriginalVideo{self.camera_name.capitalize()}Camera"
+            nwb_video_name = f"Video{self.camera_name.capitalize()}Camera"
             dandi_video_file_path = dandi_video_folder_path / f"{dandi_sub_ses_stem}_{nwb_video_name}.mp4"
 
             # A little bit of data duplication to copy, but easier for re-running since original file stays in cache
@@ -267,7 +267,7 @@ class RawVideoInterface(BaseIBLDataInterface):
 
             image_series = ImageSeries(
                 name=nwb_video_name,
-                description="The original video each pose was estimated from.",
+                description="Raw video from camera recording behavioral and task events.",
                 unit="n.a.",
                 external_file=["./" + str(dandi_video_file_path.relative_to(dandi_subject_folder))],
                 format="external",

@@ -415,7 +415,7 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     for camera in cameras:
         timestamps_nwb = nwbfile.acquisition[camera].timestamps[:]
 
-        dataset = [dataset for dataset in datasets if camera.split("OriginalVideo")[1].lower() in dataset.lower()]
+        dataset = [dataset for dataset in datasets if camera.split("Video")[1].lower() in dataset.lower()]
         timestamps_one = one.load_dataset(eid, dataset, revision=revision)
         np.testing.assert_array_equal(timestamps_nwb, timestamps_one)
         _logger.debug(f"video timestamps for {camera} passed")
@@ -425,7 +425,7 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     cameras = [key for key in nwbfile.acquisition.keys() if key.endswith("Camera")]
 
     for camera in cameras:
-        cam = camera.split("OriginalVideo")[1].lower()
+        cam = camera.split("Video")[1].lower()
         (dataset,) = [dataset for dataset in datasets if cam in dataset.lower() and "timestamps" not in dataset]
         one_video_path = one.load_dataset(eid, dataset)
         with open(one_video_path, "rb") as fH:
