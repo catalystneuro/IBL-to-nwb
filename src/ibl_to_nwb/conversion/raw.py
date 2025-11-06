@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 import time
+import warnings
 from datetime import datetime
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from neuroconv.tools import configure_and_write_nwbfile
 from ndx_ibl import IblSubject
 from ndx_ibl_bwm import ibl_bwm_metadata
 from one.api import ONE
+from one import alf
 from pynwb import NWBFile, read_nwb
 
 from ..bwm_to_nwb import (
@@ -88,6 +90,29 @@ def convert_raw_session(
     dict
         Conversion result information including NWB file path and timing
     """
+
+    # ========================================================================
+    # SUPPRESS HARMLESS WARNINGS
+    # ========================================================================
+    # Suppress SpikeGLX geometry warnings
+    # These occur when .meta files lack snsShankMap/snsGeomMap fields (common for LF and NIDQ)
+    # The default Neuropixel geometry is correctly used - these warnings are cosmetic
+    warnings.filterwarnings(
+        "ignore",
+        message="Meta data doesn't have geometry.*returning defaults",
+        category=UserWarning,
+        module="spikeglx"
+    )
+
+    # Suppress ONE API ALFWarning about multiple revisions
+    # Camera data often has mixed revisions (empty string "" and dated revisions like "2023-04-20")
+    # This happens when some files were re-processed but not all - the ONE API handles this correctly
+    # by selecting the appropriate revision, so the warning is informational only
+    warnings.filterwarnings(
+        "ignore",
+        message="Multiple revisions:.*",
+        category=alf.exceptions.ALFWarning
+    )
 
     if logger:
         logger.info(f"Starting RAW conversion for session {eid}")
@@ -463,13 +488,13 @@ def convert_raw_session(
 
     conversion_time = time.time() - conversion_start
     if logger:
-        logger.info(f"Data conversion completed in {conversion_time:.2f}s")
+        logger.info(f"Data added to NWBFile object in {conversion_time:.2f}s")
 
     # ========================================================================
-    # STEP 7: Write NWB file
+    # STEP 7: Write NWB file to disk
     # ========================================================================
     if logger:
-        logger.info("Writing NWB file...")
+        logger.info("Writing NWB file to disk...")
     write_start = time.time()
 
     # Use sanitized subject ID for filename (DANDI compliance)

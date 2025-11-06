@@ -59,7 +59,7 @@ if __name__ == "__main__":
     CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = False        # Write processed/behavior NWBs
     STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
-    REDOWNLOAD_DATA = True           # Force re-download even if cached
+    REDOWNLOAD_DATA = False           # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
     RUN_CONSISTENCY_CHECKS = True   # Validate NWB files against ONE data (slow but thorough)
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     script_start_time = time.time()
 
     logger.info("\n" + "=" * 80)
-    logger.info("DOWNLOADING SESSION DATA")
+    logger.info(f"DOWNLOADING SESSION DATA (EID: {target_eid})")
     logger.info("=" * 80)
     download_info = download_session_data(
         eid=target_eid,
@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     if CONVERT_RAW:
         logger.info("\n" + "=" * 80)
-        logger.info("STARTING RAW CONVERSION")
+        logger.info(f"STARTING RAW CONVERSION (EID: {target_eid})")
         logger.info("=" * 80)
         raw_info = convert_raw_session(
             eid=target_eid,
@@ -150,7 +150,7 @@ if __name__ == "__main__":
         # Run consistency checks if enabled
         if RUN_CONSISTENCY_CHECKS and raw_info and not raw_info.get("skipped"):
             logger.info("\n" + "=" * 80)
-            logger.info("VALIDATING RAW NWB FILE")
+            logger.info(f"VALIDATING RAW NWB FILE (EID: {target_eid})")
             logger.info("=" * 80)
             try:
                 check_start = time.time()
@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
     if CONVERT_PROCESSED:
         logger.info("\n" + "=" * 80)
-        logger.info("STARTING PROCESSED CONVERSION")
+        logger.info(f"STARTING PROCESSED CONVERSION (EID: {target_eid})")
         logger.info("=" * 80)
         processed_info = convert_processed_session(
             eid=target_eid,
@@ -182,7 +182,7 @@ if __name__ == "__main__":
         # Run consistency checks if enabled
         if RUN_CONSISTENCY_CHECKS and processed_info and not processed_info.get("skipped"):
             logger.info("\n" + "=" * 80)
-            logger.info("VALIDATING PROCESSED NWB FILE")
+            logger.info(f"VALIDATING PROCESSED NWB FILE (EID: {target_eid})")
             logger.info("=" * 80)
             try:
                 check_start = time.time()
@@ -198,7 +198,7 @@ if __name__ == "__main__":
                 logger.error("  Unexpected error during validation")
 
     logger.info("\n" + "=" * 80)
-    logger.info("COMPRESSION SUMMARY")
+    logger.info(f"COMPRESSION SUMMARY (EID: {target_eid})")
     logger.info("=" * 80)
     logger.info(
         f"Source data size: {download_info['total_size_gb']:.2f} GB "
@@ -246,6 +246,6 @@ if __name__ == "__main__":
 
     script_total_time = time.time() - script_start_time
     logger.info("\n" + "=" * 80)
-    logger.info("CONVERSION COMPLETED")
+    logger.info(f"CONVERSION COMPLETED (EID: {target_eid})")
     logger.info(f"Total script execution time: {script_total_time:.2f}s ({script_total_time/60:.2f} minutes)")
     logger.info("=" * 80)
