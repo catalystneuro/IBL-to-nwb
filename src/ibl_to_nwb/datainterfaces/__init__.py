@@ -12,6 +12,7 @@ from ._ibl_passive_intervals_interface import PassiveIntervalsInterface
 from ._ibl_passive_replay_interface import PassiveReplayStimInterface
 from ._ibl_passive_rfm_interface import PassiveRFMInterface
 from ._ibl_anatomical_localization_interface import IblAnatomicalLocalizationInterface
+from ._ibl_nidq_interface import IblNIDQInterface
 
 __all__ = [
     "BrainwideMapTrialsInterface",
@@ -28,5 +29,6 @@ __all__ = [
     "PassiveIntervalsInterface",
     "PassiveReplayStimInterface",
     "PassiveRFMInterface",
-    "IblAnatomicalLocalizationInterface"
+    "IblAnatomicalLocalizationInterface",
+    "IblNIDQInterface"
 ]

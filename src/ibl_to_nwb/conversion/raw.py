@@ -23,7 +23,7 @@ from ..bwm_to_nwb import (
     check_camera_health_by_qc,
 )
 from ..converters import IblSpikeGlxConverter
-from ..datainterfaces import IblAnatomicalLocalizationInterface, RawVideoInterface
+from ..datainterfaces import IblAnatomicalLocalizationInterface, IblNIDQInterface, RawVideoInterface
 from ..fixtures import load_fixtures
 from ..utils import add_probe_electrodes_with_localization, sanitize_subject_id_for_dandi
 
@@ -224,6 +224,22 @@ def convert_raw_session(
             probe_name_to_probe_id_dict=probe_name_to_probe_id_dict,
         )
         data_interfaces.append(spikeglx_converter)
+
+        # Add NIDQ interface if available (behavioral sync signals)
+        # NIDQ is stored at session level (raw_ephys_data folder)
+        if IblNIDQInterface.check_availability(one, eid)["available"]:
+            nidq_interface = IblNIDQInterface(
+                folder_path=str(paths["spikeglx_source_folder"]),
+                one=one,
+                eid=eid,
+                verbose=False,
+            )
+            data_interfaces.append(nidq_interface)
+            if logger:
+                logger.info("✓ NIDQ interface added (behavioral sync signals)")
+        else:
+            if logger:
+                logger.warning(f"NIDQ data not available for session {eid} - skipping NIDQ interface")
     elif logger:
         if not stub_test:
             logger.info("SpikeGLX data not available: skipping SpikeGLX converter setup (see message above for details)")

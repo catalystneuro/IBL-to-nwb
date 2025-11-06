@@ -58,7 +58,6 @@ def convert_processed_session(
     stub_test: bool = False,
     base_path: Path | None = None,
     decompressed_ephys_path: Path | None = None,
-    skip_spike_properties: list | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
 ) -> dict:
@@ -71,13 +70,13 @@ def convert_processed_session(
     one : ONE
         ONE API instance
     stub_test : bool, optional
-        If True, creates minimal NWB for testing without downloading large files
+        If True, creates minimal NWB for testing without downloading large files.
+        In stub mode, spike properties (spike_amplitudes, spike_relative_depths)
+        are automatically skipped to reduce memory usage.
     base_path : Path, optional
         Base output directory for NWB files
     decompressed_ephys_path : Path, optional
         Directory for temporary decompressed ephys files (not used in processed conversion)
-    skip_spike_properties : list, optional
-        List of spike properties to skip during conversion
     logger : logging.Logger, optional
         Logger instance for conversion progress
     overwrite : bool, optional
@@ -241,8 +240,9 @@ def convert_processed_session(
 
     # Sorting interface options
     sorting_options = {"stub_test": stub_test}
-    if skip_spike_properties and stub_test:
-        sorting_options["skip_properties"] = skip_spike_properties
+    # In stub mode, automatically skip large spike properties to reduce memory usage
+    if stub_test:
+        sorting_options["skip_properties"] = ["spike_amplitudes", "spike_relative_depths"]
     conversion_options["IblSortingInterface"] = sorting_options
 
     # Trials interface options
