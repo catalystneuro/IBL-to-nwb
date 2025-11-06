@@ -69,6 +69,7 @@ if __name__ == "__main__":
         REDECOMPRESS_EPHYS = True
 
     base_folder = Path("/media/heberto/Expansion")
+    base_folder = Path("/Volumes/Expansion")
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 
@@ -85,7 +86,7 @@ if __name__ == "__main__":
     if target_eid == "INSERT_EID_HERE":
         raise SystemExit("Please provide an EID either by editing TARGET_EID or passing it as a command-line argument.")
 
-    one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, silent=True)
+    one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, password='international', silent=True)
 
     # Logs are derived from base_path
     logs_path = base_path / "conversion_logs"

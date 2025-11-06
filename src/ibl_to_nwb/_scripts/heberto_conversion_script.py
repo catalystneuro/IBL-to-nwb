@@ -67,12 +67,13 @@ if __name__ == "__main__":
     RUN_CONSISTENCY_CHECKS = True  # Validate NWB files against ONE data (slow but thorough)
 
     base_folder = Path("/media/heberto/Expansion")
+    base_folder = Path("/Volumes/Expansion")
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 
     session_identifier = "all"
 
-    one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, silent=True)
+    one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, password='international', silent=True)
 
     # Apply ONE API patches to fix cache validation issues
     print("Applying ONE API patches for cache validation...")
