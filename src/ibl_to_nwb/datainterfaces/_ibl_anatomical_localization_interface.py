@@ -444,7 +444,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             space_name="CCFV3",
             origin="corner (0,0,0) of the Allen CCF atlas volume",
             units="um",
-            orientation="RAS",  # Right-Anterior-Superior
+            orientation="ASL",  # Anterior-Superior-Left (native Allen CCF orientation)
         )
 
         self.ibl_space = Space(

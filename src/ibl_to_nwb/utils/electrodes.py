@@ -103,13 +103,18 @@ def convert_ibl_to_ccf3_coordinates(
     normalizes inputs to meters when necessary, performs the atlas transformation, and labels
     out-of-volume points as ``"out-of-atlas"`` while returning CCF coordinates in micrometers.
 
+    The returned CCF coordinates are in the native Allen CCF format with ASL orientation:
+    - First coordinate (x): Anterior-Posterior (AP)
+    - Second coordinate (y): Dorsal-Ventral (DV)
+    - Third coordinate (z): Medio-Lateral (ML)
+
     Parameters
     ----------
     atlas : AllenAtlas
         Atlas instance used for the coordinate transformation.
     x, y, z : np.ndarray
-        Coordinates in meters in the IBL frame. If the magnitudes indicate micrometers, the values
-        are rescaled automatically.
+        Coordinates in meters in the IBL frame (RAS: x=ML, y=AP, z=DV). If the magnitudes
+        indicate micrometers, the values are rescaled automatically.
     acronyms : np.ndarray
         Brain region acronyms associated with each coordinate.
     probe_name : str, optional
@@ -117,9 +122,11 @@ def convert_ibl_to_ccf3_coordinates(
     eid : str, optional
         Session identifier included in warning messages.
 
-   -------
+    Returns
+    -------
     ccf_coords_um : np.ndarray
-        Allen CCF coordinates in micrometers (NaN for entries outside the atlas volume).
+        Allen CCF coordinates in micrometers with ASL orientation (AP, DV, ML).
+        NaN for entries outside the atlas volume.
     ccf_regions : np.ndarray
         Region labels for the CCF coordinates, with ``"out-of-atlas"`` marking out-of-bounds
         points.
@@ -140,7 +147,8 @@ def convert_ibl_to_ccf3_coordinates(
 
     if valid_indices.any():
         try:
-            converted = atlas.xyz2ccf(coords_m[valid_indices]).astype(np.float64)
+            # Convert to Allen CCF native format (AP, DV, ML) aka ASL orientation
+            converted = atlas.xyz2ccf(coords_m[valid_indices], ccf_order='apdvml').astype(np.float64)
             ccf_coords_um[valid_indices] = converted
         except ValueError as exc:
             warnings.warn(

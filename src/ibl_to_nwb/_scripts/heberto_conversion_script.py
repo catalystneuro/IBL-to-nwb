@@ -70,6 +70,7 @@ if __name__ == "__main__":
     base_folder = Path("/Volumes/Expansion")
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
+    logs_path = base_path / "conversion_logs"  # Derived from base_path for log files
 
     session_identifier = "all"
 
