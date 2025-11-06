@@ -17,9 +17,6 @@ from ibl_to_nwb.conversion import (
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
-# TODO: 2025-10-17 21:53:06 WARNING  spikeglx.py:699  Meta data doesn't have geometry (snsShankMap/snsGeomMap field), returning defaults
-# What outputs this warning?
-
 
 def setup_logger(log_file_path: Path) -> logging.Logger:
     """Configure a logger that writes to disk and stdout."""
@@ -42,10 +39,7 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
-    try:
-        file_handler.stream.reconfigure(line_buffering=True)
-    except AttributeError:
-        pass
+    file_handler.stream.reconfigure(line_buffering=True)
 
     # Capture Python warnings in the logging system
     # This ensures warnings.warn() calls appear in the log file
@@ -63,12 +57,16 @@ if __name__ == "__main__":
     # ========================================================================
 
     CONVERT_RAW = True              # Write raw-ephys NWBs
-    CONVERT_PROCESSED = True        # Write processed/behavior NWBs
+    CONVERT_PROCESSED = False        # Write processed/behavior NWBs
     STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
-    REDOWNLOAD_DATA = False         # Force re-download even if cached
+    REDOWNLOAD_DATA = True           # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
     RUN_CONSISTENCY_CHECKS = True   # Validate NWB files against ONE data (slow but thorough)
+
+    # Auto-enable: REDOWNLOAD_DATA requires REDECOMPRESS_EPHYS
+    if REDOWNLOAD_DATA:
+        REDECOMPRESS_EPHYS = True
 
     base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_cache"
@@ -84,7 +82,8 @@ if __name__ == "__main__":
     TARGET_EID = "28741f91-c837-4147-939e-918d38d849f2"  # Signal already in info dict
     #TARGET_EID = "d2918f52-8280-43c0-924b-029b2317e62c"  # Testing if meta is downloaded
     #TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # Testing: stream matching
-    TARGET_EID = "29a6def1-fc5c-4eea-ac48-47e9b053dcb5" # Time alignment issue
+    TARGET_EID = "d839491f-55d8-4cbe-a298-7839208ba12b" # No nidq file
+    # TARGET_EID = "29a6def1-fc5c-4eea-ac48-47e9b053dcb5" # Time alignment issue
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":
@@ -176,7 +175,6 @@ if __name__ == "__main__":
             stub_test=STUB_TEST,
             base_path=base_path,
             decompressed_ephys_path=decompressed_ephys_path,
-            skip_spike_properties=["spike_amplitudes", "spike_relative_depths"],
             logger=logger,
             overwrite=OVERWRITE,
         )

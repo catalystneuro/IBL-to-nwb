@@ -10,7 +10,7 @@ from neuroconv.nwbconverter import ConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
 from pynwb import NWBFile
-from spikeinterface.extractors import SpikeGLXRecordingExtractor
+from spikeinterface.extractors.extractor_classes import SpikeGLXRecordingExtractor
 
 from ..fixtures import get_probe_name_to_probe_id_dict
 
@@ -81,6 +81,10 @@ class IblSpikeGlxConverter(ConverterPipe):
         self.device_name_to_probe_map = {}
 
         for key in self.data_interface_objects.keys():
+            # Skip NIDQ interface (doesn't follow probe naming convention)
+            if key == "nidq":
+                continue
+
             # Parse key: "probe00.imec.ap" -> probe_name="probe00", imec_name="imec", band="ap"
             parts = key.split(".")
             probe_name = parts[0]  # "probe00"
@@ -97,6 +101,10 @@ class IblSpikeGlxConverter(ConverterPipe):
         # Override electrical series names and group names to use IBL convention
         # This must happen in __init__ before any metadata/electrode operations
         for key, recording_interface in self.data_interface_objects.items():
+            # Skip NIDQ interface (doesn't follow probe naming convention)
+            if key == "nidq":
+                continue
+
             parts = key.split(".")
             probe_name = parts[0]  # "probe00"
             band = parts[2]        # "ap" or "lf"
@@ -125,7 +133,7 @@ class IblSpikeGlxConverter(ConverterPipe):
         Returns
         -------
         dict
-            Data requirements for raw ephys files (.cbin, .meta, .ch)
+            Data requirements for raw ephys files (.cbin, .meta, .ch, wiring.json)
         """
         return {
             "one_objects": [],

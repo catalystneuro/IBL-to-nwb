@@ -47,6 +47,7 @@ DATA_SOURCE_DESCRIPTIONS = {
     # Probe-based data
     "spike_sorting": f"Spike sorting from revision {TARGET_REVISION} (IblSortingInterface)",
     "probe_localization": "Probe anatomical localization (IblAnatomicalLocalizationInterface)",
+    "nidq": "NIDQ behavioral sync signals (.cbin file) - OPTIONAL",
     "meta_probe00": "SpikeGLX .meta file for probe00 (electrode geometry)",
     "meta_probe01": "SpikeGLX .meta file for probe01 (electrode geometry)",
 
@@ -106,6 +107,16 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
     result["num_probes"] = len(probe_name_to_probe_id_dict)
     result["probe_names"] = list(probe_name_to_probe_id_dict.keys())
     result["single_probe"] = len(probe_name_to_probe_id_dict) == 1
+
+    # Check NIDQ file availability (session-level sync signals, optional for raw conversions)
+    try:
+        datasets = one.list_datasets(eid=eid)
+        has_nidq = any("nidq.cbin" in str(d) for d in datasets)
+        result["data_sources"]["nidq"] = has_nidq
+        # Note: NIDQ is optional, so we don't add it to missing_sources
+    except Exception as e:
+        result["data_sources"]["nidq"] = False
+        result["errors"].append(f"Error checking NIDQ: {str(e)}")
 
     # Check .meta file availability for each probe
     # This is critical for electrode geometry - conversions will fail without .meta files

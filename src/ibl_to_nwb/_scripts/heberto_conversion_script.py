@@ -41,10 +41,7 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
-    try:
-        file_handler.stream.reconfigure(line_buffering=True)
-    except AttributeError:
-        pass
+    file_handler.stream.reconfigure(line_buffering=True)
 
     # Capture Python warnings in the logging system
     # This ensures warnings.warn() calls appear in the log file
@@ -176,7 +173,6 @@ if __name__ == "__main__":
                 stub_test=STUB_TEST,
                 base_path=base_path,
                 decompressed_ephys_path=scratch_path,
-                skip_spike_properties=["spike_amplitudes", "spike_relative_depths"],
                 logger=logger,
                 overwrite=OVERWRITE,
             )

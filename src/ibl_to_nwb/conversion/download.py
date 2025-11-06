@@ -12,6 +12,7 @@ from ..converters import IblSpikeGlxConverter
 from ..datainterfaces import (
     IblSortingInterface,
     IblAnatomicalLocalizationInterface,
+    IblNIDQInterface,
     BrainwideMapTrialsInterface,
     WheelInterface,
     PassiveIntervalsInterface,
@@ -85,6 +86,10 @@ def download_session_data(
     # Skip in stub mode to avoid downloading gigabytes of raw ephys data
     if not stub_test:
         interfaces_to_download.append(("RawSpikeGLX", IblSpikeGlxConverter, {}))
+
+        # NIDQ data (behavioral sync signals) - optional
+        if IblNIDQInterface.check_availability(one, eid)["available"]:
+            interfaces_to_download.append(("NIDQ", IblNIDQInterface, {}))
 
     # Camera-based interfaces (videos, pose, pupil, motion energy)
     # Check availability per camera since not all sessions have all cameras
