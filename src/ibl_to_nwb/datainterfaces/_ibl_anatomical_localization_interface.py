@@ -95,7 +95,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             has_files = probe_qc_row['has_histology_files']
 
             # Skip if no files or insufficient quality
-            if not has_files or histology_quality not in ['alf', 'resolved']:
+            if not has_files or histology_quality != 'alf':
                 if self.verbose:
                     print(f"Skipping {pname}: quality '{histology_quality}', has_files={has_files}")
                 continue
@@ -142,7 +142,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         Histology data is loaded via SpikeSortingLoader which fetches channel coordinates
         and brain regions. Additionally, SpikeGLX .meta files are required to determine
         electrode geometry for creating the electrode table.
-        Only probes with histology quality 'alf' or 'resolved' are included.
+        Only probes with histology quality 'alf' are included.
 
         Parameters
         ----------
@@ -169,7 +169,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     "raw_ephys_data/probe*/_spikeglx_ephysData_g0_t0.imec*.ap.meta",
                 ],
             },
-            "quality_filter": "histology quality in ['alf', 'resolved']",
+            "quality_filter": "histology quality == 'alf'",
         }
 
     @classmethod
@@ -232,7 +232,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     logger.debug(f"  Probe {pname}: no electrodeSites files")
                 continue
 
-            if histology_quality in ['alf', 'resolved']:
+            if histology_quality == 'alf':
                 available_probes.append(pname)
                 if logger:
                     logger.debug(f"  Probe {pname}: available (quality: {histology_quality})")
@@ -248,7 +248,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             "available_probes": available_probes,
             "unavailable_probes": unavailable_probes,
             "missing_files": missing_files,
-            "note": "Requires histology quality 'alf' or 'resolved'",
+            "note": "Requires histology quality 'alf'",
         }
 
     @classmethod
@@ -324,7 +324,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     logger.info(f"  Skipping {pname}: no electrodeSites files")
                 continue
 
-            if histology_quality not in ['alf', 'resolved']:
+            if histology_quality != 'alf':
                 skipped_probes.append((pname, f"insufficient quality ({histology_quality})"))
                 if logger:
                     logger.info(f"  Skipping {pname}: quality '{histology_quality}' not sufficient")
