@@ -95,8 +95,13 @@ class IblSpikeGlxConverter(ConverterPipe):
             self.stream_to_probe_map[imec_name] = probe_name
 
             # Map device name for metadata
-            # Neo uses "NeuropixelsImec" for single-probe files in subdirectories
+            # NeuroConv uses different device names depending on file naming:
+            # - "NeuropixelsImec" for files named imec.ap.bin (no-NIDQ sessions)
+            # - "NeuropixelsImec0" for files named imec0.ap.bin (NIDQ sessions)
+            # - "NeuropixelsImec1" for files named imec1.ap.bin (multi-probe NIDQ sessions)
             self.device_name_to_probe_map["NeuropixelsImec"] = probe_name
+            self.device_name_to_probe_map["NeuropixelsImec0"] = probe_name
+            self.device_name_to_probe_map["NeuropixelsImec1"] = probe_name
 
         # Override electrical series names and group names to use IBL convention
         # This must happen in __init__ before any metadata/electrode operations

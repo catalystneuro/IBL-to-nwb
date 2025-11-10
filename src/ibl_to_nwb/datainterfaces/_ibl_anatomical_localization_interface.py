@@ -9,7 +9,7 @@ import pandas as pd
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
-from ndx_anatomical_localization import AnatomicalCoordinatesTable, Localization, Space
+from ndx_anatomical_localization import AnatomicalCoordinatesTable, Localization, Space, AllenCCFv3Space
 from one.api import ONE
 from pynwb import NWBFile
 
@@ -439,13 +439,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             nwbfile.add_lab_meta_data(localization)
 
         # Create coordinate space objects
-        self.ccf_space = Space(
-            name="CCFV3",
-            space_name="CCFV3",
-            origin="corner (0,0,0) of the Allen CCF atlas volume",
-            units="um",
-            orientation="ASL",  # Anterior-Superior-Left (native Allen CCF orientation)
-        )
+        self.ccf_space = AllenCCFv3Space(name="AllenCCFv3")
 
         self.ibl_space = Space(
             name="IBLBregma",
