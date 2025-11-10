@@ -5,8 +5,8 @@ This document describes the data modalities converted by the IBL to NWB conversi
 ## Overview
 
 Two NWB file types are generated:
-- **RAW** - Raw electrophysiology and videos
-- **PROCESSED** - Spike-sorted data, behavioral data, and video-based tracking
+- **RAW** - Raw electrophysiology (continuous AP/LF band recordings per probe), anatomical localization (probe trajectories and brain region mappings), raw videos from 3 camera views (left, right, body), and NIDQ sync signals (when available).
+- **PROCESSED** - Spike-sorted units (spike times, waveforms, quality metrics), behavioral data (trial structure, wheel movements, lick times), passive stimulation protocols (visual stimuli, receptive field mapping), and video-based analyses (pose estimation via Lightning Pose, pupil tracking, ROI motion energy).
 
 **Dataset scope:** 459 Brain-Wide Map sessions (2019-11-26 to 2023-10-19)
 - **Single-probe sessions:** 219 (47.7%)
@@ -16,35 +16,36 @@ Two NWB file types are generated:
 
 ## RAW Conversion Summary
 
-| Modality | Sub-type | Files & Method of Loading Data | Quality Control Filters | Availability (BWM Dataset) |
-|----------|----------|--------------------------------|------------------------|---------------------------|
-| **Raw Electrophysiology** | Per probe (probe00, probe01) | `raw_ephys_data/probe*/*.ap.cbin`, `*.lf.cbin`, `*.ap.meta`, `*.ap.ch`<br>Downloaded via ONE API during download script | None | 100% (459/459 sessions)<br>**Multi-probe:** 294 sessions (64.1%)<br>**Single-probe:** 165 sessions (35.9%) |
-| **Anatomical Localization** | Per probe (probe00, probe01) | `alf/probe*/channels.localCoordinates.npy`<br>`alf/probe*/channels.mlapdv.npy`<br>`alf/probe*/channels.brainLocationIds_ccf_2017.npy`<br>`alf/probe*/electrodeSites.*`<br>**Method:** `SpikeSortingLoader` (brainbox) | **Histology quality must be 'alf'**<br>Lower quality alignments excluded<br>**QC Source:** `bwm_histology_qc.pqt` fixture | 100% (459/459 sessions)<br>**Multi-probe:** 294 sessions (64.1%)<br>**Single-probe:** 165 sessions (35.9%) |
-| **Raw Video** | leftCamera | `raw_video_data/_iblrig_leftCamera.raw.mp4`<br>`alf/_ibl_leftCamera.times.npy`<br>**Method:** `one.load_dataset()` (video), `one.load_object()` (timestamps) | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 80.8% (371/459 sessions) |
-| **Raw Video** | rightCamera | `raw_video_data/_iblrig_rightCamera.raw.mp4`<br>`alf/_ibl_rightCamera.times.npy`<br>**Method:** `one.load_dataset()` (video), `one.load_object()` (timestamps) | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 77.6% (356/459 sessions) |
-| **Raw Video** | bodyCamera | `raw_video_data/_iblrig_bodyCamera.raw.mp4`<br>`alf/_ibl_bodyCamera.times.npy`<br>**Method:** `one.load_dataset()` (video), `one.load_object()` (timestamps) | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture<br>**Note:** Body camera added Feb 2020 (56 sessions without it) | 40.5% (186/459 sessions) |
+| Modality | Sub-type | Files | Loading Method | Quality Control Filters | Availability (BWM Dataset) |
+|----------|----------|-------|----------------|------------------------|---------------------------|
+| **Raw Electrophysiology** | Per probe (probe00, probe01) | - `raw_ephys_data/probe*/*.ap.cbin`<br>- `raw_ephys_data/probe*/*.lf.cbin`<br>- `raw_ephys_data/probe*/*.ap.meta`<br>- `raw_ephys_data/probe*/*.ap.ch` | Downloaded via ONE API during download script | None | 99.1% (455/459 sessions)<br>**Note:** 4 sessions missing .meta files |
+| **NIDQ Sync Signals** | Per session | - `raw_ephys_data/_spikeglx_ephysData_g0_t0.nidq.cbin`<br>- `raw_ephys_data/_spikeglx_ephysData_g0_t0.nidq.meta`<br>- `raw_ephys_data/_spikeglx_ephysData_g0_t0.nidq.ch` | Downloaded via ONE API during download script | None | 83.4% (383/459 sessions)<br>**Note:** Availability improved over time (see temporal trends) |
+| **Anatomical Localization** | Per probe (probe00, probe01) | - `alf/probe*/channels.localCoordinates.npy`<br>- `alf/probe*/channels.mlapdv.npy`<br>- `alf/probe*/channels.brainLocationIds_ccf_2017.npy`<br>- `alf/probe*/electrodeSites.localCoordinates.npy`<br>- `alf/probe*/electrodeSites.mlapdv.npy`<br>- `alf/probe*/electrodeSites.brainLocationIds_ccf_2017.npy` | `SpikeSortingLoader` (brainbox)<br>**Revision:** `2025-05-06` | **Histology quality must be 'alf'**<br>Lower quality alignments excluded<br>**QC Source:** `bwm_histology_qc.pqt` fixture | 100% (459/459 sessions)<br>All probes have 'alf' quality |
+| **Raw Video** | leftCamera | - `raw_video_data/_iblrig_leftCamera.raw.mp4`<br>- `alf/_ibl_leftCamera.times.npy` | `one.load_dataset()` (video)<br>`one.load_object()` (timestamps) | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 80.8% (371/459 sessions) |
+| **Raw Video** | rightCamera | - `raw_video_data/_iblrig_rightCamera.raw.mp4`<br>- `alf/_ibl_rightCamera.times.npy` | `one.load_dataset()` (video)<br>`one.load_object()` (timestamps) | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 77.6% (356/459 sessions) |
+| **Raw Video** | bodyCamera | - `raw_video_data/_iblrig_bodyCamera.raw.mp4`<br>- `alf/_ibl_bodyCamera.times.npy` | `one.load_dataset()` (video)<br>`one.load_object()` (timestamps) | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture<br>**Note:** Body camera added Feb 2020 (56 sessions without it) | 40.5% (186/459 sessions) |
 
 ---
 
 ## PROCESSED Conversion Summary
 
-| Modality | Sub-type | Files & Method of Loading Data | Quality Control Filters | Availability (BWM Dataset) |
-|----------|----------|--------------------------------|------------------------|---------------------------|
-| **Spike Sorting** | Per probe (probe00, probe01) | `alf/probe*/spikes.times.npy`, `spikes.clusters.npy`, `spikes.amps.npy`, `spikes.depths.npy`<br>`alf/probe*/clusters.channels.npy`, `clusters.depths.npy`, `clusters.metrics.pqt`, `clusters.uuids.csv`<br>**Method:** `SpikeSortingLoader` (brainbox)<br>**Revision:** `2025-05-06` | None | 100% (459/459 sessions)<br>**Multi-probe:** 294 sessions (64.1%)<br>**Single-probe:** 165 sessions (35.9%) |
-| **Behavioral Trials** | - | 13 trial files: `alf/trials.intervals.npy`, `trials.choice.npy`, `trials.feedbackType.npy`, etc.<br>**Method:** `SessionLoader.load_trials()` (brainbox)<br>**Revision:** `2025-05-06` | None | 100% (459/459 sessions) |
-| **Wheel Movement** | - | `alf/wheel.position.npy`, `wheel.timestamps.npy`<br>`alf/wheelMoves.intervals.npy`, `wheelMoves.peakAmplitude.npy`<br>**Method:** `one.load_object()`<br>**Revision:** `2025-05-06` | None | 100% (459/459 sessions) |
-| **Passive Intervals** | - | `alf/_ibl_passivePeriods.intervalsTable.csv`<br>**Method:** `one.load_dataset()`<br>**Revision:** `2025-05-06` | None | 92.4% (424/459 sessions) |
-| **Passive Replay Stimuli** | - | `alf/_ibl_passiveStims.table.csv`<br>`alf/_ibl_passiveGabor.table.csv`<br>**Method:** `one.load_dataset()`<br>**Revision:** `2025-05-06` | None | 76.7% (352/459 sessions) |
-| **Passive RFM** | - | `alf/_ibl_passiveRFM.times.npy`<br>`raw_passive_data/_iblrig_RFMapStim.raw.bin`<br>**Method:** `one.load_dataset()`<br>**Revision:** `2025-05-06` | None | 76.7% (352/459 sessions) |
-| **Lick Detection** | - | `alf/licks.times.npy`<br>**Method:** `one.load_dataset()`<br>**Revision:** `2025-05-06` | None | 96.5% (443/459 sessions) |
-| **Pose Estimation** | leftCamera | `alf/_ibl_leftCamera.lightningPose.pqt`<br>**Method:** `SessionLoader`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**Likelihood threshold ≥ 0.9** (low-confidence → NaN)<br>**QC Source:** `bwm_qc.json` fixture | 80.8% (371/459 sessions) |
-| **Pose Estimation** | rightCamera | `alf/_ibl_rightCamera.lightningPose.pqt`<br>**Method:** `SessionLoader`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**Likelihood threshold ≥ 0.9** (low-confidence → NaN)<br>**QC Source:** `bwm_qc.json` fixture | 77.6% (356/459 sessions) |
-| **Pose Estimation** | bodyCamera | `alf/_ibl_bodyCamera.lightningPose.pqt`<br>**Method:** `SessionLoader`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**Likelihood threshold ≥ 0.9** (low-confidence → NaN)<br>**QC Source:** `bwm_qc.json` fixture | 39.9% (183/459 sessions) |
-| **Pupil Tracking** | leftCamera | `alf/_ibl_leftCamera.features.pqt`<br>`alf/_ibl_leftCamera.times.npy`<br>**Method:** `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 80.8% (371/459 sessions) |
-| **Pupil Tracking** | rightCamera | `alf/_ibl_rightCamera.features.pqt`<br>`alf/_ibl_rightCamera.times.npy`<br>**Method:** `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 77.6% (356/459 sessions) |
-| **ROI Motion Energy** | leftCamera | `alf/_ibl_leftCamera.ROIMotionEnergy.npy`<br>**Method:** `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 80.8% (371/459 sessions) |
-| **ROI Motion Energy** | rightCamera | `alf/_ibl_rightCamera.ROIMotionEnergy.npy`<br>**Method:** `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 77.6% (356/459 sessions) |
-| **ROI Motion Energy** | bodyCamera | `alf/_ibl_bodyCamera.ROIMotionEnergy.npy`<br>**Method:** `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 39.9% (183/459 sessions) |
+| Modality | Sub-type | Files | Loading Method | Quality Control Filters | Availability (BWM Dataset) |
+|----------|----------|-------|----------------|------------------------|---------------------------|
+| **Spike Sorting** | Per probe (probe00, probe01) | - `alf/probe*/spikes.times.npy`<br>- `alf/probe*/spikes.clusters.npy`<br>- `alf/probe*/spikes.amps.npy`<br>- `alf/probe*/spikes.depths.npy`<br>- `alf/probe*/clusters.channels.npy`<br>- `alf/probe*/clusters.depths.npy`<br>- `alf/probe*/clusters.metrics.pqt`<br>- `alf/probe*/clusters.uuids.csv` | `SpikeSortingLoader` (brainbox)<br>**Revision:** `2025-05-06` | None | 100% (459/459 sessions) |
+| **Behavioral Trials** | - | - `alf/trials.intervals.npy`<br>- `alf/trials.choice.npy`<br>- `alf/trials.feedbackType.npy`<br>- `alf/trials.rewardVolume.npy`<br>- `alf/trials.contrastLeft.npy`<br>- `alf/trials.contrastRight.npy`<br>- `alf/trials.probabilityLeft.npy`<br>- `alf/trials.feedback_times.npy`<br>- `alf/trials.response_times.npy`<br>- `alf/trials.stimOff_times.npy`<br>- `alf/trials.stimOn_times.npy`<br>- `alf/trials.goCue_times.npy`<br>- `alf/trials.firstMovement_times.npy` | `SessionLoader.load_trials()` (brainbox)<br>**Revision:** `2025-05-06` | None | 100% (459/459 sessions) |
+| **Wheel Movement** | - | - `alf/wheel.position.npy`<br>- `alf/wheel.timestamps.npy`<br>- `alf/wheelMoves.intervals.npy`<br>- `alf/wheelMoves.peakAmplitude.npy` | `one.load_object()`<br>**Revision:** `2025-05-06` | None | 100% (459/459 sessions) |
+| **Lick Detection** | - | - `alf/licks.times.npy` | `one.load_dataset()`<br>**Revision:** `2025-05-06` | None | 96.5% (443/459 sessions) |
+| **Passive Intervals** | - | - `alf/_ibl_passivePeriods.intervalsTable.csv` | `one.load_dataset()`<br>**Revision:** `2025-05-06` | None | 92.4% (424/459 sessions) |
+| **Passive Replay Stimuli** | - | - `alf/_ibl_passiveStims.table.csv`<br>- `alf/_ibl_passiveGabor.table.csv` | `one.load_dataset()`<br>**Revision:** `2025-05-06` | None | 76.7% (352/459 sessions) |
+| **Passive RFM** | - | - `alf/_ibl_passiveRFM.times.npy`<br>- `raw_passive_data/_iblrig_RFMapStim.raw.bin` | `one.load_dataset()`<br>**Revision:** `2025-05-06` | None | 76.7% (352/459 sessions) |
+| **Pose Estimation** | leftCamera | - `alf/_ibl_leftCamera.lightningPose.pqt` | `SessionLoader.load_pose()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**Likelihood threshold ≥ 0.9** (low-confidence → NaN)<br>**QC Source:** `bwm_qc.json` fixture | 80.8% (371/459 sessions) |
+| **Pose Estimation** | rightCamera | - `alf/_ibl_rightCamera.lightningPose.pqt` | `SessionLoader.load_pose()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**Likelihood threshold ≥ 0.9** (low-confidence → NaN)<br>**QC Source:** `bwm_qc.json` fixture | 77.6% (356/459 sessions) |
+| **Pose Estimation** | bodyCamera | - `alf/_ibl_bodyCamera.lightningPose.pqt` | `SessionLoader.load_pose()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**Likelihood threshold ≥ 0.9** (low-confidence → NaN)<br>**QC Source:** `bwm_qc.json` fixture | 39.9% (183/459 sessions) |
+| **Pupil Tracking** | leftCamera | - `alf/_ibl_leftCamera.features.pqt`<br>- `alf/_ibl_leftCamera.times.npy` | `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 80.8% (371/459 sessions) |
+| **Pupil Tracking** | rightCamera | - `alf/_ibl_rightCamera.features.pqt`<br>- `alf/_ibl_rightCamera.times.npy` | `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 77.6% (356/459 sessions) |
+| **ROI Motion Energy** | leftCamera | - `alf/_ibl_leftCamera.ROIMotionEnergy.npy` | `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 80.8% (371/459 sessions) |
+| **ROI Motion Energy** | rightCamera | - `alf/_ibl_rightCamera.ROIMotionEnergy.npy` | `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 77.6% (356/459 sessions) |
+| **ROI Motion Energy** | bodyCamera | - `alf/_ibl_bodyCamera.ROIMotionEnergy.npy` | `one.load_object()`<br>**Revision:** `2025-05-06` | **Video QC: excludes CRITICAL/FAIL**<br>**QC Source:** `bwm_qc.json` fixture | 39.9% (183/459 sessions) |
 
 **Notes:**
 - **Availability percentages:** Exact values from complete analysis of all 459 BWM sessions (Nov 2019 - Oct 2023). Core interfaces (Trials, Wheel, SpikeSorting, AnatomicalLocalization) are 100% available across all sessions.
@@ -353,3 +354,35 @@ All modalities follow a **fail-fast principle**: data either exists or conversio
 - **Optional modalities** (passive protocols, licks, cameras) are checked for availability and gracefully excluded if missing
 - **No silent quality degradation** - we don't fall back to lower-quality alternatives
 - **Lightning Pose only** - all quality sessions in BWM dataset use Lightning Pose; no DLC fallback needed
+
+
+Summary:
+Total missing: 4 sessions out of 459 (0.9%)
+Subject: All from NR_0029 (Steinmetz lab)
+Timeframe: August-September 2023 (end of BWM project)
+Pattern: Non-standard probe naming convention
+The 4 Sessions:
+4e560423-5caf-4cda-8511-d1ab4cd2bf7d
+Subject: NR_0029
+Date: 2023-08-29
+Lab: steinmetzlab
+Probe: probe00a (non-standard naming)
+NIDQ: Present
+de905562-31c6-4c31-9ece-3ee87b97eab4
+Subject: NR_0029
+Date: 2023-08-31
+Lab: steinmetzlab
+Probe: probe00b (non-standard naming)
+NIDQ: Present
+d85c454e-8737-4cba-b6ad-b2339429d99b
+Subject: NR_0029
+Date: 2023-09-05
+Lab: steinmetzlab
+Probe: probe00a (non-standard naming)
+NIDQ: Present
+3a3ea015-b5f4-4e8b-b189-9364d1fc7435
+Subject: NR_0029
+Date: 2023-09-07
+Lab: steinmetzlab
+Probe: probe00a (non-standard naming)
+NIDQ: Present
