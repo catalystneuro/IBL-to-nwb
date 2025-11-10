@@ -8,7 +8,6 @@ from neuroconv.basedatainterface import BaseDataInterface
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
-from one.alf.exceptions import ALFObjectNotFound
 
 
 class IblPoseEstimationInterface(BaseDataInterface):

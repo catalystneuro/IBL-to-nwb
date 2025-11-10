@@ -6,7 +6,7 @@ from pynwb import NWBHDF5IO
 
 from ibl_to_nwb import bwm_to_nwb
 from ibl_to_nwb.testing import check_nwbfile_for_consistency
-from ibl_to_nwb.fixtures import load_fixtures
+
 # Set the filter to show each warning only once for a specific module
 
 # if running on SDSC, use the OneSdsc, else normal
@@ -65,7 +65,7 @@ else:
 
 # %%
 if RESET_CACHE:
-    print(f"attempting to reset cache tables ... ")
+    print("attempting to reset cache tables ... ")
     one = ONE(base_url=one_url)
     # remove cache tables if present
     if next(one._tables_dir.glob('*sessions.pqt')).exists():
@@ -111,11 +111,11 @@ def eid2nwbfilename(eid, one, mode="processed"):
 if CONVERT:
     print(f"converting {eid} ... ")
     bwm_to_nwb.convert_session(eid=eid, **kwargs)
-    print(f" ... done")
+    print(" ... done")
 
 if VERIFY:
     print(f"verifying {eid} ... ")
     nwbfile_path = eid2nwbfilename(eid, one, mode=MODE)
     with NWBHDF5IO(path=nwbfile_path, mode="r") as io:
         check_nwbfile_for_consistency(one=one, nwbfile_path=nwbfile_path)
-    print(f" ... all checks passed!")
+    print(" ... all checks passed!")

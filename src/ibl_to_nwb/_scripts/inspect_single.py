@@ -1,8 +1,8 @@
 # %%
 from pathlib import Path
-from pynwb import NWBHDF5IO
-import numpy as np
+
 from one.api import ONE
+from pynwb import NWBHDF5IO
 
 
 def eid2nwbfilename(eid, one, mode="processed"):

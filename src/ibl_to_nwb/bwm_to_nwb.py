@@ -5,15 +5,16 @@ import traceback
 from pathlib import Path
 
 import spikeglx
+from brainbox.io.one import SessionLoader
+from one.alf.exceptions import ALFObjectNotFound
 from one.alf.spec import is_uuid_string
 from one.api import ONE
-from brainbox.io.one import SessionLoader
 
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import (
     BrainwideMapTrialsInterface,
-    IblSortingInterface,
     IblPoseEstimationInterface,
+    IblSortingInterface,
     LickInterface,
     PassivePeriodDataInterface,
     PupilTrackingInterface,
@@ -34,10 +35,12 @@ from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 ##        ##     ##    ##    ##     ##
 """
 
+
 def get_logger(eid: str):
     # helper to get the eid specific logger
     _logger = logging.getLogger(f"bwm_to_nwb.{eid}")
     return _logger
+
 
 def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path = None) -> dict:
     """
@@ -72,7 +75,9 @@ def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path =
     paths = dict(
         output_folder=base_path / "nwbfiles" / f"sub-{subject}",
         session_folder=one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
-        scratch_folder=Path("/scratch") if scratch_path is None else scratch_path,  # <- this is to be changed to /scratch on the node
+        scratch_folder=Path("/scratch")
+        if scratch_path is None
+        else scratch_path,  # <- this is to be changed to /scratch on the node
     )
 
     # inferred from above
@@ -166,21 +171,24 @@ def get_camera_name_from_file(filepath):
     camera_name = filename.split(".")[0]  # remove suffixes
     return camera_name
 
+
 def check_camera_health_by_loading(one: ONE = None, session: str = None, revision: str = None):
     try:
         session_loader = SessionLoader(one=one, eid=session, revision=revision)
-        session_loader.load_pose(tracker='lightningPose')
+        session_loader.load_pose(tracker="lightningPose")
         return True
-    except: # ALFObjectNotFound or ValueError
+    except ALFObjectNotFound:
         return False
 
+
 def check_camera_health_by_qc(bwm_qc, eid, camera_name):
-    view = camera_name.split('Camera')[0].capitalize()
-    qc = bwm_qc[eid][f'video{view}']
-    if qc in ['CRITICAL','FAIL']:
+    view = camera_name.split("Camera")[0].capitalize()
+    qc = bwm_qc[eid][f"video{view}"]
+    if qc in ["CRITICAL", "FAIL"]:
         return False
     else:
         return True
+
 
 def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> list:
     # Returns a list of the data interfaces to build the processed NWB file for this session
@@ -202,7 +210,9 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
         # parse file name to camera
         camera_name = get_camera_name_from_file(pose_estimation_file)
         if check_camera_health_by_qc(bwm_qc, eid, camera_name) and check_camera_health_by_loading(**interface_kwargs):
-            data_interfaces.append(IblPoseEstimationInterface(camera_name=camera_name, tracker='lightningPose', **interface_kwargs))
+            data_interfaces.append(
+                IblPoseEstimationInterface(camera_name=camera_name, tracker="lightningPose", **interface_kwargs)
+            )
 
     pupil_tracking_files = one.list_datasets(eid=eid, filename="*features*")
     camera_names = []
@@ -221,7 +231,7 @@ def _get_processed_data_interfaces(one: ONE, eid: str, revision: str = None) -> 
     for camera_name in camera_names:
         if check_camera_health_by_qc(bwm_qc, eid, camera_name):
             data_interfaces.append(RoiMotionEnergyInterface(camera_name=camera_name, **interface_kwargs))
-    
+
     if one.list_datasets(eid=eid, collection="alf", filename="licks*"):
         data_interfaces.append(LickInterface(**interface_kwargs))
     return data_interfaces
@@ -303,9 +313,7 @@ def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = Non
             (file_ch,) = list(file_cbin.parent.glob(f"{name}*.ch"))
 
             # copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(
-                scratch_dir=target_bin.parent
-            )
+            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(scratch_dir=target_bin.parent)
 
             if remove_uuid:
                 shutil.move(target_bin, target_bin_no_uuid)

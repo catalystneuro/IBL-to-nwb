@@ -2,13 +2,13 @@ import logging
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from brainbox.io.one import SessionLoader, SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
-import pandas as pd
 
 # from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
@@ -148,11 +148,11 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
     load_kwargs = dict(collection="alf", revision=revision)
 
     session_loader = SessionLoader(one=one, eid=eid, revision=revision)
-    session_loader.load_pose(tracker='dlc') # TODO to be externalized
+    session_loader.load_pose(tracker="dlc")  # TODO to be externalized
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
-        pose_data = session_loader.pose[f'{view}Camera']
+        pose_data = session_loader.pose[f"{view}Camera"]
         data_interface_name = f"PoseEstimation{view.capitalize()}Camera"
         if data_interface_name in processing_module.data_interfaces.keys():
             pose_estimation_container = processing_module.data_interfaces[data_interface_name]
@@ -236,9 +236,7 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
             # raw
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
-                "pupilDiameter_raw"
-            ].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_raw"].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # timestamps
@@ -248,9 +246,7 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
             # smooth
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}SmoothedPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
-                "pupilDiameter_smooth"
-            ].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_smooth"].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             _logger.debug(f"pupil data for {view} passed")
@@ -260,7 +256,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
     revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
-    bwm_df = load_fixtures.load_bwm_df()
+    # bwm_df = load_fixtures.load_bwm_df()
 
     raw_ephys_datasets = one.list_datasets(eid=eid, collection="raw_ephys_data/*")
     probe_names = set([filename.split("/")[1] for filename in raw_ephys_datasets])
@@ -301,9 +297,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
         cluster_id = np.where(clusters[probe_name]["uuids"] == uuid)[0][0]
         # spikes[probe_name]["clusters"]
-        spike_times_from_ONE = get_spikes_for_cluster(
-            spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id
-        )
+        spike_times_from_ONE = get_spikes_for_cluster(spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id)
 
         # more verbose but slower for more than ~20 checks
         # spike_times_from_ONE = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
@@ -368,10 +362,10 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             data_one = sglx_streamer._raw
 
             # nwb ephys data
-            if len(pnames_one) > 1: # this hack deals with single probe recordings
+            if len(pnames_one) > 1:  # this hack deals with single probe recordings
                 imec = pname_to_imec[pname]
             else:
-                imec = ''
+                imec = ""
             data_nwb = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].data
 
             # compare number of samples in both
@@ -399,9 +393,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()[:]
 
             # from brainbox.io
-            brainbox_timestamps = spike_sorting_loader.samples2times(
-                np.arange(0, n_samples_one), direction="forward", band=band
-            )
+            brainbox_timestamps = spike_sorting_loader.samples2times(np.arange(0, n_samples_one), direction="forward", band=band)
 
             np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
             _logger.debug(f"ephys data timestamps for {pname}/{band} passed")
@@ -458,44 +450,44 @@ def _check_passive_data(*, one: ONE, nwbfile: NWBFile):
 
     # has passive epochs
     if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets:
-        passive_intervals_df = one.load_dataset(eid, "alf/_ibl_passivePeriods.intervalsTable.csv")
-        epochs = nwbfile.intervals['epochs'][:]
-        for protocol, group in epochs.groupby('protocol_name'):
-            if protocol != 'experiment':
+        passive_intervals_df = one.load_dataset(eid, "_ibl_passivePeriods.intervalsTable.csv", **load_kwargs)
+        epochs = nwbfile.intervals["epochs"][:]
+        for protocol, group in epochs.groupby("protocol_name"):
+            if protocol != "experiment":
                 start_time, stop_time = passive_intervals_df[protocol]
-                assert group['start_time'].values == start_time
-                assert group['stop_time'].values == stop_time
+                assert group["start_time"].values == start_time
+                assert group["stop_time"].values == stop_time
 
     # has replay
     if "alf/_ibl_passiveGabor.table.csv" in datasets:
-        taskreplay_events_df = one.load_dataset(eid, "alf/_ibl_passiveStims.table.csv")
+        taskreplay_events_df = one.load_dataset(eid, "_ibl_passiveStims.table.csv", **load_kwargs)
         one_passive_df = []
 
-        for col_name in ['valve','tone','noise']:
+        for col_name in ["valve", "tone", "noise"]:
             cols = [col for col in taskreplay_events_df.columns if col.startswith(col_name)]
             df = taskreplay_events_df[cols].copy()
-            df.loc[:, 'stim_type'] = col_name
-            df.columns = ['start_time','stop_time','stim_type']
+            df.loc[:, "stim_type"] = col_name
+            df.columns = ["start_time", "stop_time", "stim_type"]
             one_passive_df.append(df)
-        one_passive_df = pd.concat(one_passive_df,axis=0).sort_values('start_time').reset_index(drop=True)
-        one_passive_df.index.name = 'id'
-        nwb_passive_df = nwbfile.processing['passive'].data_interfaces['passive_task_replay'][:]
+        one_passive_df = pd.concat(one_passive_df, axis=0).sort_values("start_time").reset_index(drop=True)
+        one_passive_df.index.name = "id"
+        nwb_passive_df = nwbfile.processing["passive"].data_interfaces["passive_task_replay"][:]
         assert_frame_equal(one_passive_df, nwb_passive_df)
 
-        one_gabor_events_df = one.load_dataset(eid, "alf/_ibl_passiveGabor.table.csv")
-        drop_cols = [col for col in one_gabor_events_df.columns if col.startswith('Unnamed')]
+        one_gabor_events_df = one.load_dataset(eid, "_ibl_passiveGabor.table.csv", **load_kwargs)
+        drop_cols = [col for col in one_gabor_events_df.columns if col.startswith("Unnamed")]
         one_gabor_events_df = one_gabor_events_df.drop(drop_cols, axis=1)
-        one_gabor_events_df.index.name = 'id'
-        one_gabor_events_df = one_gabor_events_df.rename(columns={'start':'start_time', 'stop':'stop_time'})
-        nwb_gabor_events_df = nwbfile.processing['passive'].data_interfaces['gabor_table'][:]
+        one_gabor_events_df.index.name = "id"
+        one_gabor_events_df = one_gabor_events_df.rename(columns={"start": "start_time", "stop": "stop_time"})
+        nwb_gabor_events_df = nwbfile.processing["passive"].data_interfaces["gabor_table"][:]
         assert_frame_equal(one_gabor_events_df, nwb_gabor_events_df)
 
     # receptrive field mapping
     if "alf/_ibl_passiveRFM.times.npy" in datasets:
-        nwb_timestamps = nwbfile.processing['passive'].data_interfaces['rfm_stim'].timestamps[:]
-        one_timestamps = one.load_dataset(eid, "alf/_ibl_passiveRFM.times.npy")
+        nwb_timestamps = nwbfile.processing["passive"].data_interfaces["rfm_stim"].timestamps[:]
+        one_timestamps = one.load_dataset(eid, "_ibl_passiveRFM.times.npy", **load_kwargs)
         assert_array_equal(nwb_timestamps, one_timestamps)
-        nwb_data = nwbfile.processing['passive'].data_interfaces['rfm_stim'].data[:]
+        nwb_data = nwbfile.processing["passive"].data_interfaces["rfm_stim"].data[:]
         path = one.load_dataset(eid, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
         one_data = np.fromfile(path, dtype=np.uint8).reshape((one_timestamps.shape[0], 15, 15))
         assert_array_equal(nwb_data, one_data)

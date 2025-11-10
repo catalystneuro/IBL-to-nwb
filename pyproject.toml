@@ -12,7 +12,7 @@ description = "Tools to convert IBL data to NWB format.."
 readme = "README.md"
 keywords = ["nwb", "dandi", "ibl"]
 license = {file = "license.txt"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "dandi",
     "neuroconv",
@@ -30,7 +30,6 @@ dependencies = [
 
 classifiers = [
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",

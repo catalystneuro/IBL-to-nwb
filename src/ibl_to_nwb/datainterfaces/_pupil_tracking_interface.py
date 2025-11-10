@@ -11,7 +11,6 @@ from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
 from pynwb.behavior import PupilTracking
-import pandas as pd
 
 
 class PupilTrackingInterface(BaseDataInterface):
