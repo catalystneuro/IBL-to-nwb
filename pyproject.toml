@@ -42,7 +42,7 @@ classifiers = [
 ]
 
 [tool.uv.sources]
-ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "NWB_conversion"}
+ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "main"}
 ndx-ibl-bwm = {git = "https://github.com/int-brain-lab/ndx-ibl-bwm", branch = "main" }
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 

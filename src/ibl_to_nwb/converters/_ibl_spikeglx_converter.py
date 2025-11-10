@@ -7,9 +7,7 @@ from pynwb import NWBFile
 
 
 class IblSpikeGlxConverter(SpikeGLXConverterPipe):
-    def __init__(
-        self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, revision: str, streams=None
-    ) -> None:
+    def __init__(self, folder_path: DirectoryPath, one: ONE, eid: str, pname_pid_map: dict, revision: str, streams=None) -> None:
         # # debug injection
         # streams = ['imec0.lf','imec1.lf']
         super().__init__(folder_path=folder_path, streams=streams)
@@ -51,9 +49,7 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)
                 # stream = False if "USE_SDSC_ONE" in os.environ else True
                 stream = False
-                sglx_streamer = spike_sorting_loader.raw_electrophysiology(
-                    band=band, stream=stream, revision=self.revision
-                )
+                sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=self.revision)
 
                 # data_one = sglx_streamer._raw
 
@@ -65,7 +61,9 @@ class IblSpikeGlxConverter(SpikeGLXConverterPipe):
                 # ns = recording_interface._extractor_instance.get_num_samples()
                 # aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
                 aligned_timestamps = spike_sorting_loader.samples2times(
-                    np.arange(0, sglx_streamer.ns), direction="forward", band=band
+                    np.arange(0, sglx_streamer.ns),
+                    direction="forward",
+                    fs=sglx_streamer.fs,
                 )
                 recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
 
