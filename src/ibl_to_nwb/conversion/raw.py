@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from neuroconv import ConverterPipe
 from neuroconv.tools import configure_and_write_nwbfile
+from neuroconv.tools.nwb_helpers import get_default_backend_configuration
 from ndx_ibl import IblSubject
 from ndx_ibl_bwm import ibl_bwm_metadata
 from one.api import ONE
@@ -499,10 +500,40 @@ def convert_raw_session(
     subject_id_for_filename = sanitize_subject_id_for_dandi(nwbfile.subject.subject_id)
     nwbfile_path = output_dir / f"sub-{subject_id_for_filename}_ses-{eid}_desc-raw_ecephys.nwb"
 
+    # Get default backend configuration
+    backend_configuration = get_default_backend_configuration(nwbfile=nwbfile, backend="hdf5")
+
+    # Customize chunking for ElectricalSeries to not chunk across channels
+    # This ensures all channels are in each chunk, which is better for channel-wise access patterns
+    for location, dataset_config in backend_configuration.dataset_configurations.items():
+        # Check if this is an ElectricalSeries data dataset
+        if "ElectricalSeries" in location and location.endswith("/data"):
+            # Get the full shape (frames, channels)
+            full_shape = dataset_config.full_shape
+            number_of_frames = full_shape[0]
+            number_of_channels = full_shape[1]
+            dtype = dataset_config.dtype
+
+            # Calculate chunk size with ALL channels (no chunking across channels)
+            chunk_mb = 10.0  # Keep same total chunk size
+            bytes_per_frame = number_of_channels * dtype.itemsize
+            chunk_frames = int((chunk_mb * 1e6) // bytes_per_frame)
+            chunk_frames = max(1, min(chunk_frames, number_of_frames))  # At least 1, at most total frames
+
+            # Set new chunk shape: (frames, ALL_channels)
+            dataset_config.chunk_shape = (chunk_frames, number_of_channels)
+
+            if logger:
+                logger.info(f"  Custom chunking for {location}:")
+                logger.info(f"    Shape: {full_shape}")
+                logger.info(f"    Chunk: {dataset_config.chunk_shape}")
+                chunk_size_mb = (chunk_frames * number_of_channels * dtype.itemsize) / 1e6
+                logger.info(f"    Chunk size: {chunk_size_mb:.2f} MB")
+
     configure_and_write_nwbfile(
         nwbfile=nwbfile,
         nwbfile_path=nwbfile_path,
-        backend="hdf5",
+        backend_configuration=backend_configuration,
     )
 
     write_time = time.time() - write_start
