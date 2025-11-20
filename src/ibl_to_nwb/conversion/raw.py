@@ -28,7 +28,7 @@ from ..bwm_to_nwb import (
 from ..converters import IblSpikeGlxConverter
 from ..datainterfaces import IblAnatomicalLocalizationInterface, IblNIDQInterface, RawVideoInterface
 from ..fixtures import load_fixtures
-from ..utils import add_probe_electrodes_with_localization, sanitize_subject_id_for_dandi
+from ..utils import add_probe_electrodes_with_localization, get_ibl_subject_metadata, sanitize_subject_id_for_dandi
 
 
 def _valid_existing_nwb(nwb_path: Path, overwrite: bool, logger: logging.Logger | None = None) -> bool:
@@ -401,26 +401,10 @@ def convert_raw_session(
     if session_metadata.get("task_protocol"):
         nwbfile_metadata["protocol"] = session_metadata["task_protocol"]
 
-    # Subject metadata
-    subject_metadata_list = one.alyx.rest("subjects", "list", nickname=session_metadata["subject"])
-    subject_metadata = subject_metadata_list[0]
-
-    subject_metadata_block["subject_id"] = subject_metadata["nickname"]
-    subject_metadata_block["sex"] = subject_metadata["sex"]
-    subject_metadata_block["species"] = subject_metadata_block.get("species", "Mus musculus")
-    if subject_metadata.get("reference_weight"):
-        subject_metadata_block["weight"] = subject_metadata["reference_weight"] * 1e-3
-    date_of_birth = datetime.strptime(subject_metadata["birth_date"], "%Y-%m-%d")
-    subject_metadata_block["date_of_birth"] = date_of_birth.replace(tzinfo=tzinfo)
-
-    for ibl_key, nwb_name in [
-        ("last_water_restriction", "last_water_restriction"),
-        ("remaining_water", "remaining_water_ml"),
-        ("expected_water", "expected_water_ml"),
-        ("url", "url"),
-    ]:
-        if ibl_key in subject_metadata and subject_metadata[ibl_key] is not None:
-            subject_metadata_block[nwb_name] = subject_metadata[ibl_key]
+    # Get subject metadata using centralized utility function
+    subject_metadata_block.update(
+        get_ibl_subject_metadata(one=one, session_metadata=session_metadata, tzinfo=tzinfo)
+    )
 
     # ========================================================================
     # STEP 5: Configure conversion options

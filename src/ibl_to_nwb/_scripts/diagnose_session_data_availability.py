@@ -220,6 +220,19 @@ def result_to_csv_row(result: Dict) -> Dict:
     for source_name in DATA_SOURCE_DESCRIPTIONS.keys():
         row[f"has_{source_name}"] = result["data_sources"].get(source_name, False)
 
+    # Map non-standard probe names to standard columns
+    # This handles edge cases like probe00a/probe00b (4 sessions from subject NR_0029)
+    # by populating the standard has_meta_probe00/has_meta_probe01 columns
+    probe_name_mapping = {
+        "meta_probe00a": "meta_probe00",  # Map probe00a -> probe00 column
+        "meta_probe00b": "meta_probe01",  # Map probe00b -> probe01 column
+    }
+
+    for actual_name, standard_name in probe_name_mapping.items():
+        if actual_name in result["data_sources"]:
+            # Use the actual probe's data for the standard column
+            row[f"has_{standard_name}"] = result["data_sources"][actual_name]
+
     if result["errors"]:
         row["errors"] = "; ".join(result["errors"])
 
