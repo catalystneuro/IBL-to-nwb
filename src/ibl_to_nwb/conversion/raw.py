@@ -242,7 +242,7 @@ def convert_raw_session(
         if logger and stub_test:
             logger.info("✓ Stub mode: Including SpikeGLX ephys data (decompressed binaries available)")
         spikeglx_converter = IblSpikeGlxConverter(
-            folder_path=str(paths["spikeglx_source_folder"]),
+            folder_path=paths["spikeglx_source_folder"],
             one=one,
             eid=eid,
             probe_name_to_probe_id_dict=probe_name_to_probe_id_dict,

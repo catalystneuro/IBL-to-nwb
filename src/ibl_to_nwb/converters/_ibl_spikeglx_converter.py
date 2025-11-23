@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
-from neuroconv.datainterfaces import SpikeGLXRecordingInterface
+from neuroconv.datainterfaces import SpikeGLXRecordingInterface, SpikeGLXSyncChannelInterface
 from neuroconv.nwbconverter import ConverterPipe
 from one.api import ONE
 from pydantic import DirectoryPath
@@ -110,6 +110,10 @@ class IblSpikeGlxConverter(ConverterPipe):
             if key == "nidq":
                 continue
 
+            # Skip sync channel interfaces (they create TimeSeries, not ElectricalSeries)
+            if '.sync' in key:
+                continue
+
             parts = key.split(".")
             probe_name = parts[0]  # "probe00"
             band = parts[2]        # "ap" or "lf"
@@ -129,6 +133,21 @@ class IblSpikeGlxConverter(ConverterPipe):
                 ids=channel_ids,
                 values=[ibl_group_name] * len(channel_ids)
             )
+
+        # Add SYNC channel interface (one per probe, prefer AP band)
+        sync_streams = [s for s in available_streams if '-SYNC' in s and '.ap-SYNC' in s]
+
+        for stream_id in sync_streams:
+            interface = SpikeGLXSyncChannelInterface(
+                folder_path=str(probe_folder),
+                stream_id=stream_id,
+                verbose=False
+            )
+
+            # Normalize: "imec0.ap-SYNC" -> "imec.sync"
+            normalized_stream = stream_id.replace('imec0', 'imec').replace('imec1', 'imec').replace('.ap-SYNC', '.sync')
+            key = f"{probe_name}.{normalized_stream}"  # e.g., "probe00.imec.sync"
+            data_interfaces[key] = interface
 
     @classmethod
     def get_data_requirements(cls, **kwargs) -> dict:
@@ -291,11 +310,16 @@ class IblSpikeGlxConverter(ConverterPipe):
         """Align the raw data timestamps to the other data streams using the ONE API."""
 
         # only interate over present data interfaces
-        for key, recording_interface in self.data_interface_objects.items():
+        for key, interface in self.data_interface_objects.items():
             # Parse new key format: "probe00.imec.ap" -> probe_name="probe00", band="ap"
             parts = key.split(".")
             probe_name = parts[0]  # "probe00"
-            band = parts[2]        # "ap" or "lf"
+
+            # Determine band: sync channels use AP band alignment
+            if '.sync' in key:
+                band = 'ap'  # Sync came from AP-SYNC stream
+            else:
+                band = parts[2]  # "ap" or "lf"
 
             pid = self.probe_name_to_probe_id_dict[probe_name]
 
@@ -318,7 +342,14 @@ class IblSpikeGlxConverter(ConverterPipe):
             aligned_timestamps = spike_sorting_loader.samples2times(
                 np.arange(0, sglx_streamer.ns), direction="forward", band=band
             )
-            recording_interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
+
+            # Handle different interface types
+            if hasattr(interface, 'set_aligned_timestamps'):
+                # Recording interfaces (AP/LF) have this method
+                interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
+            elif hasattr(interface, 'recording_extractor'):
+                # Sync interface doesn't have set_aligned_timestamps, use recording_extractor directly
+                interface.recording_extractor.set_times(times=aligned_timestamps, with_warning=False)
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata, **conversion_options_kwargs) -> None:
         # Build conversion options from kwargs (which come from IblConverter unpacking)

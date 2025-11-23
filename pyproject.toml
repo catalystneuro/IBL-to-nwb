@@ -42,6 +42,7 @@ classifiers = [
 ]
 
 [tool.uv.sources]
+neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "add_sync_channel_interface"}
 ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "main"}
 ndx-ibl-bwm = {git = "https://github.com/int-brain-lab/ndx-ibl-bwm", branch = "main" }
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }

@@ -35,6 +35,11 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
 
     Extractor = IblSortingExtractor
 
+    @classmethod
+    def get_extractor_class(cls):
+        """Get the extractor class for this interface."""
+        return cls.Extractor
+
     def __init__(
         self,
         session: str,
