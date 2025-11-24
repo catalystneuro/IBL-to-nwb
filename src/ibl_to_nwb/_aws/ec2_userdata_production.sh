@@ -234,6 +234,10 @@ echo "=== NWB files ==="
 find "${DANDISET_FOLDER}" -name "*.nwb" -type f
 echo ""
 
+# Debug: Check if DANDI_API_KEY is still set
+echo "DEBUG: DANDI_API_KEY is set: ${DANDI_API_KEY:+YES}"
+echo "DEBUG: DANDI_API_KEY length: ${#DANDI_API_KEY}"
+
 dandi upload -i dandi-sandbox .
 
 # Cleanup and shutdown
