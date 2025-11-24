@@ -32,7 +32,6 @@ def get_ibl_subject_metadata(one: ONE, session_metadata: dict, tzinfo: ZoneInfo)
         - weight: Weight in kilograms (converted from grams)
         - date_of_birth: Date of birth with timezone
         - uuid: Alyx database UUID for programmatic queries
-        - url: Alyx web URL (note: requires authentication, returns 403 without login)
         - last_water_restriction: Last water restriction date (if available)
         - remaining_water_ml: Remaining water in ml (if available)
         - expected_water_ml: Expected water in ml (if available)
@@ -71,7 +70,6 @@ def get_ibl_subject_metadata(one: ONE, session_metadata: dict, tzinfo: ZoneInfo)
         ("remaining_water", "remaining_water_ml"),
         ("expected_water", "expected_water_ml"),
         ("id", "uuid"),  # Alyx database UUID for programmatic queries
-        ("url", "url"),  # Note: URLs return 403 Forbidden without authentication
     ]:
         if ibl_key in subject_metadata and subject_metadata[ibl_key] is not None:
             subject_block[nwb_name] = subject_metadata[ibl_key]
