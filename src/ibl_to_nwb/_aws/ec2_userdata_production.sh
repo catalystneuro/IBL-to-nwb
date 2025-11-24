@@ -170,6 +170,8 @@ source .venv/bin/activate
 set +x
 DANDI_API_KEY="{{DANDI_API_KEY}}"
 export DANDI_API_KEY
+# Also export as DANDI_SANDBOX_API_KEY for sandbox instance uploads
+export DANDI_SANDBOX_API_KEY="${DANDI_API_KEY}"
 
 # Shred the user-data file (contains the API key) after reading it
 # This removes the on-disk copy that cloud-init caches
@@ -234,9 +236,9 @@ echo "=== NWB files ==="
 find "${DANDISET_FOLDER}" -name "*.nwb" -type f
 echo ""
 
-# Debug: Check if DANDI_API_KEY is still set
+# Debug: Check if DANDI API keys are still set
 echo "DEBUG: DANDI_API_KEY is set: ${DANDI_API_KEY:+YES}"
-echo "DEBUG: DANDI_API_KEY length: ${#DANDI_API_KEY}"
+echo "DEBUG: DANDI_SANDBOX_API_KEY is set: ${DANDI_SANDBOX_API_KEY:+YES}"
 
 dandi upload -i dandi-sandbox .
 
