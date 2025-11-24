@@ -234,7 +234,7 @@ echo "=== NWB files ==="
 find "${DANDISET_FOLDER}" -name "*.nwb" -type f
 echo ""
 
-dandi upload -i dandi-sandbox --dandi-key "${DANDI_API_KEY}" .
+dandi upload -i dandi-sandbox .
 
 # Cleanup and shutdown
 echo "Upload complete. Shutting down in 60 seconds..."
