@@ -1,16 +1,14 @@
-"""Convert assigned IBL sessions to NWB format.
+"""Convert assigned IBL session to NWB format.
 
 This script is designed for distributed execution on EC2 instances. Each instance:
-  1. Reads its ShardRange tag from IMDSv2 (e.g., "0-13")
-  2. Loads unique session EIDs from bwm_session_eids.json by slicing the range
-  3. Downloads source data from ONE API
-  4. Converts to NWB (both raw and processed)
-  5. Writes NWB files to /ebs/nwbfiles/full/sub-*/
+  1. Reads its SessionEID tag from IMDSv2
+  2. Downloads source data from ONE API
+  3. Converts to NWB (both raw and processed)
+  4. Writes NWB files to /ebs/nwbfiles/full/sub-*/
 
-Upload is handled separately by ec2_userdata_production.sh after all conversions complete.
+Upload is handled separately by ec2_userdata_production.sh after conversion completes.
 
-The bwm_session_eids.json file contains 459 unique session EIDs (deduplicated from
-the 699 rows in bwm_df.pqt which contains duplicates due to multiple probes per session).
+ONE SESSION PER INSTANCE - This script processes a single session only.
 
 Example usage (on EC2):
 
@@ -18,6 +16,9 @@ Example usage (on EC2):
 
     # Or with stub test:
     python convert_assigned_sessions.py --stub-test
+
+    # Or locally with explicit EID (for testing):
+    python convert_assigned_sessions.py --session-eid abc123... --stub-test
 """
 
 from __future__ import annotations
@@ -45,24 +46,30 @@ def get_imdsv2_tag(tag_name: str) -> str:
     """Read instance tag from IMDSv2 metadata service.
 
     Args:
-        tag_name: Name of the tag to read (e.g., "ShardRange")
+        tag_name: Name of the tag to read (e.g., "SessionEID")
 
     Returns:
         Tag value as string
     """
     # Get IMDSv2 token
     token_cmd = [
-        "curl", "-X", "PUT", "-fsS",
+        "curl",
+        "-X",
+        "PUT",
+        "-fsS",
         "http://169.254.169.254/latest/api/token",
-        "-H", "X-aws-ec2-metadata-token-ttl-seconds: 21600"
+        "-H",
+        "X-aws-ec2-metadata-token-ttl-seconds: 21600",
     ]
     token = subprocess.run(token_cmd, capture_output=True, text=True, check=True).stdout.strip()
 
     # Get tag value
     tag_cmd = [
-        "curl", "-fsS",
+        "curl",
+        "-fsS",
         f"http://169.254.169.254/latest/meta-data/tags/instance/{tag_name}",
-        "-H", f"X-aws-ec2-metadata-token: {token}"
+        "-H",
+        f"X-aws-ec2-metadata-token: {token}",
     ]
     tag_value = subprocess.run(tag_cmd, capture_output=True, text=True, check=True).stdout.strip()
 
@@ -71,7 +78,7 @@ def get_imdsv2_tag(tag_name: str) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run full conversions for assigned sessions (reads range from IMDSv2)."
+        description="Run conversion for assigned session (reads SessionEID from IMDSv2 or CLI)."
     )
     parser.add_argument(
         "--stub-test",
@@ -79,13 +86,11 @@ def parse_args() -> argparse.Namespace:
         help="Run in stub mode for testing (lightweight data).",
     )
     parser.add_argument(
-        "--shard-range",
+        "--session-eid",
         type=str,
-        help='Override shard range (e.g., "0-13"). If not provided, reads from IMDSv2 ShardRange tag.',
+        help='Override session EID (for local testing). If not provided, reads from IMDSv2 SessionEID tag.',
     )
     return parser.parse_args()
-
-
 
 
 def convert_session(
@@ -212,57 +217,37 @@ def main() -> None:
     DECOMPRESSED_EPHYS_SUBDIR = "decompressed_ephys"
     CACHE_SUBDIR = "ibl_cache"
     NWB_SUBDIR = "nwbfiles"
-    REVISION = "2025-05-06"
     CONVERT_RAW = True
     CONVERT_PROCESSED = True
 
     # DANDI_API_KEY is set by ec2_userdata_production.sh via 'export DANDI_API_KEY=...'
     # No need to load from .env file
 
-    # Hardcoded log level: INFO for main script, individual sessions log to files
+    # Hardcoded log level: INFO for main script
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s: %(message)s",
     )
 
-    # Get shard range from CLI argument or IMDSv2 tag
-    if args.shard_range:
-        shard_range = args.shard_range
-        logging.info(f"Using shard range from CLI: {shard_range}")
+    # Get session EID from CLI argument or IMDSv2 tag
+    if args.session_eid:
+        eid = args.session_eid
+        logging.info(f"Using session EID from CLI: {eid}")
     else:
         try:
-            shard_range = get_imdsv2_tag("ShardRange")
-            logging.info(f"Read shard range from IMDSv2: {shard_range}")
+            eid = get_imdsv2_tag("SessionEID")
+            logging.info(f"Read session EID from IMDSv2: {eid}")
         except Exception as e:
-            raise SystemExit(f"Failed to read ShardRange tag from IMDSv2: {e}") from e
+            raise SystemExit(f"Failed to read SessionEID tag from IMDSv2: {e}") from e
 
-    # Parse range
+    # Also read SessionIndex for logging (optional)
     try:
-        start_idx, end_idx = map(int, shard_range.split("-"))
-    except ValueError as e:
-        raise SystemExit(f"Invalid shard range format '{shard_range}': expected 'START-END'") from e
+        session_index = get_imdsv2_tag("SessionIndex")
+        logging.info(f"Session index: {session_index}")
+    except Exception:
+        session_index = "unknown"
 
-    # Load unique session EIDs from JSON
-    eids_json_path = Path(__file__).parent / "bwm_session_eids.json"
-    logging.info(f"Loading unique session EIDs from {eids_json_path.name}...")
-
-    with open(eids_json_path, "r") as f:
-        eids_data = json.load(f)
-
-    all_eids = eids_data["eids"]
-    total_sessions = len(all_eids)
-    logging.info(f"Total unique sessions available: {total_sessions}")
-
-    # Slice by range
-    if start_idx < 0 or end_idx >= total_sessions or start_idx > end_idx:
-        raise SystemExit(
-            f"Invalid range {start_idx}-{end_idx} for {total_sessions} unique sessions"
-        )
-
-    eids = all_eids[start_idx : end_idx + 1]
-    logging.info(f"Assigned sessions [{start_idx}-{end_idx}]: {len(eids)} sessions")
-
-    # Create directory structure (inlined)
+    # Create directory structure
     for subdir in [LOGS_SUBDIR, DECOMPRESSED_EPHYS_SUBDIR, CACHE_SUBDIR, NWB_SUBDIR]:
         (BASE_FOLDER / subdir).mkdir(parents=True, exist_ok=True)
 
@@ -280,61 +265,60 @@ def main() -> None:
     )
     apply_one_patches(one, logger=None)
 
-    # Track overall statistics
-    total_sessions = len(eids)
-    successful = 0
-    failed = 0
-    session_results = []
+    # Convert single session
+    logging.info("\n" + "=" * 100)
+    logging.info(f"PROCESSING SESSION: {eid} (index: {session_index})")
+    logging.info("=" * 100)
 
     batch_start = time.time()
 
-    for index, eid in enumerate(eids, start=1):
-        logging.info("\n" + "=" * 100)
-        logging.info(f"PROCESSING SESSION {index}/{total_sessions}: {eid}")
-        logging.info("=" * 100)
-
-        try:
-            result = convert_session(
-                eid,
-                one=one,
-                base_folder=BASE_FOLDER,
-                logs_folder=logs_folder,
-                decompressed_ephys_folder=decompressed_ephys_folder,
-                nwb_folder=nwb_folder,
-                stub_test=args.stub_test,
-                convert_raw=CONVERT_RAW,
-                convert_processed=CONVERT_PROCESSED,
-            )
-            session_results.append(result)
-            successful += 1
-            logging.info(f"Session {eid} completed successfully")
-        except Exception:
-            failed += 1
-            logging.exception(f"Session {eid} FAILED")
+    try:
+        result = convert_session(
+            eid,
+            one=one,
+            base_folder=BASE_FOLDER,
+            logs_folder=logs_folder,
+            decompressed_ephys_folder=decompressed_ephys_folder,
+            nwb_folder=nwb_folder,
+            stub_test=args.stub_test,
+            convert_raw=CONVERT_RAW,
+            convert_processed=CONVERT_PROCESSED,
+        )
+        logging.info(f"Session {eid} completed successfully")
+        success = True
+    except Exception:
+        logging.exception(f"Session {eid} FAILED")
+        result = None
+        success = False
 
     batch_time = time.time() - batch_start
 
     # Write summary
     logging.info("\n" + "=" * 100)
-    logging.info("BATCH PROCESSING COMPLETED")
+    logging.info("CONVERSION COMPLETED")
     logging.info("=" * 100)
-    logging.info(f"Total sessions: {total_sessions}")
-    logging.info(f"Successful: {successful}")
-    logging.info(f"Failed: {failed}")
-    logging.info(f"Total batch time: {batch_time:.2f}s ({batch_time/3600:.2f} hours)")
+    logging.info(f"Session EID: {eid}")
+    logging.info(f"Session Index: {session_index}")
+    logging.info(f"Success: {success}")
+    logging.info(f"Total time: {batch_time:.2f}s ({batch_time/3600:.2f} hours)")
     logging.info("=" * 100)
 
     # Save results summary
-    summary_file = logs_folder / f"batch_summary_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    summary_file = logs_folder / f"conversion_summary_{eid}_{time.strftime('%Y%m%d_%H%M%S')}.json"
     summary = {
-        "total_sessions": total_sessions,
-        "successful": successful,
-        "failed": failed,
-        "batch_time_seconds": batch_time,
-        "session_results": session_results,
+        "eid": eid,
+        "session_index": session_index,
+        "success": success,
+        "conversion_time_seconds": batch_time,
+        "stub_test": args.stub_test,
+        "result": result,
     }
     summary_file.write_text(json.dumps(summary, indent=2))
     logging.info(f"Summary written to: {summary_file}")
+
+    # Exit with error code if conversion failed
+    if not success:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

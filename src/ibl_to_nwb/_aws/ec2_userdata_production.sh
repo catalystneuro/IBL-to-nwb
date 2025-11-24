@@ -4,23 +4,27 @@
 # This script executes once during instance boot and performs:
 #   1. Mounts and formats the EBS volume for scratch/cache storage
 #   2. Installs uv and required system dependencies
-#   3. Clones the IBL-to-nwb repository (includes bwm_df.pqt fixtures)
-#   4. Runs the conversion script (reads ShardRange tag from IMDSv2)
+#   3. Clones the IBL-to-nwb repository (includes bwm_session_eids.json)
+#   4. Runs the conversion script (reads SessionEID tag from IMDSv2)
 #   5. Uploads NWB files to DANDI
 #   6. Shuts down the instance when complete
 #
 # PREREQUISITES:
-#   - Instance must be tagged with "ShardId" and "ShardRange" (e.g., "001", "0-13")
+#   - Instance must be tagged with "SessionEID" and "SessionIndex" (e.g., "abc123...", "42")
 #   - Instance must have IMDSv2 metadata access enabled (for reading tags)
-#   - DANDI_API_KEY is substituted into this script at launch time (template substitution)
+#   - DANDI_API_KEY, REPO_URL, REPO_BRANCH, DANDISET_ID are substituted at launch time
 
 set -euxo pipefail
 
-# Configuration variables
+# Force shutdown on error to prevent runaway instances
+# Note: Only trap ERR, not EXIT - EXIT would trigger on successful completion too
+trap 'echo "ERROR: Script failed. Shutting down in 60 seconds..."; sleep 60; shutdown -h now' ERR
+
+# Configuration variables (substituted by launch script)
 MOUNT_POINT="/ebs"
-REPO_URL="https://github.com/h-mayorquin/IBL-to-nwb.git"  # Personal fork (where heberto_conversion branch exists)
-REPO_BRANCH="heberto_conversion"
-DANDISET_ID="217706"  # DANDI sandbox dandiset for IBL BWM data
+REPO_URL="{{REPO_URL}}"
+REPO_BRANCH="{{REPO_BRANCH}}"
+DANDISET_ID="{{DANDISET_ID}}"
 
 # Fetch instance metadata (IMDSv2 - requires token)
 IMDS_TOKEN="$(curl -X PUT -fsS "http://169.254.169.254/latest/api/token" \
@@ -31,24 +35,26 @@ INSTANCE_ID="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
 REGION="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
     http://169.254.169.254/latest/meta-data/placement/region)"
 
-# Get the ShardId and StubTest tags from instance metadata (no AWS CLI/IAM role needed!)
-SHARD_ID="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
-    http://169.254.169.254/latest/meta-data/tags/instance/ShardId)"
+# Get the SessionEID and SessionIndex tags from instance metadata (no AWS CLI/IAM role needed!)
+SESSION_EID="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+    http://169.254.169.254/latest/meta-data/tags/instance/SessionEID)"
+SESSION_INDEX="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+    http://169.254.169.254/latest/meta-data/tags/instance/SessionIndex)"
 STUB_TEST="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
     http://169.254.169.254/latest/meta-data/tags/instance/StubTest)"
 
-if [[ -z "${SHARD_ID}" || "${SHARD_ID}" == "None" ]]; then
-    echo "ERROR: Missing ShardId tag on instance ${INSTANCE_ID}" >&2
+if [[ -z "${SESSION_EID}" || "${SESSION_EID}" == "None" ]]; then
+    echo "ERROR: Missing SessionEID tag on instance ${INSTANCE_ID}" >&2
     exit 1
 fi
 
-echo "Instance ${INSTANCE_ID} processing shard ${SHARD_ID}"
+echo "Instance ${INSTANCE_ID} processing session ${SESSION_EID} (index ${SESSION_INDEX})"
 echo "Stub test mode: ${STUB_TEST}"
 
 # Setup EBS volume with bulletproof device detection
 echo "Setting up EBS volume at ${MOUNT_POINT}..."
 
-# Strategy: Find the EBS volume by size (100GB for stub test, 400GB for production)
+# Strategy: Find the EBS volume by size (100GB for stub test, 700GB for production)
 # This is more reliable than device naming which can vary
 echo "Detecting EBS volume by characteristics..."
 
@@ -61,7 +67,7 @@ echo "Available block devices:"
 lsblk -ndo NAME,SIZE,TYPE | awk '$3=="disk"{print $1, $2}'
 
 # Find the largest non-root disk (our EBS volume)
-# EBS volume is either 100GB (stub test) or 400GB (production), always larger than 50GB root
+# EBS volume is either 100GB (stub test) or 700GB (production), always larger than 50GB root
 DEVICE=$(lsblk -ndo NAME,SIZE,TYPE | \
     awk '$3=="disk"{print $1, $2}' | \
     grep -v "^${ROOT_DEVICE}" | \
@@ -75,7 +81,7 @@ DEVICE=$(lsblk -ndo NAME,SIZE,TYPE | \
         # Force numeric conversion by adding 0
         size = size + 0;
 
-        # Only consider disks >= 90GB (our EBS volumes are 100GB or 400GB)
+        # Only consider disks >= 90GB (our EBS volumes are 100GB or 700GB)
         if (size >= 90) print $1, size;
     }' | \
     sort -k2 -nr | \
@@ -141,7 +147,7 @@ apt-get install -y git curl ca-certificates
 # Install uv
 echo "Installing uv..."
 curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="/root/.local/bin:${PATH}"  # uv installs to .local/bin, not .cargo/bin
+export PATH="/root/.local/bin:${PATH}"  # uv installs to .local/bin
 echo 'export PATH="/root/.local/bin:${PATH}"' >> /root/.bashrc
 
 # Clone repository
@@ -173,13 +179,12 @@ fi
 set -x  # Re-enable command echoing for debugging
 
 
-# Note: Shard assignments are read from bwm_df.pqt fixtures in the repo
-# The ShardRange tag (e.g., "0-13") is read via IMDSv2 by convert_assigned_sessions.py
-echo "Instance will process sessions based on ShardRange tag (read via IMDSv2)"
+# Note: Session assignment is read from SessionEID tag via IMDSv2 by convert_assigned_sessions.py
+echo "Instance will process single session: ${SESSION_EID} (index ${SESSION_INDEX})"
 
 # Run conversion (upload happens after in bash)
 echo "Starting conversion process..."
-cd "${REPO_DIR}/src/ibl_to_nwb/_aws_run"
+cd "${REPO_DIR}/src/ibl_to_nwb/_aws"
 
 # Virtual environment is already activated, just run python directly
 # Pass --stub-test flag if StubTest tag is "true"

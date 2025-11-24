@@ -145,3 +145,5 @@ src/ibl_to_nwb/local/
 src/ibl_to_nwb/_aws_run/network_config.env
 src/ibl_to_nwb/_aws_ibl/network_config.env
 src/ibl_to_nwb/_aws_ibl/
+src/ibl_to_nwb/_aws/profiles/ibl.env
+src/ibl_to_nwb/_aws/profiles/catalyst_neuro.env
