@@ -25,7 +25,7 @@ from ..datainterfaces import (
     SessionEpochsInterface,
     PassiveIntervalsInterface,
     PassiveReplayStimInterface,
-    PassiveRFMInterface,
+    # PassiveRFMInterface,  # Temporarily disabled due to data quality issues
     LickInterface,
     IblPoseEstimationInterface,
     PupilTrackingInterface,
@@ -167,8 +167,9 @@ def convert_processed_session(
     if PassiveIntervalsInterface.check_availability(one, eid)["available"]:
         data_interfaces.append(PassiveIntervalsInterface(**interface_kwargs))
 
-    if PassiveRFMInterface.check_availability(one, eid)["available"]:
-        data_interfaces.append(PassiveRFMInterface(**interface_kwargs))
+    # NOTE: PassiveRFMInterface is temporarily disabled due to data quality issues - waiting for upstream fix
+    # if PassiveRFMInterface.check_availability(one, eid)["available"]:
+    #     data_interfaces.append(PassiveRFMInterface(**interface_kwargs))
 
     if PassiveReplayStimInterface.check_availability(one, eid)["available"]:
         data_interfaces.append(PassiveReplayStimInterface(**interface_kwargs))

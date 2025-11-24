@@ -187,7 +187,9 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         )
 
         # Add passive protocol intervals for spontaneousActivity, RFM, and taskReplay
-        passive_protocols = ["spontaneousActivity", "RFM", "taskReplay"]
+        # NOTE: RFM is temporarily disabled due to data quality issues - waiting for upstream fix
+        passive_protocols = ["spontaneousActivity", "taskReplay"]
+        # passive_protocols = ["spontaneousActivity", "RFM", "taskReplay"]  # Uncomment when RFM data is fixed
 
         for protocol in passive_protocols:
             start_time = float(df.loc[df["Unnamed: 0"] == "start", protocol].iloc[0])
