@@ -27,7 +27,7 @@ from ..bwm_to_nwb import (
     check_camera_health_by_qc,
 )
 from ..converters import IblSpikeGlxConverter
-from ..datainterfaces import IblAnatomicalLocalizationInterface, IblNIDQInterface, RawVideoInterface
+from ..datainterfaces import IblAnatomicalLocalizationInterface, IblNIDQInterface, RawVideoInterface, SessionEpochsInterface
 from ..fixtures import load_fixtures
 from ..utils import add_probe_electrodes_with_localization, get_ibl_subject_metadata, sanitize_subject_id_for_dandi
 
@@ -285,6 +285,13 @@ def convert_raw_session(
         data_interfaces.append(anat_interface)
         if not include_ecephys and logger:
             logger.info("Stub mode active: using metadata-only electrodes for anatomical localization")
+
+    # Session epochs (high-level task vs passive phases)
+    if SessionEpochsInterface.check_availability(one, eid)["available"]:
+        session_epochs_interface = SessionEpochsInterface(one=one, session=eid)
+        data_interfaces.append(session_epochs_interface)
+        if logger:
+            logger.info("✓ Session epochs interface added (task and passive phases)")
 
     # Raw video interfaces
     # In stub mode, only include videos if already downloaded (avoid triggering large downloads)

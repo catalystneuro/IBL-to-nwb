@@ -22,6 +22,7 @@ from ..datainterfaces import (
     IblAnatomicalLocalizationInterface,
     BrainwideMapTrialsInterface,
     WheelInterface,
+    SessionEpochsInterface,
     PassiveIntervalsInterface,
     PassiveReplayStimInterface,
     PassiveRFMInterface,
@@ -158,15 +159,19 @@ def convert_processed_session(
     data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
     data_interfaces.append(WheelInterface(**interface_kwargs))
 
+    # Session epochs (high-level task vs passive phases)
+    if SessionEpochsInterface.check_availability(one, eid)["available"]:
+        data_interfaces.append(SessionEpochsInterface(**interface_kwargs))
+
     # Passive period data - add each interface if its data is available
     if PassiveIntervalsInterface.check_availability(one, eid)["available"]:
         data_interfaces.append(PassiveIntervalsInterface(**interface_kwargs))
 
-    if PassiveReplayStimInterface.check_availability(one, eid)["available"]:
-        data_interfaces.append(PassiveReplayStimInterface(**interface_kwargs))
-
     if PassiveRFMInterface.check_availability(one, eid)["available"]:
         data_interfaces.append(PassiveRFMInterface(**interface_kwargs))
+
+    if PassiveReplayStimInterface.check_availability(one, eid)["available"]:
+        data_interfaces.append(PassiveReplayStimInterface(**interface_kwargs))
 
     # Licks - optional interface
     if LickInterface.check_availability(one, eid)["available"]:

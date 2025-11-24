@@ -1,33 +1,30 @@
 """
-Interface for passive period intervals (detailed passive phase timing).
+Interface for session-level epochs (high-level task vs passive phases).
 
-This module provides an interface for adding detailed passive protocol interval timing to NWB files,
-defining when different phases of the passive period occur (spontaneous activity, RFM, task replay).
-The intervals are stored in a custom TimeIntervals table in the processing module.
+This module provides an interface for adding simple session-level epochs to NWB files,
+defining the two main phases: task/experiment phase and passive phase.
 """
 
 import logging
 from typing import Optional
 import time
 
-import pandas as pd
 from one.api import ONE
-from pynwb import NWBFile, ProcessingModule
+from pynwb import NWBFile
 from pynwb.epoch import TimeIntervals
 
 from ._base_ibl_interface import BaseIBLDataInterface
 
 
-class PassiveIntervalsInterface(BaseIBLDataInterface):
+class SessionEpochsInterface(BaseIBLDataInterface):
     """
-    Interface for passive period interval timing data.
+    Interface for session-level epoch timing data.
 
-    This interface handles the detailed intervals table that defines when passive protocol
-    phases occur during a session (spontaneous activity, receptive field mapping, task replay).
-    The intervals are stored as a custom TimeIntervals table in processing/passive.
+    This interface handles the high-level epochs table that defines the two main
+    phases of an IBL session: the task/experiment phase and the passive phase.
     """
 
-    # Passive intervals use BWM standard revision
+    # Session epochs use BWM standard revision
     REVISION: str | None = "2025-05-06"
 
     def __init__(
@@ -36,7 +33,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         session: str,
     ):
         """
-        Initialize the passive intervals interface.
+        Initialize the session epochs interface.
 
         Parameters
         ----------
@@ -61,7 +58,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
     @classmethod
     def get_data_requirements(cls, **kwargs) -> dict:
         """
-        Declare data files required for passive period intervals.
+        Declare data files required for session epochs.
 
         Parameters
         ----------
@@ -92,7 +89,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         **kwargs
     ) -> dict:
         """
-        Download passive period intervals data.
+        Download session epochs data.
 
         NOTE: Uses class-level REVISION attribute automatically.
 
@@ -118,7 +115,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         revision = cls.REVISION
 
         if logger:
-            logger.info(f"Downloading passive intervals data (session {eid}, revision {revision})")
+            logger.info(f"Downloading session epochs data (session {eid}, revision {revision})")
 
         start_time = time.time()
 
@@ -135,7 +132,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         download_time = time.time() - start_time
 
         if logger:
-            logger.info(f"  Downloaded passive intervals in {download_time:.2f}s")
+            logger.info(f"  Downloaded session epochs data in {download_time:.2f}s")
 
         return {
             "success": True,
@@ -148,12 +145,11 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: Optional[dict] = None):
         """
-        Add passive period intervals to the NWB file.
+        Add session-level epochs to the NWB file.
 
-        Creates a custom TimeIntervals table in processing/passive with intervals for:
-        - Spontaneous activity phase
-        - Receptive field mapping (RFM) phase
-        - Task replay phase
+        Creates two epochs defining:
+        - Task/experiment phase (0 to start of passive period)
+        - Passive phase (start to end of passive period)
 
         Parameters
         ----------
@@ -164,41 +160,31 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         """
         df = self.passive_intervals_df
 
-        # Get or create the passive processing module
-        if "passive" not in nwbfile.processing:
-            passive_module = ProcessingModule(
-                name="passive",
-                description="Processed data from passive viewing protocols"
-            )
-            nwbfile.add_processing_module(passive_module)
-        else:
-            passive_module = nwbfile.processing["passive"]
+        # Initialize epochs table if it doesn't exist
+        if nwbfile.epochs is None:
+            nwbfile.epochs = TimeIntervals(name="epochs", description="Experimental epochs")
 
-        # Create a custom TimeIntervals table for passive intervals
-        passive_intervals = TimeIntervals(
-            name="passive_intervals",
-            description="Detailed timing of passive protocol phases (spontaneous activity, RFM, task replay)"
-        )
-
-        # Add custom column for protocol name
-        passive_intervals.add_column(
-            name="protocol_name",
-            description="Name of the specific passive protocol phase"
-        )
-
-        # Add passive protocol intervals for spontaneousActivity, RFM, and taskReplay
-        passive_protocols = ["spontaneousActivity", "RFM", "taskReplay"]
-
-        for protocol in passive_protocols:
-            start_time = float(df.loc[df["Unnamed: 0"] == "start", protocol].iloc[0])
-            stop_time = float(df.loc[df["Unnamed: 0"] == "stop", protocol].iloc[0])
-
-            # Add interval to the custom table
-            passive_intervals.add_interval(
-                start_time=start_time,
-                stop_time=stop_time,
-                protocol_name=protocol
+        # Add custom column to the epochs table
+        if "protocol_type" not in nwbfile.epochs.colnames:
+            nwbfile.epochs.add_column(
+                name="protocol_type",
+                description="Type of protocol phase (task or passive)"
             )
 
-        # Add the intervals table to the passive processing module
-        passive_module.add(passive_intervals)
+        # Get the start and end of the passive protocol
+        passive_start = float(df.loc[df["Unnamed: 0"] == "start", "passiveProtocol"].iloc[0])
+        passive_end = float(df.loc[df["Unnamed: 0"] == "stop", "passiveProtocol"].iloc[0])
+
+        # Add task/experiment epoch (0 to start of passive protocol)
+        nwbfile.add_epoch(
+            start_time=0.0,
+            stop_time=passive_start,
+            protocol_type="task"
+        )
+
+        # Add passive protocol epoch
+        nwbfile.add_epoch(
+            start_time=passive_start,
+            stop_time=passive_end,
+            protocol_type="passive"
+        )
