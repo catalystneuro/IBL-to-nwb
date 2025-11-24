@@ -64,6 +64,13 @@ def decompress_ephys_cbins(
     - Suppresses spikeglx geometry warnings during decompression (these are
       harmless and occur because LF meta files lack spatial geometry fields)
     """
+    # Clean up macOS hidden files from source folder before processing
+    # This prevents spikeglx.Reader from encountering ._* AppleDouble files
+    import platform
+    if platform.system() == "Darwin" and source_folder.exists():
+        for hidden_file in source_folder.rglob("._*"):
+            hidden_file.unlink()
+
     # Find all compressed binary files
     cbin_files = list(source_folder.rglob("*.cbin"))
     if len(cbin_files) == 0:
@@ -81,10 +88,23 @@ def decompress_ephys_cbins(
 
         # Skip if already decompressed
         if not target_bin_no_uuid.exists():
-            # Find corresponding metadata files
-            name = remove_uuid_from_filepath(file_cbin).stem
-            (file_meta,) = list(file_cbin.parent.glob(f"{name}*.meta"))
-            (file_ch,) = list(file_cbin.parent.glob(f"{name}*.ch"))
+            # Construct exact paths for metadata files instead of globbing
+            # This avoids accidentally matching macOS hidden files (._*)
+            cbin_path_no_uuid = remove_uuid_from_filepath(file_cbin)
+            file_meta = cbin_path_no_uuid.with_suffix(".meta")
+            file_ch = cbin_path_no_uuid.with_suffix(".ch")
+
+            # Verify files exist
+            if not file_meta.exists():
+                raise RuntimeError(
+                    f"Required .meta file not found: {file_meta}\n"
+                    f"Expected to find metadata file alongside {file_cbin}"
+                )
+            if not file_ch.exists():
+                raise RuntimeError(
+                    f"Required .ch file not found: {file_ch}\n"
+                    f"Expected to find channel file alongside {file_cbin}"
+                )
 
             # Suppress geometry warning for LF files
             # LF meta files lack snsShankMap but use default NP geometry correctly

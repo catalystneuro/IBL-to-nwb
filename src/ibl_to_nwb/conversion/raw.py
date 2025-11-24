@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from neuroconv import ConverterPipe
 from neuroconv.tools import configure_and_write_nwbfile
+from neuroconv.tools.hdmf import GenericDataChunkIterator
 from neuroconv.tools.nwb_helpers import get_default_backend_configuration
 from ndx_ibl import IblSubject
 from ndx_ibl_bwm import ibl_bwm_metadata
@@ -238,6 +239,16 @@ def convert_raw_session(
 
     spikeglx_converter = None
     if include_ecephys:
+        # Clean up macOS hidden files before Neo scans directory
+        # This prevents Neo's scan_files() from encountering ._* AppleDouble files
+        if bins_available and paths["session_scratch_folder"].exists():
+            import platform
+            if platform.system() == "Darwin":
+                for hidden_file in paths["session_scratch_folder"].rglob("._*"):
+                    hidden_file.unlink()
+                if logger:
+                    logger.debug("Removed macOS hidden files from scratch folder")
+
         # SpikeGLX converter
         if logger and stub_test:
             logger.info("✓ Stub mode: Including SpikeGLX ephys data (decompressed binaries available)")
@@ -499,18 +510,37 @@ def convert_raw_session(
             dtype = dataset_config.dtype
 
             # Calculate chunk size with ALL channels (no chunking across channels)
-            chunk_mb = 10.0  # Keep same total chunk size
+            # Adapted from neuroconv's get_electrical_series_chunk_shape but with all channels
+            chunk_mb = 10.0
             bytes_per_frame = number_of_channels * dtype.itemsize
             chunk_frames = int((chunk_mb * 1e6) // bytes_per_frame)
-            chunk_frames = max(1, min(chunk_frames, number_of_frames))  # At least 1, at most total frames
+            chunk_frames = max(1, min(chunk_frames, number_of_frames))
+            chunk_shape = (chunk_frames, number_of_channels)
 
-            # Set new chunk shape: (frames, ALL_channels)
-            dataset_config.chunk_shape = (chunk_frames, number_of_channels)
+            # Use neuroconv's buffer shape estimation to ensure compatibility
+            # This guarantees buffer_axis % chunk_axis == 0 (required by validation)
+            buffer_gb = 1.0  # Default buffer size
+            buffer_shape = GenericDataChunkIterator.estimate_default_buffer_shape(
+                buffer_gb=buffer_gb,
+                chunk_shape=chunk_shape,
+                maxshape=full_shape,
+                dtype=dtype
+            )
+
+            # Update both chunk_shape and buffer_shape atomically using model_copy
+            # This avoids intermediate validation errors during assignment
+            updated_config = dataset_config.model_copy(
+                update={"chunk_shape": chunk_shape, "buffer_shape": buffer_shape}
+            )
+            # Replace the config in the backend_configuration dict
+            backend_configuration.dataset_configurations[location] = updated_config
+            dataset_config = updated_config  # Update local reference
 
             if logger:
                 logger.info(f"  Custom chunking for {location}:")
                 logger.info(f"    Shape: {full_shape}")
                 logger.info(f"    Chunk: {dataset_config.chunk_shape}")
+                logger.info(f"    Buffer: {dataset_config.buffer_shape}")
                 chunk_size_mb = (chunk_frames * number_of_channels * dtype.itemsize) / 1e6
                 logger.info(f"    Chunk size: {chunk_size_mb:.2f} MB")
 
