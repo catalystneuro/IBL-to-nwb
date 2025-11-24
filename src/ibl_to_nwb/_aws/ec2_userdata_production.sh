@@ -168,10 +168,9 @@ source .venv/bin/activate
 # Setup DANDI API key from template substitution
 # Disable command echoing to prevent key from appearing in cloud-init logs
 set +x
-DANDI_API_KEY="{{DANDI_API_KEY}}"
-export DANDI_API_KEY
-# Also export as DANDI_SANDBOX_API_KEY for sandbox instance uploads
-export DANDI_SANDBOX_API_KEY="${DANDI_API_KEY}"
+# Export as DANDI_SANDBOX_API_KEY since we upload to sandbox (dandi-cli looks for this)
+DANDI_SANDBOX_API_KEY="{{DANDI_API_KEY}}"
+export DANDI_SANDBOX_API_KEY
 
 # Shred the user-data file (contains the API key) after reading it
 # This removes the on-disk copy that cloud-init caches
