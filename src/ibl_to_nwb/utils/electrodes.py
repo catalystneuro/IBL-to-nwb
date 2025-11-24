@@ -270,8 +270,15 @@ def add_probe_definition_to_nwbfile(
         ("rel_x", "Relative x coordinate on the probe (µm)."),
         ("rel_y", "Relative y coordinate on the probe (µm)."),
     ]
-    # Note: contact_ids and shank_ids are added by NeuroConv's SpikeGLX interface automatically,
-    # so we don't add them here to avoid duplication
+    # Add SpikeGLX-specific properties that will be needed when SpikeGLX interfaces add data
+    # These properties exist in the probe object from probeinterface and prevent null value errors
+    # in multi-probe sessions when neuroconv tries to add electrode columns
+    required_columns.extend([
+        ("contact_ids", "Channel IDs as specified by the probe manufacturer."),
+        ("shank_ids", "Shank ID for each electrode (for multi-shank probes)."),
+        ("adc_group", "ADC group index from SpikeGLX metadata."),
+        ("adc_sample_order", "ADC sample order from SpikeGLX metadata."),
+    ])
     required_columns.extend(
         (column["name"], column.get("description", ""))
         for column in ecephys_metadata.get("Electrodes", [])
@@ -287,10 +294,14 @@ def add_probe_definition_to_nwbfile(
     dtype_names = contacts.dtype.names
     has_z = "z" in dtype_names
     has_contact_shapes = "contact_shapes" in dtype_names
+    has_contact_ids = "contact_ids" in dtype_names
+    has_shank_ids = "shank_ids" in dtype_names
+    has_adc_group = "adc_group" in dtype_names
+    has_adc_sample_order = "adc_sample_order" in dtype_names
 
     def _contact_id(index: int) -> str:
         # Use contact_ids from probe if available
-        if "contact_ids" in dtype_names:
+        if has_contact_ids:
             raw_value = contacts["contact_ids"][index]
             if isinstance(raw_value, bytes):
                 raw_value = raw_value.decode()
@@ -321,6 +332,25 @@ def add_probe_definition_to_nwbfile(
         if has_contact_shapes:
             shape_value = contact["contact_shapes"]
             electrode_kwargs["contact_shapes"] = shape_value.tolist() if hasattr(shape_value, "tolist") else shape_value
+
+        # Add SpikeGLX-specific properties from probe metadata
+        if has_contact_ids:
+            raw_value = contact["contact_ids"]
+            if isinstance(raw_value, bytes):
+                raw_value = raw_value.decode()
+            electrode_kwargs["contact_ids"] = str(raw_value) if raw_value else ""
+
+        if has_shank_ids:
+            raw_value = contact["shank_ids"]
+            if isinstance(raw_value, bytes):
+                raw_value = raw_value.decode()
+            electrode_kwargs["shank_ids"] = str(raw_value) if raw_value else ""
+
+        if has_adc_group:
+            electrode_kwargs["adc_group"] = int(contact["adc_group"])
+
+        if has_adc_sample_order:
+            electrode_kwargs["adc_sample_order"] = int(contact["adc_sample_order"])
 
         # Add channel_name following SpikeGLX convention: "AP{index},LF{index}"
         # This matches the format used by NeuroConv's SpikeGLXRecordingInterface
