@@ -69,7 +69,7 @@ if __name__ == "__main__":
         REDECOMPRESS_EPHYS = True
 
     base_folder = Path("/media/heberto/Expansion")
-    base_folder = Path("/Volumes/Expansion")
+    # base_folder = Path("/Volumes/Expansion")
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     TARGET_EID = "032452e9-1886-449d-9c13-0f192572e19f" # Corrupted meta file issue
     TARGET_EID = "283ecb4c-e529-409c-9f0a-8ea5191dcf50"  # Mac os hidden files issue
     TARGET_EID = "6668c4a0-70a4-4012-a7da-709660971d7a"  # Testing: mac os hidden files
-    TARGET_EID = "f99ac31f-171b-4208-a55d-5644c0ad51c3"  # ADC null properrty issue
+    TARGET_EID = "f99ac31f-171b-4208-a55d-5644c0ad51c3"  # ADC null property issue (two probes)
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":
