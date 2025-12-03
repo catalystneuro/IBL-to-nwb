@@ -98,18 +98,3 @@ TimeSeries:
       This continuous voltage signal encodes behavioral state machine events and timestamps
       from the Bpod system, which controls stimulus presentation and reward delivery during tasks.
       The analog encoding allows precise temporal alignment between Bpod events and neural recordings.
-
-  laser:
-    name: TimeSeriesLaser
-    description: >-
-      Analog signal from laser power modulation.
-      This voltage signal represents the commanded laser power level for optogenetic stimulation.
-      The continuous signal enables precise characterization of laser intensity dynamics during experiments.
-
-  laser_ttl:
-    name: TimeSeriesLaserTTL
-    description: >-
-      Analog signal from laser TTL gating.
-      This voltage signal indicates when the laser is enabled (high) or disabled (low).
-      Combined with the laser power signal, this provides complete characterization
-      of optogenetic stimulation timing and intensity.

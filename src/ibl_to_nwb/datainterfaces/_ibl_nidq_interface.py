@@ -226,6 +226,7 @@ class IblNIDQInterface(SpikeGLXNIDQInterface, BaseIBLDataInterface):
         Build analog_channel_groups from wiring.json.
 
         Maps each analog device in wiring.json to its channel ID.
+        Excludes laser-related channels which are not part of BWM conversion.
 
         Parameters
         ----------
@@ -238,10 +239,15 @@ class IblNIDQInterface(SpikeGLXNIDQInterface, BaseIBLDataInterface):
             NeuroConv-compatible analog_channel_groups structure.
             Example: {"bpod": {"channels": ["nidq#XA0"]}}
         """
+        # Laser channels excluded from Brain-Wide Map conversion
+        excluded_devices = {"laser", "laser_ttl"}
+
         analog_channel_groups = {}
         analog_wiring = wiring.get("SYNC_WIRING_ANALOG", {})
 
         for analog_input, device_name in analog_wiring.items():
+            if device_name in excluded_devices:
+                continue
             if analog_input.startswith("AI"):
                 channel_num = analog_input[2:]
                 channel_id = f"nidq#XA{channel_num}"
