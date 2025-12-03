@@ -339,8 +339,9 @@ class IblSpikeGlxConverter(ConverterPipe):
             # rather, the ns can be retrieved directly from the recording interface
             # ns = recording_interface._extractor_instance.get_num_samples()
             # aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
+            # Get sampling frequency from the reader (AP=30000Hz, LF=2500Hz)
             aligned_timestamps = spike_sorting_loader.samples2times(
-                np.arange(0, sglx_streamer.ns), direction="forward", band=band
+                np.arange(0, sglx_streamer.ns), direction="forward", fs=sglx_streamer.fs
             )
 
             # Handle different interface types
