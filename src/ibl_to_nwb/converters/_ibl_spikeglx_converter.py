@@ -37,6 +37,11 @@ class IblSpikeGlxConverter(ConverterPipe):
         # This avoids Neo's duplicate stream name bug when scanning parent folder
         data_interfaces = {}
 
+        # Build device name mapping during interface creation
+        # This maps NeuroConv device names (e.g., "NeuropixelsImec0") to IBL probe names (e.g., "probe00")
+        # Must be done here while we have access to original stream_id before normalization
+        self.device_name_to_probe_map = {}
+
         for probe_name in probe_name_to_probe_id_dict.keys():
             probe_folder = folder_path / probe_name  # e.g., raw_ephys_data/probe00
 
@@ -56,6 +61,14 @@ class IblSpikeGlxConverter(ConverterPipe):
                     folder_path=str(probe_folder),
                     stream_id=stream_id
                 )
+
+                # Build device name mapping from original stream_id before normalization
+                # NeuroConv generates device names like "NeuropixelsImec0" from stream_id "imec0.ap"
+                # We need to map these to IBL probe names for metadata renaming
+                # Pattern: "imec.ap" -> "Imec", "imec0.ap" -> "Imec0", "imec1.ap" -> "Imec1"
+                imec_part = stream_id.split(".")[0]  # "imec0" or "imec1" or "imec"
+                device_name = f"Neuropixels{imec_part.capitalize()}"  # "NeuropixelsImec0"
+                self.device_name_to_probe_map[device_name] = probe_name
 
                 # Normalize stream naming: imec0/imec1 → imec for consistent internal keys
                 # Key format: "probe00.imec.ap", "probe00.imec.lf", etc.
@@ -78,7 +91,6 @@ class IblSpikeGlxConverter(ConverterPipe):
         self.imec_to_probe_map = dict(zip(probe_to_imec_map.values(), probe_to_imec_map.keys()))
 
         self.stream_to_probe_map = {}
-        self.device_name_to_probe_map = {}
 
         for key in self.data_interface_objects.keys():
             # Skip NIDQ interface (doesn't follow probe naming convention)
@@ -89,19 +101,9 @@ class IblSpikeGlxConverter(ConverterPipe):
             parts = key.split(".")
             probe_name = parts[0]  # "probe00"
             imec_name = parts[1]   # "imec"
-            band = parts[2]        # "ap" or "lf"
 
             # Map imec -> probe for alignment
             self.stream_to_probe_map[imec_name] = probe_name
-
-            # Map device name for metadata
-            # NeuroConv uses different device names depending on file naming:
-            # - "NeuropixelsImec" for files named imec.ap.bin (no-NIDQ sessions)
-            # - "NeuropixelsImec0" for files named imec0.ap.bin (NIDQ sessions)
-            # - "NeuropixelsImec1" for files named imec1.ap.bin (multi-probe NIDQ sessions)
-            self.device_name_to_probe_map["NeuropixelsImec"] = probe_name
-            self.device_name_to_probe_map["NeuropixelsImec0"] = probe_name
-            self.device_name_to_probe_map["NeuropixelsImec1"] = probe_name
 
         # Override electrical series names and group names to use IBL convention
         # This must happen in __init__ before any metadata/electrode operations
@@ -273,7 +275,7 @@ class IblSpikeGlxConverter(ConverterPipe):
         # Generate metadata with already-updated group names
         metadata = super().get_metadata()
 
-        # Update device names to IBL convention
+        # Update device names to IBL convention in Ecephys.Device
         if "Device" in metadata.get("Ecephys", {}):
             for device in metadata["Ecephys"]["Device"]:
                 # Map device name using pre-built mapping
@@ -281,6 +283,15 @@ class IblSpikeGlxConverter(ConverterPipe):
                 if original_name in self.device_name_to_probe_map:
                     probe_name = self.device_name_to_probe_map[original_name]
                     device["name"] = _format_probe_label(probe_name)
+
+        # Update device names in top-level Devices (used by sync channel interfaces)
+        if "Devices" in metadata:
+            for device in metadata["Devices"]:
+                original_name = device["name"]
+                if original_name in self.device_name_to_probe_map:
+                    probe_name = self.device_name_to_probe_map[original_name]
+                    device["name"] = _format_probe_label(probe_name)
+                    device["description"] = f"Neuropixels probe for IBL {device['name']}"
 
         # Update electrode groups to reference new device names and use IBL convention
         if "ElectrodeGroup" in metadata.get("Ecephys", {}):
