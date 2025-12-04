@@ -275,8 +275,10 @@ class IblNIDQInterface(SpikeGLXNIDQInterface, BaseIBLDataInterface):
         static_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "nidq.yml")
 
         # Get devices present in this session's wiring
+        # Exclude devices that are intentionally omitted from BWM conversion
+        excluded_devices = {"laser", "laser_ttl"}
         digital_devices = set(self.wiring.get("SYNC_WIRING_DIGITAL", {}).values())
-        analog_devices = set(self.wiring.get("SYNC_WIRING_ANALOG", {}).values())
+        analog_devices = set(self.wiring.get("SYNC_WIRING_ANALOG", {}).values()) - excluded_devices
 
         # Filter Events metadata to only include devices in wiring
         events_metadata = {}

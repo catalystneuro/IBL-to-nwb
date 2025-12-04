@@ -67,7 +67,7 @@ if __name__ == "__main__":
     RUN_CONSISTENCY_CHECKS = True  # Validate NWB files against ONE data (slow but thorough)
 
     base_folder = Path("/media/heberto/Expansion")
-    base_folder = Path("/Volumes/Expansion")
+    # base_folder = Path("/Volumes/Expansion")
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
     logs_path = base_path / "conversion_logs"  # Derived from base_path for log files
