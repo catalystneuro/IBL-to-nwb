@@ -9,7 +9,7 @@ from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
-from pynwb.behavior import CompassDirection, SpatialSeries
+from pynwb.behavior import SpatialSeries
 from pynwb.epoch import TimeIntervals
 
 from ._base_ibl_interface import BaseIBLDataInterface
@@ -194,7 +194,7 @@ class WheelInterface(BaseIBLDataInterface):
 
         # Wheel intervals of movement
         wheel_movement_intervals = TimeIntervals(
-            name="WheelMovementIntervals",
+            name="TimeIntervalsWheelMovement",
             description=metadata["WheelMovement"]["description"],
         )
         for start_time, stop_time in wheel_moves["intervals"]:
@@ -205,19 +205,18 @@ class WheelInterface(BaseIBLDataInterface):
             data=wheel_moves["peakAmplitude"],
         )
 
-        # Wheel position over time
-        compass_direction = CompassDirection(
-            spatial_series=SpatialSeries(
-                name=metadata["WheelPosition"]["name"],
-                description=metadata["WheelPosition"]["description"],
-                data=wheel["position"],
-                timestamps=wheel["timestamps"],
-                unit="radians",
-                reference_frame="Initial angle at start time is zero. Counter-clockwise is positive.",
-            )
+        # Wheel position over time - using SpatialSeries directly (no CompassDirection wrapper)
+        # Following NWB best practices: SpatialSeries{DataName}
+        wheel_position_series = SpatialSeries(
+            name="SpatialSeriesWheelPosition",
+            description=metadata["WheelPosition"]["description"],
+            data=wheel["position"],
+            timestamps=wheel["timestamps"],
+            unit="radians",
+            reference_frame="Initial angle at start time is zero. Counter-clockwise is positive.",
         )
         velocity_series = TimeSeries(
-            name=metadata["WheelVelocity"]["name"],
+            name="TimeSeriesWheelVelocity",
             description=metadata["WheelVelocity"]["description"],
             data=velocity,
             starting_time=interpolated_starting_time,
@@ -225,7 +224,7 @@ class WheelInterface(BaseIBLDataInterface):
             unit="rad/s",
         )
         acceleration_series = TimeSeries(
-            name=metadata["WheelAcceleration"]["name"],
+            name="TimeSeriesWheelAcceleration",
             description=metadata["WheelAcceleration"]["description"],
             data=acceleration,
             starting_time=interpolated_starting_time,
@@ -235,6 +234,6 @@ class WheelInterface(BaseIBLDataInterface):
 
         behavior_module = get_module(nwbfile=nwbfile, name="wheel", description="Processed wheel data.")
         behavior_module.add(wheel_movement_intervals)
-        behavior_module.add(compass_direction)
+        behavior_module.add(wheel_position_series)
         behavior_module.add(velocity_series)
         behavior_module.add(acceleration_series)
