@@ -260,7 +260,14 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
         passive_module = get_module(
             nwbfile=nwbfile,
             name="passive",
-            description="passive stimulation data."
+            description=(
+                "Data from the IBL passive stimulus protocol, presented at the end of each recording session "
+                "while the mouse is disengaged from the task. The protocol consists of three phases: "
+                "(1) spontaneous activity with no stimuli, "
+                "(2) receptive field mapping (RFM) using sparse noise visual stimuli, and "
+                "(3) task replay presenting the same Gabor patches and auditory stimuli (valve, tone, noise) "
+                "used during the active behavioral task."
+            )
         )
 
         # Add passive stimulation intervals as a TimeIntervals table
