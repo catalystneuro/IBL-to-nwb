@@ -287,7 +287,7 @@ def convert_processed_session(
 
     conversion_time = time.time() - conversion_start
     if logger:
-        logger.info(f"Conversion completed in {conversion_time:.2f}s")
+        logger.info(f"In-memory NWBFile built in {conversion_time:.2f}s")
 
     # ========================================================================
     # STEP 6: Write NWB file
