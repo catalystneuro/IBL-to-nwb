@@ -56,9 +56,9 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = True              # Write raw-ephys NWBs
+    CONVERT_RAW = False              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = True               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False           # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
@@ -86,7 +86,9 @@ if __name__ == "__main__":
     TARGET_EID = "6668c4a0-70a4-4012-a7da-709660971d7a"  # Testing: mac os hidden files
     TARGET_EID = "f99ac31f-171b-4208-a55d-5644c0ad51c3"  # ADC null property issue (two probes)
     TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # nidq missing in stream error
-    TARGET_EID = " 90e74228-fd1a-482f-bd56-05dbad132861"  # Memory error
+    TARGET_EID = "90e74228-fd1a-482f-bd56-05dbad132861"  # Memory error
+    TARGET_EID = "6ed57216-498d-48a6-b48b-a243a34710ea"  # Full processed data
+    
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":

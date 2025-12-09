@@ -15,6 +15,30 @@ from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures import load_fixtures
 
 
+# Mapping from IBL body part names (snake_case) to NWB names
+# Following NWB best practices: PoseEstimationSeries{BodyPart}
+IBL_TO_NWB_BODY_PART_NAMES = {
+    # Nose
+    "nose_tip": "PoseEstimationSeriesNoseTip",
+    # Paws - IBL uses _l/_r suffix, we use Left/Right prefix for clarity
+    "paw_l": "PoseEstimationSeriesLeftPaw",
+    "paw_r": "PoseEstimationSeriesRightPaw",
+    # Tongue
+    "tongue_end_l": "PoseEstimationSeriesLeftTongueEnd",
+    "tongue_end_r": "PoseEstimationSeriesRightTongueEnd",
+    # Pupil markers (from left camera viewing right side of face)
+    "pupil_top_r": "PoseEstimationSeriesRightPupilTop",
+    "pupil_bottom_r": "PoseEstimationSeriesRightPupilBottom",
+    "pupil_left_r": "PoseEstimationSeriesRightPupilLeft",
+    "pupil_right_r": "PoseEstimationSeriesRightPupilRight",
+    # Tube (lick spout)
+    "tube_top": "PoseEstimationSeriesTubeTop",
+    "tube_bottom": "PoseEstimationSeriesTubeBottom",
+    # Body camera specific
+    "tail_start": "PoseEstimationSeriesTailStart",
+}
+
+
 class IblPoseEstimationInterface(BaseIBLDataInterface):
     """Interface for pose estimation data (revision-dependent processed data)."""
 
@@ -297,12 +321,15 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
 
         body_parts = list(body_parts)
         skeleton_name = f"Skeleton{camera_view.capitalize()}Camera"
-        skeletons_container_name = f"Skeletons{camera_view.capitalize()}Camera"
+        skeletons_container_name = "PoseEstimationSkeletons"
 
         reused_timestamps = None
         all_pose_estimation_series = list()
 
-        for body_part in body_parts:
+        # Convert body part names to CamelCase for NWB
+        nwb_body_part_names = [IBL_TO_NWB_BODY_PART_NAMES.get(bp, bp) for bp in body_parts]
+
+        for body_part, nwb_name in zip(body_parts, nwb_body_part_names):
             required_columns = [f"{body_part}_x", f"{body_part}_y", f"{body_part}_likelihood"]
             for column in required_columns:
                 if column not in pose_data:
@@ -315,8 +342,8 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
             body_part_data[:, 1] = pose_data[f"{body_part}_y"]
 
             pose_estimation_series = PoseEstimationSeries(
-                name=body_part,
-                description=f"Marker placed on or around, labeled '{body_part}'.",
+                name=nwb_name,
+                description=f"Marker placed on or around, labeled '{nwb_name}'.",
                 data=body_part_data,
                 unit="px",
                 reference_frame="(0,0) corresponds to the upper left corner when using width by height convention.",
@@ -330,7 +357,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
 
         skeleton_kwargs = dict(
             name=skeleton_name,
-            nodes=body_parts,
+            nodes=nwb_body_part_names,
             edges=np.empty(shape=(0, 2), dtype="uint8"),
         )
         if nwbfile.subject is not None:
