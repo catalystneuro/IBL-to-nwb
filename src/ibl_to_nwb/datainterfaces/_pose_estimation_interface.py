@@ -320,8 +320,8 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         #         body_parts.add(body_part)
 
         body_parts = list(body_parts)
-        skeleton_name = f"Skeleton{camera_view.capitalize()}Camera"
-        skeletons_container_name = "PoseEstimationSkeletons"
+        skeleton_name = f"{camera_view.capitalize()}Camera"
+        skeletons_container_name = "Skeletons"
 
         reused_timestamps = None
         all_pose_estimation_series = list()
@@ -364,7 +364,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
             skeleton_kwargs["subject"] = nwbfile.subject
         skeleton = Skeleton(**skeleton_kwargs)
 
-        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
+        camera_module = get_module(nwbfile=nwbfile, name="pose_estimation", description="Pose estimation from video using Lightning Pose.")
         if skeletons_container_name in camera_module.data_interfaces:
             skeletons_container = camera_module.data_interfaces[skeletons_container_name]
             if skeleton_name in skeletons_container.skeletons:
@@ -377,7 +377,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
             camera_module.add(skeletons_container)
 
         pose_estimation_kwargs = dict(
-            name=f"PoseEstimation{camera_view.capitalize()}Camera",
+            name=f"{camera_view.capitalize()}Camera",
             pose_estimation_series=all_pose_estimation_series,
             description="Estimated positions of body parts using Lightning Pose.",
             source_software="Lightning Pose",

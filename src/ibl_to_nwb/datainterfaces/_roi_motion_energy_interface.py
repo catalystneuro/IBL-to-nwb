@@ -245,12 +245,12 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
         )
 
         motion_energy_series = TimeSeries(
-            name=f"{camera_view.capitalize()}CameraMotionEnergy",
+            name=f"TimeSeries{camera_view.capitalize()}MotionEnergy",
             description=description,
             data=camera_data["ROIMotionEnergy"],
             timestamps=camera_data["times"],
             unit="a.u.",
         )
 
-        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
-        camera_module.add(motion_energy_series)
+        video_module = get_module(nwbfile=nwbfile, name="video", description="Scalar signals derived from video.")
+        video_module.add(motion_energy_series)

@@ -11,7 +11,6 @@ from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
-from pynwb.behavior import PupilTracking
 import pandas as pd
 
 from ._base_ibl_interface import BaseIBLDataInterface
@@ -248,24 +247,21 @@ class PupilTrackingInterface(BaseIBLDataInterface):
                 )
                 camera_data["times"] = camera_data["times"][:features_len]
 
-        pupil_time_series = list()
+        # Flatten pupil data directly into video module (no PupilTracking container)
+        video_module = get_module(nwbfile=nwbfile, name="video", description="Scalar signals derived from video.")
+
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:
             if ibl_key not in camera_data["features"]:
                 raise RuntimeError(
                     f"Pupil tracking data for camera '{self.camera_name}' in session '{self.session}' is missing column '{ibl_key}'"
                 )
-            pupil_time_series.append(
-                TimeSeries(
-                    name=camera_view.capitalize() + metadata["Pupils"][ibl_key]["name"],
-                    description=metadata["Pupils"][ibl_key]["description"],
-                    data=np.array(camera_data["features"][ibl_key]),
-                    timestamps=camera_data["times"],
-                    unit="px",
-                )
+            # Naming: TimeSeries{Left|Right}{Raw|Smoothed}PupilDiameter
+            series_name = f"TimeSeries{camera_view.capitalize()}{metadata['Pupils'][ibl_key]['name']}"
+            pupil_series = TimeSeries(
+                name=series_name,
+                description=metadata["Pupils"][ibl_key]["description"],
+                data=np.array(camera_data["features"][ibl_key]),
+                timestamps=camera_data["times"],
+                unit="px",
             )
-        # Normally best practice convention would be PupilTrackingLeft or PupilTrackingRight but
-        # in this case I'd say LeftPupilTracking and RightPupilTracking reads better
-        pupil_tracking = PupilTracking(name=f"{camera_view.capitalize()}PupilTracking", time_series=pupil_time_series)
-
-        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
-        camera_module.add(pupil_tracking)
+            video_module.add(pupil_series)

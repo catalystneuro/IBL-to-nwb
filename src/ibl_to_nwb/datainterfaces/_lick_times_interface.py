@@ -1,11 +1,10 @@
 from typing import Optional
 import logging
 
-from hdmf.common import VectorData
+from ndx_events import Events
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
-from pynwb.file import DynamicTable
 
 from ._base_ibl_interface import BaseIBLDataInterface
 
@@ -100,23 +99,20 @@ class LickInterface(BaseIBLDataInterface):
         }
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        # licks = self.one.load_object(id=self.session, obj="licks", collection="alf")
-        licks = self.one.load_dataset(self.session, "licks.times", collection="alf", revision=self.revision)
+        lick_timestamps = self.one.load_dataset(self.session, "licks.times", collection="alf", revision=self.revision)
 
-        lick_events_table = DynamicTable(
-            name="LickTimes",
+        # Use ndx-events Events type for point events (timestamps only)
+        lick_events = Events(
+            name="EventsLickTimes",
             description=(
-                "Time stamps of licks as detected from tongue dlc traces. "
-                "If left and right camera exist, the licks detected from both cameras are combined."
+                "Lick event timestamps detected from tongue pose estimation (Lightning Pose). "
+                "Detection algorithm: frame-to-frame position changes in tongue landmarks "
+                "(tongue_end_l_x, tongue_end_l_y, tongue_end_r_x, tongue_end_r_y) are computed, "
+                "and frames where any coordinate changes by more than std(diff)/4 are marked as lick events. "
+                "If left and right camera data exist, the licks detected from both cameras are combined."
             ),
-            columns=[
-                VectorData(
-                    name="lick_time",
-                    description="Time stamps of licks as detected from tongue dlc traces",
-                    data=licks,
-                )
-            ],
+            timestamps=lick_timestamps,
         )
 
-        camera_module = get_module(nwbfile=nwbfile, name="camera", description="Processed camera data.")
-        camera_module.add(lick_events_table)
+        behavior_events_module = get_module(nwbfile=nwbfile, name="behavior_events", description="Discrete behavioral events.")
+        behavior_events_module.add(lick_events)
