@@ -90,6 +90,16 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help='Override session EID (for local testing). If not provided, reads from IMDSv2 SessionEID tag.',
     )
+    parser.add_argument(
+        "--raw-only",
+        action="store_true",
+        help="Convert only raw electrophysiology data (skip processed).",
+    )
+    parser.add_argument(
+        "--processed-only",
+        action="store_true",
+        help="Convert only processed behavior+ecephys data (skip raw). Saves ~100 GB download per session.",
+    )
     return parser.parse_args()
 
 
@@ -125,6 +135,7 @@ def convert_session(
     session_start = time.time()
 
     # Download session data
+    # Skip raw ephys download if not converting raw (saves ~100 GB per session)
     logger.info("\n" + "=" * 80)
     logger.info("DOWNLOADING SESSION DATA")
     logger.info("=" * 80)
@@ -133,6 +144,8 @@ def convert_session(
         one=one,
         redownload_data=False,
         stub_test=stub_test,
+        download_raw=convert_raw,
+        download_processed=convert_processed,
         base_path=base_folder,
         logger=logger,
     )
@@ -212,8 +225,21 @@ def main() -> None:
     LOGS_SUBDIR = "conversion_logs"
     CACHE_SUBDIR = "ibl_cache"
     NWB_SUBDIR = "nwbfiles"
-    CONVERT_RAW = True
-    CONVERT_PROCESSED = True
+
+    # Determine what to convert from CLI arguments
+    if args.raw_only and args.processed_only:
+        raise SystemExit("Cannot specify both --raw-only and --processed-only")
+
+    if args.raw_only:
+        CONVERT_RAW = True
+        CONVERT_PROCESSED = False
+    elif args.processed_only:
+        CONVERT_RAW = False
+        CONVERT_PROCESSED = True
+    else:
+        # Default: convert both
+        CONVERT_RAW = True
+        CONVERT_PROCESSED = True
 
     # DANDI_API_KEY is set by ec2_userdata_production.sh via 'export DANDI_API_KEY=...'
     # No need to load from .env file

@@ -301,6 +301,19 @@ def parse_args() -> argparse.Namespace:
         help="Dandiset ID to upload to (default: 217706 for sandbox, use 000409 for production)",
     )
 
+    # Conversion mode selection (mutually exclusive)
+    conversion_mode = parser.add_mutually_exclusive_group()
+    conversion_mode.add_argument(
+        "--raw-only",
+        action="store_true",
+        help="Convert only raw electrophysiology data (skip processed).",
+    )
+    conversion_mode.add_argument(
+        "--processed-only",
+        action="store_true",
+        help="Convert only processed behavior+ecephys data (skip raw). Saves ~100 GB download per session.",
+    )
+
     return parser.parse_args()
 
 
@@ -328,6 +341,12 @@ def main() -> None:
     logger.info(f"Instance type: {args.instance_type}")
     logger.info(f"EBS volume size: {EBS_VOLUME_SIZE} GB")
     logger.info(f"Mode: {'STUB TEST' if args.stub_test else 'PRODUCTION'}")
+    if args.raw_only:
+        logger.info("Conversion mode: RAW ONLY (skipping processed)")
+    elif args.processed_only:
+        logger.info("Conversion mode: PROCESSED ONLY (skipping raw, saves ~100 GB/session)")
+    else:
+        logger.info("Conversion mode: BOTH (raw + processed)")
     logger.info(f"DANDI instance: {args.dandi_instance}")
     logger.info(f"Dandiset ID: {args.dandiset_id}")
     logger.info("=" * 80)
@@ -380,6 +399,15 @@ def main() -> None:
     user_data = user_data.replace("{{REPO_BRANCH}}", config.get("REPO_BRANCH", "heberto_conversion"))
     user_data = user_data.replace("{{DANDISET_ID}}", args.dandiset_id)
     user_data = user_data.replace("{{DANDI_INSTANCE}}", args.dandi_instance)
+
+    # Determine conversion mode flag
+    if args.raw_only:
+        conversion_mode = "--raw-only"
+    elif args.processed_only:
+        conversion_mode = "--processed-only"
+    else:
+        conversion_mode = ""  # Default: convert both
+    user_data = user_data.replace("{{CONVERSION_MODE}}", conversion_mode)
 
     # Initialize AWS client
     ec2_client = boto3.client("ec2", region_name=config["REGION"])

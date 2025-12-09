@@ -7,7 +7,6 @@ from pathlib import Path
 from one.api import ONE
 
 from ..bwm_to_nwb import setup_paths
-from ..fixtures import load_fixtures
 from ..converters import IblSpikeGlxConverter
 from ..datainterfaces import (
     IblSortingInterface,
@@ -31,10 +30,40 @@ def download_session_data(
     one: ONE,
     redownload_data: bool = False,
     stub_test: bool = False,
+    download_raw: bool = True,
+    download_processed: bool = True,
     base_path: Path | None = None,
     logger: logging.Logger | None = None,
 ) -> dict:
-    """Download all datasets for a session using interface-specific download methods."""
+    """Download all datasets for a session using interface-specific download methods.
+
+    Downloads only the data needed for the requested conversion types.
+
+    Parameters
+    ----------
+    eid : str
+        Session EID (experiment ID) from IBL.
+    one : ONE
+        ONE API client instance.
+    redownload_data : bool, default False
+        If True, clear cached data and re-download.
+    stub_test : bool, default False
+        If True, skip large raw data downloads for lightweight testing.
+    download_raw : bool, default True
+        If True, download raw electrophysiology data (SpikeGLX .cbin, NIDQ, videos).
+        Set to False when only converting processed data to save bandwidth.
+    download_processed : bool, default True
+        If True, download processed data (spike sorting, behavior, pose, pupil, etc.).
+    base_path : Path, optional
+        Base path for data storage.
+    logger : logging.Logger, optional
+        Logger instance for output.
+
+    Returns
+    -------
+    dict
+        Download statistics including time, number of datasets, and total size.
+    """
     if logger:
         logger.info("Downloading session data from ONE...")
     download_start = time.time()
@@ -82,8 +111,8 @@ def download_session_data(
     ])
 
     # Raw SpikeGLX data (large .cbin files)
-    # Skip in stub mode to avoid downloading gigabytes of raw ephys data
-    if not stub_test:
+    # Skip in stub mode or when download_raw=False to avoid downloading gigabytes of raw ephys data
+    if not stub_test and download_raw:
         interfaces_to_download.append(("RawSpikeGLX", IblSpikeGlxConverter, {}))
 
         # NIDQ data (behavioral sync signals) - optional
@@ -97,7 +126,8 @@ def download_session_data(
         camera_name = f"{camera_view}Camera"
 
         # Check and add each camera interface if available
-        if RawVideoInterface.check_availability(one, eid, camera_name=camera_view)["available"]:
+        # Raw videos are only needed for raw conversion, skip if download_raw=False
+        if download_raw and RawVideoInterface.check_availability(one, eid, camera_name=camera_view)["available"]:
             interfaces_to_download.append((f"RawVideo_{camera_view}", RawVideoInterface, {"camera_name": camera_view}))
 
         if IblPoseEstimationInterface.check_availability(one, eid, camera_name=camera_name)["available"]:

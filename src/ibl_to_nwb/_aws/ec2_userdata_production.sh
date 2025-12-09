@@ -26,6 +26,7 @@ REPO_URL="{{REPO_URL}}"
 REPO_BRANCH="{{REPO_BRANCH}}"
 DANDISET_ID="{{DANDISET_ID}}"
 DANDI_INSTANCE="{{DANDI_INSTANCE}}"
+CONVERSION_MODE="{{CONVERSION_MODE}}"  # Empty string, "--raw-only", or "--processed-only"
 
 # Fetch instance metadata (IMDSv2 - requires token)
 IMDS_TOKEN="$(curl -X PUT -fsS "http://169.254.169.254/latest/api/token" \
@@ -195,14 +196,27 @@ echo "Starting conversion process..."
 cd "${REPO_DIR}/src/ibl_to_nwb/_aws"
 
 # Virtual environment is already activated, just run python directly
-# Pass --stub-test flag if StubTest tag is "true"
+# Build command with optional flags
+CONVERSION_CMD="python convert_assigned_sessions.py"
+
+# Add --stub-test flag if StubTest tag is "true"
 if [[ "${STUB_TEST}" == "true" ]]; then
+    CONVERSION_CMD="${CONVERSION_CMD} --stub-test"
     echo "Running in STUB TEST mode (only metadata, no raw data)"
-    python convert_assigned_sessions.py --stub-test
 else
     echo "Running in PRODUCTION mode (full data conversion)"
-    python convert_assigned_sessions.py
 fi
+
+# Add conversion mode flag if specified (--raw-only or --processed-only)
+if [[ -n "${CONVERSION_MODE}" ]]; then
+    CONVERSION_CMD="${CONVERSION_CMD} ${CONVERSION_MODE}"
+    echo "Conversion mode: ${CONVERSION_MODE}"
+else
+    echo "Conversion mode: both (raw + processed)"
+fi
+
+echo "Running: ${CONVERSION_CMD}"
+${CONVERSION_CMD}
 
 # Download dandiset.yaml - this creates the ${DANDISET_ID}/ folder automatically
 echo "Downloading dandiset.yaml for dandiset ${DANDISET_ID} from ${DANDI_INSTANCE}..."

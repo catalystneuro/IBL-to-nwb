@@ -120,6 +120,8 @@ if __name__ == "__main__":
             one=one,
             redownload_data=REDOWNLOAD_DATA,
             stub_test=STUB_TEST,
+            download_raw=CONVERT_RAW,
+            download_processed=CONVERT_PROCESSED,
             base_path=base_path,
             logger=logger,
         )
