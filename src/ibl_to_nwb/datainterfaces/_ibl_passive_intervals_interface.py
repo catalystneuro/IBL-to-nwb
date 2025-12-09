@@ -24,7 +24,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
 
     This interface handles the detailed intervals table that defines when passive protocol
     phases occur during a session (spontaneous activity, receptive field mapping, task replay).
-    The intervals are stored as a custom TimeIntervals table in processing/passive.
+    The intervals are stored as a custom TimeIntervals table in processing/passive_protocol.
     """
 
     # Passive intervals use BWM standard revision
@@ -150,7 +150,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         """
         Add passive period intervals to the NWB file.
 
-        Creates a custom TimeIntervals table in processing/passive with intervals for:
+        Creates a custom TimeIntervals table in processing/passive_protocol with intervals for:
         - Spontaneous activity phase
         - Receptive field mapping (RFM) phase
         - Task replay phase
@@ -165,9 +165,9 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         df = self.passive_intervals_df
 
         # Get or create the passive processing module
-        if "passive" not in nwbfile.processing:
+        if "passive_protocol" not in nwbfile.processing:
             passive_module = ProcessingModule(
-                name="passive",
+                name="passive_protocol",
                 description=(
                     "Data from the IBL passive stimulus protocol, presented at the end of each recording session "
                     "while the mouse is disengaged from the task. The protocol consists of three phases: "
@@ -179,7 +179,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
             )
             nwbfile.add_processing_module(passive_module)
         else:
-            passive_module = nwbfile.processing["passive"]
+            passive_module = nwbfile.processing["passive_protocol"]
 
         # Create a custom TimeIntervals table for passive intervals
         passive_intervals = TimeIntervals(

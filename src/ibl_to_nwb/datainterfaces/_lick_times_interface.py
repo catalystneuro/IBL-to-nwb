@@ -114,5 +114,5 @@ class LickInterface(BaseIBLDataInterface):
             timestamps=lick_timestamps,
         )
 
-        behavior_events_module = get_module(nwbfile=nwbfile, name="behavior_events", description="Discrete behavioral events.")
-        behavior_events_module.add(lick_events)
+        lick_times_module = get_module(nwbfile=nwbfile, name="lick_times", description="Discrete behavioral events.")
+        lick_times_module.add(lick_events)

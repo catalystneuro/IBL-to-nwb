@@ -259,7 +259,7 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
         # Get the passive module
         passive_module = get_module(
             nwbfile=nwbfile,
-            name="passive",
+            name="passive_protocol",
             description=(
                 "Data from the IBL passive stimulus protocol, presented at the end of each recording session "
                 "while the mouse is disengaged from the task. The protocol consists of three phases: "

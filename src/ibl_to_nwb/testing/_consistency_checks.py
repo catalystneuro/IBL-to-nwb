@@ -475,7 +475,7 @@ def _check_passive_data(*, one: ONE, nwbfile: NWBFile):
             one_passive_df.append(df)
         one_passive_df = pd.concat(one_passive_df,axis=0).sort_values('start_time').reset_index(drop=True)
         one_passive_df.index.name = 'id'
-        nwb_passive_df = nwbfile.processing['passive'].data_interfaces['passive_task_replay'][:]
+        nwb_passive_df = nwbfile.processing['passive_protocol'].data_interfaces['passive_task_replay'][:]
         assert_frame_equal(one_passive_df, nwb_passive_df)
 
         one_gabor_events_df = one.load_dataset(eid, "alf/_ibl_passiveGabor.table.csv")
@@ -483,15 +483,15 @@ def _check_passive_data(*, one: ONE, nwbfile: NWBFile):
         one_gabor_events_df = one_gabor_events_df.drop(drop_cols, axis=1)
         one_gabor_events_df.index.name = 'id'
         one_gabor_events_df = one_gabor_events_df.rename(columns={'start':'start_time', 'stop':'stop_time'})
-        nwb_gabor_events_df = nwbfile.processing['passive'].data_interfaces['gabor_table'][:]
+        nwb_gabor_events_df = nwbfile.processing['passive_protocol'].data_interfaces['gabor_table'][:]
         assert_frame_equal(one_gabor_events_df, nwb_gabor_events_df)
 
     # receptrive field mapping
     if "alf/_ibl_passiveRFM.times.npy" in datasets:
-        nwb_timestamps = nwbfile.processing['passive'].data_interfaces['rfm_stim'].timestamps[:]
+        nwb_timestamps = nwbfile.processing['passive_protocol'].data_interfaces['rfm_stim'].timestamps[:]
         one_timestamps = one.load_dataset(eid, "alf/_ibl_passiveRFM.times.npy")
         assert_array_equal(nwb_timestamps, one_timestamps)
-        nwb_data = nwbfile.processing['passive'].data_interfaces['rfm_stim'].data[:]
+        nwb_data = nwbfile.processing['passive_protocol'].data_interfaces['rfm_stim'].data[:]
         path = one.load_dataset(eid, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
         one_data = np.fromfile(path, dtype=np.uint8).reshape((one_timestamps.shape[0], 15, 15))
         assert_array_equal(nwb_data, one_data)
