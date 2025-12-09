@@ -289,6 +289,17 @@ def parse_args() -> argparse.Namespace:
         "--key-name",
         help="SSH key pair name (optional, for debugging)",
     )
+    parser.add_argument(
+        "--dandi-instance",
+        choices=["dandi", "dandi-sandbox"],
+        default="dandi-sandbox",
+        help="DANDI instance to upload to: 'dandi' for production (dandiarchive.org) or 'dandi-sandbox' for testing. Default: dandi-sandbox",
+    )
+    parser.add_argument(
+        "--dandiset-id",
+        default="217706",
+        help="Dandiset ID to upload to (default: 217706 for sandbox, use 000409 for production)",
+    )
 
     return parser.parse_args()
 
@@ -317,6 +328,8 @@ def main() -> None:
     logger.info(f"Instance type: {args.instance_type}")
     logger.info(f"EBS volume size: {EBS_VOLUME_SIZE} GB")
     logger.info(f"Mode: {'STUB TEST' if args.stub_test else 'PRODUCTION'}")
+    logger.info(f"DANDI instance: {args.dandi_instance}")
+    logger.info(f"Dandiset ID: {args.dandiset_id}")
     logger.info("=" * 80)
 
     # Load session EIDs
@@ -357,10 +370,16 @@ def main() -> None:
         raise FileNotFoundError(f"User-data script not found: {USER_DATA_SCRIPT}")
 
     template = USER_DATA_SCRIPT.read_text()
-    user_data = template.replace("{{DANDI_API_KEY}}", config["DANDI_API_KEY"])
+    # Use the appropriate DANDI API key based on instance
+    if args.dandi_instance == "dandi":
+        dandi_api_key = config["DANDI_API_KEY"]
+    else:
+        dandi_api_key = config.get("DANDI_SANDBOX_API_KEY", config["DANDI_API_KEY"])
+    user_data = template.replace("{{DANDI_API_KEY}}", dandi_api_key)
     user_data = user_data.replace("{{REPO_URL}}", config.get("REPO_URL", "https://github.com/h-mayorquin/IBL-to-nwb.git"))
     user_data = user_data.replace("{{REPO_BRANCH}}", config.get("REPO_BRANCH", "heberto_conversion"))
-    user_data = user_data.replace("{{DANDISET_ID}}", config.get("DANDISET_ID", "217706"))
+    user_data = user_data.replace("{{DANDISET_ID}}", args.dandiset_id)
+    user_data = user_data.replace("{{DANDI_INSTANCE}}", args.dandi_instance)
 
     # Initialize AWS client
     ec2_client = boto3.client("ec2", region_name=config["REGION"])
@@ -444,7 +463,7 @@ def main() -> None:
     logger.info("  Real-time monitoring:  python monitor.py")
     logger.info("  Instance logs:         python monitor.py --logs INSTANCE_ID")
     logger.info("\nVerification (after completion):")
-    logger.info("  python verify_dandi_uploads.py --dandiset-id 217706 --dandi-instance dandi-sandbox")
+    logger.info(f"  python verify_dandi_uploads.py --dandiset-id {args.dandiset_id} --dandi-instance {args.dandi_instance}")
     logger.info("=" * 80)
 
 

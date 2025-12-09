@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = True               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False           # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
@@ -77,14 +77,16 @@ if __name__ == "__main__":
     TARGET_EID = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # has mismatch in timestamps between pupil and data
     TARGET_EID = "1f095590-6669-46c9-986b-ccaf0620c5e9"  # UCLA012 - Testing: previously missing videos in raw NWB
     TARGET_EID = "28741f91-c837-4147-939e-918d38d849f2"  # Signal already in info dict
-    #TARGET_EID = "d2918f52-8280-43c0-924b-029b2317e62c"  # Testing if meta is downloaded
-    #TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # Testing: stream matching
-    # TARGET_EID = "d839491f-55d8-4cbe-a298-7839208ba12b" # No nidq file
+    TARGET_EID = "d2918f52-8280-43c0-924b-029b2317e62c"  # Testing if meta is downloaded
+    TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # Testing: stream matching
+    TARGET_EID = "d839491f-55d8-4cbe-a298-7839208ba12b" # No nidq file
     TARGET_EID = "29a6def1-fc5c-4eea-ac48-47e9b053dcb5" # Time alignment issue
     TARGET_EID = "032452e9-1886-449d-9c13-0f192572e19f" # Corrupted meta file issue
     TARGET_EID = "283ecb4c-e529-409c-9f0a-8ea5191dcf50"  # Mac os hidden files issue
     TARGET_EID = "6668c4a0-70a4-4012-a7da-709660971d7a"  # Testing: mac os hidden files
     TARGET_EID = "f99ac31f-171b-4208-a55d-5644c0ad51c3"  # ADC null property issue (two probes)
+    TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # nidq missing in stream error
+    TARGET_EID = " 90e74228-fd1a-482f-bd56-05dbad132861"  # Memory error
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":

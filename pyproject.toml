@@ -14,7 +14,7 @@ keywords = ["nwb", "dandi", "ibl"]
 license = {file = "license.txt"}
 requires-python = ">=3.10"
 dependencies = [
-    "dandi",
+    "dandi>=0.73.2",  # Required for DANDI_SANDBOX_API_KEY env var support
     "neuroconv>=0.9.0",
     "spikeinterface",
     "probeinterface",
@@ -103,4 +103,5 @@ known-first-party = ["ibl_to_nwb"]
 dev = [
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.7",
+    "remfile>=0.1.13",
 ]

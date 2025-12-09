@@ -30,7 +30,7 @@ def get_instances():
         "Name=tag:Project,Values=IBL-NWB-Conversion",
         "Name=instance-state-name,Values=running,pending",
         "--query",
-        "Reservations[*].Instances[*].[InstanceId,State.Name,Tags[?Key==`ShardId`].Value|[0],Tags[?Key==`ShardRange`].Value|[0],Tags[?Key==`StubTest`].Value|[0],LaunchTime]",
+        "Reservations[*].Instances[*].[InstanceId,State.Name,Tags[?Key==`SessionEID`].Value|[0],Tags[?Key==`SessionIndex`].Value|[0],Tags[?Key==`StubTest`].Value|[0],LaunchTime,Tags[?Key==`Name`].Value|[0]]",
         "--output",
         "json",
     ]
@@ -47,10 +47,11 @@ def get_instances():
                 {
                     "id": instance[0],
                     "state": instance[1],
-                    "shard": instance[2],
-                    "range": instance[3],
+                    "session_eid": instance[2],
+                    "session_index": instance[3],
                     "stub_test": instance[4],
                     "launch_time": instance[5],
+                    "name": instance[6],
                 }
             )
 
@@ -95,25 +96,61 @@ def extract_progress_info(console_output):
             info["stub_test_confirmed"] = False
         elif "Found existing filesystem" in line or "Formatting..." in line:
             info["stage"] = "EBS mounted"
+            info["status"] = "Running"
         elif "Installing system dependencies" in line:
             info["stage"] = "Installing packages"
+            info["status"] = "Running"
         elif "Cloning IBL-to-nwb repository" in line:
             info["stage"] = "Cloning repo"
+            info["status"] = "Running"
         elif "Setting up Python environment" in line:
             info["stage"] = "Setting up Python"
+            info["status"] = "Running"
         elif "Starting conversion process" in line:
             info["stage"] = "Starting conversion"
+            info["status"] = "Converting"
+        elif "CONVERTING RAW EPHYS" in line:
+            info["stage"] = "Converting RAW ephys"
+            info["status"] = "Converting"
+        elif "CONVERTING PROCESSED DATA" in line:
+            info["stage"] = "Converting PROCESSED data"
+            info["status"] = "Converting"
+        elif "Decompressing" in line:
+            info["stage"] = "Decompressing ephys data"
+            info["status"] = "Converting"
+        elif "Chunk size:" in line:
+            info["stage"] = "Writing NWB (chunking data)"
+            info["status"] = "Converting"
+        elif "Writing ElectricalSeries" in line or "Adding" in line and "to NWB" in line:
+            info["stage"] = "Writing NWB data"
+            info["status"] = "Converting"
         elif "PROCESSING SESSION" in line:
             # Extract session number
             parts = line.split("PROCESSING SESSION")
             if len(parts) > 1:
                 info["stage"] = "Converting: " + parts[1].split(":")[0].strip()
+            info["status"] = "Converting"
         elif "Running in STUB TEST mode" in line:
             info["mode"] = "STUB TEST"
+            info["status"] = "Converting"
         elif "Running in PRODUCTION mode" in line:
             info["mode"] = "PRODUCTION"
+            info["status"] = "Converting"
+        elif "Downloading dandiset.yaml" in line:
+            info["stage"] = "Preparing DANDI upload"
+            info["status"] = "Uploading"
+        elif "Uploading to DANDI" in line:
+            info["stage"] = "Uploading to DANDI"
+            info["status"] = "Uploading"
+        elif "dandi upload" in line:
+            info["stage"] = "DANDI upload in progress"
+            info["status"] = "Uploading"
+        elif "Upload complete" in line:
+            info["stage"] = "Upload complete"
+            info["status"] = "Finishing"
         elif "Upload successful" in line:
             info["stage"] = "Upload successful"
+            info["status"] = "Finishing"
         elif "Shutting down" in line:
             info["status"] = "Shutting down"
 
@@ -146,8 +183,14 @@ def clear_screen():
     print("\033[2J\033[H", end="")
 
 
-def monitor_instances(interval=30, continuous=True):
-    """Monitor instances and display status."""
+def monitor_instances(interval=30, continuous=True, show_logs=0):
+    """Monitor instances and display status.
+
+    Args:
+        interval: Refresh interval in seconds
+        continuous: If True, keep refreshing; if False, run once
+        show_logs: Number of recent log lines to show per instance (0 = none)
+    """
     try:
         while True:
             clear_screen()
@@ -172,7 +215,10 @@ def monitor_instances(interval=30, continuous=True):
             print()
 
             for inst in instances:
-                print(f"Shard {inst['shard']} (Range: {inst['range']}) - {inst['id']}")
+                # Show instance name (e.g., "ibl-conversion-NYU-11_2020-02-18_001") or fallback to ID
+                name = inst.get('name') or inst['id']
+                session_info = f"Session #{inst.get('session_index', '?')}" if inst.get('session_index') else ""
+                print(f"{name} ({session_info}) - {inst['id']}")
                 print(f"  State: {inst['state']}")
                 print(f"  Stub Test: {inst['stub_test']}")
 
@@ -188,7 +234,7 @@ def monitor_instances(interval=30, continuous=True):
 
                 # Show real errors first (these are the actual issues)
                 if progress.get("real_errors"):
-                    print(f"  🔴 REAL ERROR:")
+                    print(f"  [ERROR]:")
                     for error in progress["real_errors"]:
                         # Clean up cloud-init prefix and show more characters
                         clean_error = error.split("cloud-init[")[-1] if "cloud-init[" in error else error
@@ -196,9 +242,20 @@ def monitor_instances(interval=30, continuous=True):
 
                 # Show other errors
                 if progress.get("errors"):
-                    print(f"  ⚠️  Other warnings: {len(progress['errors'])}")
+                    print(f"  [WARN] Other warnings: {len(progress['errors'])}")
                     for error in progress["errors"][-2:]:  # Show last 2
                         print(f"    - {error[:80]}")
+
+                # Show recent log lines if requested
+                if show_logs > 0:
+                    print(f"  Recent logs ({show_logs} lines):")
+                    print("  " + "-" * 60)
+                    log_lines = console.strip().split("\n")[-show_logs:]
+                    for line in log_lines:
+                        # Truncate long lines and indent
+                        truncated = line[:100] + "..." if len(line) > 100 else line
+                        print(f"    {truncated}")
+                    print("  " + "-" * 60)
 
                 print()
 
@@ -249,6 +306,14 @@ if __name__ == "__main__":
         default=200,
         help="Number of log lines to show (default: 200)",
     )
+    parser.add_argument(
+        "--show-logs",
+        "-s",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Show last N log lines for each instance in overview (default: 0, meaning off)",
+    )
 
     args = parser.parse_args()
 
@@ -263,4 +328,4 @@ if __name__ == "__main__":
             print(f"No console output available for {args.logs}")
         sys.exit(0)
 
-    monitor_instances(interval=args.interval, continuous=not args.once)
+    monitor_instances(interval=args.interval, continuous=not args.once, show_logs=args.show_logs)

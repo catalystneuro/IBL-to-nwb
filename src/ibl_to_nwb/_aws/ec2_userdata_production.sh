@@ -25,6 +25,7 @@ MOUNT_POINT="/ebs"
 REPO_URL="{{REPO_URL}}"
 REPO_BRANCH="{{REPO_BRANCH}}"
 DANDISET_ID="{{DANDISET_ID}}"
+DANDI_INSTANCE="{{DANDI_INSTANCE}}"
 
 # Fetch instance metadata (IMDSv2 - requires token)
 IMDS_TOKEN="$(curl -X PUT -fsS "http://169.254.169.254/latest/api/token" \
@@ -168,9 +169,15 @@ source .venv/bin/activate
 # Setup DANDI API key from template substitution
 # Disable command echoing to prevent key from appearing in cloud-init logs
 set +x
-# Export as DANDI_SANDBOX_API_KEY since we upload to sandbox (dandi-cli looks for this)
-DANDI_SANDBOX_API_KEY="{{DANDI_API_KEY}}"
-export DANDI_SANDBOX_API_KEY
+# Export appropriate API key based on DANDI instance
+# dandi-cli looks for DANDI_API_KEY (production) or DANDI_SANDBOX_API_KEY (sandbox)
+if [[ "${DANDI_INSTANCE}" == "dandi" ]]; then
+    DANDI_API_KEY="{{DANDI_API_KEY}}"
+    export DANDI_API_KEY
+else
+    DANDI_SANDBOX_API_KEY="{{DANDI_API_KEY}}"
+    export DANDI_SANDBOX_API_KEY
+fi
 
 # Shred the user-data file (contains the API key) after reading it
 # This removes the on-disk copy that cloud-init caches
@@ -198,9 +205,14 @@ else
 fi
 
 # Download dandiset.yaml - this creates the ${DANDISET_ID}/ folder automatically
-echo "Downloading dandiset.yaml for dandiset ${DANDISET_ID}..."
+echo "Downloading dandiset.yaml for dandiset ${DANDISET_ID} from ${DANDI_INSTANCE}..."
 cd "${MOUNT_POINT}/nwbfiles"
-dandi download --download dandiset.yaml https://sandbox.dandiarchive.org/dandiset/${DANDISET_ID}
+if [[ "${DANDI_INSTANCE}" == "dandi" ]]; then
+    DANDI_URL="https://dandiarchive.org/dandiset/${DANDISET_ID}"
+else
+    DANDI_URL="https://sandbox.dandiarchive.org/dandiset/${DANDISET_ID}"
+fi
+dandi download --download dandiset.yaml "${DANDI_URL}"
 
 # Now ${DANDISET_ID}/ folder exists with dandiset.yaml inside it
 DANDISET_FOLDER="${MOUNT_POINT}/nwbfiles/${DANDISET_ID}"
@@ -238,8 +250,9 @@ echo ""
 # Debug: Check if DANDI API keys are still set
 echo "DEBUG: DANDI_API_KEY is set: ${DANDI_API_KEY:+YES}"
 echo "DEBUG: DANDI_SANDBOX_API_KEY is set: ${DANDI_SANDBOX_API_KEY:+YES}"
+echo "DEBUG: Uploading to DANDI instance: ${DANDI_INSTANCE}"
 
-dandi upload -i dandi-sandbox .
+dandi upload -i "${DANDI_INSTANCE}" .
 
 # Cleanup and shutdown
 echo "Upload complete. Shutting down in 60 seconds..."
