@@ -319,14 +319,14 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             calculated based on maximum amplitude channels.
         skip_properties : list of str, optional
             Properties to exclude from the units table. For IBL data, consider:
-            skip_properties=["spike_amplitudes", "spike_relative_depths"]
+            skip_properties=["spike_amplitudes_uv", "spike_relative_depths_um"]
             to reduce memory usage by ~10 GB for large sessions.
 
         Notes
         -----
         Memory optimization: Data is loaded only when this method is called,
-        allowing for localized memory usage. The ragged properties "spike_amplitudes"
-        and "spike_relative_depths" contain spike-level data that can use significant
+        allowing for localized memory usage. The ragged properties "spike_amplitudes_uv"
+        and "spike_relative_depths_um" contain spike-level data that can use significant
         memory (~5 GB each for large sessions). Skipping these properties can
         reduce peak memory usage from ~23 GB to ~10-12 GB while preserving:
         - All spike times

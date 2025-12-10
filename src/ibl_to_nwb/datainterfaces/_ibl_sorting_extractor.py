@@ -86,7 +86,7 @@ class IblSortingExtractor(BaseSorting):
             Number of units to load per probe when stub_test=True. Default is 10.
         skip_properties : list of str, optional
             Properties to skip computing/loading. Useful for memory optimization.
-            For example: skip_properties=["spike_amplitudes", "spike_relative_depths"]
+            For example: skip_properties=["spike_amplitudes_uv", "spike_relative_depths_um"]
         """
         if self._data_loaded:
             return  # Already loaded
@@ -98,8 +98,8 @@ class IblSortingExtractor(BaseSorting):
             skip_properties = []
 
         spike_times_by_id = defaultdict(list)
-        spike_amplitudes_by_id = defaultdict(list) if "spike_amplitudes" not in skip_properties else None
-        spike_depths_by_id = defaultdict(list) if "spike_relative_depths" not in skip_properties else None
+        spike_amplitudes_by_id = defaultdict(list) if "spike_amplitudes_uv" not in skip_properties else None
+        spike_depths_by_id = defaultdict(list) if "spike_relative_depths_um" not in skip_properties else None
         all_unit_properties = defaultdict(list)
         cluster_ids = list()
         unit_id_per_probe_shift = 0
@@ -137,24 +137,25 @@ class IblSortingExtractor(BaseSorting):
             unit_id_to_channel_id = clusters["channels"][:number_of_units] if stub_test else clusters["channels"]
             all_unit_properties["maximum_amplitude_channel"].extend(unit_id_to_channel_id)
             mean_depths = clusters["depths"][:number_of_units] if stub_test else clusters["depths"]
-            all_unit_properties["mean_relative_depth"].extend(mean_depths)
+            all_unit_properties["mean_relative_depth_um"].extend(mean_depths)
 
             ibl_metric_key_to_property_name = dict(
-                amp_max="maximum_amplitude",
-                amp_min="minimum_amplitude",
-                amp_median="median_amplitude",
-                amp_std_dB="standard_deviation_amplitude",
+                amp_max="maximum_amplitude_uv",
+                amp_min="minimum_amplitude_uv",
+                amp_median="median_amplitude_uv",
+                amp_std_dB="standard_deviation_amplitude_db",
                 contamination="contamination",
                 contamination_alt="alternative_contamination",
-                drift="drift",
+                drift="drift_um",
                 missed_spikes_est="missed_spikes_estimate",
                 noise_cutoff="noise_cutoff",
                 presence_ratio="presence_ratio",
                 presence_ratio_std="presence_ratio_standard_deviation",
                 slidingRP_viol="sliding_refractory_period_violation",
                 spike_count="spike_count",
-                firing_rate="firing_rate",
-                label="label",
+                firing_rate="firing_rate_hz",
+                label="ibl_quality_score",
+                ks2_label="kilosort2_label",  # Original Kilosort2 classification (good/mua/noise)
                 cluster_uuid="cluster_uuid",
                 cluster_id="cluster_id",
                 # NOTE: Removed x, y, z, ML, AP, DV - these are now accessed via electrodes table
@@ -188,13 +189,13 @@ class IblSortingExtractor(BaseSorting):
         # Set ragged array properties (spike-level data) if not skipped
         if spike_amplitudes_by_id is not None:
             self.set_property(
-                key="spike_amplitudes",
+                key="spike_amplitudes_uv",
                 values=np.array(list(spike_amplitudes_by_id.values()), dtype=object),
                 ids=cluster_ids,
             )
         if spike_depths_by_id is not None:
             self.set_property(
-                key="spike_relative_depths",
+                key="spike_relative_depths_um",
                 values=np.array(list(spike_depths_by_id.values()), dtype=object),
                 ids=cluster_ids,
             )

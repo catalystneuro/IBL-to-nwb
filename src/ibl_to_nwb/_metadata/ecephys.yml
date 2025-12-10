@@ -33,23 +33,23 @@ Ecephys:
     - name: index_on_probe
       description: The global index of the channel on the probe.
   UnitProperties:
-    - name: spike_amplitudes
-      description: Peak amplitude of each spike for each unit.
-    - name: spike_relative_depths
+    - name: spike_amplitudes_uv
+      description: Peak amplitude of each spike for each unit in microvolts.
+    - name: spike_relative_depths_um
       description: |
         Relative depth along the probe used to detect each spike in micrometers, computed from the waveform center of mass. 0 is the deepest site, positive values are above this.
     - name: maximum_amplitude_channel
       description: Channel which has the largest amplitude for each unit.
-    - name: mean_relative_depth
+    - name: mean_relative_depth_um
       description: Relative mean depth of each unit in micrometers. 0 is the deepest site, positive values are above this.
     # Cluster metrics start below here
-    - name: maximum_amplitude
+    - name: maximum_amplitude_uv
       description: Maximum amplitude of the waveforms for each unit in microvolts.
-    - name: minimum_amplitude
+    - name: minimum_amplitude_uv
       description: Minimum amplitude of the waveforms for each unit in microvolts.
-    - name: median_amplitude
+    - name: median_amplitude_uv
       description: Median amplitude of the waveforms for each unit in microvolts.
-    - name: standard_deviation_amplitude
+    - name: standard_deviation_amplitude_db
       description: Standard deviation of the log-amplitude of the waveforms for each unit in decibels.
     - name: contamination
       description: |
@@ -57,7 +57,7 @@ Ecephys:
     - name: alternative_contamination
       description: |
         "A modified estimate of the contamination of the unit (i.e. a pseudo false positive measure) based on the number of spikes, number of ISI violations, and time between the first and last spike. See Hill et al. (2011) J Neurosci 31: 8699-8705) for more details."
-    - name: drift
+    - name: drift_um
       description: Average drift of the unit in micrometers.
     - name: missed_spikes_estimate
       description: |
@@ -76,10 +76,12 @@ Ecephys:
         "A binary metric which determines whether there is an acceptable level of refractory period violations by using a sliding refractory period.\nThis takes into account the firing rate of the neuron and computes a maximum acceptable level of contamination at different possible values of the refractory period. If the unit has less than the maximum contamination at any of the possible values of the refractory period, the unit passes.\nA neuron will always fail this metric for very low firing rates, and thus this metric takes into account both firing rate and refractory period violations."
     - name: spike_count
       description: Total number of spikes for each unit.
-    - name: firing_rate
+    - name: firing_rate_hz
       description: Average firing rate of each unit in Hz.
-    - name: label
-      description: Proportion of quality metrics passed.
+    - name: ibl_quality_score
+      description: Proportion of quality metrics passed (0.0 to 1.0). A value of 1.0 indicates all three quality metrics passed (slidingRP, noise_cutoff, amplitude threshold), equivalent to a "good" unit.
+    - name: kilosort2_label
+      description: Original Kilosort2 classification label. Values are "good" (well-isolated single unit), "mua" (multi-unit activity), or "noise" (non-neural activity). This is the pre-curation label from the spike sorting algorithm, provided for comparison with IBL's automated quality metrics.
     - name: allen_location
       description: Brain region reference in the Allen Mouse Brain Atlas.
     - name: cluster_uuid
