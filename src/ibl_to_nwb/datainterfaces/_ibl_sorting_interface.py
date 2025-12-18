@@ -1,14 +1,12 @@
 """The interface for loading spike sorted data via ONE access."""
 
-from copy import deepcopy
-from pathlib import Path
 from typing import Literal, Optional
 import logging
 import time
 
 import numpy as np
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import BaseSortingExtractorInterface
-from neuroconv.utils import DeepDict, load_dict_from_file
+from neuroconv.utils import DeepDict
 from one.api import ONE
 from pynwb import NWBFile
 from brainbox.io.one import SpikeSortingLoader
@@ -16,6 +14,107 @@ from brainbox.io.one import SpikeSortingLoader
 from ._ibl_sorting_extractor import IblSortingExtractor
 from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures import get_probe_name_to_probe_id_dict
+
+# IBL metric to NWB property mapping with descriptions
+# Key: IBL clusters.metrics column name
+# Value: dict with "nwb_name" and "description" for NWB units table
+IBL_PROPERTY_MAPPING = {
+    # Amplitude metrics - IBL stores in Volts
+    "amp_max": {
+        "nwb_name": "amplitude_max_V",
+        "description": "Maximum spike amplitude in Volts.",
+    },
+    "amp_min": {
+        "nwb_name": "amplitude_min_V",
+        "description": "Minimum spike amplitude in Volts.",
+    },
+    "amp_median": {
+        "nwb_name": "amplitude_median_V",
+        "description": "Median spike amplitude in Volts. IBL uses 50 uV (5e-5 V) threshold for quality filtering.",
+    },
+    "amp_std_dB": {
+        "nwb_name": "amplitude_std_dB",
+        "description": "Standard deviation of log-transformed spike amplitudes in decibels. High values (>6 dB) may indicate drift or contamination.",
+    },
+    # Contamination metrics - SpikeInterface-aligned names
+    "contamination": {
+        "nwb_name": "isi_violations_ratio",
+        "description": "Ratio of observed to expected ISI violations (Steinmetz/cortex-lab method). Can exceed 1.0. Equivalent to SpikeInterface's isi_violations_ratio.",
+    },
+    "contamination_alt": {
+        "nwb_name": "rp_violation",
+        "description": "Contamination estimate using Hill et al. (2011) quadratic formula. Aligns with SpikeInterface's rp_violations.",
+    },
+    "slidingRP_viol": {
+        "nwb_name": "sliding_rp_violation",
+        "description": "Binary pass/fail (0.0 or 1.0) using sliding refractory period algorithm. Primary metric for ibl_quality_score. Aligns with SpikeInterface's sliding_rp_violations.",
+    },
+    # Other quality metrics
+    "missed_spikes_est": {
+        "nwb_name": "missed_spikes_estimate",
+        "description": "Estimated fraction of spikes missed due to detection threshold (0.0-1.0).",
+    },
+    "noise_cutoff": {
+        "nwb_name": "noise_cutoff",
+        "description": "Standard deviations the lower amplitude quartile deviates from expected. Large values indicate missed spikes at detection threshold.",
+    },
+    # Activity metrics
+    "presence_ratio": {
+        "nwb_name": "presence_ratio",
+        "description": "Fraction of time bins (60s default) with at least one spike. Good units typically >0.9.",
+    },
+    "presence_ratio_std": {
+        "nwb_name": "presence_ratio_std",
+        "description": "Standard deviation of spike counts across 10-second time bins.",
+    },
+    "drift": {
+        "nwb_name": "drift_um_per_hour",
+        "description": "Cumulative depth change rate in um/hour. Formula: sum(abs(diff(depths)))/duration*3600. NOT absolute drift.",
+    },
+    "spike_count": {
+        "nwb_name": "spike_count",
+        "description": "Total number of spikes assigned to this unit.",
+    },
+    "firing_rate": {
+        "nwb_name": "firing_rate",
+        "description": "Average firing rate in Hz.",
+    },
+    # Quality labels
+    "label": {
+        "nwb_name": "ibl_quality_score",
+        "description": "Proportion of IBL quality metrics passed (0.0, 0.33, 0.67, or 1.0). 1.0 = all three passed.",
+    },
+    "ks2_label": {
+        "nwb_name": "kilosort2_label",
+        "description": "Original Kilosort2 classification: 'good', 'mua', or 'noise'.",
+    },
+    # Identification
+    "cluster_uuid": {
+        "nwb_name": "cluster_uuid",
+        "description": "Globally unique identifier for cross-referencing with IBL database via ONE API.",
+    },
+}
+
+# Additional properties not from clusters.metrics (ragged arrays and computed properties)
+ADDITIONAL_PROPERTY_DESCRIPTIONS = {
+    "spike_amplitudes_V": "Peak amplitude of each spike for each unit in Volts.",
+    "spike_relative_depths_um": "Relative depth along the probe for each spike in micrometers, computed from waveform center of mass. 0 is deepest site.",
+    "maximum_amplitude_channel": "Channel index with the largest waveform amplitude for each unit.",
+    "mean_relative_depth_um": "Average depth of each unit along the probe in micrometers. 0 is deepest site.",
+    "probe_name": "Name of probe this unit was recorded from (e.g., 'probe00', 'probe01').",
+}
+
+
+def get_unit_property_descriptions() -> list[dict]:
+    """Build the UnitProperties list for NWB metadata from the mapping dictionaries."""
+    descriptions = []
+    # Add properties from IBL_PROPERTY_MAPPING
+    for mapping in IBL_PROPERTY_MAPPING.values():
+        descriptions.append({"name": mapping["nwb_name"], "description": mapping["description"]})
+    # Add additional properties
+    for name, description in ADDITIONAL_PROPERTY_DESCRIPTIONS.items():
+        descriptions.append({"name": name, "description": description})
+    return descriptions
 
 
 def _format_probe_label(probe_name: str) -> str:
@@ -154,24 +253,6 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             "alternative_used": None,
             "data": None,
         }
-
-    def get_metadata(self) -> dict:
-        """
-        Get metadata for NWB file.
-
-        Returns
-        -------
-        dict
-            Metadata dictionary.
-        """
-        metadata = super().get_metadata()
-
-        ecephys_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "ecephys.yml")
-
-        metadata.update(Ecephys=dict())
-        metadata["Ecephys"].update(UnitProperties=ecephys_metadata["Ecephys"]["UnitProperties"])
-
-        return metadata
 
     def _create_electrodes_table_with_localization(self, nwbfile: NWBFile) -> dict:
         """
@@ -338,7 +419,10 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         # skip_properties are not loaded/computed at all (memory optimization)
         if not self.sorting_extractor._data_loaded:
             self.sorting_extractor.load_and_process_data(
-                stub_test=stub_test, stub_units=stub_units, skip_properties=skip_properties
+                ibl_property_mapping=IBL_PROPERTY_MAPPING,
+                stub_test=stub_test,
+                stub_units=stub_units,
+                skip_properties=skip_properties,
             )
 
         # Automatically create electrodes table if it doesn't exist (processed mode)
@@ -351,6 +435,14 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         if unit_electrode_indices is None:
             print("Automatically linking units to electrodes based on maximum amplitude channels...")
             unit_electrode_indices = self._map_units_to_electrodes(nwbfile, channel_to_electrode_map)
+
+        # Build metadata with unit property descriptions
+        # Descriptions are defined here to keep all sorting-related metadata together
+        if metadata is None:
+            metadata = DeepDict()
+        if "Ecephys" not in metadata:
+            metadata["Ecephys"] = {}
+        metadata["Ecephys"]["UnitProperties"] = get_unit_property_descriptions()
 
         # Delegate to parent class (with stub_test=False since we already loaded/subsetted data)
         super().add_to_nwbfile(
