@@ -15,66 +15,117 @@ from ._ibl_sorting_extractor import IblSortingExtractor
 from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures import get_probe_name_to_probe_id_dict
 
-# Unit property descriptions for NWB metadata
-# Order: Identification → Activity → Location → Quality Labels → Quality Metrics → Stability → Amplitude → Ragged Arrays
-UNIT_PROPERTY_DESCRIPTIONS = {
+# Single source of truth for unit property metadata
+# Keys are NWB property names (dict order = property order in NWB file)
+# Values contain IBL source column name (or None if computed/set separately) and description
+# Note: ibl_name refers to column name in clusters.metrics.pqt or other IBL data structures
+UNITS_COLUMNS = {
     # Identification
-    "probe_name": "Name of probe this unit was recorded from (e.g., 'probe00', 'probe01').",
-    "cluster_uuid": "Globally unique identifier for cross-referencing with IBL database via ONE API.",
+    "probe_name": {
+        "ibl_name": "probe_name",
+        "description": "Name of probe this unit was recorded from (e.g., 'probe00', 'probe01').",
+    },
+    "cluster_uuid": {
+        "ibl_name": "cluster_uuid",
+        "description": "Globally unique identifier for cross-referencing with IBL database via ONE API.",
+    },
     # Core activity metrics
-    "spike_count": "Total number of spikes assigned to this unit. Integer type; -1 indicates missing data.",
-    "firing_rate": "Average firing rate in Hz.",
+    "spike_count": {
+        "ibl_name": "spike_count",
+        "description": "Total number of spikes assigned to this unit. Integer type; -1 indicates missing data.",
+    },
+    "firing_rate": {
+        "ibl_name": "firing_rate",
+        "description": "Average firing rate in Hz.",
+    },
     # Location
-    "mean_relative_depth_um": "Average depth of each unit along the probe in micrometers. 0 is deepest site.",
+    "mean_relative_depth_um": {
+        "ibl_name": "cluster_depths",
+        "description": "Average depth of each unit along the probe in micrometers. 0 is deepest site.",
+    },
     # Quality labels (what users check first)
-    "ibl_quality_score": "Proportion of IBL quality metrics passed (0.0, 0.33, 0.67, or 1.0). 1.0 = all three passed.",
-    "kilosort2_label": "Original Kilosort2 classification: 'good', 'mua', or 'noise'.",
+    "ibl_quality_score": {
+        "ibl_name": "label",
+        "description": "Proportion of IBL quality metrics passed (0.0, 0.33, 0.67, or 1.0). 1.0 = all three passed.",
+    },
+    "kilosort2_label": {
+        "ibl_name": "ks2_label",
+        "description": "Original Kilosort2 classification: 'good', 'mua', or 'noise'.",
+    },
     # Quality metrics (detailed breakdown)
-    "sliding_rp_violation": "Binary pass/fail (0.0 or 1.0) using sliding refractory period algorithm. Primary metric for ibl_quality_score. Aligns with SpikeInterface's sliding_rp_violations.",
-    "isi_violations_ratio": "Ratio of observed to expected ISI violations (Steinmetz/cortex-lab method). Can exceed 1.0. Equivalent to SpikeInterface's isi_violations_ratio.",
-    "rp_violation": "Contamination estimate using Hill et al. (2011) quadratic formula. Aligns with SpikeInterface's rp_violations.",
-    "noise_cutoff": "Standard deviations the lower amplitude quartile deviates from expected. Large values indicate missed spikes at detection threshold.",
-    "missed_spikes_estimate": "Estimated fraction of spikes missed due to detection threshold (0.0-1.0).",
+    "sliding_rp_violation": {
+        "ibl_name": "slidingRP_viol",
+        "description": "Binary pass/fail (0.0 or 1.0) using sliding refractory period algorithm. Primary metric for ibl_quality_score. Aligns with SpikeInterface's sliding_rp_violations.",
+    },
+    "isi_violations_ratio": {
+        "ibl_name": "contamination",
+        "description": "Ratio of observed to expected ISI violations (Steinmetz/cortex-lab method). Can exceed 1.0. Equivalent to SpikeInterface's isi_violations_ratio.",
+    },
+    "rp_violation": {
+        "ibl_name": "contamination_alt",
+        "description": "Contamination estimate using Hill et al. (2011) quadratic formula. Aligns with SpikeInterface's rp_violations.",
+    },
+    "noise_cutoff": {
+        "ibl_name": "noise_cutoff",
+        "description": "Standard deviations the lower amplitude quartile deviates from expected. Large values indicate missed spikes at detection threshold.",
+    },
+    "missed_spikes_estimate": {
+        "ibl_name": "missed_spikes_est",
+        "description": "Estimated fraction of spikes missed due to detection threshold (0.0-1.0).",
+    },
     # Stability metrics
-    "presence_ratio": "Fraction of time bins (60s default) with at least one spike. Good units typically >0.9.",
-    "presence_ratio_std": "Standard deviation of spike counts across 10-second time bins.",
-    "cumulative_drift_um_per_hour": "Sum of absolute depth changes between consecutive spikes, normalized to um/hour. Formula: sum(abs(diff(spike_depths)))/duration*3600. High values indicate either electrode drift or depth estimation noise. Scales with spike count (~0.79 correlation). NOT actual electrode displacement.",
+    "presence_ratio": {
+        "ibl_name": "presence_ratio",
+        "description": "Fraction of time bins (60s default) with at least one spike. Good units typically >0.9.",
+    },
+    "presence_ratio_std": {
+        "ibl_name": "presence_ratio_std",
+        "description": "Standard deviation of spike counts across 10-second time bins.",
+    },
+    "cumulative_drift_um_per_hour": {
+        "ibl_name": "drift",
+        "description": "Sum of absolute depth changes between consecutive spikes, normalized to um/hour. Formula: sum(abs(diff(spike_depths)))/duration*3600. High values indicate either electrode drift or depth estimation noise. Scales with spike count (~0.79 correlation). NOT actual electrode displacement.",
+    },
     # Amplitude statistics (in microvolts - natural unit for neuroscience)
-    "median_spike_amplitude_uV": "Median spike amplitude in microvolts. IBL uses 50 uV threshold for quality filtering.",
-    "min_spike_amplitude_uV": "Minimum spike amplitude in microvolts.",
-    "max_spike_amplitude_uV": "Maximum spike amplitude in microvolts.",
-    "spike_amplitude_std_dB": "Standard deviation of log-transformed spike amplitudes in decibels. High values (>6 dB) may indicate drift or contamination.",
+    "median_spike_amplitude_uV": {
+        "ibl_name": "amp_median",
+        "description": "Median spike amplitude in microvolts. IBL uses 50 uV threshold for quality filtering.",
+    },
+    "min_spike_amplitude_uV": {
+        "ibl_name": "amp_min",
+        "description": "Minimum spike amplitude in microvolts.",
+    },
+    "max_spike_amplitude_uV": {
+        "ibl_name": "amp_max",
+        "description": "Maximum spike amplitude in microvolts.",
+    },
+    "spike_amplitude_std_dB": {
+        "ibl_name": "amp_std_dB",
+        "description": "Standard deviation of log-transformed spike amplitudes in decibels. High values (>6 dB) may indicate drift or contamination.",
+    },
     # Ragged arrays (per-spike data)
-    "spike_amplitudes_uV": "Peak amplitude of each spike for each unit in microvolts.",
-    "spike_relative_depths_um": "Relative depth along the probe for each spike in micrometers, computed from waveform center of mass. 0 is deepest site.",
+    "spike_amplitudes_uV": {
+        "ibl_name": None,  # Set separately from spike data
+        "description": "Peak amplitude of each spike for each unit in microvolts.",
+    },
+    "spike_relative_depths_um": {
+        "ibl_name": None,  # Set separately from spike data
+        "description": "Relative depth along the probe for each spike in micrometers, computed from waveform center of mass. 0 is deepest site.",
+    },
 }
 
-# Mapping from IBL clusters.metrics column names to NWB property names
-# Only includes properties that come from clusters.metrics.pqt
+# Derived mappings for convenience (generated from master table)
+# Only includes properties that come from clusters.metrics.pqt (excludes None ibl_names)
 IBL_METRICS_TO_NWB = {
-    "cluster_uuid": "cluster_uuid",
-    "spike_count": "spike_count",
-    "firing_rate": "firing_rate",
-    "label": "ibl_quality_score",
-    "ks2_label": "kilosort2_label",
-    "slidingRP_viol": "sliding_rp_violation",
-    "contamination": "isi_violations_ratio",
-    "contamination_alt": "rp_violation",
-    "noise_cutoff": "noise_cutoff",
-    "missed_spikes_est": "missed_spikes_estimate",
-    "presence_ratio": "presence_ratio",
-    "presence_ratio_std": "presence_ratio_std",
-    "drift": "cumulative_drift_um_per_hour",
-    "amp_median": "median_spike_amplitude_uV",
-    "amp_min": "min_spike_amplitude_uV",
-    "amp_max": "max_spike_amplitude_uV",
-    "amp_std_dB": "spike_amplitude_std_dB",
+    v["ibl_name"]: k
+    for k, v in UNITS_COLUMNS.items()
+    if v["ibl_name"] is not None and v["ibl_name"] not in ("probe_name", "cluster_depths")
 }
 
 
 def get_unit_property_descriptions() -> list[dict]:
     """Build the UnitProperties list for NWB metadata."""
-    return [{"name": name, "description": desc} for name, desc in UNIT_PROPERTY_DESCRIPTIONS.items()]
+    return [{"name": name, "description": col_info["description"]} for name, col_info in UNITS_COLUMNS.items()]
 
 
 def _format_probe_label(probe_name: str) -> str:

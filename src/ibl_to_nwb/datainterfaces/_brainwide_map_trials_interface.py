@@ -13,50 +13,77 @@ from pynwb.epoch import TimeIntervals
 from ._base_ibl_interface import BaseIBLDataInterface
 
 
-# Trial column descriptions for NWB metadata
-# Order: Temporal (chronological) -> Stimulus -> Response/Outcome
-# This dict defines the canonical column order (dict order is preserved in Python 3.7+)
-TRIAL_COLUMN_DESCRIPTIONS = {
-    # Temporal columns (chronological order within a trial)
-    "start_time": "The beginning of the trial.",
-    "stop_time": "The end of the trial.",
-    "auditory_cue_time": "Start time of the auditory go cue tone (100ms 5kHz sine wave), recorded via soundcard sync fed back into Bpod.",
-    "stimulus_onset_time": "Time when the Gabor patch appears on screen, detected by photodiode over the sync square.",
-    "first_wheel_movement_time": "Time of first wheel movement >= 0.1 radians, occurring between go cue and feedback.",
-    "wheel_response_time": "Time when wheel reached +/-35 deg threshold (or 60s timeout).",
-    "feedback_time": "Time of feedback delivery (valve TTL for correct, white noise trigger for incorrect).",
-    "stimulus_offset_time": "Time when the Gabor patch disappears from screen, recorded by external photodiode.",
-    # Stimulus columns
-    "gabor_contrast": "Contrast of the Gabor patch stimulus as a proportion (0 to 1, where 1 is 100% contrast). NaN for catch trials.",
-    "stimulus_side": "Side where stimulus appeared: 'left' (-35 deg), 'right' (+35 deg), or 'none' (catch trial).",
-    "probability_left": "Prior probability of left stimulus (0.2, 0.5, or 0.8 in biasedChoiceWorld).",
-    # Response and outcome columns
-    "response_direction": "Mouse response direction: 'left' (CCW wheel turn), 'right' (CW wheel turn), or 'no_go' (timeout).",
-    "trial_outcome": "Trial outcome: 'correct' (rewarded) or 'incorrect' (white noise burst).",
-    "reward_volume_uL": "Volume of sugar water reward in microliters (0 for incorrect trials).",
-}
-
-# Mapping from IBL column names (after tidy transformations) to NWB column names
+# Single source of truth for trials column metadata
+# Keys are NWB column names (dict order = column order in NWB file)
+# Values contain IBL source column name and description
 # Note: Some IBL columns are transformed before mapping:
 #   - choice: -1/0/+1 -> "left"/"no_go"/"right"
 #   - feedbackType: -1/+1 -> "incorrect"/"correct"
 #   - contrastLeft/contrastRight -> "contrast" + "stimulus_side"
-IBL_TO_NWB_COLUMNS = {
-    "intervals_0": "start_time",
-    "intervals_1": "stop_time",
-    "goCue_times": "auditory_cue_time",
-    "stimOn_times": "stimulus_onset_time",
-    "firstMovement_times": "first_wheel_movement_time",
-    "response_times": "wheel_response_time",
-    "feedback_times": "feedback_time",
-    "stimOff_times": "stimulus_offset_time",
-    "contrast": "gabor_contrast",  # computed from contrastLeft/contrastRight
-    "stimulus_side": "stimulus_side",  # computed from contrastLeft/contrastRight
-    "probabilityLeft": "probability_left",
-    "choice": "response_direction",  # transformed from -1/0/+1 to strings
-    "feedbackType": "trial_outcome",  # transformed from -1/+1 to strings
-    "rewardVolume": "reward_volume_uL",
+TRIALS_COLUMNS = {
+    # Temporal columns (chronological order within a trial)
+    "start_time": {
+        "ibl_name": "intervals_0",
+        "description": "The beginning of the trial.",
+    },
+    "stop_time": {
+        "ibl_name": "intervals_1",
+        "description": "The end of the trial.",
+    },
+    "auditory_cue_time": {
+        "ibl_name": "goCue_times",
+        "description": "Start time of the auditory go cue tone (100ms 5kHz sine wave), recorded via soundcard sync fed back into Bpod.",
+    },
+    "stimulus_onset_time": {
+        "ibl_name": "stimOn_times",
+        "description": "Time when the Gabor patch appears on screen, detected by photodiode over the sync square.",
+    },
+    "first_wheel_movement_time": {
+        "ibl_name": "firstMovement_times",
+        "description": "Time of first wheel movement >= 0.1 radians, occurring between go cue and feedback.",
+    },
+    "choice_registration_time": {
+        "ibl_name": "response_times",
+        "description": "Time when the mouse's choice was registered (wheel crossed +/-35 deg threshold, or 60s timeout).",
+    },
+    "feedback_time": {
+        "ibl_name": "feedback_times",
+        "description": "Time of feedback delivery (valve TTL for correct, white noise trigger for incorrect).",
+    },
+    "stimulus_offset_time": {
+        "ibl_name": "stimOff_times",
+        "description": "Time when the Gabor patch disappears from screen, recorded by external photodiode.",
+    },
+    # Stimulus columns
+    "gabor_contrast": {
+        "ibl_name": "contrast",  # computed from contrastLeft/contrastRight
+        "description": "Contrast of the Gabor patch stimulus as a proportion (0 to 1, where 1 is 100% contrast). NaN for catch trials.",
+    },
+    "stimulus_side": {
+        "ibl_name": "stimulus_side",  # computed from contrastLeft/contrastRight
+        "description": "Side where stimulus appeared: 'left' (-35 deg), 'right' (+35 deg), or 'none' (catch trial).",
+    },
+    "probability_left": {
+        "ibl_name": "probabilityLeft",
+        "description": "Prior probability of left stimulus (0.2, 0.5, or 0.8 in biasedChoiceWorld).",
+    },
+    # Response and outcome columns
+    "mouse_choice": {
+        "ibl_name": "choice",  # transformed from -1/0/+1 to strings
+        "description": "Mouse's choice: 'left' (CCW wheel turn), 'right' (CW wheel turn), or 'no_go' (timeout).",
+    },
+    "trial_outcome": {
+        "ibl_name": "feedbackType",  # transformed from -1/+1 to strings
+        "description": "Trial outcome: 'correct' (rewarded) or 'incorrect' (white noise burst).",
+    },
+    "reward_volume_uL": {
+        "ibl_name": "rewardVolume",
+        "description": "Volume of sugar water reward in microliters (0 for incorrect trials).",
+    },
 }
+
+# Derived mappings for convenience (generated from master table)
+IBL_TO_NWB_COLUMNS = {v["ibl_name"]: k for k, v in TRIALS_COLUMNS.items()}
 
 
 class BrainwideMapTrialsInterface(BaseIBLDataInterface):
@@ -194,19 +221,14 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         # Apply tidy data transformations
         trials = self._apply_tidy_transformations(trials)
 
-        # Build columns using the module-level mappings
-        # TRIAL_COLUMN_DESCRIPTIONS defines the column order (dict preserves insertion order)
-        # IBL_TO_NWB_COLUMNS provides ibl_col -> nwb_col mapping, we need the inverse here
-        nwb_to_ibl = {nwb: ibl for ibl, nwb in IBL_TO_NWB_COLUMNS.items()}
-
+        # Build columns using the master TRIALS_COLUMNS table
         columns = []
-        for nwb_name in TRIAL_COLUMN_DESCRIPTIONS:
-            ibl_col = nwb_to_ibl[nwb_name]
+        for nwb_name, col_info in TRIALS_COLUMNS.items():
             columns.append(
                 VectorData(
                     name=nwb_name,
-                    description=TRIAL_COLUMN_DESCRIPTIONS[nwb_name],
-                    data=trials[ibl_col].values,
+                    description=col_info["description"],
+                    data=trials[col_info["ibl_name"]].values,
                 )
             )
 
