@@ -104,9 +104,8 @@ class IblSortingExtractor(BaseSorting):
         spike_depths_by_id = defaultdict(list) if not skip_spike_depths else None
         unit_properties = defaultdict(list)
         cluster_ids = list()
-        unit_id_per_probe_shift = 0
 
-        for probe_name in self.probe_names:
+        for probe_name in sorted(self.probe_names):
             # Load spike sorting data
             sorting_loader = self.sorting_loaders[probe_name]
             spikes, clusters, channels = sorting_loader.load_spike_sorting(revision=self.revision)
@@ -118,21 +117,21 @@ class IblSortingExtractor(BaseSorting):
                 unique_clusters = unique_clusters[:stub_units]
 
             number_of_units = len(unique_clusters)
-            cluster_ids.extend(list(np.arange(number_of_units).astype("int32") + unit_id_per_probe_shift))
+            # Generate unit IDs with probe name prefix: probe00_0, probe00_1, probe01_0, etc.
+            probe_cluster_ids = [f"{probe_name}_{i}" for i in range(number_of_units)]
+            cluster_ids.extend(probe_cluster_ids)
 
             # Separate spikes by cluster using np.where indexing
             for cluster_index, spike_cluster in enumerate(
                 tqdm(unique_clusters, desc=f"Separating spikes by cluster ({probe_name})", unit="cluster")
             ):
                 spike_indices = np.where(spikes["clusters"] == spike_cluster)[0]
-                unit_id = unit_id_per_probe_shift + cluster_index
+                unit_id = f"{probe_name}_{cluster_index}"
                 spike_times_by_id[unit_id] = spikes["times"][spike_indices]
                 if spike_amplitudes_by_id is not None:
                     spike_amplitudes_by_id[unit_id] = spikes["amps"][spike_indices]
                 if spike_depths_by_id is not None:
                     spike_depths_by_id[unit_id] = spikes["depths"][spike_indices]
-
-            unit_id_per_probe_shift += number_of_units
 
             # Unit properties with IBL names
             unit_properties["probe_name"].extend([probe_name] * number_of_units)
@@ -222,14 +221,14 @@ class IblSortingExtractor(BaseSorting):
 
 
 class IblSortingSegment(BaseSortingSegment):
-    def __init__(self, sampling_frequency: float, spike_times_by_id: Dict[int, np.ndarray]):
+    def __init__(self, sampling_frequency: float, spike_times_by_id: Dict[str, np.ndarray]):
         BaseSortingSegment.__init__(self)
         self._sampling_frequency = sampling_frequency
         self._spike_times_by_id = spike_times_by_id
 
     def get_unit_spike_train(
         self,
-        unit_id: int,
+        unit_id: str,
         start_frame: Union[int, None] = None,
         end_frame: Union[int, None] = None,
     ) -> np.ndarray:
@@ -241,14 +240,14 @@ class IblSortingSegment(BaseSortingSegment):
             frames = frames[frames < end_frame]
         return frames
 
-    def get_unit_spike_times(self, unit_id: int) -> np.ndarray:
+    def get_unit_spike_times(self, unit_id: str) -> np.ndarray:
         """
         Get the spike times for a given unit ID.
 
         Parameters
         ----------
-        unit_id : int
-            The ID of the unit.
+        unit_id : str
+            The ID of the unit (e.g., 'probe00_0', 'probe01_5').
 
         Returns
         -------
