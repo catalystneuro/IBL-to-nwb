@@ -308,7 +308,7 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
         # Add passive stimulation intervals as a TimeIntervals table
         passive_stims = TimeIntervals(
             name="passive_task_replay",
-            description="Passive stimulation events including valve, tone, and noise stimuli.",
+            description=f"Passive stimulation events including valve, tone, and noise stimuli.{revision_str}",
         )
 
         # Add custom column for stimulation type
@@ -390,7 +390,7 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
 
         gabor_events = TimeIntervals(
             name="gabor_table",
-            description="Gabor patch presentations table.",
+            description=f"Gabor patch presentations table.{revision_str}",
             columns=columns,
         )
 

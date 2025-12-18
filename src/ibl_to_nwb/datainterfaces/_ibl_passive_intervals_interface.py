@@ -217,9 +217,10 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
             passive_module = nwbfile.processing["passive_protocol"]
 
         # Create a custom TimeIntervals table for passive intervals
+        revision_str = f" Data revision: {self.revision}." if self.revision else ""
         passive_intervals = TimeIntervals(
             name="passive_intervals",
-            description="Detailed timing of passive protocol phases (spontaneous activity, RFM, task replay)"
+            description=f"Detailed timing of passive protocol phases (spontaneous activity, RFM, task replay).{revision_str}"
         )
 
         # Add custom column for protocol name
