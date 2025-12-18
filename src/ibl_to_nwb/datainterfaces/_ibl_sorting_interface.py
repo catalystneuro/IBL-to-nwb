@@ -39,13 +39,13 @@ UNIT_PROPERTY_DESCRIPTIONS = {
     "presence_ratio": "Fraction of time bins (60s default) with at least one spike. Good units typically >0.9.",
     "presence_ratio_std": "Standard deviation of spike counts across 10-second time bins.",
     "cumulative_drift_um_per_hour": "Sum of absolute depth changes between consecutive spikes, normalized to um/hour. Formula: sum(abs(diff(spike_depths)))/duration*3600. High values indicate either electrode drift or depth estimation noise. Scales with spike count (~0.79 correlation). NOT actual electrode displacement.",
-    # Amplitude statistics
-    "median_spike_amplitude_volts": "Median spike amplitude in Volts. IBL uses 50 uV (5e-5 V) threshold for quality filtering.",
-    "min_spike_amplitude_volts": "Minimum spike amplitude in Volts.",
-    "max_spike_amplitude_volts": "Maximum spike amplitude in Volts.",
+    # Amplitude statistics (in microvolts - natural unit for neuroscience)
+    "median_spike_amplitude_uV": "Median spike amplitude in microvolts. IBL uses 50 uV threshold for quality filtering.",
+    "min_spike_amplitude_uV": "Minimum spike amplitude in microvolts.",
+    "max_spike_amplitude_uV": "Maximum spike amplitude in microvolts.",
     "spike_amplitude_std_dB": "Standard deviation of log-transformed spike amplitudes in decibels. High values (>6 dB) may indicate drift or contamination.",
     # Ragged arrays (per-spike data)
-    "spike_amplitudes_volts": "Peak amplitude of each spike for each unit in Volts.",
+    "spike_amplitudes_uV": "Peak amplitude of each spike for each unit in microvolts.",
     "spike_relative_depths_um": "Relative depth along the probe for each spike in micrometers, computed from waveform center of mass. 0 is deepest site.",
 }
 
@@ -65,9 +65,9 @@ IBL_METRICS_TO_NWB = {
     "presence_ratio": "presence_ratio",
     "presence_ratio_std": "presence_ratio_std",
     "drift": "cumulative_drift_um_per_hour",
-    "amp_median": "median_spike_amplitude_volts",
-    "amp_min": "min_spike_amplitude_volts",
-    "amp_max": "max_spike_amplitude_volts",
+    "amp_median": "median_spike_amplitude_uV",
+    "amp_min": "min_spike_amplitude_uV",
+    "amp_max": "max_spike_amplitude_uV",
     "amp_std_dB": "spike_amplitude_std_dB",
 }
 
@@ -267,9 +267,9 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         list of list of int
             For each unit, a list containing the electrode table index
         """
-        # Get unit properties (use internal property for channel mapping)
-        unit_probe_names = self.sorting_extractor.get_property("probe_name")
-        unit_channel_ids = self.sorting_extractor.get_property("_max_amplitude_channel")
+        # Get unit properties from instance variables (set during data loading)
+        unit_probe_names = self._unit_probe_names
+        unit_channel_ids = self._max_amplitude_channels
 
         # If no mapping provided, build it from electrodes table
         if channel_to_electrode_map is None:
@@ -402,6 +402,9 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             cluster_ids = ibl_data["cluster_ids"]
             ibl_properties = ibl_data["unit_properties"]
 
+            # Properties that need Volts -> microvolts conversion (multiply by 1e6)
+            amplitude_properties = {"median_spike_amplitude_uV", "min_spike_amplitude_uV", "max_spike_amplitude_uV"}
+
             # Map IBL property names to NWB names and set on extractor
             for ibl_name, nwb_name in IBL_METRICS_TO_NWB.items():
                 if ibl_name in ibl_properties:
@@ -410,6 +413,9 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
                     # Use -1 as sentinel for missing values (NaN)
                     if nwb_name == "spike_count":
                         values = np.where(np.isnan(values), -1, values).astype(np.int64)
+                    # Convert amplitude from Volts to microvolts
+                    elif nwb_name in amplitude_properties:
+                        values = values * 1e6
                     self.sorting_extractor.set_property(
                         key=nwb_name,
                         values=values,
@@ -423,21 +429,22 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
                 ids=cluster_ids,
             )
             self.sorting_extractor.set_property(
-                key="_max_amplitude_channel",
-                values=ibl_properties["_max_amplitude_channel"],
-                ids=cluster_ids,
-            )
-            self.sorting_extractor.set_property(
                 key="mean_relative_depth_um",
                 values=ibl_properties["cluster_depths"],
                 ids=cluster_ids,
             )
 
+            # Store max amplitude channel internally for electrode linking (not written to NWB)
+            self._max_amplitude_channels = ibl_properties["_max_amplitude_channel"]
+            self._unit_probe_names = ibl_properties["probe_name"]
+
             # Set ragged array properties (per-spike data) if not skipped
             if ibl_data["spike_amplitudes_by_id"] is not None:
+                # Convert from Volts to microvolts
+                spike_amps_uV = [arr * 1e6 for arr in ibl_data["spike_amplitudes_by_id"].values()]
                 self.sorting_extractor.set_property(
-                    key="spike_amplitudes_volts",
-                    values=np.array(list(ibl_data["spike_amplitudes_by_id"].values()), dtype=object),
+                    key="spike_amplitudes_uV",
+                    values=np.array(spike_amps_uV, dtype=object),
                     ids=cluster_ids,
                 )
             if ibl_data["spike_depths_by_id"] is not None:

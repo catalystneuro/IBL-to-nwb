@@ -158,15 +158,15 @@ The interface adds the following columns to the NWB units table. Each column inc
 | `presence_ratio` | Stability | Yes (`presence_ratio`) |
 | `presence_ratio_std` | Stability | No (IBL-specific) |
 | `cumulative_drift_um_per_hour` | Stability | Partial (`drift_ptp`) |
-| `median_spike_amplitude_volts` | Amplitude | Yes (`amplitude_median`) |
-| `min_spike_amplitude_volts` | Amplitude | No (IBL-specific) |
-| `max_spike_amplitude_volts` | Amplitude | No (IBL-specific) |
+| `median_spike_amplitude_uV` | Amplitude | Yes (`amplitude_median`) |
+| `min_spike_amplitude_uV` | Amplitude | No (IBL-specific) |
+| `max_spike_amplitude_uV` | Amplitude | No (IBL-specific) |
 | `spike_amplitude_std_dB` | Amplitude | Partial (`amplitude_cv`) |
-| `spike_amplitudes_volts` | Ragged Array | Yes (`spike_amplitudes`) |
+| `spike_amplitudes_uV` | Ragged Array | Yes (`spike_amplitudes`) |
 | `spike_relative_depths_um` | Ragged Array | Yes (`spike_locations`) |
 
 **Important Notes on Units:**
-- **Amplitude columns are in Volts (V)**, not microvolts. IBL stores amplitudes in Volts.
+- **Amplitude columns are in microvolts (uV)**, the natural unit for neuroscience. Converted from IBL's Volts during export.
 - **`cumulative_drift_um_per_hour`** is the sum of absolute depth changes between spikes, NOT actual electrode displacement (see detailed description below).
 
 ---
@@ -187,12 +187,12 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ---
 
-#### `spike_amplitudes_volts`
+#### `spike_amplitudes_uV`
 
 | Property | Value |
 |----------|-------|
-| **IBL Source** | `spikes.amps.npy` |
-| **Units** | Volts (V) |
+| **IBL Source** | `spikes.amps.npy` (converted from Volts) |
+| **Units** | Microvolts (uV) |
 | **SpikeInterface** | Yes (`spike_amplitudes` extension) |
 
 **What it measures**: The peak-to-trough amplitude of each individual spike's waveform on the maximum amplitude channel.
@@ -201,7 +201,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 **Why it varies**: Even spikes from the same neuron can have different amplitudes depending on the exact position of the action potential initiation site relative to the electrode.
 
-**Note on units**: IBL stores amplitudes in Volts. Typical values are in the range 3e-5 to 3e-4 V (30-300 uV).
+**Typical values**: 30-300 uV for well-isolated units.
 
 ---
 
@@ -237,14 +237,14 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ### Amplitude Statistics
 
-**Note**: IBL stores all amplitude values in **Volts**, not microvolts. Typical neural spike amplitudes are in the range 3e-5 to 3e-4 V (30-300 uV).
+**Note**: Amplitude values are stored in **microvolts (uV)**, the natural unit for neuroscience. Converted from IBL's internal Volts representation.
 
-#### `max_spike_amplitude_volts`
+#### `max_spike_amplitude_uV`
 
 | Property | Value |
 |----------|-------|
-| **IBL Source** | `amp_max` |
-| **Units** | Volts (V) |
+| **IBL Source** | `amp_max` (converted from Volts) |
+| **Units** | Microvolts (uV) |
 | **SpikeInterface** | No (IBL-specific) |
 
 **What it measures**: The maximum spike amplitude observed for this unit across all its spikes.
@@ -253,12 +253,12 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ---
 
-#### `min_spike_amplitude_volts`
+#### `min_spike_amplitude_uV`
 
 | Property | Value |
 |----------|-------|
-| **IBL Source** | `amp_min` |
-| **Units** | Volts (V) |
+| **IBL Source** | `amp_min` (converted from Volts) |
+| **Units** | Microvolts (uV) |
 | **SpikeInterface** | No (IBL-specific) |
 
 **What it measures**: The minimum spike amplitude observed for this unit.
@@ -267,19 +267,19 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ---
 
-#### `median_spike_amplitude_volts`
+#### `median_spike_amplitude_uV`
 
 | Property | Value |
 |----------|-------|
-| **IBL Source** | `amp_median` |
-| **Units** | Volts (V) |
+| **IBL Source** | `amp_median` (converted from Volts) |
+| **Units** | Microvolts (uV) |
 | **SpikeInterface** | Yes (`amplitude_median`) |
 
 **What it measures**: The geometric median of all spike amplitudes, computed in log-space.
 
-**Intuition**: A robust measure of typical spike size that resists outliers. IBL uses a 50 uV (5e-5 V) threshold - units below this are likely noise or very distant neurons.
+**Intuition**: A robust measure of typical spike size that resists outliers. IBL uses a 50 uV threshold - units below this are likely noise or very distant neurons.
 
-**Quality criterion**: Units must have `median_spike_amplitude_volts >= 5e-5` (50 uV) to pass IBL's amplitude threshold.
+**Quality criterion**: Units must have `median_spike_amplitude_uV >= 50` to pass IBL's amplitude threshold.
 
 ---
 
@@ -879,5 +879,5 @@ for i, unit_id in enumerate(nwbfile.units.id[:]):
 | `spike_count` | 100 - 500,000 | Depends on session length and firing rate |
 | `presence_ratio` | 0.5 - 1.0 | Good units typically >0.9 |
 | `isi_violations_ratio` | 0.0 - 0.5 | Good units typically <0.1 |
-| `median_spike_amplitude_volts` | 3e-5 - 5e-4 V | 30-500 uV; IBL threshold is 5e-5 V (50 uV) |
+| `median_spike_amplitude_uV` | 30 - 500 uV | IBL quality threshold is 50 uV |
 | `cumulative_drift_um_per_hour` | 1,000 - 1,000,000+ | Scales with spike count; NOT actual displacement |
