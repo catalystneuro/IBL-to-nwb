@@ -27,8 +27,42 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
     The intervals are stored as a custom TimeIntervals table in processing/passive_protocol.
     """
 
-    # Passive intervals use BWM standard revision
-    REVISION: str | None = "2025-05-06"
+    # Passive data was re-released with new revisions (2025-12-04 and 2025-12-05).
+    # We query ONE API to find which revision is available and pick the last one.
+    REVISION_CANDIDATES: list[str] = ["2025-12-04", "2025-12-05"]
+
+    @staticmethod
+    def _resolve_revision(one: ONE, eid: str, candidates: list[str]) -> str | None:
+        """
+        Find the last available revision from candidates list.
+
+        Queries ONE API to check which revisions have passive data available.
+        Returns the last matching revision (preferring 2025-12-05 over 2025-12-04).
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        candidates : list[str]
+            List of revision candidates to check, in order
+
+        Returns
+        -------
+        str | None
+            The last available revision, or None if none found
+        """
+        datasets = one.list_datasets(eid)
+        dataset_strs = [str(d) for d in datasets]
+
+        found_revision = None
+        for revision in candidates:
+            revision_tag = f"#{revision}#"
+            if any(revision_tag in ds for ds in dataset_strs):
+                found_revision = revision
+
+        return found_revision
 
     def __init__(
         self,
@@ -48,7 +82,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         super().__init__()
         self.one = one
         self.session = session
-        self.revision = self.REVISION
+        self.revision = self._resolve_revision(one, session, self.REVISION_CANDIDATES)
 
         # Load the intervals table - will fail loudly if data missing
         self.passive_intervals_df = one.load_dataset(
@@ -94,7 +128,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         """
         Download passive period intervals data.
 
-        NOTE: Uses class-level REVISION attribute automatically.
+        NOTE: Queries ONE API to find the last available revision from REVISION_CANDIDATES.
 
         Parameters
         ----------
@@ -114,8 +148,8 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         """
         requirements = cls.get_data_requirements()
 
-        # Use class-level REVISION attribute
-        revision = cls.REVISION
+        # Find the last available revision from candidates
+        revision = cls._resolve_revision(one, eid, cls.REVISION_CANDIDATES)
 
         if logger:
             logger.info(f"Downloading passive intervals data (session {eid}, revision {revision})")
@@ -166,6 +200,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
 
         # Get or create the passive processing module
         if "passive_protocol" not in nwbfile.processing:
+            revision_str = f" Data revision: {self.revision}." if self.revision else ""
             passive_module = ProcessingModule(
                 name="passive_protocol",
                 description=(
@@ -174,7 +209,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
                     "(1) spontaneous activity with no stimuli, "
                     "(2) receptive field mapping (RFM) using sparse noise visual stimuli, and "
                     "(3) task replay presenting the same Gabor patches and auditory stimuli (valve, tone, noise) "
-                    "used during the active behavioral task."
+                    f"used during the active behavioral task.{revision_str}"
                 )
             )
             nwbfile.add_processing_module(passive_module)

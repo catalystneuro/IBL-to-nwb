@@ -12,6 +12,7 @@ import pandas as pd
 
 # from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
+from ibl_to_nwb.datainterfaces._brainwide_map_trials_interface import IBL_TO_NWB_COLUMNS
 
 
 def get_logger(eid: str):
@@ -234,31 +235,12 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     # Apply tidy transformations to match NWB format
     data_from_ONE = _apply_tidy_trials_transformations(data_from_ONE)
 
-    # Mapping from NWB column names to transformed ONE column names
-    # (reflects new tidy format with consolidated contrast columns)
-    naming_map = {
-        "start_time": "intervals_0",
-        "stop_time": "intervals_1",
-        # Chronological event times
-        "go_cue_time": "goCue_times",
-        "stim_on_time": "stimOn_times",
-        "first_movement_time": "firstMovement_times",
-        "response_time": "response_times",
-        "feedback_time": "feedback_times",
-        "stim_off_time": "stimOff_times",
-        # Stimulus (consolidated)
-        "contrast_proportion": "contrast",
-        "stimulus_side": "stimulus_side",
-        "probability_left": "probabilityLeft",
-        # Response and outcome
-        "choice": "choice",
-        "feedback_type": "feedbackType",
-        "reward_volume_uL": "rewardVolume",
-    }
+    # Use imported mapping (IBL -> NWB), invert it for NWB -> IBL lookup
+    nwb_to_ibl = {nwb: ibl for ibl, nwb in IBL_TO_NWB_COLUMNS.items()}
 
     # reordering and renaming the columns
-    data_from_ONE = data_from_ONE[[naming_map[col] for col in data_from_NWB.columns]]
-    data_from_ONE.columns = naming_map.keys()
+    data_from_ONE = data_from_ONE[[nwb_to_ibl[col] for col in data_from_NWB.columns]]
+    data_from_ONE.columns = data_from_NWB.columns
 
     assert_frame_equal(left=data_from_NWB, right=data_from_ONE)
     _logger.debug("trials table passed")
