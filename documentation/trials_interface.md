@@ -536,12 +536,12 @@ chose_left = trials[trials['choice'] == 'left']
 
 ### Implementation Status
 
-- [ ] Temporal column reordering
-- [ ] Categorical choice values
-- [ ] Categorical feedback_type values
-- [ ] Consolidated contrast + stimulus_side columns
-- [ ] Update consistency checks
-- [ ] Update metadata YAML
+- [x] Temporal column reordering
+- [x] Categorical choice values
+- [x] Categorical feedback_type values
+- [x] Consolidated contrast + stimulus_side columns
+- [x] Update consistency checks
+- [x] Remove metadata YAML (consolidated inline in interface)
 - [ ] Update notebook examples
 
 ### References

@@ -180,6 +180,47 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
             _logger.debug(f"pose estimation for {view} passed")
 
 
+def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
+    """
+    Apply tidy data transformations to trials DataFrame.
+
+    This mirrors the transformations in BrainwideMapTrialsInterface._apply_tidy_transformations
+    to enable consistency checking between ONE source data and NWB output.
+
+    Transformations:
+    - choice: -1/0/+1 -> "left"/"no_go"/"right"
+    - feedbackType: -1/+1 -> "incorrect"/"correct"
+    - contrastLeft/contrastRight -> contrast + stimulus_side
+    """
+    trials = trials.copy()
+
+    # Transform choice: -1 -> "left", 0 -> "no_go", +1 -> "right"
+    choice_map = {-1.0: "left", 0.0: "no_go", 1.0: "right"}
+    trials["choice"] = trials["choice"].map(choice_map)
+
+    # Transform feedback_type: -1 -> "incorrect", +1 -> "correct"
+    feedback_map = {-1.0: "incorrect", 1.0: "correct"}
+    trials["feedbackType"] = trials["feedbackType"].map(feedback_map)
+
+    # Consolidate contrast columns into contrast + stimulus_side
+    def compute_stimulus_side(left, right):
+        if pd.isna(left) and pd.isna(right):
+            return "none"
+        return "left" if left > 0 else "right"
+
+    def compute_contrast(left, right):
+        if pd.isna(left) and pd.isna(right):
+            return np.nan
+        return left if left > 0 else right
+
+    trials["stimulus_side"] = [
+        compute_stimulus_side(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+    ]
+    trials["contrast"] = [compute_contrast(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])]
+
+    return trials
+
+
 def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
@@ -190,25 +231,29 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     session_loader.load_trials()
     data_from_ONE = session_loader.trials.reset_index(drop=True)
 
-    # data_from_ONE = one.load_dataset(eid, "_ibl_trials.table", collection="alf")
-    # data_from_ONE["stimOff_times"] = one.load_dataset(eid, "_ibl_trials.stimOff_times", collection="alf")
-    # data_from_ONE.index.name = "id"
+    # Apply tidy transformations to match NWB format
+    data_from_ONE = _apply_tidy_trials_transformations(data_from_ONE)
 
+    # Mapping from NWB column names to transformed ONE column names
+    # (reflects new tidy format with consolidated contrast columns)
     naming_map = {
         "start_time": "intervals_0",
         "stop_time": "intervals_1",
+        # Chronological event times
+        "go_cue_time": "goCue_times",
+        "stim_on_time": "stimOn_times",
+        "first_movement_time": "firstMovement_times",
+        "response_time": "response_times",
+        "feedback_time": "feedback_times",
+        "stim_off_time": "stimOff_times",
+        # Stimulus (consolidated)
+        "contrast_proportion": "contrast",
+        "stimulus_side": "stimulus_side",
+        "probability_left": "probabilityLeft",
+        # Response and outcome
         "choice": "choice",
         "feedback_type": "feedbackType",
-        "reward_volume": "rewardVolume",
-        "contrast_left": "contrastLeft",
-        "contrast_right": "contrastRight",
-        "probability_left": "probabilityLeft",
-        "feedback_time": "feedback_times",
-        "response_time": "response_times",
-        "stim_off_time": "stimOff_times",
-        "stim_on_time": "stimOn_times",
-        "go_cue_time": "goCue_times",
-        "first_movement_time": "firstMovement_times",
+        "reward_volume_uL": "rewardVolume",
     }
 
     # reordering and renaming the columns
