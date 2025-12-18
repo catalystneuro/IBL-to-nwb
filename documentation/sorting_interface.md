@@ -143,32 +143,31 @@ The interface adds the following columns to the NWB units table. Each column inc
 | NWB Column | Category | SpikeInterface |
 |------------|----------|----------------|
 | `spike_times` | Core | Yes (built-in) |
-| `spike_amplitudes_V` | Core | Yes (`spike_amplitudes`) |
-| `spike_relative_depths_um` | Core | Yes (`spike_locations`) |
-| `maximum_amplitude_channel` | Location | Yes (`extremum_channel`) |
-| `mean_relative_depth_um` | Location | Partial |
-| `amplitude_max_V` | Amplitude | No (IBL-specific) |
-| `amplitude_min_V` | Amplitude | No (IBL-specific) |
-| `amplitude_median_V` | Amplitude | Yes (`amplitude_median`) |
-| `amplitude_std_dB` | Amplitude | Partial (`amplitude_cv`) |
-| `ibl_quality_score` | Quality | No (IBL composite) |
-| `kilosort2_label` | Quality | No (Kilosort-specific) |
-| `sliding_rp_violation` | Quality | Yes (`sliding_rp_violations`) |
-| `noise_cutoff` | Quality | Yes (`amplitude_cutoff`) |
-| `isi_violations_ratio` | Quality | Yes (`isi_violations_ratio`) |
-| `rp_violation` | Quality | Yes (`rp_violations`) |
-| `missed_spikes_estimate` | Quality | Yes (`amplitude_cutoff`) |
+| `probe_name` | Identification | N/A |
+| `cluster_uuid` | Identification | N/A |
 | `spike_count` | Activity | Yes (implicit) |
 | `firing_rate` | Activity | Yes (`firing_rate`) |
-| `presence_ratio` | Activity | Yes (`presence_ratio`) |
-| `presence_ratio_std` | Activity | No (IBL-specific) |
-| `drift_um_per_hour` | Activity | No (IBL-specific) |
-| `cluster_uuid` | ID | N/A |
-| `probe_name` | ID | N/A |
+| `mean_relative_depth_um` | Location | Partial (via `spike_locations`) |
+| `ibl_quality_score` | Quality Label | No (IBL composite) |
+| `kilosort2_label` | Quality Label | No (Kilosort-specific) |
+| `sliding_rp_violation` | Quality Metric | Yes (`sliding_rp_violations`) |
+| `isi_violations_ratio` | Quality Metric | Yes (`isi_violations_ratio`) |
+| `rp_violation` | Quality Metric | Yes (`rp_violations`) |
+| `noise_cutoff` | Quality Metric | Yes (`amplitude_cutoff`) |
+| `missed_spikes_estimate` | Quality Metric | Yes (`amplitude_cutoff`) |
+| `presence_ratio` | Stability | Yes (`presence_ratio`) |
+| `presence_ratio_std` | Stability | No (IBL-specific) |
+| `cumulative_drift_um_per_hour` | Stability | Partial (`drift_ptp`) |
+| `median_spike_amplitude_volts` | Amplitude | Yes (`amplitude_median`) |
+| `min_spike_amplitude_volts` | Amplitude | No (IBL-specific) |
+| `max_spike_amplitude_volts` | Amplitude | No (IBL-specific) |
+| `spike_amplitude_std_dB` | Amplitude | Partial (`amplitude_cv`) |
+| `spike_amplitudes_volts` | Ragged Array | Yes (`spike_amplitudes`) |
+| `spike_relative_depths_um` | Ragged Array | Yes (`spike_locations`) |
 
 **Important Notes on Units:**
 - **Amplitude columns are in Volts (V)**, not microvolts. IBL stores amplitudes in Volts.
-- **`drift_um_per_hour`** is cumulative depth change rate, not absolute drift (see detailed description below).
+- **`cumulative_drift_um_per_hour`** is the sum of absolute depth changes between spikes, NOT actual electrode displacement (see detailed description below).
 
 ---
 
@@ -188,7 +187,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ---
 
-#### `spike_amplitudes_V`
+#### `spike_amplitudes_volts`
 
 | Property | Value |
 |----------|-------|
@@ -222,20 +221,6 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ### Unit Location Properties
 
-#### `maximum_amplitude_channel`
-
-| Property | Value |
-|----------|-------|
-| **IBL Source** | `clusters.channels.npy` |
-| **Units** | Channel index (0-383) |
-| **SpikeInterface** | Yes (`get_extremum_channel`) |
-
-**What it measures**: The electrode channel on which this unit's average waveform has the largest amplitude.
-
-**Intuition**: The maximum amplitude channel indicates which electrode was closest to the neuron's soma. This is used to link units to brain regions (via the electrode's anatomical coordinates) and to identify electrode groups.
-
----
-
 #### `mean_relative_depth_um`
 
 | Property | Value |
@@ -254,7 +239,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 **Note**: IBL stores all amplitude values in **Volts**, not microvolts. Typical neural spike amplitudes are in the range 3e-5 to 3e-4 V (30-300 uV).
 
-#### `amplitude_max_V`
+#### `max_spike_amplitude_volts`
 
 | Property | Value |
 |----------|-------|
@@ -268,7 +253,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ---
 
-#### `amplitude_min_V`
+#### `min_spike_amplitude_volts`
 
 | Property | Value |
 |----------|-------|
@@ -282,7 +267,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ---
 
-#### `amplitude_median_V`
+#### `median_spike_amplitude_volts`
 
 | Property | Value |
 |----------|-------|
@@ -294,11 +279,11 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 **Intuition**: A robust measure of typical spike size that resists outliers. IBL uses a 50 uV (5e-5 V) threshold - units below this are likely noise or very distant neurons.
 
-**Quality criterion**: Units must have `amplitude_median_V >= 5e-5` (50 uV) to pass IBL's amplitude threshold.
+**Quality criterion**: Units must have `median_spike_amplitude_volts >= 5e-5` (50 uV) to pass IBL's amplitude threshold.
 
 ---
 
-#### `amplitude_std_dB`
+#### `spike_amplitude_std_dB`
 
 | Property | Value |
 |----------|-------|
@@ -498,10 +483,12 @@ C = min(abs(roots([-1, 1, c])))  # Solves: -x^2 + x + c = 0
 | Property | Value |
 |----------|-------|
 | **IBL Source** | `spike_count` |
-| **Units** | Count |
+| **Units** | Count (integer) |
 | **SpikeInterface** | Yes (implicit) |
 
 **What it measures**: Total number of spikes assigned to this unit.
+
+**Data type**: Integer (`int64`). A value of `-1` indicates missing data.
 
 **Intuition**: Spike count determines statistical power. Very low counts (<100) make quality metrics unreliable.
 
@@ -561,22 +548,34 @@ C = min(abs(roots([-1, 1, c])))  # Solves: -x^2 + x + c = 0
 
 ---
 
-#### `drift_um`
+#### `cumulative_drift_um_per_hour`
 
 | Property | Value |
 |----------|-------|
-| **IBL Source** | `drift` |
-| **Units** | Micrometers (um) |
-| **SpikeInterface** | Yes (`drift_ptp`, `drift_std`, `drift_mad`) |
+| **IBL Source** | `drift` (from `clusters.metrics.pqt`) |
+| **Units** | Micrometers per hour (um/hour) |
+| **SpikeInterface** | Partial (`drift_ptp`, `drift_std`, `drift_mad`) |
 
-**What it measures**: Average positional drift across the recording session.
+**What it measures**: The sum of absolute depth changes between consecutive spikes, normalized to a per-hour rate.
 
-**Intuition**: Probe movement relative to brain causes amplitude changes and can confuse spike sorting. Sources include brain pulsation, tissue settling, and thermal drift.
+**Formula** (from [IBL brainbox `single_units.py`](https://github.com/int-brain-lab/ibllib/blob/master/brainbox/metrics/single_units.py)):
+```python
+cumulative_drift = np.sum(np.abs(np.diff(spike_depths))) / duration_seconds * 3600
+```
+
+**Important**: This is **NOT** actual electrode displacement. It measures the cumulative variability in spike depth estimates over time. The metric strongly correlates with spike count (~0.79 correlation) because more spikes means more depth differences to sum.
+
+**Intuition**: High values can indicate:
+1. **Real electrode drift** - probe moving relative to brain tissue
+2. **Depth estimation noise** - variability in waveform center-of-mass calculations
+3. **High-firing units** - simply having more spikes to accumulate differences
 
 **Typical values**:
-- Well-controlled: < 10 um
-- Moderate: 10-30 um
-- Problematic: > 50 um
+- Low activity units: ~1,000-50,000 um/hour
+- Median units (~15,000 spikes): ~300,000 um/hour
+- High activity units: 1,000,000+ um/hour
+
+**Comparison to SpikeInterface**: SpikeInterface's `drift_ptp` measures peak-to-peak drift (max - min position), which better reflects actual displacement. IBL's cumulative metric captures total positional variation regardless of direction.
 
 ---
 
@@ -876,9 +875,9 @@ for i, unit_id in enumerate(nwbfile.units.id[:]):
 
 | Metric | Typical Range | Notes |
 |--------|---------------|-------|
-| `firing_rate_hz` | 0.1 - 50 Hz | Most units 1-10 Hz |
+| `firing_rate` | 0.1 - 50 Hz | Most units 1-10 Hz |
 | `spike_count` | 100 - 500,000 | Depends on session length and firing rate |
 | `presence_ratio` | 0.5 - 1.0 | Good units typically >0.9 |
 | `isi_violations_ratio` | 0.0 - 0.5 | Good units typically <0.1 |
-| `median_amplitude_uv` | 50 - 500 uV | Threshold is 50 uV |
-| `drift_um` | 0 - 50 um | Chronic recordings may have higher drift |
+| `median_spike_amplitude_volts` | 3e-5 - 5e-4 V | 30-500 uV; IBL threshold is 5e-5 V (50 uV) |
+| `cumulative_drift_um_per_hour` | 1,000 - 1,000,000+ | Scales with spike count; NOT actual displacement |

@@ -15,106 +15,66 @@ from ._ibl_sorting_extractor import IblSortingExtractor
 from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures import get_probe_name_to_probe_id_dict
 
-# IBL metric to NWB property mapping with descriptions
-# Key: IBL clusters.metrics column name
-# Value: dict with "nwb_name" and "description" for NWB units table
-IBL_PROPERTY_MAPPING = {
-    # Amplitude metrics - IBL stores in Volts
-    "amp_max": {
-        "nwb_name": "amplitude_max_V",
-        "description": "Maximum spike amplitude in Volts.",
-    },
-    "amp_min": {
-        "nwb_name": "amplitude_min_V",
-        "description": "Minimum spike amplitude in Volts.",
-    },
-    "amp_median": {
-        "nwb_name": "amplitude_median_V",
-        "description": "Median spike amplitude in Volts. IBL uses 50 uV (5e-5 V) threshold for quality filtering.",
-    },
-    "amp_std_dB": {
-        "nwb_name": "amplitude_std_dB",
-        "description": "Standard deviation of log-transformed spike amplitudes in decibels. High values (>6 dB) may indicate drift or contamination.",
-    },
-    # Contamination metrics - SpikeInterface-aligned names
-    "contamination": {
-        "nwb_name": "isi_violations_ratio",
-        "description": "Ratio of observed to expected ISI violations (Steinmetz/cortex-lab method). Can exceed 1.0. Equivalent to SpikeInterface's isi_violations_ratio.",
-    },
-    "contamination_alt": {
-        "nwb_name": "rp_violation",
-        "description": "Contamination estimate using Hill et al. (2011) quadratic formula. Aligns with SpikeInterface's rp_violations.",
-    },
-    "slidingRP_viol": {
-        "nwb_name": "sliding_rp_violation",
-        "description": "Binary pass/fail (0.0 or 1.0) using sliding refractory period algorithm. Primary metric for ibl_quality_score. Aligns with SpikeInterface's sliding_rp_violations.",
-    },
-    # Other quality metrics
-    "missed_spikes_est": {
-        "nwb_name": "missed_spikes_estimate",
-        "description": "Estimated fraction of spikes missed due to detection threshold (0.0-1.0).",
-    },
-    "noise_cutoff": {
-        "nwb_name": "noise_cutoff",
-        "description": "Standard deviations the lower amplitude quartile deviates from expected. Large values indicate missed spikes at detection threshold.",
-    },
-    # Activity metrics
-    "presence_ratio": {
-        "nwb_name": "presence_ratio",
-        "description": "Fraction of time bins (60s default) with at least one spike. Good units typically >0.9.",
-    },
-    "presence_ratio_std": {
-        "nwb_name": "presence_ratio_std",
-        "description": "Standard deviation of spike counts across 10-second time bins.",
-    },
-    "drift": {
-        "nwb_name": "drift_um_per_hour",
-        "description": "Cumulative depth change rate in um/hour. Formula: sum(abs(diff(depths)))/duration*3600. NOT absolute drift.",
-    },
-    "spike_count": {
-        "nwb_name": "spike_count",
-        "description": "Total number of spikes assigned to this unit.",
-    },
-    "firing_rate": {
-        "nwb_name": "firing_rate",
-        "description": "Average firing rate in Hz.",
-    },
-    # Quality labels
-    "label": {
-        "nwb_name": "ibl_quality_score",
-        "description": "Proportion of IBL quality metrics passed (0.0, 0.33, 0.67, or 1.0). 1.0 = all three passed.",
-    },
-    "ks2_label": {
-        "nwb_name": "kilosort2_label",
-        "description": "Original Kilosort2 classification: 'good', 'mua', or 'noise'.",
-    },
+# Unit property descriptions for NWB metadata
+# Order: Identification → Activity → Location → Quality Labels → Quality Metrics → Stability → Amplitude → Ragged Arrays
+UNIT_PROPERTY_DESCRIPTIONS = {
     # Identification
-    "cluster_uuid": {
-        "nwb_name": "cluster_uuid",
-        "description": "Globally unique identifier for cross-referencing with IBL database via ONE API.",
-    },
+    "probe_name": "Name of probe this unit was recorded from (e.g., 'probe00', 'probe01').",
+    "cluster_uuid": "Globally unique identifier for cross-referencing with IBL database via ONE API.",
+    # Core activity metrics
+    "spike_count": "Total number of spikes assigned to this unit. Integer type; -1 indicates missing data.",
+    "firing_rate": "Average firing rate in Hz.",
+    # Location
+    "mean_relative_depth_um": "Average depth of each unit along the probe in micrometers. 0 is deepest site.",
+    # Quality labels (what users check first)
+    "ibl_quality_score": "Proportion of IBL quality metrics passed (0.0, 0.33, 0.67, or 1.0). 1.0 = all three passed.",
+    "kilosort2_label": "Original Kilosort2 classification: 'good', 'mua', or 'noise'.",
+    # Quality metrics (detailed breakdown)
+    "sliding_rp_violation": "Binary pass/fail (0.0 or 1.0) using sliding refractory period algorithm. Primary metric for ibl_quality_score. Aligns with SpikeInterface's sliding_rp_violations.",
+    "isi_violations_ratio": "Ratio of observed to expected ISI violations (Steinmetz/cortex-lab method). Can exceed 1.0. Equivalent to SpikeInterface's isi_violations_ratio.",
+    "rp_violation": "Contamination estimate using Hill et al. (2011) quadratic formula. Aligns with SpikeInterface's rp_violations.",
+    "noise_cutoff": "Standard deviations the lower amplitude quartile deviates from expected. Large values indicate missed spikes at detection threshold.",
+    "missed_spikes_estimate": "Estimated fraction of spikes missed due to detection threshold (0.0-1.0).",
+    # Stability metrics
+    "presence_ratio": "Fraction of time bins (60s default) with at least one spike. Good units typically >0.9.",
+    "presence_ratio_std": "Standard deviation of spike counts across 10-second time bins.",
+    "cumulative_drift_um_per_hour": "Sum of absolute depth changes between consecutive spikes, normalized to um/hour. Formula: sum(abs(diff(spike_depths)))/duration*3600. High values indicate either electrode drift or depth estimation noise. Scales with spike count (~0.79 correlation). NOT actual electrode displacement.",
+    # Amplitude statistics
+    "median_spike_amplitude_volts": "Median spike amplitude in Volts. IBL uses 50 uV (5e-5 V) threshold for quality filtering.",
+    "min_spike_amplitude_volts": "Minimum spike amplitude in Volts.",
+    "max_spike_amplitude_volts": "Maximum spike amplitude in Volts.",
+    "spike_amplitude_std_dB": "Standard deviation of log-transformed spike amplitudes in decibels. High values (>6 dB) may indicate drift or contamination.",
+    # Ragged arrays (per-spike data)
+    "spike_amplitudes_volts": "Peak amplitude of each spike for each unit in Volts.",
+    "spike_relative_depths_um": "Relative depth along the probe for each spike in micrometers, computed from waveform center of mass. 0 is deepest site.",
 }
 
-# Additional properties not from clusters.metrics (ragged arrays and computed properties)
-ADDITIONAL_PROPERTY_DESCRIPTIONS = {
-    "spike_amplitudes_V": "Peak amplitude of each spike for each unit in Volts.",
-    "spike_relative_depths_um": "Relative depth along the probe for each spike in micrometers, computed from waveform center of mass. 0 is deepest site.",
-    "maximum_amplitude_channel": "Channel index with the largest waveform amplitude for each unit.",
-    "mean_relative_depth_um": "Average depth of each unit along the probe in micrometers. 0 is deepest site.",
-    "probe_name": "Name of probe this unit was recorded from (e.g., 'probe00', 'probe01').",
+# Mapping from IBL clusters.metrics column names to NWB property names
+# Only includes properties that come from clusters.metrics.pqt
+IBL_METRICS_TO_NWB = {
+    "cluster_uuid": "cluster_uuid",
+    "spike_count": "spike_count",
+    "firing_rate": "firing_rate",
+    "label": "ibl_quality_score",
+    "ks2_label": "kilosort2_label",
+    "slidingRP_viol": "sliding_rp_violation",
+    "contamination": "isi_violations_ratio",
+    "contamination_alt": "rp_violation",
+    "noise_cutoff": "noise_cutoff",
+    "missed_spikes_est": "missed_spikes_estimate",
+    "presence_ratio": "presence_ratio",
+    "presence_ratio_std": "presence_ratio_std",
+    "drift": "cumulative_drift_um_per_hour",
+    "amp_median": "median_spike_amplitude_volts",
+    "amp_min": "min_spike_amplitude_volts",
+    "amp_max": "max_spike_amplitude_volts",
+    "amp_std_dB": "spike_amplitude_std_dB",
 }
 
 
 def get_unit_property_descriptions() -> list[dict]:
-    """Build the UnitProperties list for NWB metadata from the mapping dictionaries."""
-    descriptions = []
-    # Add properties from IBL_PROPERTY_MAPPING
-    for mapping in IBL_PROPERTY_MAPPING.values():
-        descriptions.append({"name": mapping["nwb_name"], "description": mapping["description"]})
-    # Add additional properties
-    for name, description in ADDITIONAL_PROPERTY_DESCRIPTIONS.items():
-        descriptions.append({"name": name, "description": description})
-    return descriptions
+    """Build the UnitProperties list for NWB metadata."""
+    return [{"name": name, "description": desc} for name, desc in UNIT_PROPERTY_DESCRIPTIONS.items()]
 
 
 def _format_probe_label(probe_name: str) -> str:
@@ -307,9 +267,9 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         list of list of int
             For each unit, a list containing the electrode table index
         """
-        # Get unit properties
+        # Get unit properties (use internal property for channel mapping)
         unit_probe_names = self.sorting_extractor.get_property("probe_name")
-        unit_channel_ids = self.sorting_extractor.get_property("maximum_amplitude_channel")
+        unit_channel_ids = self.sorting_extractor.get_property("_max_amplitude_channel")
 
         # If no mapping provided, build it from electrodes table
         if channel_to_electrode_map is None:
@@ -400,13 +360,13 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             calculated based on maximum amplitude channels.
         skip_properties : list of str, optional
             Properties to exclude from the units table. For IBL data, consider:
-            skip_properties=["spike_amplitudes_uv", "spike_relative_depths_um"]
+            skip_properties=["spike_amplitudes_volts", "spike_relative_depths_um"]
             to reduce memory usage by ~10 GB for large sessions.
 
         Notes
         -----
         Memory optimization: Data is loaded only when this method is called,
-        allowing for localized memory usage. The ragged properties "spike_amplitudes_uv"
+        allowing for localized memory usage. The ragged properties "spike_amplitudes_volts"
         and "spike_relative_depths_um" contain spike-level data that can use significant
         memory (~5 GB each for large sessions). Skipping these properties can
         reduce peak memory usage from ~23 GB to ~10-12 GB while preserving:
@@ -415,15 +375,77 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         - Brain region annotations
         - Mean spike amplitudes and depths (unit-level)
         """
-        # Load and process spike data if not already loaded
-        # skip_properties are not loaded/computed at all (memory optimization)
+        if skip_properties is None:
+            skip_properties = []
+
+        # Load IBL data if not already loaded
         if not self.sorting_extractor._data_loaded:
-            self.sorting_extractor.load_and_process_data(
-                ibl_property_mapping=IBL_PROPERTY_MAPPING,
+            # Determine which per-spike properties to skip
+            skip_spike_amplitudes = "spike_amplitudes_volts" in skip_properties
+            skip_spike_depths = "spike_relative_depths_um" in skip_properties
+
+            # Load raw IBL data
+            ibl_data = self.sorting_extractor.load_ibl_data(
                 stub_test=stub_test,
                 stub_units=stub_units,
-                skip_properties=skip_properties,
+                skip_spike_amplitudes=skip_spike_amplitudes,
+                skip_spike_depths=skip_spike_depths,
             )
+
+            # Initialize the sorting extractor with spike times
+            self.sorting_extractor.initialize_sorting(
+                spike_times_by_id=ibl_data["spike_times_by_id"],
+                cluster_ids=ibl_data["cluster_ids"],
+            )
+
+            # Set properties with NWB names (mapping from IBL names)
+            cluster_ids = ibl_data["cluster_ids"]
+            ibl_properties = ibl_data["unit_properties"]
+
+            # Map IBL property names to NWB names and set on extractor
+            for ibl_name, nwb_name in IBL_METRICS_TO_NWB.items():
+                if ibl_name in ibl_properties:
+                    values = np.array(ibl_properties[ibl_name])
+                    # Convert spike_count to int (IBL stores as float in parquet)
+                    # Use -1 as sentinel for missing values (NaN)
+                    if nwb_name == "spike_count":
+                        values = np.where(np.isnan(values), -1, values).astype(np.int64)
+                    self.sorting_extractor.set_property(
+                        key=nwb_name,
+                        values=values,
+                        ids=cluster_ids,
+                    )
+
+            # Set properties that don't need renaming
+            self.sorting_extractor.set_property(
+                key="probe_name",
+                values=ibl_properties["probe_name"],
+                ids=cluster_ids,
+            )
+            self.sorting_extractor.set_property(
+                key="_max_amplitude_channel",
+                values=ibl_properties["_max_amplitude_channel"],
+                ids=cluster_ids,
+            )
+            self.sorting_extractor.set_property(
+                key="mean_relative_depth_um",
+                values=ibl_properties["cluster_depths"],
+                ids=cluster_ids,
+            )
+
+            # Set ragged array properties (per-spike data) if not skipped
+            if ibl_data["spike_amplitudes_by_id"] is not None:
+                self.sorting_extractor.set_property(
+                    key="spike_amplitudes_volts",
+                    values=np.array(list(ibl_data["spike_amplitudes_by_id"].values()), dtype=object),
+                    ids=cluster_ids,
+                )
+            if ibl_data["spike_depths_by_id"] is not None:
+                self.sorting_extractor.set_property(
+                    key="spike_relative_depths_um",
+                    values=np.array(list(ibl_data["spike_depths_by_id"].values()), dtype=object),
+                    ids=cluster_ids,
+                )
 
         # Automatically create electrodes table if it doesn't exist (processed mode)
         channel_to_electrode_map = None

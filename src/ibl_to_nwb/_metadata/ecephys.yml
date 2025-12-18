@@ -32,5 +32,3 @@ Ecephys:
       description: The column index of the channel on its shank.
     - name: index_on_probe
       description: The global index of the channel on the probe.
-  # UnitProperties are defined in _ibl_sorting_interface.py (IBL_PROPERTY_MAPPING and ADDITIONAL_PROPERTY_DESCRIPTIONS)
-  # to keep property names and descriptions together in one place

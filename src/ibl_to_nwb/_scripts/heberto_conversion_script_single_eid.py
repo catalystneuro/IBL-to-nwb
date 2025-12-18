@@ -70,6 +70,7 @@ if __name__ == "__main__":
 
     base_folder = Path("/media/heberto/Expansion")
     # base_folder = Path("/Volumes/Expansion")
+    base_folder = Path("~/ibl_data_local_mac/").expanduser()
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 

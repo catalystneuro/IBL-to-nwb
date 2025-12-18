@@ -32,7 +32,6 @@ class IblSortingExtractor(BaseSorting):
         """
         return get_json_schema_from_method_signature(cls, exclude=["source_data", "one"])
 
-    # def __init__(self, session: str, cache_folder: Optional[DirectoryPath] = None, revision: Optional[str] = None):
     def __init__(
         self,
         one: ONE,
@@ -63,51 +62,47 @@ class IblSortingExtractor(BaseSorting):
         # Flag to track if data has been loaded
         self._data_loaded = False
 
-    def load_and_process_data(
+    def load_ibl_data(
         self,
-        ibl_property_mapping: dict,
         stub_test: bool = False,
         stub_units: Optional[int] = None,
-        skip_properties: Optional[list[str]] = None,
-    ):
-        """Load spike data and process into per-unit arrays.
+        skip_spike_amplitudes: bool = False,
+        skip_spike_depths: bool = False,
+    ) -> dict:
+        """Load IBL spike sorting data and return it with IBL property names.
 
         This method separates spike data by cluster/unit using np.where to index spike arrays.
         For full sessions with ~2000 units and ~60M spikes, this takes ~60-70 seconds.
 
-        Alternative approaches tested but found slower:
-        - Direct iteration over all spikes (too slow)
-        - Pre-sorting + binary search (argsort + searchsorted overhead negates gains)
-
-        Current limitation: O(n_spikes * n_units) complexity makes this the primary bottleneck.
-        Mitigation: Use stub_test=True to process only a subset of units for testing/development.
-
         Parameters
         ----------
-        ibl_property_mapping : dict
-            Mapping from IBL clusters.metrics column names to NWB property names.
-            Keys are IBL column names, values are dicts with "nwb_name" key.
         stub_test : bool, default: False
             If True, only load a subset of units for testing
         stub_units : int, optional
             Number of units to load per probe when stub_test=True. Default is 10.
-        skip_properties : list of str, optional
-            Properties to skip computing/loading. Useful for memory optimization.
-            For example: skip_properties=["spike_amplitudes_V", "spike_relative_depths_um"]
-        """
-        if self._data_loaded:
-            return  # Already loaded
+        skip_spike_amplitudes : bool, default: False
+            If True, skip loading per-spike amplitudes (saves memory).
+        skip_spike_depths : bool, default: False
+            If True, skip loading per-spike depths (saves memory).
 
+        Returns
+        -------
+        dict
+            Dictionary with IBL property names as keys:
+            - "spike_times_by_id": dict mapping unit_id to spike times array
+            - "spike_amplitudes_by_id": dict mapping unit_id to spike amplitudes (or None if skipped)
+            - "spike_depths_by_id": dict mapping unit_id to spike depths (or None if skipped)
+            - "cluster_ids": list of unit IDs
+            - "unit_properties": dict with IBL property names as keys, lists of values
+              Includes: probe_name, _max_amplitude_channel, cluster_depths, and all columns from clusters.metrics
+        """
         if stub_units is None:
             stub_units = 10
 
-        if skip_properties is None:
-            skip_properties = []
-
         spike_times_by_id = defaultdict(list)
-        spike_amplitudes_by_id = defaultdict(list) if "spike_amplitudes_V" not in skip_properties else None
-        spike_depths_by_id = defaultdict(list) if "spike_relative_depths_um" not in skip_properties else None
-        all_unit_properties = defaultdict(list)
+        spike_amplitudes_by_id = defaultdict(list) if not skip_spike_amplitudes else None
+        spike_depths_by_id = defaultdict(list) if not skip_spike_depths else None
+        unit_properties = defaultdict(list)
         cluster_ids = list()
         unit_id_per_probe_shift = 0
 
@@ -138,14 +133,19 @@ class IblSortingExtractor(BaseSorting):
                     spike_depths_by_id[unit_id] = spikes["depths"][spike_indices]
 
             unit_id_per_probe_shift += number_of_units
-            all_unit_properties["probe_name"].extend([probe_name] * number_of_units)
 
-            # Maximum amplitude channel and locations (subset if stub_test)
-            unit_id_to_channel_id = clusters["channels"][:number_of_units] if stub_test else clusters["channels"]
-            all_unit_properties["maximum_amplitude_channel"].extend(unit_id_to_channel_id)
-            mean_depths = clusters["depths"][:number_of_units] if stub_test else clusters["depths"]
-            all_unit_properties["mean_relative_depth_um"].extend(mean_depths)
+            # Unit properties with IBL names
+            unit_properties["probe_name"].extend([probe_name] * number_of_units)
 
+            # Maximum amplitude channel (used internally for electrode mapping)
+            max_amp_channels = clusters["channels"][:number_of_units] if stub_test else clusters["channels"]
+            unit_properties["_max_amplitude_channel"].extend(max_amp_channels)
+
+            # Cluster depths
+            cluster_depths = clusters["depths"][:number_of_units] if stub_test else clusters["depths"]
+            unit_properties["cluster_depths"].extend(cluster_depths)
+
+            # Cluster metrics (includes uuids)
             cluster_metrics = clusters["metrics"].reset_index(drop=True).join(pd.DataFrame(clusters["uuids"]))
             cluster_metrics.rename(columns={"uuids": "cluster_uuid"}, inplace=True)
 
@@ -153,14 +153,32 @@ class IblSortingExtractor(BaseSorting):
             if stub_test:
                 cluster_metrics = cluster_metrics.iloc[:number_of_units]
 
-            # Add cluster metrics (spike count, firing rate, quality metrics, etc.)
-            # using the property mapping passed from the interface
-            for ibl_key, mapping in ibl_property_mapping.items():
-                nwb_name = mapping["nwb_name"]
-                all_unit_properties[nwb_name].extend(list(cluster_metrics[ibl_key]))
+            # Add all cluster metrics columns
+            for column in cluster_metrics.columns:
+                unit_properties[column].extend(list(cluster_metrics[column]))
 
+        return {
+            "spike_times_by_id": dict(spike_times_by_id),
+            "spike_amplitudes_by_id": dict(spike_amplitudes_by_id) if spike_amplitudes_by_id else None,
+            "spike_depths_by_id": dict(spike_depths_by_id) if spike_depths_by_id else None,
+            "cluster_ids": cluster_ids,
+            "unit_properties": dict(unit_properties),
+        }
 
-        # Initialize BaseSorting now that we know the unit_ids
+    def initialize_sorting(self, spike_times_by_id: dict, cluster_ids: list):
+        """Initialize the BaseSorting with spike times.
+
+        Parameters
+        ----------
+        spike_times_by_id : dict
+            Dictionary mapping unit_id to spike times array
+        cluster_ids : list
+            List of unit IDs
+        """
+        if self._data_loaded:
+            return
+
+        # Initialize BaseSorting
         BaseSorting.__init__(self, sampling_frequency=self._sampling_frequency, unit_ids=cluster_ids)
 
         # Add sorting segment with spike times
@@ -170,24 +188,6 @@ class IblSortingExtractor(BaseSorting):
         )
         self.add_sorting_segment(sorting_segment)
 
-        # Set ragged array properties (spike-level data) if not skipped
-        if spike_amplitudes_by_id is not None:
-            self.set_property(
-                key="spike_amplitudes_V",
-                values=np.array(list(spike_amplitudes_by_id.values()), dtype=object),
-                ids=cluster_ids,
-            )
-        if spike_depths_by_id is not None:
-            self.set_property(
-                key="spike_relative_depths_um",
-                values=np.array(list(spike_depths_by_id.values()), dtype=object),
-                ids=cluster_ids,
-            )
-
-        for property_name, values in all_unit_properties.items():
-            self.set_property(key=property_name, values=values, ids=cluster_ids)
-
-        # Mark as loaded
         self._data_loaded = True
 
     def get_unit_spike_train(
