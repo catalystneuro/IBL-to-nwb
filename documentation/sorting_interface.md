@@ -142,6 +142,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 | NWB Column | Category | SpikeInterface |
 |------------|----------|----------------|
+| `unit_name` | Identification | N/A |
 | `spike_times` | Core | Yes (built-in) |
 | `probe_name` | Identification | N/A |
 | `cluster_uuid` | Identification | N/A |
@@ -581,17 +582,30 @@ cumulative_drift = np.sum(np.abs(np.diff(spike_depths))) / duration_seconds * 36
 
 ### Identification
 
-#### `cluster_id`
+#### `unit_name`
 
 | Property | Value |
 |----------|-------|
-| **IBL Source** | Cluster index |
-| **Units** | Index |
+| **Format** | `{probe_name}_{local_index}` (e.g., `probe00_0`, `probe01_42`) |
+| **Units** | String identifier |
 | **SpikeInterface** | N/A |
 
-**What it measures**: Original numeric ID assigned during spike sorting.
+**What it measures**: A human-readable identifier that uniquely identifies each unit within the session.
 
-**Intuition**: Probe-specific (resets for each probe). Use `cluster_id` + `probe_name` to match back to IBL files.
+**Format**: `probe00_0`, `probe00_1`, ..., `probe01_0`, `probe01_1`, etc. The local index resets for each probe.
+
+**Intuition**: Immediately tells you which probe a unit belongs to without needing to cross-reference the `probe_name` column. The local index corresponds to the cluster's position in the sorted list of unique cluster IDs from spike sorting.
+
+**Example usage**:
+```python
+# Get all units from probe01
+probe01_units = units_df[units_df['unit_name'].str.startswith('probe01_')]
+
+# Parse probe name and local index from unit_name
+unit_name = 'probe01_42'
+probe_name, local_idx = unit_name.rsplit('_', 1)
+# probe_name = 'probe01', local_idx = '42'
+```
 
 ---
 
@@ -619,7 +633,7 @@ cumulative_drift = np.sum(np.abs(np.diff(spike_depths))) / duration_seconds * 36
 
 **What it measures**: Name of the Neuropixels probe from which this unit was recorded.
 
-**Intuition**: IBL often uses multiple probes. Combined with `cluster_id`, uniquely identifies units within a session
+**Intuition**: IBL often uses multiple probes. This column is also embedded in the `unit_name` (e.g., `probe01_42` → probe name is `probe01`).
 
 ---
 
