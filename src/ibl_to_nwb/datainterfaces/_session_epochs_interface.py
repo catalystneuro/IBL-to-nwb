@@ -196,29 +196,63 @@ class SessionEpochsInterface(BaseIBLDataInterface):
 
         # Initialize epochs table if it doesn't exist
         if nwbfile.epochs is None:
-            nwbfile.epochs = TimeIntervals(name="epochs", description="Experimental epochs")
+            epochs_description = (
+                "Session-level epochs defining the two main phases of an IBL recording session. "
+                "The 'task' epoch covers the active behavioral task period where the mouse performs "
+                "the decision-making task (responding to visual stimuli by turning a wheel). "
+                "The 'passive' epoch covers the passive replay period where visual and auditory stimuli "
+                "are presented without the mouse performing any task, used for receptive field mapping "
+                "and stimulus response characterization. The passive protocol includes replay of task stimuli, "
+                "sparse noise for receptive field mapping, and natural movie clips. "
+                "See the 'protocol_type' column to distinguish between epochs."
+            )
+            nwbfile.epochs = TimeIntervals(name="epochs", description=epochs_description)
 
-        # Add custom column to the epochs table
+        # Add custom columns to the epochs table
         if "protocol_type" not in nwbfile.epochs.colnames:
             nwbfile.epochs.add_column(
                 name="protocol_type",
                 description="Type of protocol phase (task or passive)"
             )
 
+        if "epoch_description" not in nwbfile.epochs.colnames:
+            nwbfile.epochs.add_column(
+                name="epoch_description",
+                description="Detailed description of what occurs during this epoch"
+            )
+
         # Get the start and end of the passive protocol
         passive_start = float(df.loc[df["Unnamed: 0"] == "start", "passiveProtocol"].iloc[0])
         passive_end = float(df.loc[df["Unnamed: 0"] == "stop", "passiveProtocol"].iloc[0])
+
+        # Epoch descriptions
+        task_description = (
+            "Active behavioral task period. The mouse performs a decision-making task where it "
+            "must turn a wheel to move a visual stimulus (Gabor patch) to the center of the screen. "
+            "Correct responses are rewarded with water; incorrect responses trigger white noise feedback. "
+            "The trials table contains detailed timing and outcome data for each trial during this epoch."
+        )
+
+        passive_description = (
+            "Passive stimulus replay period. Visual and auditory stimuli are presented while the mouse "
+            "is head-fixed but not performing any task. This epoch includes: (1) replay of task-relevant "
+            "stimuli (Gabor patches at various contrasts and positions), (2) sparse noise stimuli for "
+            "receptive field mapping, and (3) natural movie clips. Used for characterizing sensory responses "
+            "independent of task engagement."
+        )
 
         # Add task/experiment epoch (0 to start of passive protocol)
         nwbfile.add_epoch(
             start_time=0.0,
             stop_time=passive_start,
-            protocol_type="task"
+            protocol_type="task",
+            epoch_description=task_description
         )
 
         # Add passive protocol epoch
         nwbfile.add_epoch(
             start_time=passive_start,
             stop_time=passive_end,
-            protocol_type="passive"
+            protocol_type="passive",
+            epoch_description=passive_description
         )

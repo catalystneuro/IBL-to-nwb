@@ -409,21 +409,35 @@ String and boolean values replace numeric encodings for clarity:
 
 #### Tidy Contrast Representation
 
-The original IBL format uses two columns (`contrastLeft`, `contrastRight`) where one is always 0 or both are NaN. This violates the tidy data principle that each variable should form a column.
+The original IBL format uses two columns (`contrastLeft`, `contrastRight`) where one column contains the contrast value and the other is NaN. This encoding comes from the IBL extraction pipeline (see `ibllib/io/extractors/biased_trials.py`):
 
-**IBL format** (redundant):
+```python
+# From ibllib ContrastLR extractor:
+contrastLeft = [t['contrast'] if np.sign(t['position']) < 0 else np.nan for t in bpod_trials]
+contrastRight = [t['contrast'] if np.sign(t['position']) > 0 else np.nan for t in bpod_trials]
+```
+
+The stimulus `position` determines which column gets the contrast value:
+- `position < 0` (left, -35 degrees): contrast stored in `contrastLeft`, `contrastRight` is NaN
+- `position > 0` (right, +35 degrees): contrast stored in `contrastRight`, `contrastLeft` is NaN
+
+This applies to all contrast levels including 0% contrast trials, where the contrast value is 0 but still stored in the appropriate column based on which side the trial was assigned to.
+
+**IBL format** (redundant, one column always NaN):
 | contrastLeft | contrastRight | Meaning |
 |--------------|---------------|---------|
-| 0.25 | 0 | Left stimulus at 25% |
-| 0 | 1.0 | Right stimulus at 100% |
-| 0 | 0 | 0% contrast trial (assigned side depends on which column was set) |
+| 0.25 | NaN | Left stimulus at 25% |
+| NaN | 1.0 | Right stimulus at 100% |
+| 0 | NaN | 0% contrast trial assigned to left |
+| NaN | 0 | 0% contrast trial assigned to right |
 
 **NWB format** (tidy):
 | gabor_stimulus_contrast | gabor_stimulus_side | Meaning |
-|------------------------------------|---------------------|---------|
+|-------------------------|---------------------|---------|
 | 25 | `"left"` | Left stimulus at 25% |
 | 100 | `"right"` | Right stimulus at 100% |
-| 0 | `"left"` or `"right"` | 0% contrast trial (invisible, but assigned a correct side based on block probability) |
+| 0 | `"left"` | 0% contrast trial assigned to left (invisible, but mouse can use block prior) |
+| 0 | `"right"` | 0% contrast trial assigned to right (invisible, but mouse can use block prior) |
 
 #### Chronological Column Ordering
 

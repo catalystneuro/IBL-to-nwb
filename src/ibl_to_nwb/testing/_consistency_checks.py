@@ -206,13 +206,23 @@ def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
     trials["is_mouse_rewarded"] = trials["feedbackType"] == 1.0
 
     # Consolidate contrast columns into gabor_stimulus_contrast + gabor_stimulus_side
-    # IBL stores contrast in contrastLeft/contrastRight where:
-    # - One column has the contrast value (0, 0.0625, 0.125, 0.25, or 1.0)
-    # - The other column has NaN (or sometimes 0)
-    # Even 0% contrast trials are assigned to a side based on block probability
+    #
+    # IBL encodes stimulus side using contrastLeft/contrastRight columns where one column
+    # contains the contrast value and the other is NaN. This comes from the IBL extraction
+    # pipeline (ibllib/io/extractors/biased_trials.py ContrastLR extractor):
+    #
+    #   contrastLeft = [t['contrast'] if np.sign(t['position']) < 0 else np.nan ...]
+    #   contrastRight = [t['contrast'] if np.sign(t['position']) > 0 else np.nan ...]
+    #
+    # The stimulus position determines which column gets the value:
+    #   - position < 0 (left, -35 deg): contrastLeft = contrast, contrastRight = NaN
+    #   - position > 0 (right, +35 deg): contrastRight = contrast, contrastLeft = NaN
+    #
+    # This applies to ALL contrast levels including 0% contrast trials. For example:
+    #   - Left 25% trial: contrastLeft=0.25, contrastRight=NaN
+    #   - Right 0% trial: contrastLeft=NaN, contrastRight=0.0
     def compute_gabor_stimulus_side(left, right):
-        # Determine which side based on which column has a non-NaN value
-        # If both are NaN, that's unexpected but return "none" as fallback
+        # Determine side based on which column has a non-NaN value
         left_valid = not pd.isna(left)
         right_valid = not pd.isna(right)
         if left_valid and not right_valid:
@@ -220,10 +230,10 @@ def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
         elif right_valid and not left_valid:
             return "right"
         elif left_valid and right_valid:
-            # Both have values - use the non-zero one, or left if both are 0
+            # Both have values - should not happen in valid IBL data, but handle defensively
             return "left" if left >= right else "right"
         else:
-            return "none"  # Both NaN - unexpected
+            return "none"  # Both NaN - unexpected, indicates corrupted data
 
     def compute_gabor_stimulus_contrast(left, right):
         # Return the non-NaN contrast value as percentage (could be 0 for 0% contrast trials)
