@@ -1,5 +1,6 @@
 from typing import Optional
 import logging
+import math
 import time
 
 import numpy as np
@@ -18,8 +19,9 @@ from ._base_ibl_interface import BaseIBLDataInterface
 # Values contain IBL source column name and description
 # Note: Some IBL columns are transformed before mapping:
 #   - choice: -1/0/+1 -> "left"/"no_go"/"right"
-#   - feedbackType: -1/+1 -> "incorrect"/"correct"
-#   - contrastLeft/contrastRight -> "contrast" + "stimulus_side"
+#   - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
+#   - contrastLeft/contrastRight -> "gabor_stimulus_contrast" + "gabor_stimulus_side"
+#   - probabilityLeft -> also used to derive "block_index" and "block_type"
 TRIALS_COLUMNS = {
     # Temporal columns (chronological order within a trial)
     "start_time": {
@@ -30,55 +32,68 @@ TRIALS_COLUMNS = {
         "ibl_name": "intervals_1",
         "description": "The end of the trial.",
     },
+    "quiescence_period": {
+        "ibl_name": "quiescencePeriod",
+        "description": "Required duration (seconds) the mouse must hold the wheel still before stimulus presentation. Sampled from exponential distribution (400-700ms, mean ~550ms). If wheel moves during this period, the timer resets. Relationship: gabor_stimulus_onset_time ≈ start_time + quiescence_period.",
+    },
+    "gabor_stimulus_onset_time": {
+        "ibl_name": "stimOn_times",
+        "description": "Time when the visual stimulus (Gabor patch) appears on screen, detected by photodiode. Coincides with auditory go cue.",
+    },
     "auditory_cue_time": {
         "ibl_name": "goCue_times",
-        "description": "Start time of the auditory go cue tone (100ms 5kHz sine wave), recorded via soundcard sync fed back into Bpod.",
+        "description": "Time of the auditory go cue (100ms, 5kHz tone) signaling the mouse may respond. Presented simultaneously with visual stimulus.",
     },
-    "stimulus_onset_time": {
-        "ibl_name": "stimOn_times",
-        "description": "Time when the Gabor patch appears on screen, detected by photodiode over the sync square.",
-    },
-    "first_wheel_movement_time": {
+    "wheel_movement_onset_time": {
         "ibl_name": "firstMovement_times",
-        "description": "Time of first wheel movement >= 0.1 radians, occurring between go cue and feedback.",
+        "description": "Time of first detected wheel movement (>= 0.1 radians threshold) after go cue.",
     },
     "choice_registration_time": {
         "ibl_name": "response_times",
-        "description": "Time when the mouse's choice was registered (wheel crossed +/-35 deg threshold, or 60s timeout).",
+        "description": "Time when the mouse's choice was registered: either wheel movement reached the +/-35 degree threshold, or 60-second timeout elapsed.",
     },
     "feedback_time": {
         "ibl_name": "feedback_times",
-        "description": "Time of feedback delivery (valve TTL for correct, white noise trigger for incorrect).",
+        "description": "Time of feedback delivery: water reward for correct responses, or white noise pulse + 2-second timeout for incorrect responses.",
     },
-    "stimulus_offset_time": {
+    "gabor_stimulus_offset_time": {
         "ibl_name": "stimOff_times",
         "description": "Time when the Gabor patch disappears from screen, recorded by external photodiode.",
     },
     # Stimulus columns
-    "gabor_contrast": {
-        "ibl_name": "contrast",  # computed from contrastLeft/contrastRight
-        "description": "Contrast of the Gabor patch stimulus as a proportion (0 to 1, where 1 is 100% contrast). NaN for catch trials.",
+    "gabor_stimulus_contrast": {
+        "ibl_name": "gabor_stimulus_contrast",  # computed from contrastLeft/contrastRight, multiplied by 100
+        "description": "Contrast of the Gabor patch as a percentage (0, 6.25, 12.5, 25, or 100). Uniformly sampled across trials. At 0% contrast (no visible stimulus), mice can still perform above chance using block probability prior.",
     },
-    "stimulus_side": {
-        "ibl_name": "stimulus_side",  # computed from contrastLeft/contrastRight
-        "description": "Side where stimulus appeared: 'left' (-35 deg), 'right' (+35 deg), or 'none' (catch trial).",
+    "gabor_stimulus_side": {
+        "ibl_name": "gabor_stimulus_side",  # computed from contrastLeft/contrastRight
+        "description": "Side where stimulus was assigned: 'left' or 'right'. Even at 0% contrast (invisible), trials are assigned a correct side based on block probability, allowing mice to use prior information.",
     },
     "probability_left": {
         "ibl_name": "probabilityLeft",
-        "description": "Prior probability of left stimulus (0.2, 0.5, or 0.8 in biasedChoiceWorld).",
+        "description": "Block prior probability for stimulus on left side. After initial 90 unbiased trials (0.5), blocks alternate between 0.2 (right-biased) and 0.8 (left-biased). Block lengths: 20-100 trials from truncated geometric distribution (mean 51). Block changes are not cued.",
     },
     # Response and outcome columns
-    "mouse_choice": {
+    "mouse_wheel_choice": {
         "ibl_name": "choice",  # transformed from -1/0/+1 to strings
-        "description": "Mouse's choice: 'left' (CCW wheel turn), 'right' (CW wheel turn), or 'no_go' (timeout).",
+        "description": "Mouse's response: 'left' (CCW wheel turn moving stimulus rightward), 'right' (CW wheel turn moving stimulus leftward), or 'no_go' (no response within 60s timeout).",
     },
-    "trial_outcome": {
-        "ibl_name": "feedbackType",  # transformed from -1/+1 to strings
-        "description": "Trial outcome: 'correct' (rewarded) or 'incorrect' (white noise burst).",
+    "is_mouse_rewarded": {
+        "ibl_name": "is_mouse_rewarded",  # transformed from feedbackType: +1 -> True, -1 -> False
+        "description": "Whether the mouse received a water reward (True) or negative feedback consisting of white noise pulse and 2-second timeout (False).",
     },
     "reward_volume_uL": {
         "ibl_name": "rewardVolume",
-        "description": "Volume of sugar water reward in microliters (0 for incorrect trials).",
+        "description": "Volume of water reward in microliters (0 for incorrect/timeout trials).",
+    },
+    # Block structure columns (derived from probability_left)
+    "block_index": {
+        "ibl_name": "block_index",  # computed from probabilityLeft
+        "description": "Zero-indexed block number. Increments each time probability_left changes. Block 0 is typically the initial unbiased block (~90 trials at 0.5 probability).",
+    },
+    "block_type": {
+        "ibl_name": "block_type",  # computed from probabilityLeft
+        "description": "Block type based on stimulus probability bias: 'unbiased' (probability_left=0.5), 'left_block' (probability_left=0.8, stimulus 80% likely on left), or 'right_block' (probability_left=0.2, stimulus 80% likely on right).",
     },
 }
 
@@ -232,10 +247,28 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
                 )
             )
 
+        trials_description = (
+            "Trial data from the IBL decision-making task. "
+            "On each trial, a visual stimulus (Gabor patch) appears on the left or right of a screen, "
+            "and the mouse must move it to the center by turning a wheel with its front paws within 60 seconds. "
+            "Correct responses are rewarded with water; incorrect responses trigger a white noise pulse and 2-second timeout. "
+            "Trial timeline: (1) start_time begins a quiescence period where the mouse must hold the wheel still; "
+            "(2) after quiescence_period elapses, the stimulus and auditory go cue appear simultaneously (gabor_stimulus_onset_time); "
+            "(3) the mouse responds by turning the wheel to move the stimulus; "
+            "(4) feedback_time marks reward or punishment delivery; "
+            "(5) stop_time marks trial end. "
+            "Stimulus contrast is uniformly sampled from 5 values (0%, 6.25%, 12.5%, 25%, 100%). "
+            "On 0% contrast trials, no stimulus is visible but a correct side is still assigned based on block probability, "
+            "allowing mice to perform above chance using prior information. "
+            "After an initial 90 unbiased trials, stimulus probability alternates between left-biased (80:20) and right-biased (20:80) blocks "
+            "of 20-100 trials (mean 51). Block changes are not cued. "
+            "See IBL et al. (2021) eLife 10:e63711 for full task details."
+        )
+
         nwbfile.add_time_intervals(
             TimeIntervals(
                 name="trials",
-                description="Trial intervals and conditions.",
+                description=trials_description,
                 columns=columns,
             )
         )
@@ -247,8 +280,9 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
 
         Transformations:
         - choice: -1/0/+1 -> "left"/"no_go"/"right"
-        - feedbackType: -1/+1 -> "incorrect"/"correct"
-        - contrastLeft/contrastRight -> contrast + stimulus_side
+        - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
+        - contrastLeft/contrastRight -> gabor_stimulus_contrast + gabor_stimulus_side
+        - probabilityLeft -> block_index (increments on change) + block_type (categorical)
 
         Parameters
         ----------
@@ -266,24 +300,76 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         choice_map = {-1.0: "left", 0.0: "no_go", 1.0: "right"}
         trials["choice"] = trials["choice"].map(choice_map)
 
-        # Transform feedback_type: -1 -> "incorrect", +1 -> "correct"
-        feedback_map = {-1.0: "incorrect", 1.0: "correct"}
-        trials["feedbackType"] = trials["feedbackType"].map(feedback_map)
+        # Transform feedbackType to boolean: +1 -> True (rewarded), -1 -> False (not rewarded)
+        trials["is_mouse_rewarded"] = trials["feedbackType"] == 1.0
 
-        # Consolidate contrast columns into contrast + stimulus_side
-        def compute_stimulus_side(left, right):
-            if pd.isna(left) and pd.isna(right):
-                return "none"
-            return "left" if left > 0 else "right"
+        # Consolidate contrast columns into gabor_stimulus_contrast + gabor_stimulus_side
+        # IBL stores contrast in contrastLeft/contrastRight where:
+        # - One column has the contrast value (0, 0.0625, 0.125, 0.25, or 1.0)
+        # - The other column has NaN (or sometimes 0)
+        # Even 0% contrast trials are assigned to a side based on block probability
+        def compute_gabor_stimulus_side(left, right):
+            # Determine which side based on which column has a non-NaN value
+            # If both are NaN, that's unexpected but return "none" as fallback
+            left_valid = not pd.isna(left)
+            right_valid = not pd.isna(right)
+            if left_valid and not right_valid:
+                return "left"
+            elif right_valid and not left_valid:
+                return "right"
+            elif left_valid and right_valid:
+                # Both have values - use the non-zero one, or left if both are 0
+                return "left" if left >= right else "right"
+            else:
+                return "none"  # Both NaN - unexpected
 
-        def compute_contrast(left, right):
-            if pd.isna(left) and pd.isna(right):
-                return np.nan
-            return left if left > 0 else right
+        def compute_gabor_stimulus_contrast(left, right):
+            # Return the non-NaN contrast value as percentage (could be 0 for 0% contrast trials)
+            # Multiply by 100 and round to 2 decimal places
+            if not pd.isna(left) and (pd.isna(right) or left > 0):
+                return round(left * 100, 2)
+            elif not pd.isna(right):
+                return round(right * 100, 2)
+            else:
+                return np.nan  # Both NaN - unexpected
 
-        trials["stimulus_side"] = [
-            compute_stimulus_side(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+        trials["gabor_stimulus_side"] = [
+            compute_gabor_stimulus_side(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
         ]
-        trials["contrast"] = [compute_contrast(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])]
+        trials["gabor_stimulus_contrast"] = [
+            compute_gabor_stimulus_contrast(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+        ]
+
+        # Compute block_index and block_type from probabilityLeft
+        # Validate: probabilityLeft must not contain NaN (indicates corrupted trial data)
+        prob_left = trials["probabilityLeft"].values
+        nan_mask = pd.isna(prob_left)
+        if np.any(nan_mask):
+            nan_indices = np.where(nan_mask)[0].tolist()
+            raise ValueError(
+                f"probabilityLeft contains NaN values at trial indices {nan_indices}. "
+                "This indicates corrupted or incomplete trial data."
+            )
+
+        # block_index increments each time probabilityLeft changes
+        block_index = np.zeros(len(prob_left), dtype=int)
+        current_block = 0
+        for i in range(1, len(prob_left)):
+            if not math.isclose(prob_left[i], prob_left[i - 1]):
+                current_block += 1
+            block_index[i] = current_block
+        trials["block_index"] = block_index
+
+        # block_type: categorical based on probabilityLeft value
+        def compute_block_type(prob):
+            if math.isclose(prob, 0.5):
+                return "unbiased"
+            elif math.isclose(prob, 0.8):
+                return "left_block"
+            elif math.isclose(prob, 0.2):
+                return "right_block"
+            else:
+                return f"p={prob}"  # Unexpected value, preserve it
+        trials["block_type"] = trials["probabilityLeft"].apply(compute_block_type)
 
         return trials

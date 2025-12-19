@@ -190,8 +190,11 @@ def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
 
     Transformations:
     - choice: -1/0/+1 -> "left"/"no_go"/"right"
-    - feedbackType: -1/+1 -> "incorrect"/"correct"
-    - contrastLeft/contrastRight -> contrast + stimulus_side
+    - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
+    - contrastLeft/contrastRight -> gabor_stimulus_contrast + gabor_stimulus_side
+
+    Note: block_index and block_type are derived columns in NWB but are not checked here
+    as they are computed from probabilityLeft and don't need round-trip verification.
     """
     trials = trials.copy()
 
@@ -199,25 +202,45 @@ def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
     choice_map = {-1.0: "left", 0.0: "no_go", 1.0: "right"}
     trials["choice"] = trials["choice"].map(choice_map)
 
-    # Transform feedback_type: -1 -> "incorrect", +1 -> "correct"
-    feedback_map = {-1.0: "incorrect", 1.0: "correct"}
-    trials["feedbackType"] = trials["feedbackType"].map(feedback_map)
+    # Transform feedbackType to boolean: +1 -> True (rewarded), -1 -> False (not rewarded)
+    trials["is_mouse_rewarded"] = trials["feedbackType"] == 1.0
 
-    # Consolidate contrast columns into contrast + stimulus_side
-    def compute_stimulus_side(left, right):
-        if pd.isna(left) and pd.isna(right):
-            return "none"
-        return "left" if left > 0 else "right"
+    # Consolidate contrast columns into gabor_stimulus_contrast + gabor_stimulus_side
+    # IBL stores contrast in contrastLeft/contrastRight where:
+    # - One column has the contrast value (0, 0.0625, 0.125, 0.25, or 1.0)
+    # - The other column has NaN (or sometimes 0)
+    # Even 0% contrast trials are assigned to a side based on block probability
+    def compute_gabor_stimulus_side(left, right):
+        # Determine which side based on which column has a non-NaN value
+        # If both are NaN, that's unexpected but return "none" as fallback
+        left_valid = not pd.isna(left)
+        right_valid = not pd.isna(right)
+        if left_valid and not right_valid:
+            return "left"
+        elif right_valid and not left_valid:
+            return "right"
+        elif left_valid and right_valid:
+            # Both have values - use the non-zero one, or left if both are 0
+            return "left" if left >= right else "right"
+        else:
+            return "none"  # Both NaN - unexpected
 
-    def compute_contrast(left, right):
-        if pd.isna(left) and pd.isna(right):
-            return np.nan
-        return left if left > 0 else right
+    def compute_gabor_stimulus_contrast(left, right):
+        # Return the non-NaN contrast value as percentage (could be 0 for 0% contrast trials)
+        # Multiply by 100 and round to 2 decimal places
+        if not pd.isna(left) and (pd.isna(right) or left > 0):
+            return round(left * 100, 2)
+        elif not pd.isna(right):
+            return round(right * 100, 2)
+        else:
+            return np.nan  # Both NaN - unexpected
 
-    trials["stimulus_side"] = [
-        compute_stimulus_side(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+    trials["gabor_stimulus_side"] = [
+        compute_gabor_stimulus_side(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
     ]
-    trials["contrast"] = [compute_contrast(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])]
+    trials["gabor_stimulus_contrast"] = [
+        compute_gabor_stimulus_contrast(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+    ]
 
     return trials
 

@@ -22,7 +22,7 @@ This document provides comprehensive documentation for the `BrainwideMapTrialsIn
 The `BrainwideMapTrialsInterface` converts behavioral trial data from IBL experiments into the NWB trials table format. This interface handles the standardized decision-making task used across all IBL laboratories, ensuring consistent representation of behavioral events and their timing.
 
 **Key characteristics:**
-- Adds 14 columns to the NWB trials table
+- Adds 15 columns to the NWB trials table
 - Supports both BWM parquet format and legacy NumPy file formats
 - Uses revision `2025-05-06` for Brain-Wide Map standard data
 - Available for 100% of the 459 BWM sessions
@@ -140,7 +140,7 @@ This variant tests the ability of mice to incorporate prior probability informat
 
 ## Trial Columns Reference
 
-The interface adds the following 14 columns to the NWB trials table:
+The interface adds the following 17 columns to the NWB trials table:
 
 ### Temporal Columns
 
@@ -148,56 +148,38 @@ The interface adds the following 14 columns to the NWB trials table:
 |------------|------------|-------------|
 | `start_time` | `intervals_0` | The beginning of the trial (seconds from session start) |
 | `stop_time` | `intervals_1` | The end of the trial (seconds from session start) |
+| `quiescence_period` | `quiescencePeriod` | Required duration (seconds) the mouse must hold the wheel still before stimulus presentation. Sampled from exponential distribution (400-700ms, mean ~550ms). If wheel moves during this period, the timer resets. Relationship: `gabor_stimulus_onset_time` ≈ `start_time` + `quiescence_period` |
 
-### Event Timing Columns
+### Event Timing Columns (Chronological Order)
 
 | NWB Column | IBL Source | Description |
 |------------|------------|-------------|
-| `stim_on_time` | `stimOn_times` | Time when the visual stimulus appears on screen, detected by photodiode placed over the sync square |
-| `stim_off_time` | `stimOff_times` | Time of stimulus offset, recorded by external photodiode |
-| `go_cue_time` | `goCue_times` | Start time of the go cue tone (100 ms, 5 kHz sine wave). Recorded via soundcard sync fed back into Bpod |
-| `response_time` | `response_times` | Time when response was recorded. Marks end of closed loop state - occurs when 60s elapsed OR wheel reaches threshold |
-| `feedback_time` | `feedback_times` | Time of feedback delivery. For correct trials: valve TTL trigger. For incorrect: white noise trigger |
-| `first_movement_time` | `firstMovement_times` | Time of first wheel movement >= 0.1 radians, occurring between go cue and feedback. May be slightly before cue if movement started during quiescence |
+| `gabor_stimulus_onset_time` | `stimOn_times` | Time when the visual stimulus (Gabor patch) appears on screen, detected by photodiode. Coincides with auditory go cue |
+| `auditory_cue_time` | `goCue_times` | Time of the auditory go cue (100ms, 5kHz tone) signaling the mouse may respond. Presented simultaneously with visual stimulus |
+| `wheel_movement_onset_time` | `firstMovement_times` | Time of first detected wheel movement (>= 0.1 radians threshold) after go cue |
+| `choice_registration_time` | `response_times` | Time when the mouse's choice was registered: either wheel movement reached the +/-35 degree threshold, or 60-second timeout elapsed |
+| `feedback_time` | `feedback_times` | Time of feedback delivery: water reward for correct responses, or white noise pulse + 2-second timeout for incorrect responses |
+| `gabor_stimulus_offset_time` | `stimOff_times` | Time when the Gabor patch disappears from screen, recorded by external photodiode |
 
 ### Stimulus Columns
 
 | NWB Column | IBL Source | Description |
 |------------|------------|-------------|
-| `contrast_left` | `contrastLeft` | Contrast of stimulus at -35 degrees azimuth (left). Value is 0 when stimulus is on right, NaN for catch trials |
-| `contrast_right` | `contrastRight` | Contrast of stimulus at +35 degrees azimuth (right). Value is 0 when stimulus is on left, NaN for catch trials |
-| `probability_left` | `probabilityLeft` | Prior probability that stimulus appears left. Values: 0.2, 0.5, or 0.8 (biasedChoiceWorld) or based on recent bias (trainingChoiceWorld) |
+| `gabor_stimulus_contrast` | computed | Contrast of the Gabor patch as a percentage (0, 6.25, 12.5, 25, or 100). Uniformly sampled across trials. At 0% contrast (no visible stimulus), mice can still perform above chance using block probability prior. Computed from `contrastLeft`/`contrastRight` |
+| `gabor_stimulus_side` | computed | Side where stimulus was assigned: `"left"` or `"right"`. Even at 0% contrast (invisible), trials are assigned a correct side based on block probability, allowing mice to use prior information. Computed from `contrastLeft`/`contrastRight` |
+| `probability_left` | `probabilityLeft` | Block prior probability for stimulus on left side. After initial 90 unbiased trials (0.5), blocks alternate between 0.2 (right-biased) and 0.8 (left-biased). Block lengths: 20-100 trials from truncated geometric distribution (mean 51). Block changes are not cued |
+| `block_index` | computed | Zero-indexed block number. Increments each time `probability_left` changes. Block 0 is typically the initial unbiased block (~90 trials at 0.5 probability). Computed from `probabilityLeft` |
+| `block_type` | computed | Block type based on stimulus probability bias: `"unbiased"` (probability_left=0.5), `"left_block"` (probability_left=0.8, stimulus 80% likely on left), or `"right_block"` (probability_left=0.2, stimulus 80% likely on right). Computed from `probabilityLeft` |
 
 ### Response and Outcome Columns
 
 | NWB Column | IBL Source | Description |
 |------------|------------|-------------|
-| `choice` | `choice` | Mouse response: -1 = CCW wheel turn (move stimulus right), +1 = CW wheel turn (move stimulus left), 0 = timeout (no response within 60s) |
-| `feedback_type` | `feedbackType` | Trial outcome: +1 = correct response (reward), -1 = incorrect response or timeout (white noise) |
-| `reward_volume` | `rewardVolume` | Volume of sugar water delivered (uL). 0 for incorrect trials. Typically 1.5-3 uL, constant within session |
+| `mouse_wheel_choice` | `choice` | Mouse's response: `"left"` (CCW wheel turn moving stimulus rightward), `"right"` (CW wheel turn moving stimulus leftward), or `"no_go"` (no response within 60s timeout). Transformed from IBL's -1/0/+1 encoding |
+| `is_mouse_rewarded` | `feedbackType` | Whether the mouse received a water reward (`True`) or negative feedback consisting of white noise pulse and 2-second timeout (`False`). Transformed from IBL's +1/-1 encoding |
+| `reward_volume_uL` | `rewardVolume` | Volume of water reward in microliters (0 for incorrect/timeout trials)
 
-### Available but Not Currently Included in NWB
-
-#### Available via ONE API
-
-| IBL Source | Description | Typical Values | ONE Dataset |
-|------------|-------------|----------------|-------------|
-| `quiescencePeriod` | Duration of the quiescence period before go cue (seconds). Mouse must hold wheel still during this period | 0.4-0.7s (exponential distribution, mean ~0.53s) | `_ibl_trials.quiescencePeriod.npy` |
-
-This field is loaded automatically by `SessionLoader` and could be added to the NWB conversion:
-
-```python
-from brainbox.io.one import SessionLoader
-
-session_loader = SessionLoader(one=one, eid=session_id)
-session_loader.load_trials()
-trials = session_loader.trials
-
-# quiescencePeriod is available
-print(trials['quiescencePeriod'].describe())
-```
-
-#### NOT Available in Database (Extracted but Not Saved)
+### NOT Available in Database (Extracted but Not Saved)
 
 The following parameters are extracted from Bpod raw data during IBL's pipeline but are **not saved to the database**:
 
@@ -297,9 +279,6 @@ Declares the exact files needed for trials data, supporting both BWM and legacy 
 #### `download_data()`
 Downloads trials data using `SessionLoader.load_trials()`. Automatically handles format detection and caching.
 
-#### `get_metadata()`
-Loads trial column metadata from [trials.yml](../IBL-to-nwb/src/ibl_to_nwb/_metadata/trials.yml), which contains human-readable descriptions for each column.
-
 #### `add_to_nwbfile()`
 Adds the trials table to the NWB file using `pynwb.epoch.TimeIntervals`. Supports `stub_test=True` for quick testing with limited trials.
 
@@ -365,184 +344,140 @@ trials_interface.add_to_nwbfile(
 
 ## Appendix: Column Value Interpretations
 
-### Choice Values
+### mouse_wheel_choice Values
 | Value | Meaning | Wheel Direction | Stimulus Movement |
 |-------|---------|-----------------|-------------------|
-| -1 | Left choice | Counter-clockwise | Stimulus moves right |
-| +1 | Right choice | Clockwise | Stimulus moves left |
-| 0 | No-go / Timeout | No movement to threshold | N/A |
+| `"left"` | Left choice | Counter-clockwise | Stimulus moves right |
+| `"right"` | Right choice | Clockwise | Stimulus moves left |
+| `"no_go"` | Timeout | No movement to threshold | N/A |
 
-### Feedback Type Values
+### is_mouse_rewarded Values
 | Value | Meaning | Consequence |
 |-------|---------|-------------|
-| +1 | Correct | Sugar water reward delivered |
-| -1 | Incorrect/Timeout | White noise burst, 2s timeout |
+| `True` | Correct response | Sugar water reward delivered |
+| `False` | Incorrect response or timeout | White noise burst, 2s timeout |
 
-### Probability Left Values (biasedChoiceWorld)
+### probability_left Values (biasedChoiceWorld)
 | Value | Block Type | Stimulus More Likely On |
 |-------|------------|------------------------|
 | 0.2 | Right-biased block | Right side (80%) |
 | 0.5 | Neutral block | Equal (50/50) |
 | 0.8 | Left-biased block | Left side (80%) |
 
-### Contrast Interpretation
-| contrast_left | contrast_right | Trial Type |
-|---------------|----------------|------------|
-| > 0 | 0 | Left stimulus trial |
-| 0 | > 0 | Right stimulus trial |
-| NaN | NaN | Catch trial (no stimulus) |
+### gabor_stimulus_side and gabor_stimulus_contrast Interpretation
+| gabor_stimulus_side | gabor_stimulus_contrast | Trial Type |
+|---------------------|-------------------------------------|------------|
+| `"left"` | 6.25 - 100 | Left stimulus trial (visible) |
+| `"right"` | 6.25 - 100 | Right stimulus trial (visible) |
+| `"left"` | 0 | 0% contrast trial assigned to left (invisible, but mouse can use block prior) |
+| `"right"` | 0 | 0% contrast trial assigned to right (invisible, but mouse can use block prior) |
 
 ---
 
-## Proposal: Tidy Data Format Improvements
+## Tidy Data Format Implementation
 
-This section proposes improvements to the trials table structure following [tidy data principles](https://vita.had.co.nz/papers/tidy-data.pdf) (Wickham, 2014). The goal is to make the data more self-documenting, easier to analyze, and aligned with best practices for tabular data.
+The trials table follows [tidy data principles](https://vita.had.co.nz/papers/tidy-data.pdf) (Wickham, 2014) to make the data more self-documenting, easier to analyze, and aligned with best practices for tabular data.
 
-### Motivation
+### Design Rationale
 
-The current implementation preserves IBL's internal numeric encodings (e.g., `-1/0/+1` for choice). While this maintains compatibility with existing IBL analysis code, it has drawbacks:
+#### Self-Documenting Column Names
 
-1. **Not self-documenting**: Users must consult documentation to understand what `-1` means
-2. **Error-prone**: Easy to confuse `-1` (left) with `+1` (right)
-3. **Violates tidy data principle**: "Each variable forms a column" - but `contrast_left` and `contrast_right` encode two pieces of information (contrast value AND stimulus side) across two columns
-4. **Query complexity**: Filtering requires numeric comparisons rather than semantic queries
+Column names are designed to be understandable without consulting documentation:
 
-### Proposed Changes
+| Column | Rationale |
+|--------|-----------|
+| `quiescence_period` | Clear that this is a duration (period), not a timestamp. Relates to other columns: `gabor_stimulus_onset_time` ≈ `start_time` + `quiescence_period` |
+| `gabor_stimulus_onset_time` | Specifies stimulus type (Gabor) and event (onset) |
+| `auditory_cue_time` | Explicit that cue is auditory (vs visual) |
+| `wheel_movement_onset_time` | Specifies wheel (the response mechanism) and onset |
+| `choice_registration_time` | When choice was registered by the system |
+| `gabor_stimulus_offset_time` | Specifies stimulus type (Gabor) and event (offset) |
+| `gabor_stimulus_contrast` | Specifies the stimulus type (Gabor patch) and includes units (percentage) |
+| `gabor_stimulus_side` | Consistent naming with other gabor_stimulus_* columns |
+| `mouse_wheel_choice` | Explicit that this is the mouse's choice |
+| `is_mouse_rewarded` | Boolean for easy filtering; outcome-focused |
+| `reward_volume_uL` | Includes units in the name |
 
-#### 1. Temporal Column Ordering
+#### Categorical String Values
 
-**Current order** (arbitrary):
-```
-feedback_times, response_times, stimOff_times, stimOn_times, goCue_times, firstMovement_times
-```
+String and boolean values replace numeric encodings for clarity:
 
-**Proposed order** (chronological within a trial):
-```
-go_cue_time, stim_on_time, first_movement_time, response_time, feedback_time, stim_off_time
-```
+| IBL Encoding | NWB Value | Benefit |
+|--------------|-----------|---------|
+| choice: -1/0/+1 | `"left"`/`"no_go"`/`"right"` | Self-documenting queries |
+| feedbackType: -1/+1 | `True`/`False` | Direct boolean filtering |
 
-| Order | Column | Typical Timing (relative to stim_on) |
-|-------|--------|--------------------------------------|
-| 1 | `go_cue_time` | ~0 ms (simultaneous with stimulus) |
-| 2 | `stim_on_time` | 0 ms (reference point) |
-| 3 | `first_movement_time` | +200 ms |
-| 4 | `response_time` | +593 ms |
-| 5 | `feedback_time` | +593 ms |
-| 6 | `stim_off_time` | +1950 ms |
+#### Tidy Contrast Representation
 
-**Rationale**: Chronological ordering makes the trial structure immediately apparent and aids understanding of the temporal sequence of events.
+The original IBL format uses two columns (`contrastLeft`, `contrastRight`) where one is always 0 or both are NaN. This violates the tidy data principle that each variable should form a column.
 
-#### 2. Categorical Choice Values
-
-**Current**:
-| Value | Meaning |
-|-------|---------|
-| -1 | Left choice (CCW wheel turn) |
-| 0 | No-go / Timeout |
-| +1 | Right choice (CW wheel turn) |
-
-**Proposed**:
-| Value | Meaning |
-|-------|---------|
-| `"left"` | Left choice (CCW wheel turn) |
-| `"no_go"` | No-go / Timeout |
-| `"right"` | Right choice (CW wheel turn) |
-
-**Rationale**: String values are self-documenting. Queries become `choice == "left"` instead of `choice == -1`, reducing cognitive load and potential errors.
-
-#### 3. Categorical Feedback Type
-
-**Current**:
-| Value | Meaning |
-|-------|---------|
-| +1 | Correct response |
-| -1 | Incorrect response or timeout |
-
-**Proposed**:
-| Value | Meaning |
-|-------|---------|
-| `"correct"` | Correct response (reward delivered) |
-| `"incorrect"` | Incorrect response or timeout (white noise) |
-
-**Rationale**: Same as choice - semantic clarity over numeric encoding.
-
-#### 4. Consolidated Contrast Columns (Tidy Format)
-
-**Current structure** (wide format, violates tidy principles):
-| contrast_left | contrast_right | Interpretation |
-|---------------|----------------|----------------|
+**IBL format** (redundant):
+| contrastLeft | contrastRight | Meaning |
+|--------------|---------------|---------|
 | 0.25 | 0 | Left stimulus at 25% |
 | 0 | 1.0 | Right stimulus at 100% |
-| NaN | NaN | Catch trial |
+| 0 | 0 | 0% contrast trial (assigned side depends on which column was set) |
 
-**Proposed structure** (tidy format):
-| contrast | stimulus_side | Interpretation |
-|----------|---------------|----------------|
-| 0.25 | `"left"` | Left stimulus at 25% |
-| 1.0 | `"right"` | Right stimulus at 100% |
-| NaN | `"none"` | Catch trial |
+**NWB format** (tidy):
+| gabor_stimulus_contrast | gabor_stimulus_side | Meaning |
+|------------------------------------|---------------------|---------|
+| 25 | `"left"` | Left stimulus at 25% |
+| 100 | `"right"` | Right stimulus at 100% |
+| 0 | `"left"` or `"right"` | 0% contrast trial (invisible, but assigned a correct side based on block probability) |
 
-**Rationale**:
-- **Tidy data principle**: Each variable should form a column. Currently, stimulus side is implicitly encoded by which column has a non-zero value.
-- **Reduced redundancy**: The current format always has one column at 0 when the other is non-zero - this is redundant information.
-- **Simpler queries**: `stimulus_side == "left"` vs `(contrast_left > 0) | (contrast_left.notna() & contrast_right.isna())`
-- **Easier aggregation**: Grouping by stimulus side becomes trivial.
+#### Chronological Column Ordering
 
-### Size Impact Analysis
+Event timing columns are ordered chronologically within a trial:
 
-The proposed changes have **negligible size impact**:
+| Order | Column | Typical Timing |
+|-------|--------|----------------|
+| 1 | `gabor_stimulus_onset_time` | 0 ms (reference) |
+| 2 | `auditory_cue_time` | ~0 ms (simultaneous) |
+| 3 | `wheel_movement_onset_time` | +200 ms |
+| 4 | `choice_registration_time` | +593 ms |
+| 5 | `feedback_time` | +593 ms |
+| 6 | `gabor_stimulus_offset_time` | +1950 ms |
 
-| Encoding | Bytes per trial | 500 trials |
-|----------|-----------------|------------|
-| Current (4 float64 cols) | 32 bytes | 15.6 KiB |
-| Proposed (2 strings + 1 float + 1 string) | ~30 bytes | 14.6 KiB |
+### Example Queries
 
-String columns in HDF5/NWB are stored efficiently, and the consolidation of two contrast columns into one actually offsets any string overhead.
-
-### Backwards Compatibility Considerations
-
-**Challenge**: Existing IBL analysis code expects numeric encodings.
-
-**Mitigation strategies**:
-1. **Documentation**: Clear mapping between old and new values
-2. **Utility functions**: Provide conversion functions in ibllib for users who need numeric format
-3. **NWB is the target format**: Users accessing data via NWB are likely building new analysis pipelines anyway
-
-### Example: Improved Query Patterns
-
-**Current (numeric encoding)**:
 ```python
-# Get left stimulus trials with correct responses
+# Get left stimulus trials with correct outcomes (rewarded)
 left_correct = trials[
-    (trials['contrast_left'] > 0) &
-    (trials['feedback_type'] == 1)
+    (trials['gabor_stimulus_side'] == 'left') &
+    trials['is_mouse_rewarded']
 ]
 
 # Get trials where mouse chose left
-chose_left = trials[trials['choice'] == -1]
+chose_left = trials[trials['mouse_wheel_choice'] == 'left']
+
+# Calculate reaction time (stimulus to movement onset)
+trials['reaction_time'] = trials['wheel_movement_onset_time'] - trials['gabor_stimulus_onset_time']
+
+# Calculate motor time (movement onset to choice registration)
+trials['motor_time'] = trials['choice_registration_time'] - trials['wheel_movement_onset_time']
 ```
 
-**Proposed (categorical encoding)**:
-```python
-# Get left stimulus trials with correct responses
-left_correct = trials[
-    (trials['stimulus_side'] == 'left') &
-    (trials['feedback_type'] == 'correct')
-]
+### IBL to NWB Column Mapping
 
-# Get trials where mouse chose left
-chose_left = trials[trials['choice'] == 'left']
-```
+For users familiar with IBL naming conventions:
 
-### Implementation Status
-
-- [x] Temporal column reordering
-- [x] Categorical choice values
-- [x] Categorical feedback_type values
-- [x] Consolidated contrast + stimulus_side columns
-- [x] Update consistency checks
-- [x] Remove metadata YAML (consolidated inline in interface)
-- [ ] Update notebook examples
+| IBL Column | NWB Column | Transformation |
+|------------|------------|----------------|
+| `intervals_0` | `start_time` | Direct copy |
+| `intervals_1` | `stop_time` | Direct copy |
+| `quiescencePeriod` | `quiescence_period` | Direct copy |
+| `stimOn_times` | `gabor_stimulus_onset_time` | Direct copy |
+| `goCue_times` | `auditory_cue_time` | Direct copy |
+| `firstMovement_times` | `wheel_movement_onset_time` | Direct copy |
+| `response_times` | `choice_registration_time` | Direct copy |
+| `feedback_times` | `feedback_time` | Direct copy |
+| `stimOff_times` | `gabor_stimulus_offset_time` | Direct copy |
+| `contrastLeft`/`contrastRight` | `gabor_stimulus_contrast` | Consolidated (x100) |
+| `contrastLeft`/`contrastRight` | `gabor_stimulus_side` | Computed |
+| `probabilityLeft` | `probability_left` | Direct copy |
+| `choice` | `mouse_wheel_choice` | -1/0/+1 to strings |
+| `feedbackType` | `is_mouse_rewarded` | -1/+1 to boolean |
+| `rewardVolume` | `reward_volume_uL` | Direct copy |
 
 ### References
 
