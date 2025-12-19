@@ -102,6 +102,7 @@ known-first-party = ["ibl_to_nwb"]
 
 [dependency-groups]
 dev = [
+    "allensdk>=0.16.3",
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.7",
     "remfile>=0.1.13",

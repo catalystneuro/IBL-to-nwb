@@ -69,10 +69,6 @@ TRIALS_COLUMNS = {
         "ibl_name": "gabor_stimulus_side",  # computed from contrastLeft/contrastRight
         "description": "Side where stimulus was assigned: 'left' or 'right'. Even at 0% contrast (invisible), trials are assigned a correct side based on block probability, allowing mice to use prior information.",
     },
-    "probability_left": {
-        "ibl_name": "probabilityLeft",
-        "description": "Block prior probability for stimulus on left side. After initial 90 unbiased trials (0.5), blocks alternate between 0.2 (right-biased) and 0.8 (left-biased). Block lengths: 20-100 trials from truncated geometric distribution (mean 51). Block changes are not cued.",
-    },
     # Response and outcome columns
     "mouse_wheel_choice": {
         "ibl_name": "choice",  # transformed from -1/0/+1 to strings
@@ -87,13 +83,17 @@ TRIALS_COLUMNS = {
         "description": "Volume of water reward in microliters (0 for incorrect/timeout trials).",
     },
     # Block structure columns (derived from probability_left)
-    "block_index": {
-        "ibl_name": "block_index",  # computed from probabilityLeft
-        "description": "Zero-indexed block number. Increments each time probability_left changes. Block 0 is typically the initial unbiased block (~90 trials at 0.5 probability).",
+    "probability_left": {
+        "ibl_name": "probabilityLeft",
+        "description": "Block prior probability for stimulus on left side. After initial 90 unbiased trials (0.5), blocks alternate between 0.2 (right-biased) and 0.8 (left-biased). Block lengths: 20-100 trials from truncated geometric distribution (mean 51). Block changes are not cued.",
     },
     "block_type": {
         "ibl_name": "block_type",  # computed from probabilityLeft
         "description": "Block type based on stimulus probability bias: 'unbiased' (probability_left=0.5), 'left_block' (probability_left=0.8, stimulus 80% likely on left), or 'right_block' (probability_left=0.2, stimulus 80% likely on right).",
+    },
+    "block_index": {
+        "ibl_name": "block_index",  # computed from probabilityLeft
+        "description": "Zero-indexed block number. Increments each time probability_left changes. Block 0 is typically the initial unbiased block (~90 trials at 0.5 probability).",
     },
 }
 
