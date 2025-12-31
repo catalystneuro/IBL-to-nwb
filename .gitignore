@@ -147,4 +147,9 @@ src/ibl_to_nwb/_aws_ibl/network_config.env
 src/ibl_to_nwb/_aws_ibl/
 src/ibl_to_nwb/_aws/profiles/ibl.env
 src/ibl_to_nwb/_aws/profiles/catalyst_neuro.env
+
 .claude/settings.local.json
+allen_sdk_manifest
+
+src/ibl_to_nwb/_scripts/anatomical_coordinates_validation
+documentation/landmark_coordinate_comparison.md
