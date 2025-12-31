@@ -355,80 +355,272 @@ GET /trajectories?session={eid}&probe={probe}&provenance=Ephys%20aligned%20histo
 - **Purpose**: Maps channel depths for trajectory interpolation
 - **Location**: `alf/{probe_name}/` collection
 
-## Data Analysis Applications
+## IBL Atlas API Reference
 
-### 1. Multi-region Analysis
+### Coordinate Transformation: `atlas.xyz2ccf()`
+
+The `iblatlas.atlas.AllenAtlas` class provides the `xyz2ccf()` method to convert IBL bregma-centered coordinates to Allen CCF coordinates. This function performs two operations:
+
+1. **Origin shift**: Translates from bregma origin to CCF origin (anterior-superior-left corner of the Allen atlas volume). The CCF origin is at a "virtual bregma" position approximately (5400, 332, 5739) um in CCF space.
+
+2. **Axis reordering**: Optionally reorders axes from IBL convention (ML, AP, DV) to CCF convention (AP, DV, ML) based on the `ccf_order` parameter.
+
 ```python
-# Load data from multiple brain regions
-insertions_cortex = one.search_insertions(atlas_acronym='CTX', project='brainwide')
-insertions_thalamus = one.search_insertions(atlas_acronym='TH', project='brainwide')
+from iblatlas.atlas import AllenAtlas
+import numpy as np
 
-# Compare activity across regions
-for pid in insertions_cortex[:5]:  # First 5 cortical insertions
-    ssl = SpikeSortingLoader(pid=pid, one=one)
-    spikes, clusters, channels = ssl.load_spike_sorting()
-    # Analyze cortical activity patterns
+atlas = AllenAtlas()
+
+# IBL coordinates are in RAS orientation (bregma-centered, meters)
+# x = Medio-Lateral (right positive)
+# y = Anterior-Posterior (anterior positive)
+# z = Dorso-Ventral (dorsal/superior positive)
+ibl_coords_m = np.array([[0.001, -0.002, 0.0015]])  # 1mm right, 2mm posterior, 1.5mm dorsal
+
+# Convert to CCF - applies origin shift AND axis reordering
+ccf_coords = atlas.xyz2ccf(ibl_coords_m, ccf_order='apdvml')
 ```
 
-### 2. Anatomical Filtering with Histology Quality Check
+#### The `ccf_order` Parameter
+
+The `ccf_order` parameter controls the axis ordering of the returned CCF coordinates:
+
+| `ccf_order` | Output Order | Description |
+|-------------|--------------|-------------|
+| `'apdvml'` | (AP, DV, ML) | **Default for NWB**. Anterior-Posterior, Dorsal-Ventral, Medio-Lateral |
+| `'mlapdv'` | (ML, AP, DV) | IBL internal order, matches input coordinate order |
+
+**For NWB files, always use `ccf_order='apdvml'`** because the NWB electrodes table expects PIR orientation:
+- x: Posterior-positive (AP axis, values increase toward posterior)
+- y: Inferior-positive (DV axis, values increase toward ventral)
+- z: Right-positive (ML axis, values increase toward right)
+
+#### Coordinate Units
+
+| Context | Units | Notes |
+|---------|-------|-------|
+| IBL atlas internal | **meters** | All `atlas.xyz2ccf()` inputs expect meters |
+| IBL plotting functions | **meters** | `atlas.plot_sslice()`, `atlas.plot_cslice()`, etc. |
+| NWB electrodes table | **micrometers** | Standard NWB convention |
+| NWB anatomical tables | **micrometers** | Consistent with electrodes table |
+
+When converting, ensure coordinates are in the correct units:
 ```python
-from brainbox.io.one import SpikeSortingLoader
+# Convert from micrometers to meters for atlas functions
+coords_m = coords_um * 1e-6
 
-ssl = SpikeSortingLoader(pid=pid, one=one)
-
-# Check histology quality before anatomical analysis
-print(f"Histology source: {ssl.histology}")
-# Possible values: 'alf', 'resolved', 'aligned', 'traced', ''
-
-# Only use high-quality anatomical localizations
-if ssl.histology in ['resolved', 'alf']:
-    spikes, clusters, channels = ssl.load_spike_sorting()
-
-    # Filter clusters by brain region
-    visual_clusters = clusters[clusters['acronym'].str.contains('VIS')]
-    motor_clusters = clusters[clusters['acronym'].str.contains('MOp')]
-
-    # Access channel brain locations
-    print(f"Brain regions: {channels.acronym}")
-    print(f"Atlas coordinates: {channels.x}, {channels.y}, {channels.z}")
-else:
-    print("Warning: Anatomical locations may be inaccurate")
+# Convert from meters to micrometers for NWB storage
+coords_um = coords_m * 1e6
 ```
 
-### 3. Trajectory Analysis
-```python
-# Compare planned vs. actual insertion coordinates
-insertion = one.alyx.rest('insertions', 'list', id=pid)[0]
-planned_coords = (insertion['x'], insertion['y'], insertion['z'])
+### Lateralization and Hemisphere Handling
 
-# Get actual trajectory from histology
-trajectories = one.alyx.rest('trajectories', 'list',
-                           probe_insertion=pid,
-                           provenance='Histology track')
-if trajectories:
-    actual_coords = (trajectories[0]['x'], trajectories[0]['y'], trajectories[0]['z'])
-    deviation = np.linalg.norm(np.array(actual_coords) - np.array(planned_coords))
-    print(f"Insertion deviation: {deviation:.0f} um")
+IBL coordinates use a **right-positive** convention for the medio-lateral axis (bregma-centered):
+- Positive x (ML): Right hemisphere
+- Negative x (ML): Left hemisphere
+- x = 0: Midline (at bregma)
+
+Allen CCF uses the anterior-superior-left (ASL) corner as origin, with ML values increasing toward the right:
+- ML = 0: Left edge of the atlas volume
+- ML ~ 5700 um: Midline
+- ML ~ 11400 um: Right edge of the atlas volume
+
+The `xyz2ccf` function handles the origin shift from bregma to the CCF corner. Both coordinate systems have **right as the positive direction** for ML, so no sign flipping is applied - only an offset is added.
+
+```python
+# Example: Electrode in left hemisphere, 2mm from midline
+left_electrode = np.array([[-0.002, -0.003, 0.001]])  # IBL x = -2mm (left of bregma)
+ccf_left = atlas.xyz2ccf(left_electrode, ccf_order='apdvml')
+# CCF z (ML) will be ~3700 um (5700 - 2000 = left of midline)
+
+# Example: Electrode in right hemisphere, 2mm from midline
+right_electrode = np.array([[0.002, -0.003, 0.001]])  # IBL x = +2mm (right of bregma)
+ccf_right = atlas.xyz2ccf(right_electrode, ccf_order='apdvml')
+# CCF z (ML) will be ~7700 um (5700 + 2000 = right of midline)
 ```
 
-### 4. Cross-laboratory Comparisons
+### Brain Region Mappings
+
+IBL provides hierarchical brain region mappings through `iblatlas.regions.BrainRegions`:
+
 ```python
-# Find repeated recordings of the same brain region
-target_region = 'VISp'  # Primary visual cortex
-insertions = one.alyx.rest('insertions', 'list',
-                          django=f'channels__brain_region__acronym__icontains,{target_region}')
+from iblatlas.regions import BrainRegions
 
-# Group by laboratory
-lab_groups = {}
-for ins in insertions:
-    session = one.alyx.rest('sessions', 'read', id=ins['session'])
-    lab = session['lab']
-    if lab not in lab_groups:
-        lab_groups[lab] = []
-    lab_groups[lab].append(ins['id'])
+br = BrainRegions()
 
-print(f"Found {target_region} recordings in {len(lab_groups)} laboratories")
+# Get atlas IDs from channels
+atlas_ids = channels['atlas_id']
+
+# Fine-grained regions (Allen parcellation)
+acronyms = br.id2acronym(atlas_id=atlas_ids)
+
+# Coarse grouping (Beryl mapping)
+beryl = br.id2acronym(atlas_id=atlas_ids, mapping="Beryl")
+
+# Very coarse grouping (Cosmos mapping)
+cosmos = br.id2acronym(atlas_id=atlas_ids, mapping="Cosmos")
 ```
+
+| Mapping | Granularity | Example |
+|---------|-------------|---------|
+| Default (Allen) | Fine | `'VISp2/3'`, `'CA1sp'`, `'SNr'` |
+| Beryl | Coarse | `'VISp'`, `'CA1'`, `'SNr'` |
+| Cosmos | Very coarse | `'VIS'`, `'HPF'`, `'MB'` |
+
+#### Lateralization and Atlas IDs
+
+IBL uses **signed atlas IDs** to encode hemisphere information:
+- **Negative atlas IDs**: Left hemisphere (e.g., -362)
+- **Positive atlas IDs**: Right hemisphere (e.g., 362)
+
+However, the NWB anatomical coordinates tables store **acronyms** (strings like "VISp", "CA1"), not atlas IDs. When converting atlas IDs to acronyms using `id2acronym()`, the hemisphere information is **lost** - both -362 and 362 return the same acronym (e.g., "MD").
+
+```python
+# Both hemispheres produce the same acronym
+br.id2acronym(atlas_id=[-362], mapping="Beryl")  # Returns ['MD']
+br.id2acronym(atlas_id=[362], mapping="Beryl")   # Returns ['MD'] (same)
+```
+
+**To determine hemisphere from NWB data**, use the ML coordinate:
+- **ElectrodesIBLBregma**: x < 0 = left hemisphere, x > 0 = right hemisphere
+- **Electrodes table / ElectrodesCCFv3**: z < 5700 um = left, z > 5700 um = right
+
+### NWB Coordinate Tables: How Data is Extracted and Stored
+
+The IBL-to-NWB conversion writes electrode coordinates to three locations, each with different coordinate systems and transformations applied.
+
+#### Overview of Coordinate Storage
+
+| Table | Coordinate System | Origin | Orientation | Transformation Applied |
+|-------|------------------|--------|-------------|------------------------|
+| `electrodes` (x, y, z) | Allen CCF | ASL corner | PIR | `xyz2ccf(ccf_order='apdvml')` + unit conversion |
+| `ElectrodesCCFv3` | Allen CCF | ASL corner | PIR | `xyz2ccf(ccf_order='apdvml')` + unit conversion |
+| `ElectrodesIBLBregma` | IBL Bregma | Bregma | RAS | Unit conversion only (no `xyz2ccf`) |
+
+#### 1. Electrodes Table (x, y, z columns)
+
+The main NWB electrodes table stores CCF coordinates in PIR orientation.
+
+**Source data**: IBL channels (x, y, z in meters, bregma-centered, RAS)
+
+**Transformation**:
+```python
+# 1. Ensure coordinates are in meters
+coords_m = channels['x'], channels['y'], channels['z']
+
+# 2. Apply xyz2ccf: origin shift + axis reordering
+ccf_coords = atlas.xyz2ccf(coords_m, ccf_order='apdvml')  # Returns (AP, DV, ML)
+
+# 3. Convert to micrometers
+ccf_coords_um = ccf_coords * 1e6
+
+# 4. Store in electrodes table
+nwbfile.electrodes['x'] = ccf_coords_um[:, 0]  # AP axis, +posterior
+nwbfile.electrodes['y'] = ccf_coords_um[:, 1]  # DV axis, +inferior
+nwbfile.electrodes['z'] = ccf_coords_um[:, 2]  # ML axis, +right
+```
+
+**Accessing**:
+```python
+electrodes_df = nwbfile.electrodes.to_dataframe()
+x_ccf = electrodes_df['x'].values  # AP in um
+y_ccf = electrodes_df['y'].values  # DV in um
+z_ccf = electrodes_df['z'].values  # ML in um
+```
+
+#### 2. ElectrodesCCFv3 Anatomical Coordinates Table
+
+This table stores the same CCF coordinates as the electrodes table, with explicit space metadata.
+
+**Source data**: Same as electrodes table
+
+**Transformation**: Same as electrodes table (`xyz2ccf` with origin shift + reordering)
+
+**Accessing**:
+```python
+localization = nwbfile.lab_meta_data['localization']
+ccf_table = localization.anatomical_coordinates_tables['ElectrodesCCFv3']
+ccf_df = ccf_table.to_dataframe()
+
+x_ccf = ccf_df['x'].values  # AP in um, +posterior
+y_ccf = ccf_df['y'].values  # DV in um, +inferior
+z_ccf = ccf_df['z'].values  # ML in um, +right
+
+# Space metadata
+space = ccf_table.space
+print(f"Orientation: {space.orientation}")  # PIR
+print(f"Units: {space.units}")              # um
+```
+
+#### 3. ElectrodesIBLBregma Anatomical Coordinates Table
+
+This table stores native IBL coordinates **without** CCF conversion - only unit conversion is applied.
+
+**Source data**: IBL channels (x, y, z in meters, bregma-centered, RAS)
+
+**Transformation**:
+```python
+# 1. Get IBL coordinates (already in RAS: x=ML, y=AP, z=DV)
+ibl_x = channels['x']  # ML, +right
+ibl_y = channels['y']  # AP, +anterior
+ibl_z = channels['z']  # DV, +dorsal
+
+# 2. Convert to micrometers (NO xyz2ccf, NO origin shift, NO reordering)
+ibl_x_um = ibl_x * 1e6
+ibl_y_um = ibl_y * 1e6
+ibl_z_um = ibl_z * 1e6
+
+# 3. Store directly
+ibl_table.add_row(x=ibl_x_um, y=ibl_y_um, z=ibl_z_um, ...)
+```
+
+**Accessing**:
+```python
+localization = nwbfile.lab_meta_data['localization']
+ibl_table = localization.anatomical_coordinates_tables['ElectrodesIBLBregma']
+ibl_df = ibl_table.to_dataframe()
+
+x_ibl = ibl_df['x'].values  # ML in um, +right
+y_ibl = ibl_df['y'].values  # AP in um, +anterior
+z_ibl = ibl_df['z'].values  # DV in um, +dorsal
+
+# Additional columns
+atlas_id = ibl_df['atlas_id'].values        # Allen atlas ID (negative=left, positive=right)
+beryl = ibl_df['beryl_location'].values     # Coarse brain region grouping
+cosmos = ibl_df['cosmos_location'].values   # Very coarse brain region grouping
+
+# Space metadata
+space = ibl_table.space
+print(f"Orientation: {space.orientation}")  # RAS
+print(f"Origin: {space.origin}")            # bregma
+print(f"Units: {space.units}")              # um
+```
+
+#### Converting Between Coordinate Systems
+
+To convert from NWB back to IBL atlas coordinates for plotting:
+
+```python
+from iblatlas.atlas import AllenAtlas
+atlas = AllenAtlas()
+
+# From ElectrodesIBLBregma (already in IBL format, just convert units)
+ibl_coords_m = np.column_stack([x_ibl, y_ibl, z_ibl]) * 1e-6
+
+# Use directly with IBL plotting functions
+atlas.plot_cslice(ap_coord_m, ...)  # ap_coord_m = y_ibl * 1e-6
+
+# From electrodes table or ElectrodesCCFv3 (need inverse transform)
+# Note: There is no built-in ccf2xyz function, so use ElectrodesIBLBregma instead
+```
+
+#### Axis Mapping Summary
+
+| IBL (RAS) | CCF (PIR) | Description |
+|-----------|-----------|-------------|
+| x (ML) | z | Medio-Lateral, +right |
+| y (AP) | x | Anterior-Posterior, +posterior in CCF, +anterior in IBL |
+| z (DV) | y | Dorso-Ventral, +inferior in CCF, +dorsal in IBL |
 
 ## File Structure and Data Organization
 
@@ -466,37 +658,6 @@ spikes_times = one.load_dataset(eid, 'spikes.times.npy',
 # Method 3: SpikeSortingLoader (recommended)
 ssl = SpikeSortingLoader(pid=pid, one=one)
 spikes, clusters, channels = ssl.load_spike_sorting()
-```
-
-## Best Practices
-
-### 1. Quality Control
-```python
-# Always check histology quality before anatomical analysis
-ssl = SpikeSortingLoader(pid=pid, one=one)
-print(f"Histology quality: {ssl.histology}")
-
-if ssl.histology not in ['resolved', 'alf']:
-    print("Warning: Anatomical locations may be inaccurate")
-```
-
-### 2. Data Validation
-```python
-# Verify data completeness
-required_datasets = ['spikes.times', 'spikes.clusters', 'clusters.channels']
-available = one.list_datasets(eid, collection=f'alf/{probe_name}')
-
-for dataset in required_datasets:
-    if not any(dataset in ds for ds in available):
-        print(f"Missing dataset: {dataset}")
-```
-
-### 3. Cross-reference Verification
-```python
-# Ensure PID matches expected session and probe
-eid_check, pname_check = one.pid2eid(pid)
-assert eid_check == eid, "PID does not match expected session"
-assert pname_check == probe_name, "PID does not match expected probe"
 ```
 
 ## Coordinate Systems and the ASL vs PIR Mismatch

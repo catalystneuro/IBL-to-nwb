@@ -456,21 +456,36 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
 
         # Create AnatomicalCoordinatesTable for IBL-Bregma coordinates
         ibl_table = AnatomicalCoordinatesTable(
-            name=f"AnatomicalCoordinatesTableElectrodesIBLBregma",
-            description=f'Electrode positions for in the IBL-Bregma coordinate system',
+            name="ElectrodesIBLBregma",
+            description='Electrode positions in the IBL-Bregma coordinate system',
             target=nwbfile.electrodes,
             space=self.ibl_space,
             method='IBL histology alignment pipeline',
         )
+        # Add custom columns for hierarchical brain region mappings and atlas ID
+        ibl_table.add_column(
+            name='atlas_id',
+            description='Allen Brain Atlas region ID. Negative values indicate left hemisphere, positive values indicate right hemisphere.',
+        )
+        ibl_table.add_column(
+            name='beryl_location',
+            description='Brain region in IBL Beryl atlas (coarse grouping).',
+        )
+        ibl_table.add_column(
+            name='cosmos_location',
+            description='Brain region in IBL Cosmos atlas (very coarse grouping).',
+        )
 
         # Create AnatomicalCoordinatesTable for CCF coordinates
         ccf_table = AnatomicalCoordinatesTable(
-            name=f'AnatomicalCoordinatesTableElectrodesCCFv3',
-            description=f'Electrode positi ons in the CCF coordinate system',
+            name='ElectrodesCCFv3',
+            description='Electrode positions in the CCF coordinate system',
             target=nwbfile.electrodes,
             space=self.ccf_space,
             method='IBL histology alignment pipeline',
         )
+
+        brain_regions = BrainRegions()
 
         for pname, data in self.probe_data.items():
             channels = data['channels']
@@ -478,6 +493,11 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             channels_y = np.asarray(channels["y"], dtype=np.float64)
             channels_z = np.asarray(channels["z"], dtype=np.float64)
             acronyms = np.asarray(channels["acronym"]).astype(str)
+
+            # Get atlas IDs for hierarchical region mappings
+            atlas_ids = np.asarray(channels["atlas_id"])
+            beryl_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Beryl")
+            cosmos_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Cosmos")
 
             n_channels = len(channels_x)
 
@@ -522,6 +542,9 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     y=float(ibl_y_um[channel_index]),
                     z=float(ibl_z_um[channel_index]),
                     brain_region=acronym_value,
+                    atlas_id=int(atlas_ids[channel_index]),
+                    beryl_location=str(beryl_locations[channel_index]),
+                    cosmos_location=str(cosmos_locations[channel_index]),
                 )
 
                 ccf_table.add_row(

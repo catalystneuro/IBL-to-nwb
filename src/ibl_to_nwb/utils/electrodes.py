@@ -8,7 +8,6 @@ from typing import Iterable, List, Literal, Optional
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
-from iblatlas.regions import BrainRegions
 from one.api import ONE
 from pynwb import NWBFile
 from probeinterface import Probe
@@ -264,8 +263,6 @@ def add_probe_definition_to_nwbfile(
     required_columns = [
         ("electrode_name", "Unique identifier derived from probe contact ids."),
         ("contact_shapes", "Contact shape per electrode as defined by the probe."),
-        ("beryl_location", "Brain region in IBL Beryl atlas (coarse grouping)."),
-        ("cosmos_location", "Brain region in IBL Cosmos atlas (very coarse grouping)."),
         ("channel_name", "The name of this channel, showing all recording streams for the electrode (e.g., 'AP379,LF379')."),
         ("rel_x", "Relative x coordinate on the probe (µm)."),
         ("rel_y", "Relative y coordinate on the probe (µm)."),
@@ -323,8 +320,6 @@ def add_probe_definition_to_nwbfile(
             group=electrode_group,
             group_name=group_name,
             electrode_name=contact_id,
-            beryl_location="",
-            cosmos_location="",
             rel_x=float(contact_positions[index, 0]),
             rel_y=float(contact_positions[index, 1]),
         )
@@ -389,7 +384,6 @@ def add_probe_electrodes_with_localization(
     probe_name: str,
     pid: str,
     atlas: Optional[AllenAtlas] = None,
-    brain_regions: Optional[BrainRegions] = None,
     meta_path: Optional[Path] = None,
 ) -> List[int]:
     """
@@ -409,8 +403,6 @@ def add_probe_electrodes_with_localization(
         Probe insertion UUID.
     atlas : AllenAtlas, optional
         Atlas instance used to convert IBL coordinates to CCF. Created if not provided.
-    brain_regions : BrainRegions, optional
-        BrainRegions helper to convert atlas IDs to acronyms. Created if not provided.
     meta_path : Path, optional
         Optional explicit path to the `.meta` file. When omitted the file is downloaded via ONE.
 
@@ -425,7 +417,6 @@ def add_probe_electrodes_with_localization(
     group_name = device_name
 
     atlas = atlas or AllenAtlas()
-    brain_regions = brain_regions or BrainRegions()
 
     meta_path = _resolve_meta_path(one=one, eid=eid, probe_name=probe_name, meta_path=meta_path)
 
@@ -459,11 +450,9 @@ def add_probe_electrodes_with_localization(
             "Electrodes": [
                 dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
                 dict(name="location", description="Brain region acronym per electrode."),
-                dict(name="x", description="CCF x coordinate (um)."),
-                dict(name="y", description="CCF y coordinate (um)."),
-                dict(name="z", description="CCF z coordinate (um)."),
-                dict(name="beryl_location", description="Brain region in IBL Beryl atlas (coarse grouping)."),
-                dict(name="cosmos_location", description="Brain region in IBL Cosmos atlas (very coarse grouping)."),
+                dict(name="x", description="CCF x coordinate (+x is posterior), in micrometers."),
+                dict(name="y", description="CCF y coordinate (+y is inferior), in micrometers."),
+                dict(name="z", description="CCF z coordinate (+z is right), in micrometers."),
             ],
         }
     }
@@ -492,7 +481,6 @@ def add_probe_electrodes_with_localization(
     # Fetch histology channel data.
     # Note: Histology data is ALF data (revision-dependent), always use BWM standard revision
     atlas = atlas or AllenAtlas()
-    brain_regions = brain_regions or BrainRegions()
 
     BWM_REVISION = "2025-05-06"  # Must match IblAnatomicalLocalizationInterface.REVISION
     loader = SpikeSortingLoader(pid=pid, eid=eid, pname=probe_name, one=one, atlas=atlas, revision=BWM_REVISION)
@@ -544,12 +532,10 @@ def add_probe_electrodes_with_localization(
         )
 
     columns_to_add = [
-        ("x", "CCF x coordinate (um)."),
-        ("y", "CCF y coordinate (um)."),
-        ("z", "CCF z coordinate (um)."),
+        ("x", "CCF x coordinate (+x is posterior), in micrometers."),
+        ("y", "CCF y coordinate (+y is inferior), in micrometers."),
+        ("z", "CCF z coordinate (+z is right), in micrometers."),
         ("location", "Brain region acronym per electrode."),
-        ("beryl_location", "Brain region in IBL Beryl atlas (coarse grouping)."),
-        ("cosmos_location", "Brain region in IBL Cosmos atlas (very coarse grouping)."),
     ]
     existing_columns = set(nwbfile.electrodes.colnames)
     for name, description in columns_to_add:
@@ -560,10 +546,6 @@ def add_probe_electrodes_with_localization(
     channels_x = np.asarray(channels["x"], dtype=np.float64)
     channels_y = np.asarray(channels["y"], dtype=np.float64)
     channels_z = np.asarray(channels["z"], dtype=np.float64)
-
-    atlas_ids = np.asarray(channels["atlas_id"])
-    beryl_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Beryl")
-    cosmos_locations = brain_regions.id2acronym(atlas_id=atlas_ids, mapping="Cosmos")
     acronyms = np.asarray(channels["acronym"]).astype(str)
 
     ccf_coords_um, ccf_regions, _ = convert_ibl_to_ccf3_coordinates(
@@ -583,7 +565,5 @@ def add_probe_electrodes_with_localization(
         nwbfile.electrodes["y"].data[electrode_index] = float(ccf_coords_um[index, 1])
         nwbfile.electrodes["z"].data[electrode_index] = float(ccf_coords_um[index, 2])
         nwbfile.electrodes["location"].data[electrode_index] = ccf_regions[index]
-        nwbfile.electrodes["beryl_location"].data[electrode_index] = str(beryl_locations[index])
-        nwbfile.electrodes["cosmos_location"].data[electrode_index] = str(cosmos_locations[index])
 
     return electrode_indices_sorted
