@@ -102,7 +102,7 @@ def convert_ibl_to_ccf3_coordinates(
     normalizes inputs to meters when necessary, performs the atlas transformation, and labels
     out-of-volume points as ``"out-of-atlas"`` while returning CCF coordinates in micrometers.
 
-    The returned CCF coordinates are in the native Allen CCF format with ASL orientation:
+    The returned CCF coordinates are in the native Allen CCF format with PIR+ orientation:
     - First coordinate (x): Anterior-Posterior (AP)
     - Second coordinate (y): Dorsal-Ventral (DV)
     - Third coordinate (z): Medio-Lateral (ML)
@@ -124,7 +124,7 @@ def convert_ibl_to_ccf3_coordinates(
     Returns
     -------
     ccf_coords_um : np.ndarray
-        Allen CCF coordinates in micrometers with ASL orientation (AP, DV, ML).
+        Allen CCF coordinates in micrometers with PIR+ orientation (AP, DV, ML).
         NaN for entries outside the atlas volume.
     ccf_regions : np.ndarray
         Region labels for the CCF coordinates, with ``"out-of-atlas"`` marking out-of-bounds
