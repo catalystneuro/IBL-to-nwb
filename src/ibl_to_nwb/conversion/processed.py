@@ -30,6 +30,7 @@ from ..datainterfaces import (
     IblPoseEstimationInterface,
     PupilTrackingInterface,
     RoiMotionEnergyInterface,
+    ProbeTrajectoryInterface,
 )
 from ..fixtures import load_fixtures
 from ..utils import add_probe_electrodes_with_localization, get_ibl_subject_metadata, sanitize_subject_id_for_dandi
@@ -279,6 +280,15 @@ def convert_processed_session(
             probe_name=probe_name,
             pid=pid,
         )
+
+    # Add probe trajectory table (insertion geometry: angles, depth, coordinates)
+    if anat_interface.probe_name_to_probe_id_dict:
+        trajectory_interface = ProbeTrajectoryInterface(
+            one=one,
+            eid=eid,
+            probe_name_to_probe_id_dict=anat_interface.probe_name_to_probe_id_dict,
+        )
+        trajectory_interface.add_to_nwbfile(nwbfile=nwbfile, metadata=metadata)
 
     # Add data from all interfaces
     for interface_name, data_interface in converter.data_interface_objects.items():
