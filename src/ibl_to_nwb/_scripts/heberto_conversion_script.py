@@ -18,6 +18,7 @@ from ibl_to_nwb.conversion import (
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
+from ibl_to_nwb.utils import fix_nwb_namespace
 
 
 def setup_logger(log_file_path: Path) -> logging.Logger:
@@ -143,6 +144,14 @@ if __name__ == "__main__":
                 redecompress_ephys=REDECOMPRESS_EPHYS,
             )
 
+            # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
+            if raw_info and not raw_info.get("skipped"):
+                fix_start = time.time()
+                fixed_count = fix_nwb_namespace(raw_info["nwbfile_path"], logger=logger)
+                fix_time = time.time() - fix_start
+                if fixed_count > 0:
+                    logger.info(f"Namespace fix completed in {fix_time:.2f}s")
+
             # Run consistency checks if enabled
             if RUN_CONSISTENCY_CHECKS and raw_info and not raw_info.get("skipped"):
                 try:
@@ -167,6 +176,14 @@ if __name__ == "__main__":
                 logger=logger,
                 overwrite=OVERWRITE,
             )
+
+            # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
+            if processed_info and not processed_info.get("skipped"):
+                fix_start = time.time()
+                fixed_count = fix_nwb_namespace(processed_info["nwbfile_path"], logger=logger)
+                fix_time = time.time() - fix_start
+                if fixed_count > 0:
+                    logger.info(f"Namespace fix completed in {fix_time:.2f}s")
 
             # Run consistency checks if enabled
             if RUN_CONSISTENCY_CHECKS and processed_info and not processed_info.get("skipped"):

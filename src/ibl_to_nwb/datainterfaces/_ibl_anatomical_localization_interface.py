@@ -592,22 +592,15 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         if 'ibl_bregma_centered_coordinates' in nwbfile.units.colnames:
             raise ValueError("ibl_bregma_centered_coordinates column already exists in units table")
 
-        # Build ragged array of row indices for each unit
+        # Build flat array of row indices for each unit
+        # Each unit links to exactly one electrode, and every electrode has an anatomical coordinates entry
         ccf_row_indices = []
         for unit_index in range(len(nwbfile.units)):
             unit_electrodes_df = nwbfile.units['electrodes'][unit_index]
             electrode_indices = list(unit_electrodes_df.index)
-
-            if len(electrode_indices) > 0:
-                max_amp_electrode_index = electrode_indices[0]
-
-                if max_amp_electrode_index in electrode_to_ccf_row:
-                    ccf_row_index = electrode_to_ccf_row[max_amp_electrode_index]
-                    ccf_row_indices.append([ccf_row_index])
-                else:
-                    ccf_row_indices.append([])
-            else:
-                ccf_row_indices.append([])
+            max_amp_electrode_index = electrode_indices[0]
+            ccf_row_index = electrode_to_ccf_row[max_amp_electrode_index]
+            ccf_row_indices.append(ccf_row_index)
 
         # Add CCF anatomical coordinates column
         nwbfile.units.add_column(
@@ -616,8 +609,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 'Link to the ElectrodesCCFv3 AnatomicalCoordinatesTable row containing '
                 'Allen CCF coordinates and brain region for this unit. Links to the CCF localization '
                 'of the unit\'s maximum amplitude electrode. Provides access to formal Space '
-                'metadata, CCF coordinates, and hierarchical brain region mappings. '
-                'Empty for units whose max-amplitude electrode lacks histology-derived localization.'
+                'metadata, CCF coordinates, and hierarchical brain region mappings.'
             ),
             data=ccf_row_indices,
             table=ccf_table,
@@ -630,8 +622,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 'Link to the ElectrodesIBLBregma AnatomicalCoordinatesTable row containing '
                 'IBL Bregma-centered coordinates and hierarchical brain region mappings for this unit. '
                 'Links to the localization of the unit\'s maximum amplitude electrode. Provides access '
-                'to atlas_id, Beryl brain regions, and Cosmos brain regions. '
-                'Empty for units whose max-amplitude electrode lacks histology-derived localization.'
+                'to atlas_id, Beryl brain regions, and Cosmos brain regions.'
             ),
             data=ccf_row_indices,
             table=ibl_table,
