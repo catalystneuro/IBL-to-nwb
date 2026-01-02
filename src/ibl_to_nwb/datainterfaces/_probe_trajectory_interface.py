@@ -277,11 +277,19 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
                 name=probe_name_camel,
                 description=(
                     f"Probe insertion trajectory parameters for {probe_name}. Each row represents a "
-                    "trajectory estimate determined by a different method (see provenance column). "
-                    "Coordinates are bregma-centered in micrometers: x=ML (positive=right), "
-                    "y=AP (positive=anterior), z=DV (positive=dorsal). Angles: theta is polar angle "
-                    "from vertical (0=down, 90=horizontal), phi is azimuth from AP axis (0=anterior, "
-                    "90=left). Depth is insertion distance along probe axis. Roll is electrode-facing direction."
+                    "trajectory estimate from a different provenance level, progressing from theoretical "
+                    "to validated: Planned (pre-surgical target), Micro-manipulator (recorded during "
+                    "surgery), Histology track (traced from post-mortem brain slices), and Ephys aligned "
+                    "histology track (histology refined using electrophysiology). "
+                    "Insertion point coordinates (x, y, z) are bregma-centered with units in micrometers: "
+                    "x is ML (medio-lateral, positive=right), y is AP (anterior-posterior, positive=anterior), "
+                    "z is DV (dorso-ventral, positive=dorsal). "
+                    "Angles characterize the spatial orientation of the probe: "
+                    "theta is polar angle from vertical (0=straight down into brain, 90=horizontal), "
+                    "phi is azimuth angle from the AP axis (0=tilted anteriorly, 90=tilted left, 180=posteriorly), "
+                    "roll defines the electrode-facing direction (rotation around probe axis). "
+                    "Depth is the insertion distance along the probe axis from the brain surface entry point "
+                    "to the probe tip."
                 ),
             )
 
