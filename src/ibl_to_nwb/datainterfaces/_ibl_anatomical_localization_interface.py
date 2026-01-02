@@ -418,14 +418,6 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 "before running the anatomical localization interface."
             )
 
-        # Check that units table exists (required for units anatomical coordinates)
-        if nwbfile.units is None or len(nwbfile.units) == 0:
-            raise ValueError(
-                "Units table is empty or doesn't exist. "
-                "Add units to the NWB file (e.g., via IblSortingInterface) "
-                "before running the anatomical localization interface."
-            )
-
         # Check that required columns exist in electrodes table
         required_columns = ['x', 'y', 'z', 'location']
         missing = [col for col in required_columns if col not in nwbfile.electrodes.colnames]
@@ -585,8 +577,14 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         # The bidirectional link already exists via: electrodes ← AnatomicalCoordinatesTable.target
         # and table rows can be found via the AnatomicalCoordinatesTable.localized_entity column
 
-        # Add anatomical coordinates links to units table
+        # Add anatomical coordinates links to units table (if units exist)
         # Units inherit coordinates from their max-amplitude electrode
+        # Skip if units table doesn't exist (e.g., in raw-only conversion)
+        if nwbfile.units is None or len(nwbfile.units) == 0:
+            if self.verbose:
+                print("Units table not present - skipping units anatomical coordinates columns")
+            return
+
         if 'ccf_anatomical_coordinates' in nwbfile.units.colnames:
             raise ValueError("ccf_anatomical_coordinates column already exists in units table")
         if 'ibl_bregma_centered_coordinates' in nwbfile.units.colnames:
