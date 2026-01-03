@@ -27,32 +27,45 @@ from pynwb import NWBHDF5IO
 
 def main():
     # Load NWB file
-    nwbfile_path = Path(
-        "/media/heberto/Expansion/nwbfiles/full/sub-CSHL049/"
-        "sub-CSHL049_ses-d839491f-55d8-4cbe-a298-7839208ba12b_desc-raw_ecephys.nwb"
-    )
+    nwbfile_path = Path("/Users/heberto/ibl_data_local_mac/nwbfiles/full/sub-NYU-39/sub-NYU-39_ses-fa1f26a1-eb49-4b24-917e-19f02a18ac61_desc-processed_behavior+ecephys.nwb")
+
     assert nwbfile_path.exists(), f"NWB file not found at {nwbfile_path}"
 
-    print(f"Loading NWB file from: {nwbfile_path}")
-
+    use_electrodes_table = True
     # Read NWB file
     with NWBHDF5IO(str(nwbfile_path), mode='r') as io:
         nwbfile = io.read()
+        if use_electrodes_table:
+            print("Using electrodes table for coordinates...")
+            # Extract anatomical coordinates from electrodes table
+            x = nwbfile.electrodes['x'].data[:] # Antero-Posterior (AP)
+            y = nwbfile.electrodes['y'].data[:] # Dorso-Vertical (DV)
+            z = nwbfile.electrodes['z'].data[:] # Medio-Lateral (ML)
+            group_name = nwbfile.electrodes["group_name"].data[:]
+            brain_area = nwbfile.electrodes["location"].data[:]
 
-        # Extract anatomical coordinates from CCFv3
-        coord_table = nwbfile.lab_meta_data['localization'].anatomical_coordinates_tables[
-            'AnatomicalCoordinatesTableElectrodesCCFv3'
-        ]
+            group_mask = group_name == "NeuropixelsProbe00"
 
-        # NWB stores in ASL orientation (native Allen CCF format)
-        x = coord_table['x'][:]  # Antero-Posterior (AP)
-        y = coord_table['y'][:]  # Dorso-Ventral (DV)
-        z = coord_table['z'][:]  # Medio-Lateral (ML)
+            x_probe = x[group_mask]
+            y_probe = y[group_mask]
+            z_probe = z[group_mask]
+            brain_area_probe = brain_area[group_mask]
+
+        else:
+            # Extract anatomical coordinates from CCFv3
+            coord_table = nwbfile.lab_meta_data['localization'].anatomical_coordinates_tables[
+                'AnatomicalCoordinatesTableElectrodesCCFv3'
+            ]
+
+            # NWB stores in ASL orientation (native Allen CCF format)
+            x = coord_table['x'][:]  # Antero-Posterior (AP)
+            y = coord_table['y'][:]  # Dorso-Ventral (DV)
+            z = coord_table['z'][:]  # Medio-Lateral (ML)
 
     print(f"Loaded {len(x)} electrode coordinates")
 
     # Coordinates are already in ASL format (AP, DV, ML) - no transformation needed
-    electrodes = np.c_[x, y, z]
+    electrodes = np.c_[x_probe, y_probe, z_probe]
 
     # Create scene with Allen Mouse Brain Atlas (100um resolution)
     print("Creating brainrender scene...")

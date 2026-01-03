@@ -183,18 +183,19 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
 
 def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
     """
-    Apply tidy data transformations to trials DataFrame.
+    Apply tidy data transformations to trials DataFrame for consistency checking.
 
     This mirrors the transformations in BrainwideMapTrialsInterface._apply_tidy_transformations
     to enable consistency checking between ONE source data and NWB output.
 
-    Transformations:
+    Transformations applied:
     - choice: -1/0/+1 -> "left"/"no_go"/"right"
     - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
     - contrastLeft/contrastRight -> gabor_stimulus_contrast + gabor_stimulus_side
 
-    Note: block_index and block_type are derived columns in NWB but are not checked here
-    as they are computed from probabilityLeft and don't need round-trip verification.
+    Note: block_index and block_type are excluded from consistency checking because they are
+    deterministically computed from probabilityLeft. If probabilityLeft matches, these
+    derived columns will automatically be correct.
     """
     trials = trials.copy()
 
@@ -271,9 +272,15 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     # Use imported mapping (IBL -> NWB), invert it for NWB -> IBL lookup
     nwb_to_ibl = {nwb: ibl for ibl, nwb in IBL_TO_NWB_COLUMNS.items()}
 
+    # Exclude derived columns from validation (block_type, block_index are deterministically
+    # computed from probabilityLeft, so checking them is redundant)
+    derived_columns = {"block_type", "block_index"}
+    nwb_columns_to_check = [col for col in data_from_NWB.columns if col not in derived_columns]
+
     # reordering and renaming the columns
-    data_from_ONE = data_from_ONE[[nwb_to_ibl[col] for col in data_from_NWB.columns]]
-    data_from_ONE.columns = data_from_NWB.columns
+    data_from_ONE = data_from_ONE[[nwb_to_ibl[col] for col in nwb_columns_to_check]]
+    data_from_NWB = data_from_NWB[nwb_columns_to_check]
+    data_from_ONE.columns = nwb_columns_to_check
 
     assert_frame_equal(left=data_from_NWB, right=data_from_ONE)
     _logger.debug("trials table passed")

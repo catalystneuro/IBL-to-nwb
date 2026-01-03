@@ -2,7 +2,7 @@
 requires = ["uv_build"]
 build-backend = "uv_build"
 
-[project]
+[project] 
 name = "ibl_to_nwb"
 version="0.3.0"
 authors = [
@@ -25,7 +25,7 @@ dependencies = [
     "ndx-events==0.2.1",
     "ibl-neuropixel",
     "ndx-ibl-bwm",
-    "ibllib",
+    "ibllib", 
     "ndx-anatomical-localization",
 ]
 
@@ -48,8 +48,8 @@ ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branc
 ndx-ibl-bwm = {git = "https://github.com/int-brain-lab/ndx-ibl-bwm", branch = "main" }
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 ndx-anatomical-localization = {git = "https://github.com/h-mayorquin/ndx-anatomical-localization", branch = "fix_common_coordinate_framework"}
-ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
-# ndx-ibl = {path = "../ndx-ibl", editable = true}
+# ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
+ndx-ibl = {path = "../ndx-ibl", editable = true}
 
 
 [tool.black]
@@ -106,6 +106,7 @@ known-first-party = ["ibl_to_nwb"]
 dev = [
     "allensdk>=0.16.3",
     "brainglobe-atlasapi>=2.1.0",
+    "brainrender>=2.1.16",
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.7",
     "remfile>=0.1.13",

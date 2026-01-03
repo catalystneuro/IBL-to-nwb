@@ -65,6 +65,7 @@ def fix_nwb_namespace(
         return 0
 
     fixed_count = 0
+    fixed_items = []
 
     def counting_visitor(name: str, h5obj: Union[h5py.Dataset, h5py.Group]) -> None:
         nonlocal fixed_count
@@ -73,18 +74,26 @@ def fix_nwb_namespace(
             if neurodata_type in ("DynamicTableRegion", "VectorData"):
                 h5obj.attrs["namespace"] = "hdmf-common"
                 fixed_count += 1
-                if logger:
-                    logger.debug(f"Fixed namespace for: {h5obj.name} ({neurodata_type})")
+                fixed_items.append(h5obj.name)
 
     with h5py.File(nwbfile_path, "a") as f:
         f.visititems(counting_visitor)
 
     if logger:
         if fixed_count > 0:
+            logger.info("")
+            logger.info("=" * 80)
+            logger.info("NAMESPACE FIX DETAILS")
+            logger.info("=" * 80)
             logger.info(
                 f"Fixed {fixed_count} hdmf-experimental -> hdmf-common namespace issue(s) "
                 f"in {nwbfile_path.name}"
             )
+            logger.info("")
+            for item_path in fixed_items:
+                logger.info(f"Changed namespace for {item_path}")
+            logger.info("")
+            logger.info("=" * 80)
         else:
             logger.debug(f"No namespace fixes needed in {nwbfile_path.name}")
 

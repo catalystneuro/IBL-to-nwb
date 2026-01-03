@@ -281,9 +281,9 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
                     "to validated: Planned (pre-surgical target), Micro-manipulator (recorded during "
                     "surgery), Histology track (traced from post-mortem brain slices), and Ephys aligned "
                     "histology track (histology refined using electrophysiology). "
-                    "Insertion point coordinates (x, y, z) are bregma-centered with units in micrometers: "
-                    "x is ML (medio-lateral, positive=right), y is AP (anterior-posterior, positive=anterior), "
-                    "z is DV (dorso-ventral, positive=dorsal). "
+                    "Insertion point coordinates (ml, ap, dv) are bregma-centered with units in micrometers: "
+                    "ml is medio-lateral (positive=right), ap is anterior-posterior (positive=anterior), "
+                    "dv is dorso-ventral (positive=dorsal). "
                     "Angles characterize the spatial orientation of the probe: "
                     "theta is polar angle from vertical (0=straight down into brain, 90=horizontal), "
                     "phi is azimuth angle from the AP axis (0=tilted anteriorly, 90=tilted left, 180=posteriorly), "
@@ -297,14 +297,15 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
                 # Extract trajectory parameters, using NaN for missing numeric values
                 trajectory_table.add_row(
                     device=device,
-                    x=float(traj["x"]) if traj.get("x") is not None else math.nan,
-                    y=float(traj["y"]) if traj.get("y") is not None else math.nan,
-                    z=float(traj["z"]) if traj.get("z") is not None else math.nan,
+                    pid=pid,
+                    trajectory_source=traj.get("provenance", ""),
+                    ml=float(traj["x"]) if traj.get("x") is not None else math.nan,
+                    ap=float(traj["y"]) if traj.get("y") is not None else math.nan,
+                    dv=float(traj["z"]) if traj.get("z") is not None else math.nan,
                     depth_um=float(traj["depth"]) if traj.get("depth") is not None else math.nan,
                     theta=float(traj["theta"]) if traj.get("theta") is not None else math.nan,
                     phi=float(traj["phi"]) if traj.get("phi") is not None else math.nan,
                     roll=float(traj["roll"]) if traj.get("roll") is not None else math.nan,
-                    provenance=traj.get("provenance", ""),
                 )
 
             trajectory_tables.append(trajectory_table)
