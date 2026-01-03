@@ -48,8 +48,8 @@ ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branc
 ndx-ibl-bwm = {git = "https://github.com/int-brain-lab/ndx-ibl-bwm", branch = "main" }
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 ndx-anatomical-localization = {git = "https://github.com/h-mayorquin/ndx-anatomical-localization", branch = "fix_common_coordinate_framework"}
-# ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
-ndx-ibl = {path = "../ndx-ibl", editable = true}
+ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
+#ndx-ibl = {path = "../ndx-ibl", editable = true}
 
 
 [tool.black]
