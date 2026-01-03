@@ -38,6 +38,7 @@ def main():
         if use_electrodes_table:
             print("Using electrodes table for coordinates...")
             # Extract anatomical coordinates from electrodes table
+            # Coordinates are in PIR+ in the electores table
             x = nwbfile.electrodes['x'].data[:] # Antero-Posterior (AP)
             y = nwbfile.electrodes['y'].data[:] # Dorso-Vertical (DV)
             z = nwbfile.electrodes['z'].data[:] # Medio-Lateral (ML)

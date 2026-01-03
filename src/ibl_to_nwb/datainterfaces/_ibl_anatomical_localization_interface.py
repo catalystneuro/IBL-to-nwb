@@ -14,17 +14,9 @@ from one.api import ONE
 from pynwb import NWBFile
 
 from ..utils.electrodes import convert_ibl_to_ccf3_coordinates, _ensure_ibl_coordinates_um
+from ..utils.probe_naming import get_ibl_probe_name
 from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures.load_fixtures import load_bwm_histology_qc, get_probe_name_to_probe_id_dict
-
-
-def _format_probe_label(probe_name: str) -> str:
-    """Return the standardized Neuropixels probe label (e.g., 'NeuropixelsProbe01')."""
-    if probe_name.lower().startswith("probe"):
-        suffix = probe_name[5:]
-    else:
-        suffix = probe_name
-    return f"NeuropixelsProbe{suffix}"
 
 
 class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
@@ -453,44 +445,49 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         if self.ccf_space.name not in localization.spaces:
             localization.add_spaces(spaces=[self.ccf_space])
 
-
-        # Create AnatomicalCoordinatesTable for IBL-Bregma coordinates
-        ibl_table = AnatomicalCoordinatesTable(
-            name="ElectrodesIBLBregma",
-            description='Electrode positions in the IBL-Bregma coordinate system',
-            target=nwbfile.electrodes,
-            space=self.ibl_space,
-            method='IBL histology alignment pipeline',
-        )
-        # Add custom columns for hierarchical brain region mappings and atlas ID
-        ibl_table.add_column(
-            name='atlas_id',
-            description='Allen Brain Atlas region ID. Negative values indicate left hemisphere, positive values indicate right hemisphere.',
-        )
-        ibl_table.add_column(
-            name='beryl_location',
-            description='Brain region in IBL Beryl atlas (coarse grouping).',
-        )
-        ibl_table.add_column(
-            name='cosmos_location',
-            description='Brain region in IBL Cosmos atlas (very coarse grouping).',
-        )
-
-        # Create AnatomicalCoordinatesTable for CCF coordinates
-        ccf_table = AnatomicalCoordinatesTable(
-            name='ElectrodesCCFv3',
-            description='Electrode positions in the CCF coordinate system',
-            target=nwbfile.electrodes,
-            space=self.ccf_space,
-            method='IBL histology alignment pipeline',
-        )
-
         brain_regions = BrainRegions()
 
-        # Build mapping of electrode_index -> ccf_table row index for bidirectional linking
-        electrode_to_ccf_row = {}
+        # Build mapping of electrode_index -> (ccf_table, row_index) for units linking
+        # Maps electrode index to (ccf_table, ibl_table, row_index) tuple
+        electrode_to_table_info = {}
+
+        # Collect all tables to add to localization
+        all_tables = []
 
         for probe_name, data in self.probe_data.items():
+            canonical_name = get_ibl_probe_name(probe_name)
+
+            # Create per-probe AnatomicalCoordinatesTable for IBL-Bregma coordinates
+            ibl_table = AnatomicalCoordinatesTable(
+                name=f"{canonical_name}ElectrodesIBLBregma",
+                description=f'Electrode positions for {canonical_name} in the IBL-Bregma coordinate system',
+                target=nwbfile.electrodes,
+                space=self.ibl_space,
+                method='IBL histology alignment pipeline',
+            )
+            # Add custom columns for hierarchical brain region mappings and atlas ID
+            ibl_table.add_column(
+                name='atlas_id',
+                description='Allen Brain Atlas region ID. Negative values indicate left hemisphere, positive values indicate right hemisphere.',
+            )
+            ibl_table.add_column(
+                name='beryl_location',
+                description='Brain region in IBL Beryl atlas (coarse grouping).',
+            )
+            ibl_table.add_column(
+                name='cosmos_location',
+                description='Brain region in IBL Cosmos atlas (very coarse grouping).',
+            )
+
+            # Create per-probe AnatomicalCoordinatesTable for CCF coordinates
+            ccf_table = AnatomicalCoordinatesTable(
+                name=f'{canonical_name}ElectrodesCCFv3',
+                description=f'Electrode positions for {canonical_name} in the CCF coordinate system',
+                target=nwbfile.electrodes,
+                space=self.ccf_space,
+                method='IBL histology alignment pipeline',
+            )
+
             channels = data['channels']
             channels_x = np.asarray(channels["x"], dtype=np.float64)
             channels_y = np.asarray(channels["y"], dtype=np.float64)
@@ -507,7 +504,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             # Get electrode indices for this probe
             electrode_indices = []
             # IBL naming convention for electrode groups
-            ibl_group_name = _format_probe_label(probe_name)
+            ibl_group_name = get_ibl_probe_name(probe_name)
 
             # Use NeuroConv's global ID matching system
             for index in range(len(nwbfile.electrodes)):
@@ -535,9 +532,9 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             for electrode_index in electrode_indices:
                 channel_index = electrode_index % n_channels
 
-                # Store mapping before adding row (for bidirectional linking)
-                ccf_row_idx = len(ccf_table)
-                electrode_to_ccf_row[electrode_index] = ccf_row_idx
+                # Store mapping before adding row (for units linking)
+                row_idx = len(ccf_table)
+                electrode_to_table_info[electrode_index] = (ccf_table, ibl_table, row_idx)
 
                 # Add rows to AnatomicalCoordinatesTable (ONLY - no longer modifying electrodes table)
                 acronym_value = acronyms[channel_index]
@@ -561,20 +558,22 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     brain_region=ccf_regions[channel_index],
                 )
 
-        # Add tables to localization
-        localization.add_anatomical_coordinates_tables([ibl_table, ccf_table])
+            # Validate that this probe's tables were created successfully
+            if len(ibl_table) == 0 or len(ccf_table) == 0:
+                raise ValueError(
+                    f"Failed to create anatomical coordinates tables for {probe_name}. "
+                    "Ensure probe data contains histology information."
+                )
 
-        # Validate that anatomical coordinates tables were created successfully
-        if len(ibl_table) == 0 or len(ccf_table) == 0:
-            raise ValueError(
-                "Failed to create anatomical coordinates tables. "
-                "Ensure probe data contains histology information."
-            )
+            all_tables.extend([ibl_table, ccf_table])
+
+        # Add all tables to localization
+        localization.add_anatomical_coordinates_tables(all_tables)
 
         # NOTE: We do NOT add DynamicTableRegion columns to the electrodes table because
         # the AnatomicalCoordinatesTable already has a 'target' that points to electrodes.
         # Adding a reverse link would create circular references causing recursion errors during HDF5 write.
-        # The bidirectional link already exists via: electrodes ← AnatomicalCoordinatesTable.target
+        # The bidirectional link already exists via: electrodes <- AnatomicalCoordinatesTable.target
         # and table rows can be found via the AnatomicalCoordinatesTable.localized_entity column
 
         # Add anatomical coordinates links to units table (if units exist)
@@ -590,41 +589,66 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         if 'ibl_bregma_centered_coordinates' in nwbfile.units.colnames:
             raise ValueError("ibl_bregma_centered_coordinates column already exists in units table")
 
-        # Build flat array of row indices for each unit
-        # Each unit links to exactly one electrode, and every electrode has an anatomical coordinates entry
-        ccf_row_indices = []
-        for unit_index in range(len(nwbfile.units)):
-            unit_electrodes_df = nwbfile.units['electrodes'][unit_index]
-            electrode_indices = list(unit_electrodes_df.index)
-            max_amp_electrode_index = electrode_indices[0]
-            ccf_row_index = electrode_to_ccf_row[max_amp_electrode_index]
-            ccf_row_indices.append(ccf_row_index)
+        # With per-probe tables, we need to link each unit to the correct probe's table
+        # For now, use separate columns per probe or reference the first probe's table
+        # Since NWB DynamicTableRegion requires a single target table, we need to handle this differently
 
-        # Add CCF anatomical coordinates column
-        nwbfile.units.add_column(
-            name='ccf_anatomical_coordinates',
-            description=(
-                'Link to the ElectrodesCCFv3 AnatomicalCoordinatesTable row containing '
-                'Allen CCF coordinates and brain region for this unit. Links to the CCF localization '
-                'of the unit\'s maximum amplitude electrode. Provides access to formal Space '
-                'metadata, CCF coordinates, and hierarchical brain region mappings.'
-            ),
-            data=ccf_row_indices,
-            table=ccf_table,
-        )
+        # NOTE: With per-probe tables, the units table linking is more complex.
+        # Each unit can only link to one table per column, but units from different probes
+        # need to link to different tables. For simplicity, we skip the units table linking
+        # when there are multiple probes. Users can still access coordinates via the
+        # AnatomicalCoordinatesTable.localized_entity column which references the electrodes table.
 
-        # Add IBL Bregma-centered coordinates column (same indices, different table)
-        nwbfile.units.add_column(
-            name='ibl_bregma_centered_coordinates',
-            description=(
-                'Link to the ElectrodesIBLBregma AnatomicalCoordinatesTable row containing '
-                'IBL Bregma-centered coordinates and hierarchical brain region mappings for this unit. '
-                'Links to the localization of the unit\'s maximum amplitude electrode. Provides access '
-                'to atlas_id, Beryl brain regions, and Cosmos brain regions.'
-            ),
-            data=ccf_row_indices,
-            table=ibl_table,
-        )
+        if len(self.probe_data) == 1:
+            # Single probe case: can add direct table references
+            probe_name = next(iter(self.probe_data.keys()))
+            first_ccf_table, first_ibl_table, _ = next(iter(electrode_to_table_info.values()))
+
+            # Build flat array of row indices for each unit
+            ccf_row_indices = []
+            for unit_index in range(len(nwbfile.units)):
+                unit_electrodes_df = nwbfile.units['electrodes'][unit_index]
+                electrode_indices = list(unit_electrodes_df.index)
+                max_amp_electrode_index = electrode_indices[0]
+                _, _, row_idx = electrode_to_table_info[max_amp_electrode_index]
+                ccf_row_indices.append(row_idx)
+
+            canonical_name = get_ibl_probe_name(probe_name)
+
+            # Add CCF anatomical coordinates column
+            nwbfile.units.add_column(
+                name='ccf_anatomical_coordinates',
+                description=(
+                    f'Link to the {canonical_name}ElectrodesCCFv3 AnatomicalCoordinatesTable row containing '
+                    'Allen CCF coordinates and brain region for this unit. Links to the CCF localization '
+                    "of the unit's maximum amplitude electrode. Provides access to formal Space "
+                    'metadata, CCF coordinates, and hierarchical brain region mappings.'
+                ),
+                data=ccf_row_indices,
+                table=first_ccf_table,
+            )
+
+            # Add IBL Bregma-centered coordinates column (same indices, different table)
+            nwbfile.units.add_column(
+                name='ibl_bregma_centered_coordinates',
+                description=(
+                    f'Link to the {canonical_name}ElectrodesIBLBregma AnatomicalCoordinatesTable row containing '
+                    'IBL Bregma-centered coordinates and hierarchical brain region mappings for this unit. '
+                    "Links to the localization of the unit's maximum amplitude electrode. Provides access "
+                    'to atlas_id, Beryl brain regions, and Cosmos brain regions.'
+                ),
+                data=ccf_row_indices,
+                table=first_ibl_table,
+            )
+        else:
+            # Multi-probe case: skip units table linking due to NWB limitations
+            # Users can still access coordinates via AnatomicalCoordinatesTable.localized_entity
+            if self.verbose:
+                print(
+                    f"Skipping units table anatomical coordinates linking for multi-probe session "
+                    f"({len(self.probe_data)} probes). Use AnatomicalCoordinatesTable.localized_entity "
+                    "to find coordinates for each unit's electrode."
+                )
 
     @staticmethod
     def _probe_has_histology_files(one: ONE, eid: str, probe_name: str, revision: Optional[str]) -> bool:

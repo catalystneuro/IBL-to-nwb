@@ -13,15 +13,7 @@ from pynwb import NWBFile
 from spikeinterface.extractors.extractor_classes import SpikeGLXRecordingExtractor
 
 from ..fixtures import get_probe_name_to_probe_id_dict
-
-
-def _format_probe_label(probe_name: str) -> str:
-    """Return the standardized Neuropixels probe label (e.g., 'NeuropixelsProbe01')."""
-    if probe_name.lower().startswith("probe"):
-        suffix = probe_name[5:]
-    else:
-        suffix = probe_name
-    return f"NeuropixelsProbe{suffix}"
+from ..utils.probe_naming import get_ibl_probe_name
 
 
 class IblSpikeGlxConverter(ConverterPipe):
@@ -129,7 +121,7 @@ class IblSpikeGlxConverter(ConverterPipe):
             # Update group_name property in recording extractor
             # This is critical for electrode deduplication in NeuroConv
             channel_ids = recording_interface.recording_extractor.get_channel_ids()
-            ibl_group_name = _format_probe_label(probe_name)
+            ibl_group_name = get_ibl_probe_name(probe_name)
             recording_interface.recording_extractor.set_property(
                 key="group_name",
                 ids=channel_ids,
@@ -266,8 +258,8 @@ class IblSpikeGlxConverter(ConverterPipe):
         Override to use IBL naming convention for electrode groups and devices.
 
         IBL naming:
-        - Devices: NeuropixelsProbe00, NeuropixelsProbe01
-        - Electrode groups: NeuropixelsProbe00, NeuropixelsProbe01
+        - Devices: Probe00, Probe01
+        - Electrode groups: Probe00, Probe01
 
         Note: group_name properties in recording extractors are already updated in __init__,
         so we only need to update the metadata dictionaries here.
@@ -276,13 +268,16 @@ class IblSpikeGlxConverter(ConverterPipe):
         metadata = super().get_metadata()
 
         # Update device names to IBL convention in Ecephys.Device
+        # Preserve serial_number and other metadata fields during renaming
         if "Device" in metadata.get("Ecephys", {}):
             for device in metadata["Ecephys"]["Device"]:
                 # Map device name using pre-built mapping
                 original_name = device["name"]
                 if original_name in self.device_name_to_probe_map:
                     probe_name = self.device_name_to_probe_map[original_name]
-                    device["name"] = _format_probe_label(probe_name)
+                    device["name"] = get_ibl_probe_name(probe_name)
+                    # Preserve serial_number if present (from neuroconv's _get_device_metadata_from_probe)
+                    # Other fields like description and manufacturer are already preserved
 
         # Update device names in top-level Devices (used by sync channel interfaces)
         if "Devices" in metadata:
@@ -290,8 +285,9 @@ class IblSpikeGlxConverter(ConverterPipe):
                 original_name = device["name"]
                 if original_name in self.device_name_to_probe_map:
                     probe_name = self.device_name_to_probe_map[original_name]
-                    device["name"] = _format_probe_label(probe_name)
-                    device["description"] = f"Neuropixels probe for IBL {device['name']}"
+                    new_name = get_ibl_probe_name(probe_name)
+                    device["name"] = new_name
+                    device["description"] = f"Neuropixels probe for IBL {new_name}"
 
         # Update electrode groups to reference new device names and use IBL convention
         if "ElectrodeGroup" in metadata.get("Ecephys", {}):
@@ -301,17 +297,17 @@ class IblSpikeGlxConverter(ConverterPipe):
                     original_device = group["device"]
                     if original_device in self.device_name_to_probe_map:
                         probe_name = self.device_name_to_probe_map[original_device]
-                        group["device"] = _format_probe_label(probe_name)
+                        group["device"] = get_ibl_probe_name(probe_name)
 
                 # Group name is already updated from the property change above
                 if "name" in group:
                     original_name = group["name"]
                     if original_name in self.device_name_to_probe_map:
                         probe_name = self.device_name_to_probe_map[original_name]
-                        group["name"] = _format_probe_label(probe_name)
+                        group["name"] = get_ibl_probe_name(probe_name)
                     elif original_name.startswith("NeuropixelsShank_"):
                         probe_name = original_name.replace("NeuropixelsShank_", "")
-                        group["name"] = _format_probe_label(probe_name)
+                        group["name"] = get_ibl_probe_name(probe_name)
 
                     group["description"] = f"Electrode group for IBL {group['name']}"
 

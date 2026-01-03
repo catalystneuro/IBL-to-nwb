@@ -11,6 +11,7 @@ from one.api import ONE
 from pynwb import NWBFile
 
 from ._base_ibl_interface import BaseIBLDataInterface
+from ..utils.probe_naming import get_ibl_probe_name
 
 
 class ProbeTrajectoryInterface(BaseIBLDataInterface):
@@ -198,7 +199,7 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
         Find the Device object corresponding to a probe name.
 
         Looks for devices with names matching common patterns:
-        - "probe00" -> "NeuropixelsProbe00" or "probe00"
+        - "probe00" -> "Probe00" (canonical IBL format)
         - Also checks electrode groups which reference devices
 
         Parameters
@@ -213,20 +214,18 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
         Device or None
             The Device object if found, None otherwise
         """
-        # Try direct match first
+        # Try canonical name first (Probe00, Probe01)
+        canonical_name = get_ibl_probe_name(probe_name)
+        if canonical_name in nwbfile.devices:
+            return nwbfile.devices[canonical_name]
+
+        # Try direct match (lowercase probe00)
         if probe_name in nwbfile.devices:
             return nwbfile.devices[probe_name]
 
-        # Try NeuropixelsProbe{number} format
-        if probe_name.lower().startswith("probe"):
-            suffix = probe_name[5:]  # e.g., "00" from "probe00"
-            neuropixels_name = f"NeuropixelsProbe{suffix}"
-            if neuropixels_name in nwbfile.devices:
-                return nwbfile.devices[neuropixels_name]
-
         # Try via electrode groups (each group has a device reference)
-        if probe_name in nwbfile.electrode_groups:
-            return nwbfile.electrode_groups[probe_name].device
+        if canonical_name in nwbfile.electrode_groups:
+            return nwbfile.electrode_groups[canonical_name].device
 
         return None
 
@@ -271,10 +270,10 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
                 continue
 
             # Create table for this probe
-            # Use simple name like "Probe00", "Probe01" - nesting in ProbeInsertionTrajectories provides context
-            probe_name_camel = probe_name.capitalize()
+            # Use canonical name like "Probe00", "Probe01" - nesting in ProbeInsertionTrajectories provides context
+            canonical_name = get_ibl_probe_name(probe_name)
             trajectory_table = IblProbeInsertionTrajectoryTable(
-                name=probe_name_camel,
+                name=canonical_name,
                 description=(
                     f"Probe insertion trajectory parameters for {probe_name}. Each row represents a "
                     "trajectory estimate from a different provenance level, progressing from theoretical "

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import json
 import warnings
-import os
 from pathlib import Path
-from typing import Iterable, List, Literal, Optional
+from typing import List, Literal, Optional
 
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
@@ -12,6 +12,81 @@ from one.api import ONE
 from pynwb import NWBFile
 from probeinterface import Probe
 from probeinterface.neuropixels_tools import read_spikeglx
+
+from .probe_naming import get_ibl_probe_name
+
+
+def _read_spikeglx_meta(meta_path: Path) -> dict:
+    """Read SpikeGLX .meta file and return the parsed metadata dict."""
+    meta_dict = {}
+    with open(meta_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if "=" in line:
+                key, value = line.split("=", 1)
+                meta_dict[key.strip()] = value.strip()
+    return meta_dict
+
+
+def _get_device_metadata_from_meta_file(meta_path: Path, probe: Probe) -> dict:
+    """
+    Build device metadata matching neuroconv's _get_device_metadata_from_probe() format.
+
+    This reads the SpikeGLX .meta file directly to extract the same metadata fields
+    that neuroconv extracts, ensuring consistency between raw and processed conversions.
+
+    Parameters
+    ----------
+    meta_path : Path
+        Path to the SpikeGLX .meta file
+    probe : Probe
+        Probeinterface Probe object (for serial_number, model_name, manufacturer)
+
+    Returns
+    -------
+    dict
+        Device metadata with description containing JSON of additional metadata
+    """
+    meta_dict = _read_spikeglx_meta(meta_path)
+
+    # Build metadata dict matching neuroconv's format
+    metadata_dict = {}
+
+    # Model name from probe
+    if probe.model_name:
+        metadata_dict["model_name"] = probe.model_name
+
+    # Manufacturer (default to Imec like neuroconv)
+    manufacturer = probe.manufacturer or "Imec"
+    metadata_dict["manufacturer"] = manufacturer
+
+    # Port and slot from SpikeGLX metadata
+    # neuroconv gets these from probe_info which comes from spikeinterface annotations
+    if "imDatPrb_port" in meta_dict:
+        metadata_dict["port"] = meta_dict["imDatPrb_port"]
+    if "imDatPrb_slot" in meta_dict:
+        metadata_dict["slot"] = meta_dict["imDatPrb_slot"]
+
+    # Part number (probe type identifier)
+    if "imDatPrb_pn" in meta_dict:
+        metadata_dict["part_number"] = meta_dict["imDatPrb_pn"]
+
+    # Build description matching neuroconv format
+    # neuroconv uses: probe_info.get("description", "A Neuropixel probe of unknown subtype.")
+    if probe.model_name:
+        description = f"A {probe.model_name} probe."
+    else:
+        description = "A Neuropixel probe of unknown subtype."
+
+    # Append additional metadata as JSON (like neuroconv does)
+    if metadata_dict:
+        description = f"{description} Additional metadata: {json.dumps(metadata_dict)}"
+
+    return {
+        "description": description,
+        "manufacturer": manufacturer,
+        "serial_number": probe.serial_number,
+    }
 
 
 DEFAULT_FALLBACK_PROBE_MANUFACTURER = "imec"
@@ -205,9 +280,25 @@ def add_probe_definition_to_nwbfile(
     group_mode: Literal["by_probe", "by_shank"] = "by_probe",
     metadata: Optional[dict] = None,
     source_description: str,
+    ibl_probe_name: Optional[str] = None,
 ) -> None:
     """
     Minimal helper to populate the electrodes table using a `probeinterface.Probe` object.
+
+    Parameters
+    ----------
+    probe : Probe
+        Probeinterface Probe object
+    nwbfile : NWBFile
+        NWB file to add electrodes to
+    group_mode : {"by_probe", "by_shank"}
+        How to group electrodes
+    metadata : dict, optional
+        Ecephys metadata
+    source_description : str
+        Description of the data source
+    ibl_probe_name : str, optional
+        Original IBL probe name (e.g., 'probe00') for the probe_name column
     """
     if group_mode != "by_probe":
         raise ValueError("Only group_mode='by_probe' is supported in this lightweight implementation.")
@@ -224,16 +315,20 @@ def add_probe_definition_to_nwbfile(
 
     device_entry = ecephys_metadata.setdefault(
         "Device",
-        [dict(name="NeuropixelsProbe", description="Neuropixels probe", manufacturer="IMEC")],
+        [dict(name="Probe00", description="Neuropixels probe", manufacturer="IMEC")],
     )[0]
     device_name = device_entry["name"]
     if device_name in nwbfile.devices:
         device = nwbfile.devices[device_name]
     else:
-        device = nwbfile.create_device(
+        device_kwargs = dict(
             name=device_name,
             description=device_entry.get("description", ""),
+            manufacturer=device_entry.get("manufacturer", ""),
         )
+        if "serial_number" in device_entry:
+            device_kwargs["serial_number"] = device_entry["serial_number"]
+        device = nwbfile.create_device(**device_kwargs)
 
     group_entry = ecephys_metadata.setdefault(
         "ElectrodeGroup",
@@ -266,6 +361,7 @@ def add_probe_definition_to_nwbfile(
         ("channel_name", "The name of this channel, showing all recording streams for the electrode (e.g., 'AP379,LF379')."),
         ("rel_x", "Relative x coordinate on the probe (µm)."),
         ("rel_y", "Relative y coordinate on the probe (µm)."),
+        ("probe_name", "IBL probe name in canonical format (e.g., 'Probe00', 'Probe01')."),
     ]
     # Add SpikeGLX-specific properties that will be needed when SpikeGLX interfaces add data
     # These properties exist in the probe object from probeinterface and prevent null value errors
@@ -351,6 +447,10 @@ def add_probe_definition_to_nwbfile(
         # This matches the format used by NeuroConv's SpikeGLXRecordingInterface
         electrode_kwargs["channel_name"] = f"AP{index},LF{index}"
 
+        # Add IBL probe_name if provided (use canonical name format Probe00, Probe01)
+        if ibl_probe_name is not None:
+            electrode_kwargs["probe_name"] = get_ibl_probe_name(ibl_probe_name)
+
         nwbfile.add_electrode(**electrode_kwargs)
 
 
@@ -360,6 +460,7 @@ def add_spikeglx_probe_to_nwbfile(
     *,
     group_mode: Literal["by_probe", "by_shank"] = "by_probe",
     metadata: Optional[dict] = None,
+    ibl_probe_name: Optional[str] = None,
 ) -> None:
     """
     Convenience wrapper that reads a SpikeGLX `.meta` file and delegates to
@@ -373,6 +474,7 @@ def add_spikeglx_probe_to_nwbfile(
         group_mode=group_mode,
         metadata=metadata,
         source_description=str(meta_path),
+        ibl_probe_name=ibl_probe_name,
     )
 
 
@@ -412,8 +514,7 @@ def add_probe_electrodes_with_localization(
         Electrode indices (in NWB electrode table order) corresponding to the probe channels.
     """
 
-    suffix = probe_name[5:] if probe_name.lower().startswith("probe") else probe_name
-    device_name = f"NeuropixelsProbe{suffix}"
+    device_name = get_ibl_probe_name(probe_name)
     group_name = device_name
 
     atlas = atlas or AllenAtlas()
@@ -429,16 +530,23 @@ def add_probe_electrodes_with_localization(
             f"Collection: raw_ephys_data/{probe_name}"
         )
 
-    # Create metadata for probe from .meta file
+    # Read probe from .meta file to extract serial_number and other metadata
+    # Use same format as neuroconv's _get_device_metadata_from_probe() for consistency
+    probe = read_spikeglx(meta_path)
+    device_info = _get_device_metadata_from_meta_file(meta_path, probe)
+
+    # Create metadata for probe from .meta file (matching neuroconv format)
+    device_metadata = dict(
+        name=device_name,
+        description=device_info["description"],
+        manufacturer=device_info["manufacturer"],
+    )
+    if device_info["serial_number"]:
+        device_metadata["serial_number"] = device_info["serial_number"]
+
     meta_metadata = {
         "Ecephys": {
-            "Device": [
-                dict(
-                    name=device_name,
-                    description="Neuropixels probe imported from SpikeGLX metadata.",
-                    manufacturer="IMEC",
-                )
-            ],
+            "Device": [device_metadata],
             "ElectrodeGroup": [
                 dict(
                     name=group_name,
@@ -462,6 +570,7 @@ def add_probe_electrodes_with_localization(
         nwbfile=nwbfile,
         group_mode="by_probe",
         metadata=meta_metadata,
+        ibl_probe_name=probe_name,
     )
 
     # Identify electrode indices for this probe.

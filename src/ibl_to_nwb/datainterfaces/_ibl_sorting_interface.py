@@ -14,6 +14,7 @@ from brainbox.io.one import SpikeSortingLoader
 from ._ibl_sorting_extractor import IblSortingExtractor
 from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures import get_probe_name_to_probe_id_dict
+from ..utils.probe_naming import get_ibl_probe_name
 
 # Single source of truth for unit property metadata
 # Keys are NWB property names (dict order = property order in NWB file)
@@ -23,7 +24,7 @@ UNITS_COLUMNS = {
     # Identification
     "probe_name": {
         "ibl_name": "probe_name",
-        "description": "Name of probe this unit was recorded from (e.g., 'probe00', 'probe01').",
+        "description": "Name of probe this unit was recorded from in canonical format (e.g., 'Probe00', 'Probe01').",
     },
     "cluster_uuid": {
         "ibl_name": "cluster_uuid",
@@ -126,15 +127,6 @@ IBL_METRICS_TO_NWB = {
 def get_unit_property_descriptions() -> list[dict]:
     """Build the UnitProperties list for NWB metadata."""
     return [{"name": name, "description": col_info["description"]} for name, col_info in UNITS_COLUMNS.items()]
-
-
-def _format_probe_label(probe_name: str) -> str:
-    """Return the standardized Neuropixels probe label (e.g., 'NeuropixelsProbe01')."""
-    if probe_name.lower().startswith("probe"):
-        suffix = probe_name[5:]
-    else:
-        suffix = probe_name
-    return f"NeuropixelsProbe{suffix}"
 
 
 class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
@@ -287,7 +279,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
 
         channel_to_electrode_map = {}
         for probe_name in self.sorting_extractor.probe_names:
-            group_name = _format_probe_label(probe_name)
+            group_name = get_ibl_probe_name(probe_name)
             electrode_indices = [
                 index for index in range(len(nwbfile.electrodes))
                 if nwbfile.electrodes['group_name'][index] == group_name
@@ -326,7 +318,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         if channel_to_electrode_map is None:
             channel_to_electrode_map = {}
             for probe_name in self.sorting_extractor.probe_names:
-                group_name = _format_probe_label(probe_name)
+                group_name = get_ibl_probe_name(probe_name)
                 channel_to_electrode_map[probe_name] = {}
 
                 electrode_idx = 0
@@ -474,9 +466,11 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
                     )
 
             # Set properties that don't need renaming
+            # Convert probe_name to canonical format (Probe00, Probe01)
+            canonical_probe_names = np.array([get_ibl_probe_name(pn) for pn in ibl_properties["probe_name"]])
             self.sorting_extractor.set_property(
                 key="probe_name",
-                values=ibl_properties["probe_name"],
+                values=canonical_probe_names,
                 ids=cluster_ids,
             )
             self.sorting_extractor.set_property(
