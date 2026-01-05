@@ -148,7 +148,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 | `cluster_uuid` | Identification | N/A |
 | `spike_count` | Activity | Yes (implicit) |
 | `firing_rate` | Activity | Yes (`firing_rate`) |
-| `mean_relative_depth_um` | Location | Partial (via `spike_locations`) |
+| `distance_from_probe_tip_um` | Location | Partial (via `spike_locations`) |
 | `ibl_quality_score` | Quality Label | No (IBL composite) |
 | `kilosort2_label` | Quality Label | No (Kilosort-specific) |
 | `sliding_rp_violation` | Quality Metric | Yes (`sliding_rp_violations`) |
@@ -164,7 +164,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 | `max_spike_amplitude_uV` | Amplitude | No (IBL-specific) |
 | `spike_amplitude_std_dB` | Amplitude | Partial (`amplitude_cv`) |
 | `spike_amplitudes_uV` | Ragged Array | Yes (`spike_amplitudes`) |
-| `spike_relative_depths_um` | Ragged Array | Yes (`spike_locations`) |
+| `spike_distances_from_probe_tip_um` | Ragged Array | Yes (`spike_locations`) |
 
 **Important Notes on Units:**
 - **Amplitude columns are in microvolts (uV)**, the natural unit for neuroscience. Converted from IBL's Volts during export.
@@ -206,7 +206,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ---
 
-#### `spike_relative_depths_um`
+#### `spike_distances_from_probe_tip_um`
 
 | Property | Value |
 |----------|-------|
@@ -214,15 +214,17 @@ The interface adds the following columns to the NWB units table. Each column inc
 | **Units** | Micrometers (um) |
 | **SpikeInterface** | Yes (`spike_locations` extension) |
 
-**What it measures**: The estimated depth along the probe shank for each spike, computed from the center of mass of the waveform across channels.
+**What it measures**: The distance from the probe tip for each spike, computed from the center of mass of the waveform across channels.
 
-**Intuition**: Per-spike depth estimates are used to compute drift metrics. If a unit's spikes gradually shift in depth over time, this indicates probe drift relative to the brain tissue.
+**Coordinate system**: 0 = probe tip (deepest point), values increase toward the brain surface.
+
+**Intuition**: Per-spike distance estimates are used to compute drift metrics. If a unit's spikes gradually shift in position over time, this indicates probe drift relative to the brain tissue.
 
 ---
 
 ### Unit Location Properties
 
-#### `mean_relative_depth_um`
+#### `distance_from_probe_tip_um`
 
 | Property | Value |
 |----------|-------|
@@ -230,9 +232,11 @@ The interface adds the following columns to the NWB units table. Each column inc
 | **Units** | Micrometers (um) |
 | **SpikeInterface** | Partial (via `spike_locations`) |
 
-**What it measures**: The average depth along the probe for all spikes assigned to this unit. Depth 0 is the probe tip, with positive values toward the brain surface.
+**What it measures**: The mean distance from the probe tip for all spikes assigned to this unit, computed from waveform center of mass.
 
-**Intuition**: Combined with histology data (which maps probe trajectory through brain regions), this depth determines the unit's anatomical location and cortical layer assignment.
+**Coordinate system**: 0 = probe tip (deepest point), values increase toward the brain surface. For Neuropixels 1.0 probes, values typically range from 0 to ~3840 um (the active recording region).
+
+**Intuition**: Combined with histology data (which maps probe trajectory through brain regions), this distance determines the unit's anatomical location and cortical layer assignment.
 
 ---
 
@@ -754,21 +758,21 @@ For large sessions (~2000 units, ~60M spikes), the ragged spike-level properties
 sorting_interface.add_to_nwbfile(
     nwbfile=nwbfile,
     metadata=metadata,
-    skip_properties=["spike_amplitudes_uv", "spike_relative_depths_um"]
+    skip_properties=["spike_amplitudes_uV", "spike_distances_from_probe_tip_um"]
 )
 ```
 
 | Property | Memory Usage | Notes |
 |----------|--------------|-------|
-| `spike_amplitudes_uv` | ~5 GB | Per-spike amplitude values |
-| `spike_relative_depths_um` | ~5 GB | Per-spike depth values |
+| `spike_amplitudes_uV` | ~5 GB | Per-spike amplitude values |
+| `spike_distances_from_probe_tip_um` | ~5 GB | Per-spike distance values |
 | All other properties | ~100 MB | Unit-level aggregates |
 
 Skipping these properties preserves:
 - All spike times
 - All unit-level quality metrics
 - Brain region annotations
-- Mean amplitude and depth (unit-level)
+- Mean amplitude and distance from tip (unit-level)
 
 ### Stub Testing
 

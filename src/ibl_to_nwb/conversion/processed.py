@@ -74,7 +74,7 @@ def convert_processed_session(
         ONE API instance
     stub_test : bool, optional
         If True, creates minimal NWB for testing without downloading large files.
-        In stub mode, spike properties (spike_amplitudes, spike_relative_depths)
+        In stub mode, spike properties (spike_amplitudes, spike_distances_from_probe_tip)
         are automatically skipped to reduce memory usage.
     base_path : Path, optional
         Base output directory for NWB files
@@ -245,7 +245,7 @@ def convert_processed_session(
     sorting_options = {"stub_test": stub_test}
     # In stub mode, automatically skip large spike properties to reduce memory usage
     if stub_test:
-        sorting_options["skip_properties"] = ["spike_amplitudes", "spike_relative_depths"]
+        sorting_options["skip_properties"] = ["spike_amplitudes_uV", "spike_distances_from_probe_tip_um"]
     conversion_options["IblSortingInterface"] = sorting_options
 
     # Trials interface options

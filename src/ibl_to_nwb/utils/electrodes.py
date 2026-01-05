@@ -8,6 +8,7 @@ from typing import List, Literal, Optional
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
+from iblatlas.regions import BrainRegions
 from one.api import ONE
 from pynwb import NWBFile
 from probeinterface import Probe
@@ -161,6 +162,38 @@ def _ensure_ibl_coordinates_um(
     return coords_um, coords_m
 
 
+def acronym_to_name(acronym: str, brain_regions: BrainRegions) -> str:
+    """Convert a brain region acronym to its full name.
+
+    Parameters
+    ----------
+    acronym : str
+        Brain region acronym (e.g., "VISp", "CA1", "TH").
+    brain_regions : BrainRegions
+        BrainRegions instance for lookups.
+
+    Returns
+    -------
+    str
+        Full name of the brain region (e.g., "Primary visual area").
+        Returns the acronym unchanged if not found in the atlas.
+    """
+    if acronym in ("out-of-atlas", "void", "root"):
+        return acronym
+
+    try:
+        result = brain_regions.acronym2index(acronym)
+        idx = result[1]
+        if hasattr(idx, '__len__') and len(idx) > 0:
+            idx = idx[0]  # Take first match (non-lateralized)
+        name = brain_regions.name[idx]
+        if hasattr(name, '__len__') and not isinstance(name, str):
+            name = name[0]  # Take first name (non-lateralized)
+        return str(name)
+    except (IndexError, KeyError):
+        return acronym
+
+
 def convert_ibl_to_ccf3_coordinates(
     *,
     atlas: AllenAtlas,
@@ -170,7 +203,7 @@ def convert_ibl_to_ccf3_coordinates(
     acronyms: np.ndarray,
     probe_name: str | None = None,
     eid: str | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> dict:
     """Convert IBL (bregma-centered) coordinates into the Allen CCFv3 frame.
 
     The spike-sorting loaders often provide histology coordinates in micrometers. This helper
@@ -198,14 +231,13 @@ def convert_ibl_to_ccf3_coordinates(
 
     Returns
     -------
-    ccf_coords_um : np.ndarray
-        Allen CCF coordinates in micrometers with PIR+ orientation (AP, DV, ML).
-        NaN for entries outside the atlas volume.
-    ccf_regions : np.ndarray
-        Region labels for the CCF coordinates, with ``"out-of-atlas"`` marking out-of-bounds
-        points.
-    outside_mask : np.ndarray
-        Boolean mask indicating which coordinates fell outside the atlas bounds.
+    dict
+        Dictionary with keys:
+        - 'coords_um': Allen CCF coordinates in micrometers (AP, DV, ML). Shape (n, 3).
+        - 'acronym': Brain region acronyms (e.g., "VISp", "CA1").
+        - 'name': Full brain region names (e.g., "Primary visual area").
+        - 'outside_mask': Boolean mask for electrodes outside the atlas volume.
+        Out-of-bounds points have "out-of-atlas" for both acronym and name.
     """
 
     _, coords_m = _ensure_ibl_coordinates_um(x, y, z)
@@ -243,10 +275,24 @@ def convert_ibl_to_ccf3_coordinates(
             stacklevel=2,
         )
 
-    ccf_regions = np.array(acronyms, dtype=str)
-    ccf_regions[outside_mask] = "out-of-atlas"
+    # Acronyms array with out-of-atlas markers
+    ccf_acronyms = np.array(acronyms, dtype=str)
+    ccf_acronyms[outside_mask] = "out-of-atlas"
 
-    return ccf_coords_um, ccf_regions, outside_mask
+    # Convert acronyms to full Allen CCFv3 names
+    brain_regions = BrainRegions()
+    ccf_region_names = np.array(
+        [acronym_to_name(acr, brain_regions) for acr in acronyms],
+        dtype=str
+    )
+    ccf_region_names[outside_mask] = "out-of-atlas"
+
+    return {
+        'coords_um': ccf_coords_um,
+        'acronym': ccf_acronyms,
+        'name': ccf_region_names,
+        'outside_mask': outside_mask,
+    }
 
 
 def _resolve_meta_path(
@@ -557,7 +603,7 @@ def add_probe_electrodes_with_localization(
             ],
             "Electrodes": [
                 dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
-                dict(name="location", description="Brain region acronym per electrode."),
+                dict(name="location", description="Allen CCFv3 brain region name per electrode."),
                 dict(name="x", description="CCF x coordinate (+x is posterior), in micrometers."),
                 dict(name="y", description="CCF y coordinate (+y is inferior), in micrometers."),
                 dict(name="z", description="CCF z coordinate (+z is right), in micrometers."),
@@ -644,7 +690,7 @@ def add_probe_electrodes_with_localization(
         ("x", "CCF x coordinate (+x is posterior), in micrometers."),
         ("y", "CCF y coordinate (+y is inferior), in micrometers."),
         ("z", "CCF z coordinate (+z is right), in micrometers."),
-        ("location", "Brain region acronym per electrode."),
+        ("location", "Allen CCFv3 brain region name per electrode."),
     ]
     existing_columns = set(nwbfile.electrodes.colnames)
     for name, description in columns_to_add:
@@ -657,7 +703,7 @@ def add_probe_electrodes_with_localization(
     channels_z = np.asarray(channels["z"], dtype=np.float64)
     acronyms = np.asarray(channels["acronym"]).astype(str)
 
-    ccf_coords_um, ccf_regions, _ = convert_ibl_to_ccf3_coordinates(
+    ccf_result = convert_ibl_to_ccf3_coordinates(
         atlas=atlas,
         x=channels_x,
         y=channels_y,
@@ -670,9 +716,10 @@ def add_probe_electrodes_with_localization(
     electrode_indices_sorted = sorted(electrode_indices)
     for channel_index, electrode_index in enumerate(electrode_indices_sorted):
         index = min(channel_index, n_channels - 1)
-        nwbfile.electrodes["x"].data[electrode_index] = float(ccf_coords_um[index, 0])
-        nwbfile.electrodes["y"].data[electrode_index] = float(ccf_coords_um[index, 1])
-        nwbfile.electrodes["z"].data[electrode_index] = float(ccf_coords_um[index, 2])
-        nwbfile.electrodes["location"].data[electrode_index] = ccf_regions[index]
+        nwbfile.electrodes["x"].data[electrode_index] = float(ccf_result['coords_um'][index, 0])
+        nwbfile.electrodes["y"].data[electrode_index] = float(ccf_result['coords_um'][index, 1])
+        nwbfile.electrodes["z"].data[electrode_index] = float(ccf_result['coords_um'][index, 2])
+        # Use full brain region name for the location field
+        nwbfile.electrodes["location"].data[electrode_index] = ccf_result['name'][index]
 
     return electrode_indices_sorted

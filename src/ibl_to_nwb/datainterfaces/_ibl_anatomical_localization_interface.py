@@ -518,7 +518,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     electrode_indices.append(index)
 
             ibl_coords_um, _ = _ensure_ibl_coordinates_um(channels_x, channels_y, channels_z)
-            ccf_coords_um, ccf_regions, _ = convert_ibl_to_ccf3_coordinates(
+            ccf_result = convert_ibl_to_ccf3_coordinates(
                 atlas=self.atlas,
                 x=channels_x,
                 y=channels_y,
@@ -530,9 +530,9 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             ibl_x_um = ibl_coords_um[:, 0]
             ibl_y_um = ibl_coords_um[:, 1]
             ibl_z_um = ibl_coords_um[:, 2]
-            ccf_coords_x_um = ccf_coords_um[:, 0]
-            ccf_coords_y_um = ccf_coords_um[:, 1]
-            ccf_coords_z_um = ccf_coords_um[:, 2]
+            ccf_coords_x_um = ccf_result['coords_um'][:, 0]
+            ccf_coords_y_um = ccf_result['coords_um'][:, 1]
+            ccf_coords_z_um = ccf_result['coords_um'][:, 2]
 
             # Map electrode index to channel index using modulo
             for electrode_index in electrode_indices:
@@ -543,7 +543,8 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 electrode_to_row_idx[electrode_index] = row_idx
 
                 # Add rows to merged AnatomicalCoordinatesTables
-                acronym_value = acronyms[channel_index]
+                # Use acronym for brain_region in the tables (standard identifier)
+                acronym_value = ccf_result['acronym'][channel_index]
 
                 ibl_table.add_row(
                     localized_entity=electrode_index,
@@ -563,7 +564,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     x=float(ccf_coords_x_um[channel_index]),
                     y=float(ccf_coords_y_um[channel_index]),
                     z=float(ccf_coords_z_um[channel_index]),
-                    brain_region=ccf_regions[channel_index],
+                    brain_region=acronym_value,
                 )
 
         # Validate that tables were populated

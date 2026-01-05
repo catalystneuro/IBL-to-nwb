@@ -40,9 +40,9 @@ UNITS_COLUMNS = {
         "description": "Average firing rate in Hz.",
     },
     # Location
-    "mean_relative_depth_um": {
+    "distance_from_probe_tip_um": {
         "ibl_name": "cluster_depths",
-        "description": "Average depth of each unit along the probe in micrometers. 0 is deepest site.",
+        "description": "Mean distance from the probe tip in micrometers, computed from waveform center of mass. 0 = probe tip, values increase toward brain surface.",
     },
     # Quality labels (what users check first)
     "ibl_quality_score": {
@@ -109,9 +109,9 @@ UNITS_COLUMNS = {
         "ibl_name": None,  # Set separately from spike data
         "description": "Peak amplitude of each spike for each unit in microvolts.",
     },
-    "spike_relative_depths_um": {
+    "spike_distances_from_probe_tip_um": {
         "ibl_name": None,  # Set separately from spike data
-        "description": "Relative depth along the probe for each spike in micrometers, computed from waveform center of mass. 0 is deepest site.",
+        "description": "Distance from the probe tip for each spike in micrometers, computed from waveform center of mass. 0 = probe tip, values increase toward brain surface.",
     },
 }
 
@@ -403,14 +403,14 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             calculated based on maximum amplitude channels.
         skip_properties : list of str, optional
             Properties to exclude from the units table. For IBL data, consider:
-            skip_properties=["spike_amplitudes_volts", "spike_relative_depths_um"]
+            skip_properties=["spike_amplitudes_uV", "spike_distances_from_probe_tip_um"]
             to reduce memory usage by ~10 GB for large sessions.
 
         Notes
         -----
         Memory optimization: Data is loaded only when this method is called,
-        allowing for localized memory usage. The ragged properties "spike_amplitudes_volts"
-        and "spike_relative_depths_um" contain spike-level data that can use significant
+        allowing for localized memory usage. The ragged properties "spike_amplitudes_uV"
+        and "spike_distances_from_probe_tip_um" contain spike-level data that can use significant
         memory (~5 GB each for large sessions). Skipping these properties can
         reduce peak memory usage from ~23 GB to ~10-12 GB while preserving:
         - All spike times
@@ -425,7 +425,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         if not self.sorting_extractor._data_loaded:
             # Determine which per-spike properties to skip
             skip_spike_amplitudes = "spike_amplitudes_volts" in skip_properties
-            skip_spike_depths = "spike_relative_depths_um" in skip_properties
+            skip_spike_depths = "spike_distances_from_probe_tip_um" in skip_properties
 
             # Load raw IBL data
             ibl_data = self.sorting_extractor.load_ibl_data(
@@ -474,7 +474,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
                 ids=cluster_ids,
             )
             self.sorting_extractor.set_property(
-                key="mean_relative_depth_um",
+                key="distance_from_probe_tip_um",
                 values=ibl_properties["cluster_depths"],
                 ids=cluster_ids,
             )
@@ -494,7 +494,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
                 )
             if ibl_data["spike_depths_by_id"] is not None:
                 self.sorting_extractor.set_property(
-                    key="spike_relative_depths_um",
+                    key="spike_distances_from_probe_tip_um",
                     values=np.array(list(ibl_data["spike_depths_by_id"].values()), dtype=object),
                     ids=cluster_ids,
                 )

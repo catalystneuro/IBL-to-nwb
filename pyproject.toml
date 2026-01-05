@@ -109,5 +109,6 @@ dev = [
     "brainrender>=2.1.16",
     "ipykernel>=7.1.0",
     "matplotlib>=3.10.7",
+    "pynapple>=0.10.2",
     "remfile>=0.1.13",
 ]
