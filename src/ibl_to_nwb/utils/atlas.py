@@ -1,5 +1,6 @@
 """Utilities for working with Allen Brain Atlas and IBL atlas mappings."""
 
+import numpy as np
 from iblatlas.regions import BrainRegions
 
 # Cosmos acronym to full name mapping
@@ -263,3 +264,39 @@ def get_ccf_full_name(acronym: str, brain_regions: BrainRegions | None = None) -
         return str(name)
     except (IndexError, KeyError):
         return acronym
+
+
+def get_brainglobe_slice_colors(annotation_slice: np.ndarray, atlas) -> np.ndarray:
+    """
+    Convert a BrainGlobe annotation slice to an RGB image using region colors.
+
+    Parameters
+    ----------
+    annotation_slice : np.ndarray
+        A 2D array of region IDs from the BrainGlobe atlas annotation volume.
+    atlas : BrainGlobeAtlas
+        A BrainGlobe atlas instance (e.g., from BrainGlobeAtlas("allen_mouse_25um")).
+
+    Returns
+    -------
+    np.ndarray
+        An RGB image array of shape (height, width, 3) with dtype uint8,
+        where each region is colored according to its BrainGlobe atlas color.
+    """
+    rgb_image = np.zeros((*annotation_slice.shape, 3), dtype=np.uint8)
+    unique_ids = np.unique(annotation_slice)
+
+    for region_id in unique_ids:
+        if region_id == 0:  # Background
+            continue
+        try:
+            structure = atlas.structures[region_id]
+            color = structure["rgb_triplet"]
+            mask = annotation_slice == region_id
+            rgb_image[mask] = color
+        except KeyError:
+            # Region not found in atlas, use gray
+            mask = annotation_slice == region_id
+            rgb_image[mask] = [128, 128, 128]
+
+    return rgb_image
