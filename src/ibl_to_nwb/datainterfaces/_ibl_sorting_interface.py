@@ -6,6 +6,7 @@ import time
 
 import numpy as np
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import BaseSortingExtractorInterface
+from neuroconv.tools.spikeinterface import add_sorting_to_nwbfile
 from neuroconv.utils import DeepDict
 from one.api import ONE
 from pynwb import NWBFile
@@ -43,6 +44,10 @@ UNITS_COLUMNS = {
     "distance_from_probe_tip_um": {
         "ibl_name": "cluster_depths",
         "description": "Mean distance from the probe tip in micrometers, computed from waveform center of mass. 0 = probe tip, values increase toward brain surface.",
+    },
+    "max_electrode": {
+        "ibl_name": "clusters.channels",  # Mapped through electrodes table
+        "description": "Index into the electrodes table for the electrode with maximum spike amplitude for this unit.",
     },
     # Quality labels (what users check first)
     "ibl_quality_score": {
@@ -104,6 +109,11 @@ UNITS_COLUMNS = {
         "ibl_name": "amp_std_dB",
         "description": "Standard deviation of log-transformed spike amplitudes in decibels. High values (>6 dB) may indicate drift or contamination.",
     },
+    # Waveform shape metrics
+    "peak_to_trough_duration_ms": {
+        "ibl_name": "peak_to_trough_duration_ms",
+        "description": "Duration from negative trough to positive peak of the mean waveform in milliseconds. Used to distinguish fast-spiking interneurons (~0.2-0.4 ms) from regular-spiking pyramidal cells (~0.4-0.8+ ms).",
+    },
     # Ragged arrays (per-spike data)
     "spike_amplitudes_uV": {
         "ibl_name": None,  # Set separately from spike data
@@ -116,17 +126,13 @@ UNITS_COLUMNS = {
 }
 
 # Derived mappings for convenience (generated from master table)
-# Only includes properties that come from clusters.metrics.pqt (excludes None ibl_names)
+# Only includes properties that come from clusters.metrics.pqt (excludes None ibl_names
+# and properties that are loaded/set separately like probe_name, cluster_depths, peak_to_trough_duration_ms)
 IBL_METRICS_TO_NWB = {
     v["ibl_name"]: k
     for k, v in UNITS_COLUMNS.items()
-    if v["ibl_name"] is not None and v["ibl_name"] not in ("probe_name", "cluster_depths")
+    if v["ibl_name"] is not None and v["ibl_name"] not in ("probe_name", "cluster_depths", "peak_to_trough_duration_ms")
 }
-
-
-def get_unit_property_descriptions() -> list[dict]:
-    """Build the UnitProperties list for NWB metadata."""
-    return [{"name": name, "description": col_info["description"]} for name, col_info in UNITS_COLUMNS.items()]
 
 
 class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
@@ -183,6 +189,9 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
                     "alf/probe*/clusters.depths.npy",
                     "alf/probe*/clusters.metrics.pqt",
                     "alf/probe*/clusters.uuids.csv",
+                    "alf/probe*/clusters.waveformsChannels.npy",
+                    "alf/probe*/clusters.waveforms.npy",
+                    "alf/probe*/clusters.peakToTrough.npy",
                 ],
             },
         }
@@ -294,9 +303,12 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
 
         return channel_to_electrode_map
 
-    def _map_units_to_electrodes(self, nwbfile: NWBFile, channel_to_electrode_map: dict = None) -> list:
+    def _map_units_to_electrodes(self, nwbfile: NWBFile, channel_to_electrode_map: dict = None) -> tuple:
         """
-        Map units to electrode indices based on maximum amplitude channels.
+        Map units to electrode indices based on waveform channels.
+
+        Uses clusters.waveformsChannels for multi-electrode linking (all channels where
+        the unit's waveform is stored). Also computes max_electrode from clusters.channels.
 
         Parameters
         ----------
@@ -307,12 +319,14 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
 
         Returns
         -------
-        list of list of int
-            For each unit, a list containing the electrode table index
+        tuple of (list of list of int, list of int)
+            - unit_electrode_indices: For each unit, list of electrode indices from waveformsChannels
+            - max_electrodes: For each unit, the electrode index with maximum amplitude
         """
         # Get unit properties from instance variables (set during data loading)
         unit_probe_names = self._unit_probe_names
-        unit_channel_ids = self._max_amplitude_channels
+        unit_max_channels = self._max_amplitude_channels
+        unit_waveform_channels = self._waveform_channels
 
         # If no mapping provided, build it from electrodes table
         if channel_to_electrode_map is None:
@@ -329,25 +343,41 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
                         channel_to_electrode_map[probe_name][channel_idx] = index
                         electrode_idx += 1
 
-        # Map each unit to its electrode
+        # Map each unit to its electrodes (from waveformsChannels) and max electrode
         unit_electrode_indices = []
-        for pname, channel_id in zip(unit_probe_names, unit_channel_ids):
-            if pname not in channel_to_electrode_map:
-                raise ValueError(f"Probe '{pname}' not found in electrode mapping")
+        max_electrodes = []
 
-            channel_map = channel_to_electrode_map[pname]
-            channel_idx = int(channel_id)
+        for probe_name, max_channel, waveform_channels in zip(
+            unit_probe_names, unit_max_channels, unit_waveform_channels
+        ):
+            if probe_name not in channel_to_electrode_map:
+                raise ValueError(f"Probe '{probe_name}' not found in electrode mapping")
 
-            if channel_idx not in channel_map:
+            channel_map = channel_to_electrode_map[probe_name]
+
+            # Map max amplitude channel to electrode index
+            max_channel_index = int(max_channel)
+            if max_channel_index not in channel_map:
                 raise ValueError(
-                    f"Channel {channel_idx} not found for {pname}. "
+                    f"Max channel {max_channel_index} not found for {probe_name}. "
                     f"Available channels: {sorted(channel_map.keys())[:10]}{'...' if len(channel_map) > 10 else ''}"
                 )
+            max_electrodes.append(channel_map[max_channel_index])
 
-            electrode_idx = channel_map[channel_idx]
-            unit_electrode_indices.append([electrode_idx])
+            # Map waveform channels to electrode indices
+            # waveform_channels is a list of channel indices from clusters.waveformsChannels
+            if waveform_channels:
+                electrode_indices = []
+                for channel in waveform_channels:
+                    channel_index = int(channel)
+                    if channel_index in channel_map:
+                        electrode_indices.append(channel_map[channel_index])
+                unit_electrode_indices.append(electrode_indices)
+            else:
+                # If waveformsChannels not available, use empty list
+                unit_electrode_indices.append([])
 
-        return unit_electrode_indices
+        return unit_electrode_indices, max_electrodes
 
     def add_to_nwbfile(
         self,
@@ -482,6 +512,21 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             # Store max amplitude channel internally for electrode linking (not written to NWB)
             self._max_amplitude_channels = ibl_properties["_max_amplitude_channel"]
             self._unit_probe_names = ibl_properties["probe_name"]
+            # Store waveform channels for multi-electrode linking
+            self._waveform_channels = ibl_properties["_waveform_channels"]
+
+            # Store waveform_mean separately - will be passed directly to add_sorting_to_nwbfile
+            # to use NWB's predefined waveform_mean column (non-ragged 3D array)
+            # Shape: (num_units, num_samples=82, num_channels=32)
+            # Convert from Volts to microvolts for consistency with amplitude columns
+            self._waveform_means = np.array(ibl_properties["waveform_mean"], dtype=np.float32) * 1e6
+
+            # Set peak-to-trough duration
+            self.sorting_extractor.set_property(
+                key="peak_to_trough_duration_ms",
+                values=np.array(ibl_properties["peak_to_trough_duration_ms"]),
+                ids=cluster_ids,
+            )
 
             # Set ragged array properties (per-spike data) if not skipped
             if ibl_data["spike_amplitudes_by_id"] is not None:
@@ -507,24 +552,35 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
 
         # Automatically link units to electrodes if not provided
         if unit_electrode_indices is None:
-            print("Automatically linking units to electrodes based on maximum amplitude channels...")
-            unit_electrode_indices = self._map_units_to_electrodes(nwbfile, channel_to_electrode_map)
+            print("Automatically linking units to electrodes based on waveform channels...")
+            unit_electrode_indices, max_electrodes = self._map_units_to_electrodes(nwbfile, channel_to_electrode_map)
 
-        # Build metadata with unit property descriptions
-        # Descriptions are defined here to keep all sorting-related metadata together
-        if metadata is None:
-            metadata = DeepDict()
-        if "Ecephys" not in metadata:
-            metadata["Ecephys"] = {}
-        metadata["Ecephys"]["UnitProperties"] = get_unit_property_descriptions()
+            # Set max_electrode property on the sorting extractor
+            cluster_ids = list(self.sorting_extractor.get_unit_ids())
+            self.sorting_extractor.set_property(
+                key="max_electrode",
+                values=np.array(max_electrodes),
+                ids=cluster_ids,
+            )
 
-        # Delegate to parent class (with stub_test=False since we already loaded/subsetted data)
-        super().add_to_nwbfile(
+        # Build property descriptions from UNITS_COLUMNS
+        property_descriptions = {
+            name: spec["description"] for name, spec in UNITS_COLUMNS.items()
+        }
+
+        # Call add_sorting_to_nwbfile directly to pass waveform_means parameter
+        # This uses NWB's predefined waveform_mean column correctly (non-ragged 3D array)
+        add_sorting_to_nwbfile(
+            self.sorting_extractor,
             nwbfile=nwbfile,
-            metadata=metadata,
-            stub_test=False,
+            property_descriptions=property_descriptions,
             write_as=write_as,
             units_name=units_name,
             units_description=units_description,
             unit_electrode_indices=unit_electrode_indices,
+            waveform_means=self._waveform_means,
         )
+
+        # Note: waveform_rate and resolution are set directly on the HDF5 file in the conversion
+        # pipeline (processed.py) because neuroconv's configure_backend strips these attributes.
+        # The values are: waveform_rate=30000.0 Hz, resolution=1/30000 seconds

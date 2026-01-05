@@ -94,7 +94,8 @@ class IblSortingExtractor(BaseSorting):
             - "spike_depths_by_id": dict mapping unit_id to spike depths (or None if skipped)
             - "cluster_ids": list of unit IDs
             - "unit_properties": dict with IBL property names as keys, lists of values
-              Includes: probe_name, _max_amplitude_channel, cluster_depths, and all columns from clusters.metrics
+              Includes: probe_name, _max_amplitude_channel, cluster_depths, _waveform_channels,
+              waveform_mean (82 samples x 32 channels), peak_to_trough_duration_ms, and all columns from clusters.metrics
         """
         if stub_units is None:
             stub_units = 10
@@ -155,6 +156,35 @@ class IblSortingExtractor(BaseSorting):
             # Add all cluster metrics columns
             for column in cluster_metrics.columns:
                 unit_properties[column].extend(list(cluster_metrics[column]))
+
+            # Load additional cluster attributes
+            # These are loaded separately from load_spike_sorting() defaults using dataset_types parameter
+            additional_cluster_data = sorting_loader.load_spike_sorting_object(
+                'clusters',
+                dataset_types=['clusters.waveformsChannels', 'clusters.waveforms', 'clusters.peakToTrough'],
+                revision=self.revision,
+            )
+
+            # Waveform channels for multi-electrode linking
+            # clusters.waveformsChannels has shape [n_clusters, n_selected_channels]
+            waveform_channels = additional_cluster_data['waveformsChannels']
+            if stub_test:
+                waveform_channels = waveform_channels[:number_of_units]
+            # Convert each row to a list for storage
+            unit_properties["_waveform_channels"].extend(waveform_channels.tolist())
+
+            # Mean waveforms: shape [n_clusters, n_samples=82, n_channels=32]
+            # Stored as list of (n_samples, n_channels) arrays for NWB waveform_mean
+            waveforms = additional_cluster_data['waveforms']
+            if stub_test:
+                waveforms = waveforms[:number_of_units]
+            unit_properties["waveform_mean"].extend(waveforms.tolist())
+
+            # Peak-to-trough duration in milliseconds
+            peak_to_trough = additional_cluster_data['peakToTrough']
+            if stub_test:
+                peak_to_trough = peak_to_trough[:number_of_units]
+            unit_properties["peak_to_trough_duration_ms"].extend(peak_to_trough.tolist())
 
         return {
             "spike_times_by_id": dict(spike_times_by_id),

@@ -489,7 +489,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         )
 
         # Build mapping of electrode_index -> row_index for units linking
-        electrode_to_row_idx = {}
+        electrode_to_row_index = {}
 
         for probe_name, data in self.probe_data.items():
             canonical_name = get_ibl_probe_name(probe_name)
@@ -539,8 +539,8 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 channel_index = electrode_index % n_channels
 
                 # Store mapping for units linking (row index in the merged table)
-                row_idx = len(ccf_table)
-                electrode_to_row_idx[electrode_index] = row_idx
+                row_index = len(ccf_table)
+                electrode_to_row_index[electrode_index] = row_index
 
                 # Add rows to merged AnatomicalCoordinatesTables
                 # Use acronym for brain_region in the tables (standard identifier)
@@ -591,13 +591,16 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             raise ValueError("ibl_bregma_centered_coordinates column already exists in units table")
 
         # Build row indices for each unit (works for all sessions - single and multi-probe)
+        # Use max_electrode column which contains the electrode with maximum spike amplitude
+        # max_electrode is a DynamicTableRegion linking to the electrodes table
         row_indices = []
         for unit_index in range(len(nwbfile.units)):
-            unit_electrodes_df = nwbfile.units['electrodes'][unit_index]
-            electrode_indices = list(unit_electrodes_df.index)
-            max_amp_electrode_index = electrode_indices[0]
-            row_idx = electrode_to_row_idx[max_amp_electrode_index]
-            row_indices.append(row_idx)
+            # Access the DynamicTableRegion to get the electrode data (returns DataFrame)
+            electrode_row = nwbfile.units['max_electrode'][unit_index]
+            # The DataFrame index contains the electrode index from the electrodes table
+            max_amp_electrode_index = int(electrode_row.index[0])
+            row_index = electrode_to_row_index[max_amp_electrode_index]
+            row_indices.append(row_index)
 
         # For non-ragged data (each unit has exactly 1 reference), create cumulative index
         # Index[i] indicates the end position (exclusive) of unit i's references in the data array

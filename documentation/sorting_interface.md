@@ -21,7 +21,8 @@ This document provides comprehensive documentation for the `IblSortingInterface`
 The `IblSortingInterface` converts spike-sorted electrophysiology data from IBL Neuropixels recordings into the NWB units table format. This interface handles data from the standardized IBL spike sorting pipeline (iblsorter/pykilosort), ensuring consistent representation of neural activity across all Brain-Wide Map sessions.
 
 **Key characteristics:**
-- Adds ~20 columns to the NWB units table (spike times + quality metrics + metadata)
+- Adds ~22 columns to the NWB units table (spike times + quality metrics + waveform data + metadata)
+- Includes mean waveforms (82 samples x 32 channels per unit) and peak-to-trough duration for cell-type classification
 - Supports multi-probe sessions with automatic unit ID management
 - Uses revision `2025-05-06` for Brain-Wide Map standard data
 - Links units to electrodes table for anatomical localization
@@ -149,6 +150,7 @@ The interface adds the following columns to the NWB units table. Each column inc
 | `spike_count` | Activity | Yes (implicit) |
 | `firing_rate` | Activity | Yes (`firing_rate`) |
 | `distance_from_probe_tip_um` | Location | Partial (via `spike_locations`) |
+| `max_electrode` | Location | N/A |
 | `ibl_quality_score` | Quality Label | No (IBL composite) |
 | `kilosort2_label` | Quality Label | No (Kilosort-specific) |
 | `sliding_rp_violation` | Quality Metric | Yes (`sliding_rp_violations`) |
@@ -163,6 +165,8 @@ The interface adds the following columns to the NWB units table. Each column inc
 | `min_spike_amplitude_uV` | Amplitude | No (IBL-specific) |
 | `max_spike_amplitude_uV` | Amplitude | No (IBL-specific) |
 | `spike_amplitude_std_dB` | Amplitude | Partial (`amplitude_cv`) |
+| `peak_to_trough_duration_ms` | Waveform Shape | Yes (`peak_to_valley`) |
+| `waveform_mean` | Waveform Shape | Yes (`waveform_mean`) |
 | `spike_amplitudes_uV` | Ragged Array | Yes (`spike_amplitudes`) |
 | `spike_distances_from_probe_tip_um` | Ragged Array | Yes (`spike_locations`) |
 
@@ -240,6 +244,22 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 ---
 
+#### `max_electrode`
+
+| Property | Value |
+|----------|-------|
+| **IBL Source** | `clusters.channels.npy` (mapped through electrodes table) |
+| **Units** | Index (integer) |
+| **SpikeInterface** | N/A |
+
+**What it measures**: The index into the NWB electrodes table for the electrode where this unit has its maximum spike amplitude.
+
+**Intuition**: This is the "primary" electrode for the unit - the recording site closest to the soma. Use this to look up brain region, CCF coordinates, or other electrode properties for the unit.
+
+**Relationship to `electrodes` column**: The `electrodes` column contains all channels where the unit's waveform is stored (from `clusters.waveformsChannels`, typically ~32 channels). The `max_electrode` is always the first element in that list, representing the peak amplitude location.
+
+---
+
 ### Amplitude Statistics
 
 **Note**: Amplitude values are stored in **microvolts (uV)**, the natural unit for neuroscience. Converted from IBL's internal Volts representation.
@@ -299,6 +319,68 @@ The interface adds the following columns to the NWB units table. Each column inc
 **What it measures**: The standard deviation of log-transformed spike amplitudes.
 
 **Intuition**: Amplitude variability in dB captures multiplicative noise (variations proportional to amplitude). High variability (>6 dB) may indicate drift, bursting, or contamination.
+
+---
+
+### Waveform Shape Metrics
+
+#### `peak_to_trough_duration_ms`
+
+| Property | Value |
+|----------|-------|
+| **IBL Source** | `clusters.peakToTrough.npy` |
+| **Units** | Milliseconds (ms) |
+| **SpikeInterface** | Yes (`peak_to_valley`) |
+
+**What it measures**: The duration from the negative trough to the positive peak of the mean waveform on the maximum amplitude channel.
+
+**Intuition**: This is a classic waveform shape metric used for cell-type classification. Different neuron types have characteristic waveform durations:
+
+| Duration Range | Likely Cell Type |
+|----------------|------------------|
+| 0.2-0.4 ms | Fast-spiking interneurons (PV+, basket cells) |
+| 0.4-0.8+ ms | Regular-spiking pyramidal cells |
+
+**Calculation**: Measured from the mean waveform (`clusters.waveforms.npy`) at 30 kHz sampling rate. The trough is typically the minimum voltage deflection (action potential peak), and the "peak" is the subsequent positive afterhyperpolarization phase.
+
+**Quality consideration**: Very short (<0.15 ms) or very long (>1.0 ms) values may indicate artifact contamination or poor spike isolation.
+
+---
+
+#### `waveform_mean`
+
+| Property | Value |
+|----------|-------|
+| **IBL Source** | `clusters.waveforms.npy` |
+| **Shape** | `(82, 32)` per unit - (time samples, channels) |
+| **SpikeInterface** | Yes (`waveform_mean`) |
+
+**What it measures**: The average spike waveform across all spikes assigned to this unit, sampled at 30 kHz across 32 channels centered on the maximum amplitude channel.
+
+**Time basis**:
+- 82 samples at 30 kHz = 2.733 ms total duration
+- Sample period = 0.0333 ms (1/30000 seconds)
+- Waveform is approximately centered on the trough (negative peak) at sample ~41
+
+**Channel arrangement**: The 32 channels are the channels closest to and including the maximum amplitude channel, taken from `clusters.waveformsChannels`. The first channel in the array corresponds to the first channel in the waveformsChannels list for that unit.
+
+**Intuition**: The mean waveform is the "fingerprint" of the unit - its characteristic voltage deflection pattern. It's used for:
+1. **Quality assessment**: Well-isolated units have clean, consistent waveforms
+2. **Cell-type classification**: Waveform shape (peak-to-trough duration, trough-to-peak ratio) correlates with neuron type
+3. **Visual inspection**: Researchers often plot waveforms to manually verify spike sorting quality
+
+**Accessing the data in NWB**:
+```python
+# Get waveform for unit 0
+waveform = nwbfile.units['waveform_mean'][0]  # Shape: (82, 32)
+
+# Plot the waveform on the max amplitude channel (channel 0 in the stored array)
+import matplotlib.pyplot as plt
+time_ms = np.arange(82) / 30.0  # Convert samples to ms
+plt.plot(time_ms, waveform[:, 0])
+plt.xlabel('Time (ms)')
+plt.ylabel('Amplitude')
+```
 
 ---
 
@@ -681,6 +763,9 @@ The interface loads from these ALF (Alyx File) format files:
 | `clusters.depths.npy` | `(n_clusters,)` | Mean depth per cluster |
 | `clusters.metrics.pqt` | DataFrame | All quality metrics (Parquet format) |
 | `clusters.uuids.csv` | `(n_clusters,)` | Unique identifiers |
+| `clusters.waveformsChannels.npy` | `(n_clusters, 32)` | Channel indices for waveform data |
+| `clusters.waveforms.npy` | `(n_clusters, 82, 32)` | Mean waveform per cluster (82 samples x 32 channels) |
+| `clusters.peakToTrough.npy` | `(n_clusters,)` | Peak-to-trough duration in milliseconds |
 
 #### Typical File Paths
 ```
