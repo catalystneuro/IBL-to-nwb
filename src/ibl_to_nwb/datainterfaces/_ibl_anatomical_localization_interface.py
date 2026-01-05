@@ -577,63 +577,77 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         # Add both tables to localization
         localization.add_anatomical_coordinates_tables([ibl_table, ccf_table])
 
-        # Add anatomical coordinates links to units table (if units exist)
-        # Units inherit coordinates from their max-amplitude electrode
-        # Skip if units table doesn't exist (e.g., in raw-only conversion)
-        if nwbfile.units is None or len(nwbfile.units) == 0:
-            if self.verbose:
-                print("Units table not present - skipping units anatomical coordinates columns")
-            return
+        # TEMPORARILY DISABLED: Units table links to AnatomicalCoordinatesTable
+        # The pynwb validator (v3.1.3) incorrectly rejects DynamicTableRegion references
+        # to DynamicTable subclasses like AnatomicalCoordinatesTable, even though the
+        # schema correctly defines inheritance (neurodata_type_inc: DynamicTable).
+        #
+        # Error: "incorrect data_type - expected 'DynamicTable', got 'AnatomicalCoordinatesTable'"
+        #
+        # See: build/pynwb_validation_issue.md for reproducible example
+        # TODO: Re-enable once pynwb/hdmf fixes this validation bug
+        #
+        # The AnatomicalCoordinatesTable objects are still added to the file and can be
+        # accessed via nwbfile.lab_meta_data['localization'].anatomical_coordinates_tables
+        # Users can manually correlate units to electrodes using the existing columns.
 
-        if 'ccf_anatomical_coordinates' in nwbfile.units.colnames:
-            raise ValueError("ccf_anatomical_coordinates column already exists in units table")
-        if 'ibl_bregma_centered_coordinates' in nwbfile.units.colnames:
-            raise ValueError("ibl_bregma_centered_coordinates column already exists in units table")
-
-        # Build row indices for each unit (works for all sessions - single and multi-probe)
-        # Use max_electrode column which contains the electrode with maximum spike amplitude
-        # max_electrode is a DynamicTableRegion linking to the electrodes table
-        row_indices = []
-        for unit_index in range(len(nwbfile.units)):
-            # Access the DynamicTableRegion to get the electrode data (returns DataFrame)
-            electrode_row = nwbfile.units['max_electrode'][unit_index]
-            # The DataFrame index contains the electrode index from the electrodes table
-            max_amp_electrode_index = int(electrode_row.index[0])
-            row_index = electrode_to_row_index[max_amp_electrode_index]
-            row_indices.append(row_index)
-
-        # For non-ragged data (each unit has exactly 1 reference), create cumulative index
-        # Index[i] indicates the end position (exclusive) of unit i's references in the data array
-        # For non-ragged: index = [1, 2, 3, ..., n_units]
-        index = np.arange(1, len(nwbfile.units) + 1, dtype=np.uint32)
-
-        # Add CCF anatomical coordinates column with VectorIndex for schema compliance
-        nwbfile.units.add_column(
-            name='ccf_anatomical_coordinates',
-            description=(
-                'Link to the ElectrodesCCFv3 AnatomicalCoordinatesTable row containing '
-                'Allen CCF coordinates and brain region for this unit. Links to the CCF localization '
-                "of the unit's maximum amplitude electrode. Provides access to formal Space "
-                'metadata, CCF coordinates, and hierarchical brain region mappings.'
-            ),
-            data=row_indices,
-            table=ccf_table,
-            index=index,
-        )
-
-        # Add IBL Bregma-centered coordinates column (same indices, different table)
-        nwbfile.units.add_column(
-            name='ibl_bregma_centered_coordinates',
-            description=(
-                'Link to the ElectrodesIBLBregma AnatomicalCoordinatesTable row containing '
-                'IBL Bregma-centered coordinates and hierarchical brain region mappings for this unit. '
-                "Links to the localization of the unit's maximum amplitude electrode. Provides access "
-                'to atlas_id, Beryl brain regions, and Cosmos brain regions.'
-            ),
-            data=row_indices,
-            table=ibl_table,
-            index=index,
-        )
+        # # Add anatomical coordinates links to units table (if units exist)
+        # # Units inherit coordinates from their max-amplitude electrode
+        # # Skip if units table doesn't exist (e.g., in raw-only conversion)
+        # if nwbfile.units is None or len(nwbfile.units) == 0:
+        #     if self.verbose:
+        #         print("Units table not present - skipping units anatomical coordinates columns")
+        #     return
+        #
+        # if 'ccf_anatomical_coordinates' in nwbfile.units.colnames:
+        #     raise ValueError("ccf_anatomical_coordinates column already exists in units table")
+        # if 'ibl_bregma_centered_coordinates' in nwbfile.units.colnames:
+        #     raise ValueError("ibl_bregma_centered_coordinates column already exists in units table")
+        #
+        # # Build row indices for each unit (works for all sessions - single and multi-probe)
+        # # Use max_electrode column which contains the electrode with maximum spike amplitude
+        # # max_electrode is a DynamicTableRegion linking to the electrodes table
+        # row_indices = []
+        # for unit_index in range(len(nwbfile.units)):
+        #     # Access the DynamicTableRegion to get the electrode data (returns DataFrame)
+        #     electrode_row = nwbfile.units['max_electrode'][unit_index]
+        #     # The DataFrame index contains the electrode index from the electrodes table
+        #     max_amp_electrode_index = int(electrode_row.index[0])
+        #     row_index = electrode_to_row_index[max_amp_electrode_index]
+        #     row_indices.append(row_index)
+        #
+        # # For non-ragged data (each unit has exactly 1 reference), create cumulative index
+        # # Index[i] indicates the end position (exclusive) of unit i's references in the data array
+        # # For non-ragged: index = [1, 2, 3, ..., n_units]
+        # index = np.arange(1, len(nwbfile.units) + 1, dtype=np.uint32)
+        #
+        # # Add CCF anatomical coordinates column with VectorIndex for schema compliance
+        # nwbfile.units.add_column(
+        #     name='ccf_anatomical_coordinates',
+        #     description=(
+        #         'Link to the ElectrodesCCFv3 AnatomicalCoordinatesTable row containing '
+        #         'Allen CCF coordinates and brain region for this unit. Links to the CCF localization '
+        #         "of the unit's maximum amplitude electrode. Provides access to formal Space "
+        #         'metadata, CCF coordinates, and hierarchical brain region mappings.'
+        #     ),
+        #     data=row_indices,
+        #     table=ccf_table,
+        #     index=index,
+        # )
+        #
+        # # Add IBL Bregma-centered coordinates column (same indices, different table)
+        # nwbfile.units.add_column(
+        #     name='ibl_bregma_centered_coordinates',
+        #     description=(
+        #         'Link to the ElectrodesIBLBregma AnatomicalCoordinatesTable row containing '
+        #         'IBL Bregma-centered coordinates and hierarchical brain region mappings for this unit. '
+        #         "Links to the localization of the unit's maximum amplitude electrode. Provides access "
+        #         'to atlas_id, Beryl brain regions, and Cosmos brain regions.'
+        #     ),
+        #     data=row_indices,
+        #     table=ibl_table,
+        #     index=index,
+        # )
 
     @staticmethod
     def _probe_has_histology_files(one: ONE, eid: str, probe_name: str, revision: Optional[str]) -> bool:

@@ -267,6 +267,33 @@ echo "DEBUG: DANDI_SANDBOX_API_KEY is set: ${DANDI_SANDBOX_API_KEY:+YES}"
 echo "DEBUG: Uploading to DANDI instance: ${DANDI_INSTANCE}"
 
 dandi upload -i "${DANDI_INSTANCE}" .
+DANDI_EXIT_CODE=$?
+
+# Always print the DANDI log for debugging (especially useful when validation fails)
+echo ""
+echo "=== DANDI CLI Log ==="
+DANDI_LOG_DIR="/root/.local/state/dandi-cli/log"
+if [ -d "${DANDI_LOG_DIR}" ]; then
+    # Find the most recent log file
+    DANDI_LOG=$(ls -t "${DANDI_LOG_DIR}"/*.log 2>/dev/null | head -1)
+    if [ -n "${DANDI_LOG}" ] && [ -f "${DANDI_LOG}" ]; then
+        echo "Log file: ${DANDI_LOG}"
+        echo "--- Log contents ---"
+        cat "${DANDI_LOG}"
+        echo "--- End of log ---"
+    else
+        echo "No DANDI log files found in ${DANDI_LOG_DIR}"
+    fi
+else
+    echo "DANDI log directory not found: ${DANDI_LOG_DIR}"
+fi
+echo ""
+
+# Check if upload succeeded
+if [ ${DANDI_EXIT_CODE} -ne 0 ]; then
+    echo "ERROR: DANDI upload failed with exit code ${DANDI_EXIT_CODE}"
+    exit ${DANDI_EXIT_CODE}
+fi
 
 # Cleanup and shutdown
 echo "Upload complete. Shutting down in 60 seconds..."
