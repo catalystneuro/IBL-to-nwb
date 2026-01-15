@@ -4,8 +4,7 @@ from datetime import datetime
 from typing import Literal, Optional
 
 from dateutil import tz
-from ndx_ibl import IblSubject
-from ndx_ibl_bwm import ibl_bwm_metadata
+from ndx_ibl import IblMetadata, IblSubject
 from neuroconv import ConverterPipe
 from neuroconv.tools.nwb_helpers import HDF5BackendConfiguration, configure_backend, make_or_load_nwbfile
 from one.api import ONE
@@ -116,7 +115,7 @@ class IblConverter(ConverterPipe):
             nwbfile_out.subject = ibl_subject
 
             # adding ibl specific metadata
-            nwbfile_out.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(**ibl_metadata))
+            nwbfile_out.add_lab_meta_data(lab_meta_data=IblMetadata(**ibl_metadata))
 
             for interface_name, data_interface in self.data_interface_objects.items():
                 conversion_options = conversion_options.get(interface_name, dict())

@@ -70,7 +70,7 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["wheel"]
@@ -102,7 +102,7 @@ def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
 def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["camera"]
@@ -118,7 +118,7 @@ def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     camera_views = ["body", "left", "right"]
@@ -144,7 +144,7 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     session_loader = SessionLoader(one=one, eid=eid, revision=revision)
@@ -259,7 +259,7 @@ def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
 def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
 
     data_from_NWB = nwbfile.trials[:].reset_index(drop=True)
     session_loader = SessionLoader(one=one, eid=eid, revision=revision)
@@ -289,7 +289,7 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
 def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["camera"]
@@ -325,7 +325,7 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     bwm_df = load_fixtures.load_bwm_df()
 
     raw_ephys_datasets = one.list_datasets(eid=eid, collection="raw_ephys_data/*")
@@ -401,7 +401,7 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
 
     # comparing probe names
     # get the pid/pname mapping for this eid
@@ -473,7 +473,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     # timestamps
@@ -513,7 +513,7 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
 def _check_passive_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     # check which datasets are present

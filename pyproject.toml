@@ -24,7 +24,6 @@ dependencies = [
     "ndx-ibl",
     "ndx-events==0.2.1",
     "ibl-neuropixel",
-    "ndx-ibl-bwm",
     "ibllib", 
     "ndx-anatomical-localization",
 ]
@@ -45,11 +44,10 @@ classifiers = [
 neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "main"}
 # neuroconv = {path = "../../work_repos/neuroconv", editable = true}
 ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "main"}
-ndx-ibl-bwm = {git = "https://github.com/int-brain-lab/ndx-ibl-bwm", branch = "main" }
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 ndx-anatomical-localization = {git = "https://github.com/catalystneuro/ndx-anatomical-localization", branch = "main"}
-ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
-#ndx-ibl = {path = "../ndx-ibl", editable = true}
+# Using local ndx-ibl with IblMetadata (consolidated from ndx-ibl-bwm)
+ndx-ibl = {path = "../ndx-ibl", editable = true}
 
 
 [tool.black]

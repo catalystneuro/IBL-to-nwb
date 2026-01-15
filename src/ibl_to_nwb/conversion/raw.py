@@ -13,8 +13,7 @@ from neuroconv import ConverterPipe
 from neuroconv.tools import configure_and_write_nwbfile
 from neuroconv.tools.hdmf import GenericDataChunkIterator
 from neuroconv.tools.nwb_helpers import get_default_backend_configuration
-from ndx_ibl import IblSubject
-from ndx_ibl_bwm import ibl_bwm_metadata
+from ndx_ibl import IblMetadata, IblSubject
 from one.api import ONE
 from one import alf
 from pynwb import NWBFile, read_nwb
@@ -454,7 +453,7 @@ def convert_raw_session(
 
     nwbfile = NWBFile(**metadata["NWBFile"])
     nwbfile.subject = ibl_subject
-    nwbfile.add_lab_meta_data(lab_meta_data=ibl_bwm_metadata(revision="2025-05-06"))
+    nwbfile.add_lab_meta_data(lab_meta_data=IblMetadata(revision="2025-05-06"))
 
     if probe_name_to_probe_id_dict:
         if logger:

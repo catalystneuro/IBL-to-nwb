@@ -1,97 +1,111 @@
-# IBL-to-nwb
+# IBL-to-NWB
+
 [![PyPI version](https://badge.fury.io/py/ibl-to-nwb.svg)](https://badge.fury.io/py/ibl-to-nwb)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
-This repository houses conversion pipelines for the IBL data releases, including the Brain Wide Map project.
+IBL-to-NWB is a data conversion pipeline that transforms International Brain Laboratory (IBL) experimental data into Neurodata Without Borders (NWB) format. The pipeline uses NeuroConv, a flexible data conversion framework, to orchestrate multiple data interfaces that read IBL-specific formats and write standardized NWB files.
 
+**See [documentation/index.md](documentation/index.md) for complete documentation including system architecture, concepts, and how-tos.**
 
+## Quick Start
 
-# Installation
+### Installation
 
-```
-git clone https:/github.com/catalystneuro/IBL-to-nwb
+```bash
+git clone https://github.com/h-mayorquin/IBL-to-nwb.git
 cd IBL-to-nwb
 pip install -e .
 ```
 
-for the exact environment used for the initial conversion, see `src/ibl_to_nwb/_environments`.
+For development (with testing tools), see [documentation/GETTING_STARTED.md](documentation/GETTING_STARTED.md).
 
-It is recommended to follow a similar approach for future conversions to leave a record of provenance.
+### Running a Conversion
 
+1. **Configure ONE API access** (first time only):
+   ```bash
+   python -c "from one.api import ONE; one = ONE()"
+   ```
+   You'll be prompted for lab name and credentials.
 
+2. **Edit the conversion script**:
+   ```bash
+   vim src/ibl_to_nwb/_scripts/heberto_conversion_script.py
+   # Change: session_id = "your-session-uuid"
+   ```
 
-# Running data conversions
+3. **Run the conversion**:
+   ```bash
+   python src/ibl_to_nwb/_scripts/heberto_conversion_script.py
+   ```
 
-## NeuroConv structure
+The script converts both raw and processed data to NWB format and saves the files locally.
 
-NeuroConv has two primarily classes for handling conversions.
+### Testing Before Full Conversion
 
-An `Interface` reads a single data stream (such as DLC pose estimation) and creates one or more neurodata objects, adding them to an in-memory `pynwb.NWBFile` object via the `.add_to_nwbfile` method. Before that it can also fetch and set local `metadata: dict` values for use or modification.
+```bash
+# Quick test with minimal data (~5 minutes)
+python -c "
+from ibl_to_nwb.conversion import convert_raw_session
+from one.api import ONE
 
-The `Converter` orchestrates the conversion by combining multiple interfaces, and can also be used to add additional metadata to the NWB file. It is responsible for creating the NWB file saved to disk.
-
-Occasionally, a sub-`Converter`, such as the `IBLSpikeGLXConverter`, will be used to handle the conversion of multiple data streams that is more complex than a single interface can handle; though these behave like other `Interfaces` with respect to the main orchestrating `Converter`.
-
-## Metadata
-
-Anywhere you see handwritten text in the NWB files that is meant to be human-readable, it is likely that it was copied from the public Google IBL documents and written in the `.yaml` files found in `src/ibl_to_nwb/_metadata`.
-
-Occasionally, especially if a portion of the text is pulled from source data, these values might be overwritten in the `.add_to_nwbfile` protocol of an interface, so always be sure to check that as well.
-
-## Raw only
-
-Open the script `src/ibl_to_nwb/_scripts/convert_brainwide_map_raw_only.py`.
-
-Change any values at the top as needed, such as the `session_id` (equivalent to the 'eid' of ONE).
-
-Then run the script.
-
-## Processed only
-
-Open the script `src/ibl_to_nwb/_scripts/convert_brainwide_map_processed_only.py`.
-
-Change any values at the top as needed, such as the `session_id` (equivalent to the 'eid' of ONE).
-
-Then run the script.
-
-
-
-# Upload to DANDI
-
-Set the environment variable `DANDI_API_KEY`, obtainable from clicking on your initials in the top right of https://dandiarchive.org/dandiset.
-
-In an fresh environment, install the DANDI CLI:
-
-```
-pip install dandi
-```
-
-Download a shell of the dandiset:
-
-```
-dandi download DANDI:000409 --download dandiset.yaml
-```
-
-All outputs from the conversion scripts should be pre-organized, so we can just directly move all the `sub-` folders from the conversion output directory into the Dandiset folder. This should appear like:
-
-```
-|- 000409
-|   |- sub-CSH-ZAR-001
-|   |-   |- sub-CSH-ZAR-001_ses-3e7..._desc-processed_behavior+ecephys.nwb
-|   |-   |- sub-CSH-ZAR-001_ses-3e7..._desc-raw_ecephys+image.nwb
-|   |-   |- ...
-|   |- ...
+one = ONE()
+convert_raw_session(eid='your-session-uuid', one=one, stub_test=True)
+"
 ```
 
 
-From a working directory of `000409`, you can either scan for validations directly with:
+## Project Structure
 
 ```
-dandi validate .
+src/ibl_to_nwb/
+├── datainterfaces/      # Modality-specific data readers
+├── converters/          # High-level orchestrators
+├── conversion/          # Entry points (raw.py, processed.py)
+├── utils/               # Shared utilities (atlas, electrodes, etc.)
+├── _metadata/           # YAML metadata templates
+├── _scripts/            # Conversion and debugging scripts
+└── _aws/                # AWS distributed infrastructure
 ```
 
-Of course, all assets ought to be valid, so you could also just directly upload the data to DANDI (this will also run validation as it iterates through the files):
+## Development
 
-```
-dandi upload
-```
+For contributing to the codebase:
+
+1. Install dev dependencies:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+2. Run code quality checks:
+   ```bash
+   ruff check src/
+   black src/
+   pre-commit run --all-files
+   ```
+
+3. Read [documentation/GETTING_STARTED.md](documentation/GETTING_STARTED.md) for development setup and adding new interfaces.
+
+## Key Dependencies
+
+- **neuroconv** - Data conversion framework
+- **pynwb** - NWB file I/O
+- **ndx-ibl**, **ndx-ibl-bwm** - IBL-specific NWB extensions
+- **ONE-api** - IBL data access
+- **ibllib** - IBL-specific utilities
+- **spikeinterface**, **probeinterface** - Electrophysiology tools
+
+## Environment
+
+- Python 3.10+ (tested on 3.11, 3.12, 3.13)
+- Uses `uv` for fast dependency management
+
+## License
+
+BSD 3-Clause License - See LICENSE file for details.
+
+## Citation
+
+If you use this pipeline in your research, please cite:
+- International Brain Laboratory
+- NWB: Neurodata Without Borders
+- NeuroConv
