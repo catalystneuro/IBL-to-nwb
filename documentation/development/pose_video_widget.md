@@ -6,15 +6,24 @@ The pose estimation widget overlays DeepLabCut keypoints directly on streaming v
 
 ### 1. Data Preparation (Python side)
 
-Pose estimation coordinates and timestamps are extracted from the NWB file and converted to JSON-serializable lists. NaN values (missing detections) are replaced with `null` since JSON doesn't support NaN.
+Pose estimation coordinates and timestamps are extracted from the NWB file and serialized as binary data for efficient transfer.
+
+**Why binary instead of JSON?** (Inspired by Trevor Manz's anywidget patterns)
+
+Pose data can have 100k+ frames x 11 keypoints x 2 coords = 2.2M floats:
+- JSON serialization: ~20 bytes/float = 44MB, plus slow Python list iteration
+- Binary Float32: 4 bytes/float = 8.8MB, numpy handles conversion in C
+
+This 5x size reduction + faster serialization makes camera switching snappy. JavaScript accesses the data via `Float32Array` view - zero parsing overhead. NaN values are preserved in IEEE 754 float format and checked with `isNaN()` in JS.
 
 ```python
-pose_data[short_name] = {
-    'x': [None if np.isnan(v) else float(v) for v in x_vals],
-    'y': [None if np.isnan(v) else float(v) for v in y_vals],
-    'color': '#FF0000',
-    'label': short_name
-}
+# Stack all coordinates: shape (n_keypoints, n_frames, 2)
+all_coords = np.stack(coord_arrays, axis=0)
+
+# Convert to bytes - numpy's tobytes() is fast (happens in C)
+# Using little-endian which matches JavaScript's DataView default
+coords_bytes = all_coords.astype("<f4").tobytes()  # <f4 = little-endian float32
+timestamps_bytes = timestamps.astype("<f8").tobytes()  # <f8 = little-endian float64
 ```
 
 ### 2. State Synchronization with Traitlets
@@ -23,18 +32,24 @@ pose_data[short_name] = {
 
 **Key traitlets concepts:**
 
-- **Typed attributes**: `traitlets.Unicode()`, `traitlets.Dict()`, `traitlets.List()`, `traitlets.Bool()` define the expected type and provide validation
+- **Typed attributes**: `traitlets.Unicode()`, `traitlets.Dict()`, `traitlets.List()`, `traitlets.Bool()`, `traitlets.Bytes()` define the expected type and provide validation
 - **Default values**: Each trait can have a default, e.g., `traitlets.Bool(True)`
 - **Change observation**: You can observe changes with `@observe('trait_name')` decorators
 - **Synchronization tag**: `.tag(sync=True)` marks traits that should sync between Python and JavaScript
 
 ```python
-class PoseVideoPlayer(anywidget.AnyWidget):
-    # These traits are synced to JavaScript
-    video_url = traitlets.Unicode("").tag(sync=True)
-    pose_data = traitlets.Dict({}).tag(sync=True)
-    timestamps = traitlets.List([]).tag(sync=True)
-    show_labels = traitlets.Bool(True).tag(sync=True)
+class NWBPoseEstimationWidget(anywidget.AnyWidget):
+    # Metadata as JSON (small, easy to access)
+    keypoint_metadata = traitlets.Dict({}).tag(sync=True)
+
+    # Coordinates as binary (large, efficient transfer)
+    pose_coordinates = traitlets.Bytes(b"").tag(sync=True)
+    timestamps_binary = traitlets.Bytes(b"").tag(sync=True)
+
+    # Shape info for JavaScript to reconstruct arrays
+    n_frames = traitlets.Int(0).tag(sync=True)
+    n_keypoints = traitlets.Int(0).tag(sync=True)
+    keypoint_order = traitlets.List([]).tag(sync=True)
 ```
 
 When a synced trait changes in Python, the change propagates to JavaScript (and vice versa) via Jupyter's comm protocol. This bidirectional sync is what makes interactive widgets possible.
@@ -47,10 +62,11 @@ The widget supports multiple cameras (Left, Body, Right) when available. Not all
 - Gracefully handles missing cameras by filtering them from the dropdown
 
 ```python
-camera_to_video = {
-    'LeftCamera': video_s3_urls.get('VideoLeftCamera', ''),
-    'BodyCamera': video_s3_urls.get('VideoBodyCamera', ''),
-    'RightCamera': video_s3_urls.get('VideoRightCamera', ''),
+# User provides explicit mapping from pose camera names to video URL keys
+camera_to_video_key = {
+    'LeftCamera': 'VideoLeftCamera',
+    'BodyCamera': 'VideoBodyCamera',
+    'RightCamera': 'VideoRightCamera',
 }
 # Empty strings are filtered out - only cameras with URLs are shown
 ```
@@ -75,6 +91,20 @@ canvas.style.left = '0';
 ### No Python in the Render Loop
 
 Once the widget initializes, all rendering happens in JavaScript. Video frames and pose drawing never touch the Python kernel. This is critical - Python kernel round-trips would add hundreds of milliseconds of latency per frame.
+
+### Binary Data Transfer
+
+Using `traitlets.Bytes()` for coordinate data:
+- Avoids JSON serialization overhead
+- Numpy's `tobytes()` runs in C, not Python loops
+- JavaScript creates typed array views (zero-copy)
+- NaN values transfer correctly via IEEE 754
+
+```javascript
+// Create typed array view - no data copy, just a view over the buffer
+// Data layout: [n_keypoints][n_frames][2] as float32
+coordsView = new Float32Array(coordsBuffer.buffer);
+```
 
 ### Native Video Streaming
 
@@ -102,11 +132,11 @@ function animate() {
 Finding the correct pose frame for a given video timestamp uses O(log n) binary search rather than O(n) linear scan:
 
 ```javascript
-function findFrameIndex(nwbTime) {
+function findFrameIndex(timestamps, targetTime) {
     let left = 0, right = timestamps.length - 1;
     while (left < right) {
         const mid = Math.floor((left + right) / 2);
-        if (timestamps[mid] < nwbTime) left = mid + 1;
+        if (timestamps[mid] < targetTime) left = mid + 1;
         else right = mid;
     }
     return left;
@@ -115,16 +145,17 @@ function findFrameIndex(nwbTime) {
 
 ### Minimal Data Transfer
 
-Pose coordinates are sent once during widget creation. Only visibility toggles and playback state cross the Python-JS boundary during interaction.
+Pose coordinates are sent once during widget creation (as binary). Only visibility toggles and playback state cross the Python-JS boundary during interaction.
 
 ## Architecture
 
 ```
 Python (runs once)              JavaScript (runs continuously)
 -----------------              ----------------------------
-pose_data dict    --sync-->    model.get('pose_data')
-timestamps list   --sync-->    model.get('timestamps')
-video_url string  --sync-->    video.src = url
+keypoint_metadata  --JSON-->   model.get('keypoint_metadata')
+pose_coordinates   --binary->  Float32Array view
+timestamps_binary  --binary->  Float64Array view
+video_url string   --sync-->   video.src = url
 
                                video element <-- S3 streaming
                                canvas.drawPose() <-- requestAnimationFrame
@@ -136,8 +167,8 @@ The video file starts at time 0, but NWB timestamps start at the session's first
 
 ```javascript
 // Video time 0 corresponds to NWB timestamps[0]
-const nwbTime = timestamps[0] + video.currentTime;
-const frameIdx = findFrameIndex(nwbTime);
+const nwbTime = timestampsView[0] + video.currentTime;
+const frameIdx = findFrameIndex(timestampsView, nwbTime);
 ```
 
 ## Spatial Alignment
@@ -213,7 +244,7 @@ class CounterWidget(anywidget.AnyWidget):
    - **View** (JavaScript side): Renders the UI and handles user interaction
    - **Comm**: Jupyter's communication channel syncs state bidirectionally
 
-4. **Traitlets Bridge**: Properties marked with `.tag(sync=True)` are serialized to JSON and sent over Jupyter's comm channel whenever they change.
+4. **Traitlets Bridge**: Properties marked with `.tag(sync=True)` are serialized to JSON (or sent as binary for `Bytes`) and sent over Jupyter's comm channel whenever they change.
 
 ### The `render` Function
 
@@ -224,7 +255,11 @@ The JavaScript side must export a `render` function that receives:
 ```javascript
 function render({ model, el }) {
     // Read state from Python
-    const data = model.get('pose_data');
+    const metadata = model.get('keypoint_metadata');
+
+    // For binary data, create typed array views
+    const coordsBuffer = model.get('pose_coordinates');
+    const coordsView = new Float32Array(coordsBuffer.buffer);
 
     // Create DOM elements
     const canvas = document.createElement('canvas');
@@ -235,8 +270,8 @@ function render({ model, el }) {
     model.save_changes();  // Required to sync back
 
     // Listen for changes from Python
-    model.on('change:pose_data', () => {
-        redraw();
+    model.on('change:pose_coordinates', () => {
+        // Update views when binary data changes
     });
 }
 export default { render };
@@ -253,7 +288,7 @@ You can even import external libraries:
 
 ```javascript
 _esm = """
-import * as d3 from 'https://esm.sh/d3@7';
+import * as d3 from 'https://esm.sh/d3@7.9.0';
 
 function render({ model, el }) {
     d3.select(el).append('svg')...
@@ -272,6 +307,7 @@ export default { render };
 | Works in Colab | Sometimes | Yes |
 | Hot reload | No | Yes |
 | TypeScript support | Via build | Optional |
+| Binary data support | Yes | Yes |
 
 ### When to Use anywidget
 
@@ -285,188 +321,138 @@ For production widgets with complex UIs, team development, or when you need Type
 
 ---
 
-## Best Practices for anywidget Development
+## Future Style Improvements
 
-As widgets grow in complexity, following these best practices improves maintainability, developer experience, and code quality.
+The current widgets are functional but use basic browser styling. Here are improvements to consider for a more polished look:
 
-### 1. Separate JavaScript from Python
+### Modern Button Styling
 
-For non-trivial widgets, move the JavaScript code to external files instead of embedding it as a string in Python:
+Replace default browser buttons with rounded, shadowed buttons:
 
-```python
-import pathlib
-import anywidget
-import traitlets
-
-class PoseVideoPlayer(anywidget.AnyWidget):
-    _esm = pathlib.Path(__file__).parent / "pose_video_player.js"
-    _css = pathlib.Path(__file__).parent / "pose_video_player.css"
-
-    video_url = traitlets.Unicode("").tag(sync=True)
-    pose_data = traitlets.Dict({}).tag(sync=True)
-```
-
-**Benefits:**
-- **Syntax highlighting**: IDEs provide proper JavaScript highlighting and autocomplete
-- **Hot Module Replacement (HMR)**: anywidget watches external files and instantly applies changes during development without kernel restart
-- **Linting and formatting**: Tools like ESLint and Prettier can process standalone JS files
-- **Easier debugging**: Browser dev tools show proper source files instead of `<anonymous>`
-
-### 2. Use `pathlib.Path` for Production
-
-Always use `pathlib.Path` for file references in production code:
-
-```python
-# Good - cross-platform compatible
-_esm = pathlib.Path(__file__).parent / "widget.js"
-
-# Avoid - string paths can have OS-specific issues
-_esm = "./widget.js"
-```
-
-Using `pathlib.Path` ensures:
-- Correct path resolution relative to the Python file location
-- Cross-platform compatibility (Windows, macOS, Linux)
-- Works correctly when the package is installed in site-packages
-
-### 3. Recommended File Structure
-
-For a widget package, organize files by concern:
-
-```
-src/ibl_to_nwb/
-    widgets/
-        __init__.py
-        pose_video_player.py      # Python class with traitlets
-        pose_video_player.js      # JavaScript render function
-        pose_video_player.css     # Optional styles
-        multi_video_player.py
-        multi_video_player.js
-```
-
-### 4. Version Your CDN Imports
-
-When importing libraries from CDNs, always pin versions for reproducibility:
-
-```javascript
-// Good - versioned import
-import * as d3 from 'https://esm.sh/d3@7.8.5';
-
-// Avoid - unversioned can break unexpectedly
-import * as d3 from 'https://esm.sh/d3';
-```
-
-Recommended CDNs:
-- [esm.sh](https://esm.sh/) - Converts npm packages to ES modules
-- [jsDelivr](https://www.jsdelivr.com/) - Fast, reliable CDN for npm/GitHub
-- [unpkg](https://unpkg.com/) - Direct npm package serving
-
-### 5. Keep Widgets Self-Contained
-
-Each widget should be one file (or one JS + one CSS file). anywidget currently doesn't support relative imports between JavaScript files without bundling:
-
-```javascript
-// This WON'T work without a bundler
-import { helper } from './utils.js';
-
-// Instead, inline shared code or use CDN imports
-```
-
-If you need shared code across widgets, either:
-- Duplicate small utilities in each widget
-- Publish shared code as an npm package and import from CDN
-- Use a bundler (esbuild, vite) to create single-file outputs
-
-### 6. Type Safety with JSDoc
-
-Add TypeScript types via JSDoc comments for IDE support without a build step:
-
-```javascript
-/**
- * @typedef {Object} PosePoint
- * @property {number|null} x
- * @property {number|null} y
- * @property {string} color
- * @property {string} label
- */
-
-/**
- * Find frame index using binary search
- * @param {number[]} timestamps
- * @param {number} targetTime
- * @returns {number}
- */
-function findFrameIndex(timestamps, targetTime) {
-    // Implementation...
+```css
+button {
+  border: none;
+  border-radius: 6px;
+  background: #4a5568;
+  color: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  transition: background 0.2s;
+}
+button:hover {
+  background: #2d3748;
 }
 ```
 
-### 7. Clean Up Resources
+### Play/Pause Icons
 
-Always clean up event listeners, animation frames, and observers when the widget is destroyed:
+Use Unicode symbols instead of text labels:
+- Play: `\u25B6` (solid right triangle)
+- Pause: `\u23F8` (double vertical bar)
 
-```javascript
-function render({ model, el }) {
-    let animationId = null;
+### Custom Seek Bar
 
-    function animate() {
-        drawPose();
-        animationId = requestAnimationFrame(animate);
-    }
+Style the range input for consistent cross-browser appearance:
 
-    // Start animation
-    animate();
-
-    // Clean up when widget is removed
-    return () => {
-        if (animationId) {
-            cancelAnimationFrame(animationId);
-        }
-        // Remove event listeners, clear intervals, etc.
-    };
+```css
+input[type="range"] {
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
 }
-export default { render };
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4a5568;
+  cursor: pointer;
+}
 ```
 
-### 8. Minimize Python-JS Communication
+### Video Container Polish
 
-Design widgets to minimize round-trips between Python and JavaScript:
+Add subtle borders and rounded corners:
 
-**Good pattern:**
-- Send all data once during initialization
-- Handle all user interactions in JavaScript
-- Only sync back final results or explicit user actions
+```css
+video {
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+```
 
-**Avoid:**
-- Sending data on every frame
-- Calling Python functions in animation loops
-- Frequent small state updates
+### Keypoint Toggle Buttons
 
-### 9. Development Workflow
+Make pill-shaped toggles with better active states:
 
-For rapid iteration during development:
+```css
+.keypoint-toggle {
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+.keypoint-toggle.active {
+  box-shadow: 0 0 0 2px currentColor;
+}
+```
 
-1. **Use external JS files** to enable HMR
-2. **Keep a test notebook open** that instantiates the widget
-3. **Use browser dev tools** (F12) to debug JavaScript
-4. **Add `console.log` statements** liberally during development
-5. **Test in multiple environments** (JupyterLab, VS Code, Colab)
+### Debug Info Styling
 
-### 10. When to Use a Bundler
+Make it less prominent but more readable:
 
-Consider adding a bundler (esbuild recommended) when you need:
-- TypeScript
-- Multiple JS files with imports
-- Framework components (React, Vue, Svelte)
-- CSS preprocessing (Sass, PostCSS)
-- Tree-shaking for smaller bundles
+```css
+.debug-info {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+  color: #718096;
+  background: transparent;
+  border-left: 2px solid #e2e8f0;
+  padding-left: 8px;
+}
+```
 
-For most scientific visualization widgets, vanilla JavaScript with CDN imports is sufficient.
+### Camera Selector Dropdown
 
-### Further Reading
+Style the select element to match:
 
-- [anywidget documentation](https://anywidget.dev/)
-- [anywidget GitHub](https://github.com/manzt/anywidget)
-- [anywidget bundling guide](https://anywidget.dev/en/bundling/)
-- [Traitlets documentation](https://traitlets.readthedocs.io/)
-- [Jupyter Widgets documentation](https://ipywidgets.readthedocs.io/)
+```css
+select {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  background: white;
+  font-size: 14px;
+}
+```
+
+### Suggested Color Palette
+
+Use a cohesive neutral palette (Tailwind-inspired):
+- Background: `#f7fafc` (light gray)
+- Borders: `#e2e8f0`
+- Text: `#2d3748` (dark gray)
+- Accent: `#4299e1` (blue) for active states
+- Muted: `#718096` for secondary text
+
+### Layout Improvements
+
+- Add padding around the wrapper
+- Group controls visually with subtle background
+- Add consistent spacing between sections (12-16px)
+
+### Loading State
+
+Show a spinner or skeleton while video loads instead of a black rectangle.
+
+### Implementation
+
+To implement these styles, create separate CSS files and reference them via the `_css` attribute:
+
+```python
+class NWBPoseEstimationWidget(anywidget.AnyWidget):
+    _esm = pathlib.Path(__file__).parent / "nwb_pose_widget.js"
+    _css = pathlib.Path(__file__).parent / "nwb_pose_widget.css"
+```
+
+Then use CSS classes in JavaScript instead of inline styles.
