@@ -46,8 +46,7 @@ neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "main"
 ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "main"}
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 ndx-anatomical-localization = {git = "https://github.com/catalystneuro/ndx-anatomical-localization", branch = "main"}
-# Using local ndx-ibl with IblMetadata (consolidated from ndx-ibl-bwm)
-ndx-ibl = {path = "../ndx-ibl", editable = true}
+ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
 
 
 [tool.black]
