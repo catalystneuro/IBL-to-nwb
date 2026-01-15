@@ -241,7 +241,7 @@ For sessions with lightning pose data:
 
 The patch has been successfully implemented and tested in:
 - `/home/heberto/development/ibl_conversion/IBL-to-nwb/src/ibl_to_nwb/conversion/one_patches.py`
-- Applied automatically in: `heberto_conversion_script_single_eid.py`
+- Applied automatically in: `convert_single_bwm_to_nwb.py`
 
 ### Test Results
 

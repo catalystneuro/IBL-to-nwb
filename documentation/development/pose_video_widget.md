@@ -283,9 +283,190 @@ anywidget is ideal for:
 
 For production widgets with complex UIs, team development, or when you need TypeScript, you might still want a traditional ipywidget with proper build tooling. But anywidget has made the "hello world" to "useful widget" path dramatically shorter.
 
+---
+
+## Best Practices for anywidget Development
+
+As widgets grow in complexity, following these best practices improves maintainability, developer experience, and code quality.
+
+### 1. Separate JavaScript from Python
+
+For non-trivial widgets, move the JavaScript code to external files instead of embedding it as a string in Python:
+
+```python
+import pathlib
+import anywidget
+import traitlets
+
+class PoseVideoPlayer(anywidget.AnyWidget):
+    _esm = pathlib.Path(__file__).parent / "pose_video_player.js"
+    _css = pathlib.Path(__file__).parent / "pose_video_player.css"
+
+    video_url = traitlets.Unicode("").tag(sync=True)
+    pose_data = traitlets.Dict({}).tag(sync=True)
+```
+
+**Benefits:**
+- **Syntax highlighting**: IDEs provide proper JavaScript highlighting and autocomplete
+- **Hot Module Replacement (HMR)**: anywidget watches external files and instantly applies changes during development without kernel restart
+- **Linting and formatting**: Tools like ESLint and Prettier can process standalone JS files
+- **Easier debugging**: Browser dev tools show proper source files instead of `<anonymous>`
+
+### 2. Use `pathlib.Path` for Production
+
+Always use `pathlib.Path` for file references in production code:
+
+```python
+# Good - cross-platform compatible
+_esm = pathlib.Path(__file__).parent / "widget.js"
+
+# Avoid - string paths can have OS-specific issues
+_esm = "./widget.js"
+```
+
+Using `pathlib.Path` ensures:
+- Correct path resolution relative to the Python file location
+- Cross-platform compatibility (Windows, macOS, Linux)
+- Works correctly when the package is installed in site-packages
+
+### 3. Recommended File Structure
+
+For a widget package, organize files by concern:
+
+```
+src/ibl_to_nwb/
+    widgets/
+        __init__.py
+        pose_video_player.py      # Python class with traitlets
+        pose_video_player.js      # JavaScript render function
+        pose_video_player.css     # Optional styles
+        multi_video_player.py
+        multi_video_player.js
+```
+
+### 4. Version Your CDN Imports
+
+When importing libraries from CDNs, always pin versions for reproducibility:
+
+```javascript
+// Good - versioned import
+import * as d3 from 'https://esm.sh/d3@7.8.5';
+
+// Avoid - unversioned can break unexpectedly
+import * as d3 from 'https://esm.sh/d3';
+```
+
+Recommended CDNs:
+- [esm.sh](https://esm.sh/) - Converts npm packages to ES modules
+- [jsDelivr](https://www.jsdelivr.com/) - Fast, reliable CDN for npm/GitHub
+- [unpkg](https://unpkg.com/) - Direct npm package serving
+
+### 5. Keep Widgets Self-Contained
+
+Each widget should be one file (or one JS + one CSS file). anywidget currently doesn't support relative imports between JavaScript files without bundling:
+
+```javascript
+// This WON'T work without a bundler
+import { helper } from './utils.js';
+
+// Instead, inline shared code or use CDN imports
+```
+
+If you need shared code across widgets, either:
+- Duplicate small utilities in each widget
+- Publish shared code as an npm package and import from CDN
+- Use a bundler (esbuild, vite) to create single-file outputs
+
+### 6. Type Safety with JSDoc
+
+Add TypeScript types via JSDoc comments for IDE support without a build step:
+
+```javascript
+/**
+ * @typedef {Object} PosePoint
+ * @property {number|null} x
+ * @property {number|null} y
+ * @property {string} color
+ * @property {string} label
+ */
+
+/**
+ * Find frame index using binary search
+ * @param {number[]} timestamps
+ * @param {number} targetTime
+ * @returns {number}
+ */
+function findFrameIndex(timestamps, targetTime) {
+    // Implementation...
+}
+```
+
+### 7. Clean Up Resources
+
+Always clean up event listeners, animation frames, and observers when the widget is destroyed:
+
+```javascript
+function render({ model, el }) {
+    let animationId = null;
+
+    function animate() {
+        drawPose();
+        animationId = requestAnimationFrame(animate);
+    }
+
+    // Start animation
+    animate();
+
+    // Clean up when widget is removed
+    return () => {
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+        }
+        // Remove event listeners, clear intervals, etc.
+    };
+}
+export default { render };
+```
+
+### 8. Minimize Python-JS Communication
+
+Design widgets to minimize round-trips between Python and JavaScript:
+
+**Good pattern:**
+- Send all data once during initialization
+- Handle all user interactions in JavaScript
+- Only sync back final results or explicit user actions
+
+**Avoid:**
+- Sending data on every frame
+- Calling Python functions in animation loops
+- Frequent small state updates
+
+### 9. Development Workflow
+
+For rapid iteration during development:
+
+1. **Use external JS files** to enable HMR
+2. **Keep a test notebook open** that instantiates the widget
+3. **Use browser dev tools** (F12) to debug JavaScript
+4. **Add `console.log` statements** liberally during development
+5. **Test in multiple environments** (JupyterLab, VS Code, Colab)
+
+### 10. When to Use a Bundler
+
+Consider adding a bundler (esbuild recommended) when you need:
+- TypeScript
+- Multiple JS files with imports
+- Framework components (React, Vue, Svelte)
+- CSS preprocessing (Sass, PostCSS)
+- Tree-shaking for smaller bundles
+
+For most scientific visualization widgets, vanilla JavaScript with CDN imports is sufficient.
+
 ### Further Reading
 
 - [anywidget documentation](https://anywidget.dev/)
 - [anywidget GitHub](https://github.com/manzt/anywidget)
+- [anywidget bundling guide](https://anywidget.dev/en/bundling/)
 - [Traitlets documentation](https://traitlets.readthedocs.io/)
 - [Jupyter Widgets documentation](https://ipywidgets.readthedocs.io/)

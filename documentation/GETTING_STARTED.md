@@ -70,7 +70,7 @@ convert_raw_session(eid='your-session-uuid', one=one, stub_test=True)
 
 ```bash
 # Edit with your session UUID and run
-python src/ibl_to_nwb/_scripts/heberto_conversion_script.py
+python src/ibl_to_nwb/_scripts/convert_bwm_to_nwb.py
 ```
 
 ### Inspect Output

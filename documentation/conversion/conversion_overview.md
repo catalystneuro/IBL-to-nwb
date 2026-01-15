@@ -370,17 +370,14 @@ metadata = interface.get_metadata()
 
 ```bash
 # Test single session conversion
-python src/ibl_to_nwb/_scripts/_debug_single.py
-
-# Inspect output
-python src/ibl_to_nwb/_scripts/inspect_single.py
+python src/ibl_to_nwb/_scripts/convert_single_bwm_to_nwb.py <session-eid>
 ```
 
 ### End-to-End Testing
 
 ```bash
-# Test conversion script
-python src/ibl_to_nwb/_scripts/heberto_conversion_script.py
+# Test conversion script (batch mode)
+python src/ibl_to_nwb/_scripts/convert_bwm_to_nwb.py
 
 # Validate NWB
 dandi validate /path/to/file.nwb

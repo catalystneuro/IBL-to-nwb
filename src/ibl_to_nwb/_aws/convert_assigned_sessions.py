@@ -33,7 +33,7 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ibl_to_nwb._scripts.heberto_conversion_script import setup_logger
+from ibl_to_nwb._scripts.convert_bwm_to_nwb import setup_logger
 from ibl_to_nwb.conversion import (
     convert_processed_session,
     convert_raw_session,

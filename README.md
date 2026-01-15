@@ -29,13 +29,13 @@ For development (with testing tools), see [documentation/GETTING_STARTED.md](doc
 
 2. **Edit the conversion script**:
    ```bash
-   vim src/ibl_to_nwb/_scripts/heberto_conversion_script.py
+   vim src/ibl_to_nwb/_scripts/convert_bwm_to_nwb.py
    # Change: session_id = "your-session-uuid"
    ```
 
 3. **Run the conversion**:
    ```bash
-   python src/ibl_to_nwb/_scripts/heberto_conversion_script.py
+   python src/ibl_to_nwb/_scripts/convert_bwm_to_nwb.py
    ```
 
 The script converts both raw and processed data to NWB format and saves the files locally.
