@@ -1,0 +1,286 @@
+/**
+ * Video Widget Styles
+ *
+ * Modern styling for the NWB multi-camera video player widget.
+ * Uses BEM naming convention to avoid global scope conflicts.
+ */
+
+/* ==========================================================================
+   CSS Custom Properties
+   ========================================================================== */
+
+.video-widget {
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+
+  /* Colors - Tailwind-inspired neutral palette */
+  --color-bg: #f7fafc;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-border-hover: #cbd5e0;
+  --color-text-primary: #2d3748;
+  --color-text-secondary: #718096;
+  --color-text-muted: #a0aec0;
+  --color-accent: #4299e1;
+  --color-accent-dark: #3182ce;
+  --color-dark-surface: #4a5568;
+  --color-dark-hover: #2d3748;
+  --color-video-bg: #1a1a1a;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.07);
+  --shadow-md:
+    0 1px 2px rgba(0, 0, 0, 0.07),
+    0 2px 4px rgba(0, 0, 0, 0.07),
+    0 4px 8px rgba(0, 0, 0, 0.07);
+  --shadow-lg:
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.1),
+    0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-focus: 0 0 0 3px rgba(66, 153, 225, 0.5);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 180ms ease-out;
+}
+
+/* ==========================================================================
+   Root Wrapper
+   ========================================================================== */
+
+.video-widget {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: var(--spacing-lg);
+  background: var(--color-bg);
+  border-radius: 12px;
+  color: var(--color-text-primary);
+}
+
+/* ==========================================================================
+   Playback Controls
+   ========================================================================== */
+
+.video-widget__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: var(--color-surface);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--spacing-md);
+}
+
+/* ==========================================================================
+   Button Styling
+   ========================================================================== */
+
+.video-widget__button {
+  /* Reset browser defaults */
+  border: none;
+  background-color: transparent;
+  font-family: inherit;
+  cursor: pointer;
+
+  /* Flexbox for icon + text alignment */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  /* Visual styling */
+  background-color: var(--color-dark-surface);
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.5em 1em;
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 14px;
+  font-weight: 500;
+
+  /* Layered shadows for realistic depth */
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+}
+
+.video-widget__button:hover {
+  background-color: var(--color-dark-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+.video-widget__button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Accessible focus state */
+.video-widget__button:focus {
+  outline: none;
+  box-shadow: var(--shadow-focus), var(--shadow-sm);
+}
+
+/* ==========================================================================
+   Seek Bar (Cross-Browser)
+   ========================================================================== */
+
+.video-widget__seekbar {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+  cursor: pointer;
+}
+
+/* Thumb - WebKit (Chrome, Safari, Edge) */
+.video-widget__seekbar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-dark-surface);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: grab;
+  transition: transform var(--transition-fast);
+}
+
+.video-widget__seekbar::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.video-widget__seekbar::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+
+/* Thumb - Firefox */
+.video-widget__seekbar::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-dark-surface);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: grab;
+}
+
+/* Track - Firefox */
+.video-widget__seekbar::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+}
+
+/* Focus state */
+.video-widget__seekbar:focus {
+  outline: none;
+}
+
+.video-widget__seekbar:focus::-webkit-slider-thumb {
+  box-shadow: var(--shadow-focus);
+}
+
+.video-widget__seekbar:focus::-moz-range-thumb {
+  box-shadow: var(--shadow-focus);
+}
+
+/* ==========================================================================
+   Time Label
+   ========================================================================== */
+
+.video-widget__time-label {
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  min-width: 100px;
+  text-align: right;
+}
+
+/* ==========================================================================
+   Video Grid
+   ========================================================================== */
+
+.video-widget__grid {
+  display: grid;
+  gap: var(--spacing-md);
+  justify-content: center;
+}
+
+.video-widget__video-cell {
+  text-align: center;
+}
+
+.video-widget__video-container {
+  position: relative;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  background: var(--color-video-bg);
+}
+
+.video-widget__video {
+  display: block;
+  width: 320px;
+  height: 240px;
+  object-fit: fill;
+  background-color: var(--color-video-bg);
+}
+
+.video-widget__video-label {
+  font-weight: 600;
+  font-size: 14px;
+  margin: var(--spacing-sm) 0 0 0;
+  color: var(--color-text-primary);
+}
+
+/* ==========================================================================
+   Loading State
+   ========================================================================== */
+
+.video-widget__loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+}
+
+.video-widget__video-container--loading .video-widget__loading {
+  display: block;
+}
+
+.video-widget__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: video-widget-spin 0.8s linear infinite;
+}
+
+@keyframes video-widget-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================================================
+   Accessibility - High Contrast Mode
+   ========================================================================== */
+
+@media (forced-colors: active) {
+  .video-widget__button {
+    border: 2px solid currentColor;
+  }
+
+  .video-widget__video-container {
+    border: 2px solid currentColor;
+  }
+}

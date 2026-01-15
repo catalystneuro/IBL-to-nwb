@@ -33,6 +33,28 @@ function findFrameIndex(timestamps, targetTime) {
 }
 
 /**
+ * Create an SVG icon element.
+ * @param {"play" | "pause"} type - Icon type
+ * @returns {SVGElement}
+ */
+function createIcon(type) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "currentColor");
+
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  if (type === "play") {
+    path.setAttribute("d", "M8 5v14l11-7z");
+  } else {
+    path.setAttribute("d", "M6 19h4V5H6v14zm8-14v14h4V5h-4z");
+  }
+  svg.appendChild(path);
+  return svg;
+}
+
+/**
  * Render the pose video player widget.
  *
  * This is the entry point called by anywidget when the widget is displayed.
@@ -45,66 +67,60 @@ function findFrameIndex(timestamps, targetTime) {
  *   Append all UI elements to this container.
  */
 function render({ model, el }) {
+  // Root wrapper with scoped class
   const wrapper = document.createElement("div");
-  wrapper.style.fontFamily = "sans-serif";
+  wrapper.classList.add("pose-widget");
 
   // Camera selector
   const cameraSelector = document.createElement("div");
-  cameraSelector.style.marginBottom = "10px";
-  cameraSelector.style.display = "flex";
-  cameraSelector.style.alignItems = "center";
-  cameraSelector.style.gap = "10px";
+  cameraSelector.classList.add("pose-widget__camera-selector");
 
   const cameraLabel = document.createElement("span");
   cameraLabel.textContent = "Camera:";
-  cameraLabel.style.fontWeight = "bold";
+  cameraLabel.classList.add("pose-widget__camera-label");
 
   const cameraSelect = document.createElement("select");
-  cameraSelect.style.padding = "5px 10px";
-  cameraSelect.style.fontSize = "14px";
+  cameraSelect.classList.add("pose-widget__select");
 
   cameraSelector.appendChild(cameraLabel);
   cameraSelector.appendChild(cameraSelect);
 
   // Debug info
   const debugDiv = document.createElement("div");
-  debugDiv.style.backgroundColor = "#f0f0f0";
-  debugDiv.style.padding = "5px";
-  debugDiv.style.marginBottom = "10px";
-  debugDiv.style.fontSize = "12px";
-  debugDiv.style.fontFamily = "monospace";
+  debugDiv.classList.add("pose-widget__debug");
 
-  // Keypoint toggles
-  const keypointToggles = document.createElement("div");
-  keypointToggles.style.marginBottom = "10px";
-  keypointToggles.style.display = "flex";
-  keypointToggles.style.flexWrap = "wrap";
-  keypointToggles.style.gap = "5px";
+  // Keypoint toggles container (holds both rows)
+  const keypointTogglesWrapper = document.createElement("div");
+  keypointTogglesWrapper.classList.add("pose-widget__keypoint-toggles-wrapper");
+
+  // Utility buttons row (All/None)
+  const utilityRow = document.createElement("div");
+  utilityRow.classList.add("pose-widget__keypoint-toggles");
+
+  // Keypoint buttons row
+  const keypointRow = document.createElement("div");
+  keypointRow.classList.add("pose-widget__keypoint-toggles");
+
+  keypointTogglesWrapper.appendChild(utilityRow);
+  keypointTogglesWrapper.appendChild(keypointRow);
 
   // Controls
   const controls = document.createElement("div");
-  controls.style.marginBottom = "10px";
-  controls.style.display = "flex";
-  controls.style.alignItems = "center";
-  controls.style.gap = "10px";
+  controls.classList.add("pose-widget__controls");
 
   const playPauseBtn = document.createElement("button");
-  playPauseBtn.textContent = "Play";
-  playPauseBtn.style.padding = "8px 16px";
-  playPauseBtn.style.cursor = "pointer";
+  playPauseBtn.classList.add("pose-widget__button");
+  playPauseBtn.appendChild(createIcon("play"));
 
   const seekBar = document.createElement("input");
   seekBar.type = "range";
   seekBar.min = 0;
   seekBar.max = 100;
   seekBar.value = 0;
-  seekBar.style.flex = "1";
+  seekBar.classList.add("pose-widget__seekbar");
 
   const labelToggle = document.createElement("label");
-  labelToggle.style.display = "flex";
-  labelToggle.style.alignItems = "center";
-  labelToggle.style.gap = "4px";
-  labelToggle.style.cursor = "pointer";
+  labelToggle.classList.add("pose-widget__label-toggle");
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = model.get("show_labels");
@@ -117,29 +133,28 @@ function render({ model, el }) {
 
   // Video container
   const videoContainer = document.createElement("div");
-  videoContainer.style.position = "relative";
-  videoContainer.style.width = DISPLAY_WIDTH + "px";
-  videoContainer.style.height = DISPLAY_HEIGHT + "px";
+  videoContainer.classList.add("pose-widget__video-container");
 
   const video = document.createElement("video");
-  video.style.width = DISPLAY_WIDTH + "px";
-  video.style.height = DISPLAY_HEIGHT + "px";
-  video.style.objectFit = "fill";
-  video.style.display = "block";
-  video.style.backgroundColor = "#000";
+  video.classList.add("pose-widget__video");
   video.muted = true;
   video.playsInline = true;
 
   const canvas = document.createElement("canvas");
   canvas.width = DISPLAY_WIDTH;
   canvas.height = DISPLAY_HEIGHT;
-  canvas.style.position = "absolute";
-  canvas.style.top = "0";
-  canvas.style.left = "0";
-  canvas.style.pointerEvents = "none";
+  canvas.classList.add("pose-widget__canvas");
+
+  // Loading spinner
+  const loadingDiv = document.createElement("div");
+  loadingDiv.classList.add("pose-widget__loading");
+  const spinner = document.createElement("div");
+  spinner.classList.add("pose-widget__spinner");
+  loadingDiv.appendChild(spinner);
 
   videoContainer.appendChild(video);
   videoContainer.appendChild(canvas);
+  videoContainer.appendChild(loadingDiv);
 
   let isPlaying = false;
   let animationId = null;
@@ -182,31 +197,38 @@ function render({ model, el }) {
   }
 
   function updateToggleStyles() {
-    const buttons = keypointToggles.querySelectorAll("button[data-keypoint]");
+    const buttons = keypointRow.querySelectorAll("button[data-keypoint]");
     const metadata = model.get("keypoint_metadata");
     buttons.forEach((btn) => {
       const name = btn.dataset.keypoint;
       const isVisible = visibleKeypoints[name] !== false;
       const color = metadata[name]?.color || "#999";
-      btn.style.backgroundColor = isVisible ? color : "#f5f5f5";
-      btn.style.color = isVisible ? "#fff" : "#999";
-      btn.style.textShadow = isVisible ? "0 0 2px #000" : "none";
+
+      if (isVisible) {
+        btn.classList.add("pose-widget__keypoint-toggle--active");
+        btn.style.backgroundColor = color;
+        btn.style.borderColor = color;
+      } else {
+        btn.classList.remove("pose-widget__keypoint-toggle--active");
+        btn.style.backgroundColor = "";
+        btn.style.borderColor = color;
+      }
     });
   }
 
   function createKeypointToggles() {
-    keypointToggles.innerHTML = "";
+    utilityRow.innerHTML = "";
+    keypointRow.innerHTML = "";
     const metadata = model.get("keypoint_metadata");
     if (!metadata || Object.keys(metadata).length === 0) return;
 
+    // All button
     const allBtn = document.createElement("button");
     allBtn.textContent = "All";
-    allBtn.style.padding = "4px 8px";
-    allBtn.style.fontSize = "11px";
-    allBtn.style.cursor = "pointer";
-    allBtn.style.backgroundColor = "#ddd";
-    allBtn.style.border = "1px solid #999";
-    allBtn.style.borderRadius = "3px";
+    allBtn.classList.add(
+      "pose-widget__keypoint-toggle",
+      "pose-widget__keypoint-toggle--utility"
+    );
     allBtn.addEventListener("click", () => {
       for (const name of Object.keys(metadata)) visibleKeypoints[name] = true;
       model.set("visible_keypoints", { ...visibleKeypoints });
@@ -215,14 +237,13 @@ function render({ model, el }) {
       drawPose();
     });
 
+    // None button
     const noneBtn = document.createElement("button");
     noneBtn.textContent = "None";
-    noneBtn.style.padding = "4px 8px";
-    noneBtn.style.fontSize = "11px";
-    noneBtn.style.cursor = "pointer";
-    noneBtn.style.backgroundColor = "#ddd";
-    noneBtn.style.border = "1px solid #999";
-    noneBtn.style.borderRadius = "3px";
+    noneBtn.classList.add(
+      "pose-widget__keypoint-toggle",
+      "pose-widget__keypoint-toggle--utility"
+    );
     noneBtn.addEventListener("click", () => {
       for (const name of Object.keys(metadata)) visibleKeypoints[name] = false;
       model.set("visible_keypoints", { ...visibleKeypoints });
@@ -231,24 +252,16 @@ function render({ model, el }) {
       drawPose();
     });
 
-    keypointToggles.appendChild(allBtn);
-    keypointToggles.appendChild(noneBtn);
+    utilityRow.appendChild(allBtn);
+    utilityRow.appendChild(noneBtn);
 
-    const sep = document.createElement("span");
-    sep.style.borderLeft = "1px solid #ccc";
-    sep.style.margin = "0 5px";
-    sep.style.height = "20px";
-    keypointToggles.appendChild(sep);
-
+    // Individual keypoint buttons
     for (const [name, kp] of Object.entries(metadata)) {
       const btn = document.createElement("button");
       btn.textContent = name;
       btn.dataset.keypoint = name;
-      btn.style.padding = "4px 8px";
-      btn.style.fontSize = "11px";
-      btn.style.cursor = "pointer";
-      btn.style.borderRadius = "3px";
-      btn.style.border = "2px solid " + kp.color;
+      btn.classList.add("pose-widget__keypoint-toggle");
+      btn.style.borderColor = kp.color;
       btn.addEventListener("click", () => {
         visibleKeypoints[name] = !visibleKeypoints[name];
         model.set("visible_keypoints", { ...visibleKeypoints });
@@ -256,7 +269,7 @@ function render({ model, el }) {
         updateToggleStyles();
         drawPose();
       });
-      keypointToggles.appendChild(btn);
+      keypointRow.appendChild(btn);
     }
     updateToggleStyles();
   }
@@ -344,9 +357,27 @@ function render({ model, el }) {
     }
   }
 
+  /**
+   * Update play/pause button icon.
+   * @param {boolean} playing - Current play state
+   */
+  function updatePlayPauseIcon(playing) {
+    playPauseBtn.innerHTML = "";
+    playPauseBtn.appendChild(createIcon(playing ? "pause" : "play"));
+  }
+
   // Initialize
   populateCameraSelect();
   loadVideo();
+
+  // Video loading state events
+  video.addEventListener("loadstart", () => {
+    videoContainer.classList.add("pose-widget__video-container--loading");
+  });
+
+  video.addEventListener("canplay", () => {
+    videoContainer.classList.remove("pose-widget__video-container--loading");
+  });
 
   video.addEventListener("loadedmetadata", () => {
     drawPose();
@@ -370,7 +401,7 @@ function render({ model, el }) {
   cameraSelect.addEventListener("change", () => {
     if (isPlaying) {
       video.pause();
-      playPauseBtn.textContent = "Play";
+      updatePlayPauseIcon(false);
       if (animationId) cancelAnimationFrame(animationId);
       isPlaying = false;
     }
@@ -383,14 +414,13 @@ function render({ model, el }) {
   playPauseBtn.addEventListener("click", () => {
     if (isPlaying) {
       video.pause();
-      playPauseBtn.textContent = "Play";
       if (animationId) cancelAnimationFrame(animationId);
     } else {
       video.play();
-      playPauseBtn.textContent = "Pause";
       animate();
     }
     isPlaying = !isPlaying;
+    updatePlayPauseIcon(isPlaying);
   });
 
   seekBar.addEventListener("input", () => {
@@ -414,7 +444,7 @@ function render({ model, el }) {
 
   wrapper.appendChild(cameraSelector);
   wrapper.appendChild(debugDiv);
-  wrapper.appendChild(keypointToggles);
+  wrapper.appendChild(keypointTogglesWrapper);
   wrapper.appendChild(controls);
   wrapper.appendChild(videoContainer);
   el.appendChild(wrapper);

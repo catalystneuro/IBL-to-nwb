@@ -55,6 +55,7 @@ class NWBFileVideoPlayer(anywidget.AnyWidget):
     grid_layout = traitlets.List([]).tag(sync=True)
 
     _esm = pathlib.Path(__file__).parent / "nwb_video_widget.js"
+    _css = pathlib.Path(__file__).parent / "nwb_video_widget.css"
 
     def __init__(
         self,

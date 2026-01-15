@@ -18,6 +18,28 @@ function formatTime(seconds) {
 }
 
 /**
+ * Create an SVG icon element.
+ * @param {"play" | "pause"} type - Icon type
+ * @returns {SVGElement}
+ */
+function createIcon(type) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "currentColor");
+
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  if (type === "play") {
+    path.setAttribute("d", "M8 5v14l11-7z");
+  } else {
+    path.setAttribute("d", "M6 19h4V5H6v14zm8-14v14h4V5h-4z");
+  }
+  svg.appendChild(path);
+  return svg;
+}
+
+/**
  * Render the multi-video player widget.
  *
  * This is the entry point called by anywidget when the widget is displayed.
@@ -30,33 +52,29 @@ function formatTime(seconds) {
  *   Append all UI elements to this container.
  */
 function render({ model, el }) {
+  // Root wrapper with scoped class
   const wrapper = document.createElement("div");
-  wrapper.style.fontFamily = "sans-serif";
+  wrapper.classList.add("video-widget");
 
   // Control bar
   const controls = document.createElement("div");
-  controls.style.marginBottom = "10px";
-  controls.style.display = "flex";
-  controls.style.alignItems = "center";
-  controls.style.gap = "10px";
+  controls.classList.add("video-widget__controls");
 
   const playPauseBtn = document.createElement("button");
-  playPauseBtn.textContent = "Play All";
-  playPauseBtn.style.padding = "8px 16px";
-  playPauseBtn.style.fontSize = "14px";
-  playPauseBtn.style.cursor = "pointer";
+  playPauseBtn.classList.add("video-widget__button");
+  playPauseBtn.appendChild(createIcon("play"));
+  playPauseBtn.appendChild(document.createTextNode(" Play All"));
 
   const seekBar = document.createElement("input");
   seekBar.type = "range";
   seekBar.min = 0;
   seekBar.max = 100;
   seekBar.value = 0;
-  seekBar.style.flex = "1";
+  seekBar.classList.add("video-widget__seekbar");
 
   const timeLabel = document.createElement("span");
   timeLabel.textContent = "0:00 / 0:00";
-  timeLabel.style.fontSize = "12px";
-  timeLabel.style.minWidth = "100px";
+  timeLabel.classList.add("video-widget__time-label");
 
   controls.appendChild(playPauseBtn);
   controls.appendChild(seekBar);
@@ -64,17 +82,30 @@ function render({ model, el }) {
 
   // Grid container - using CSS Grid for proper 2D layout
   const gridContainer = document.createElement("div");
-  gridContainer.style.display = "grid";
-  gridContainer.style.gap = "10px";
-  gridContainer.style.justifyContent = "center";
+  gridContainer.classList.add("video-widget__grid");
 
   /** @type {HTMLVideoElement[]} */
   let videos = [];
+  /** @type {HTMLDivElement[]} */
+  let videoContainers = [];
   let isPlaying = false;
+
+  /**
+   * Update play/pause button content.
+   * @param {boolean} playing - Current play state
+   */
+  function updatePlayPauseButton(playing) {
+    playPauseBtn.innerHTML = "";
+    playPauseBtn.appendChild(createIcon(playing ? "pause" : "play"));
+    playPauseBtn.appendChild(
+      document.createTextNode(playing ? " Pause All" : " Play All")
+    );
+  }
 
   function updateVideos() {
     gridContainer.innerHTML = "";
     videos = [];
+    videoContainers = [];
     const urls = model.get("video_urls");
     const gridLayout = model.get("grid_layout");
 
@@ -93,28 +124,48 @@ function render({ model, el }) {
         const url = urls[name];
         if (!url) continue; // Skip videos not in urls
 
+        const videoCell = document.createElement("div");
+        videoCell.classList.add("video-widget__video-cell");
+        videoCell.style.gridRow = rowIdx + 1;
+        videoCell.style.gridColumn = colIdx + 1;
+
         const videoContainer = document.createElement("div");
-        videoContainer.style.textAlign = "center";
-        videoContainer.style.gridRow = rowIdx + 1;
-        videoContainer.style.gridColumn = colIdx + 1;
+        videoContainer.classList.add("video-widget__video-container");
+        videoContainers.push(videoContainer);
 
         const video = document.createElement("video");
-        video.width = 320;
-        video.height = 240;
-        video.style.display = "block";
-        video.style.backgroundColor = "#000";
+        video.classList.add("video-widget__video");
         video.src = url;
         video.muted = true; // Mute to allow autoplay
         videos.push(video);
 
-        const label = document.createElement("p");
-        label.textContent = name.replace("Video", "").replace("Camera", "");
-        label.style.fontWeight = "bold";
-        label.style.margin = "5px 0";
+        // Loading spinner
+        const loadingDiv = document.createElement("div");
+        loadingDiv.classList.add("video-widget__loading");
+        const spinner = document.createElement("div");
+        spinner.classList.add("video-widget__spinner");
+        loadingDiv.appendChild(spinner);
+
+        // Video loading events
+        video.addEventListener("loadstart", () => {
+          videoContainer.classList.add("video-widget__video-container--loading");
+        });
+        video.addEventListener("canplay", () => {
+          videoContainer.classList.remove(
+            "video-widget__video-container--loading"
+          );
+        });
 
         videoContainer.appendChild(video);
-        videoContainer.appendChild(label);
-        gridContainer.appendChild(videoContainer);
+        videoContainer.appendChild(loadingDiv);
+
+        const label = document.createElement("p");
+        label.textContent = name.replace("Video", "").replace("Camera", "");
+        label.classList.add("video-widget__video-label");
+
+        videoCell.appendChild(videoContainer);
+        videoCell.appendChild(label);
+        gridContainer.appendChild(videoCell);
       }
     }
 
@@ -139,12 +190,11 @@ function render({ model, el }) {
   playPauseBtn.addEventListener("click", () => {
     if (isPlaying) {
       videos.forEach((v) => v.pause());
-      playPauseBtn.textContent = "Play All";
     } else {
       videos.forEach((v) => v.play());
-      playPauseBtn.textContent = "Pause All";
     }
     isPlaying = !isPlaying;
+    updatePlayPauseButton(isPlaying);
   });
 
   seekBar.addEventListener("input", () => {

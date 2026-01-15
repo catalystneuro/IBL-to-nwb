@@ -73,6 +73,7 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
     visible_keypoints = traitlets.Dict({}).tag(sync=True)
 
     _esm = pathlib.Path(__file__).parent / "nwb_pose_widget.js"
+    _css = pathlib.Path(__file__).parent / "nwb_pose_widget.css"
 
     def __init__(
         self,
