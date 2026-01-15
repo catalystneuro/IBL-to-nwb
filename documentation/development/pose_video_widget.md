@@ -6,25 +6,25 @@ The pose estimation widget overlays DeepLabCut keypoints directly on streaming v
 
 ### 1. Data Preparation (Python side)
 
-Pose estimation coordinates and timestamps are extracted from the NWB file and serialized as binary data for efficient transfer.
-
-**Why binary instead of JSON?** (Inspired by Trevor Manz's anywidget patterns)
-
-Pose data can have 100k+ frames x 11 keypoints x 2 coords = 2.2M floats:
-- JSON serialization: ~20 bytes/float = 44MB, plus slow Python list iteration
-- Binary Float32: 4 bytes/float = 8.8MB, numpy handles conversion in C
-
-This 5x size reduction + faster serialization makes camera switching snappy. JavaScript accesses the data via `Float32Array` view - zero parsing overhead. NaN values are preserved in IEEE 754 float format and checked with `isNaN()` in JS.
+Pose estimation coordinates and timestamps are extracted from the NWB file and serialized as JSON for transfer to JavaScript.
 
 ```python
-# Stack all coordinates: shape (n_keypoints, n_frames, 2)
-all_coords = np.stack(coord_arrays, axis=0)
-
-# Convert to bytes - numpy's tobytes() is fast (happens in C)
-# Using little-endian which matches JavaScript's DataView default
-coords_bytes = all_coords.astype("<f4").tobytes()  # <f4 = little-endian float32
-timestamps_bytes = timestamps.astype("<f8").tobytes()  # <f8 = little-endian float64
+# For each keypoint, store coordinates as list of [x, y] or None for missing data
+coordinates = {}
+for series_name, series in camera_pose.pose_estimation_series.items():
+    short_name = series_name.replace("PoseEstimationSeries", "")
+    data = series.data[:]  # shape: (n_frames, 2)
+    coords_list = []
+    for x, y in data:
+        if np.isnan(x) or np.isnan(y):
+            coords_list.append(None)
+        else:
+            coords_list.append([float(x), float(y)])
+    coordinates[short_name] = coords_list
 ```
+
+> **TODO: Performance optimization**
+> For better performance with large datasets (100k+ frames), consider binary transfer using `traitlets.Bytes()` and `Float32Array` views in JavaScript. This could reduce data size by ~5x and eliminate JSON parsing overhead. See anywidget patterns by Trevor Manz for reference implementation. The current JSON approach was chosen for simplicity and reliability.
 
 ### 2. State Synchronization with Traitlets
 
@@ -32,24 +32,19 @@ timestamps_bytes = timestamps.astype("<f8").tobytes()  # <f8 = little-endian flo
 
 **Key traitlets concepts:**
 
-- **Typed attributes**: `traitlets.Unicode()`, `traitlets.Dict()`, `traitlets.List()`, `traitlets.Bool()`, `traitlets.Bytes()` define the expected type and provide validation
+- **Typed attributes**: `traitlets.Unicode()`, `traitlets.Dict()`, `traitlets.List()`, `traitlets.Bool()` define the expected type and provide validation
 - **Default values**: Each trait can have a default, e.g., `traitlets.Bool(True)`
 - **Change observation**: You can observe changes with `@observe('trait_name')` decorators
 - **Synchronization tag**: `.tag(sync=True)` marks traits that should sync between Python and JavaScript
 
 ```python
 class NWBPoseEstimationWidget(anywidget.AnyWidget):
-    # Metadata as JSON (small, easy to access)
+    # Keypoint metadata (colors, labels)
     keypoint_metadata = traitlets.Dict({}).tag(sync=True)
 
-    # Coordinates as binary (large, efficient transfer)
-    pose_coordinates = traitlets.Bytes(b"").tag(sync=True)
-    timestamps_binary = traitlets.Bytes(b"").tag(sync=True)
-
-    # Shape info for JavaScript to reconstruct arrays
-    n_frames = traitlets.Int(0).tag(sync=True)
-    n_keypoints = traitlets.Int(0).tag(sync=True)
-    keypoint_order = traitlets.List([]).tag(sync=True)
+    # Pose data as JSON
+    pose_coordinates = traitlets.Dict({}).tag(sync=True)  # {keypoint_name: [[x, y], ...]}
+    timestamps = traitlets.List([]).tag(sync=True)
 ```
 
 When a synced trait changes in Python, the change propagates to JavaScript (and vice versa) via Jupyter's comm protocol. This bidirectional sync is what makes interactive widgets possible.
@@ -92,20 +87,6 @@ canvas.style.left = '0';
 
 Once the widget initializes, all rendering happens in JavaScript. Video frames and pose drawing never touch the Python kernel. This is critical - Python kernel round-trips would add hundreds of milliseconds of latency per frame.
 
-### Binary Data Transfer
-
-Using `traitlets.Bytes()` for coordinate data:
-- Avoids JSON serialization overhead
-- Numpy's `tobytes()` runs in C, not Python loops
-- JavaScript creates typed array views (zero-copy)
-- NaN values transfer correctly via IEEE 754
-
-```javascript
-// Create typed array view - no data copy, just a view over the buffer
-// Data layout: [n_keypoints][n_frames][2] as float32
-coordsView = new Float32Array(coordsBuffer.buffer);
-```
-
 ### Native Video Streaming
 
 The browser's media pipeline handles video decoding and S3 range requests. This is the same optimized code path used by YouTube, Netflix, etc. The browser:
@@ -145,7 +126,7 @@ function findFrameIndex(timestamps, targetTime) {
 
 ### Minimal Data Transfer
 
-Pose coordinates are sent once during widget creation (as binary). Only visibility toggles and playback state cross the Python-JS boundary during interaction.
+Pose coordinates are sent once during widget creation (as JSON). Only visibility toggles and playback state cross the Python-JS boundary during interaction.
 
 ## Architecture
 
@@ -153,8 +134,8 @@ Pose coordinates are sent once during widget creation (as binary). Only visibili
 Python (runs once)              JavaScript (runs continuously)
 -----------------              ----------------------------
 keypoint_metadata  --JSON-->   model.get('keypoint_metadata')
-pose_coordinates   --binary->  Float32Array view
-timestamps_binary  --binary->  Float64Array view
+pose_coordinates   --JSON-->   model.get('pose_coordinates')
+timestamps         --JSON-->   model.get('timestamps')
 video_url string   --sync-->   video.src = url
 
                                video element <-- S3 streaming
@@ -166,9 +147,10 @@ video_url string   --sync-->   video.src = url
 The video file starts at time 0, but NWB timestamps start at the session's first timestamp (e.g., 3.56s). The alignment is:
 
 ```javascript
-// Video time 0 corresponds to NWB timestamps[0]
-const nwbTime = timestampsView[0] + video.currentTime;
-const frameIdx = findFrameIndex(timestampsView, nwbTime);
+// Video time 0 corresponds to timestamps[0]
+const timestamps = model.get('timestamps');
+const nwbTime = timestamps[0] + video.currentTime;
+const frameIdx = findFrameIndex(timestamps, nwbTime);
 ```
 
 ## Spatial Alignment
@@ -323,131 +305,19 @@ For production widgets with complex UIs, team development, or when you need Type
 
 ## Future Style Improvements
 
-The current widgets are functional but use basic browser styling. Here are improvements to consider for a more polished look:
+The current widgets are functional but use basic browser styling. Here are improvements to consider for a more polished look, based on modern CSS best practices.
 
-### Modern Button Styling
+### CSS Architecture
 
-Replace default browser buttons with rounded, shadowed buttons:
-
-```css
-button {
-  border: none;
-  border-radius: 6px;
-  background: #4a5568;
-  color: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-  transition: background 0.2s;
-}
-button:hover {
-  background: #2d3748;
-}
-```
-
-### Play/Pause Icons
-
-Use Unicode symbols instead of text labels:
-- Play: `\u25B6` (solid right triangle)
-- Pause: `\u23F8` (double vertical bar)
-
-### Custom Seek Bar
-
-Style the range input for consistent cross-browser appearance:
+**Scoped Class Names**: Since anywidget loads CSS in global scope, prefix all classes to avoid conflicts:
 
 ```css
-input[type="range"] {
-  -webkit-appearance: none;
-  height: 6px;
-  border-radius: 3px;
-  background: #e2e8f0;
-}
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #4a5568;
-  cursor: pointer;
-}
+.pose-widget { /* wrapper */ }
+.pose-widget__button { /* BEM naming */ }
+.pose-widget__controls { }
 ```
 
-### Video Container Polish
-
-Add subtle borders and rounded corners:
-
-```css
-video {
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-}
-```
-
-### Keypoint Toggle Buttons
-
-Make pill-shaped toggles with better active states:
-
-```css
-.keypoint-toggle {
-  border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 12px;
-  transition: all 0.15s;
-}
-.keypoint-toggle.active {
-  box-shadow: 0 0 0 2px currentColor;
-}
-```
-
-### Debug Info Styling
-
-Make it less prominent but more readable:
-
-```css
-.debug-info {
-  font-family: 'SF Mono', Consolas, monospace;
-  font-size: 11px;
-  color: #718096;
-  background: transparent;
-  border-left: 2px solid #e2e8f0;
-  padding-left: 8px;
-}
-```
-
-### Camera Selector Dropdown
-
-Style the select element to match:
-
-```css
-select {
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 6px 12px;
-  background: white;
-  font-size: 14px;
-}
-```
-
-### Suggested Color Palette
-
-Use a cohesive neutral palette (Tailwind-inspired):
-- Background: `#f7fafc` (light gray)
-- Borders: `#e2e8f0`
-- Text: `#2d3748` (dark gray)
-- Accent: `#4299e1` (blue) for active states
-- Muted: `#718096` for secondary text
-
-### Layout Improvements
-
-- Add padding around the wrapper
-- Group controls visually with subtle background
-- Add consistent spacing between sections (12-16px)
-
-### Loading State
-
-Show a spinner or skeleton while video loads instead of a black rectangle.
-
-### Implementation
-
-To implement these styles, create separate CSS files and reference them via the `_css` attribute:
+**File-Based CSS**: Separating CSS enables Hot Module Replacement (HMR) during development:
 
 ```python
 class NWBPoseEstimationWidget(anywidget.AnyWidget):
@@ -455,4 +325,414 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
     _css = pathlib.Path(__file__).parent / "nwb_pose_widget.css"
 ```
 
-Then use CSS classes in JavaScript instead of inline styles.
+### Modern Button Styling
+
+Apply proper reset styles and use flexbox for alignment. The 44px minimum height meets [WCAG 2.1 touch target requirements](https://www.w3.org/WAI/WCAG21/Understanding/target-size.html):
+
+```css
+.pose-widget__button {
+  /* Reset browser defaults */
+  border: none;
+  background-color: transparent;
+  font-family: inherit;
+  cursor: pointer;
+
+  /* Flexbox for icon + text alignment */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  /* Visual styling */
+  background-color: #4a5568;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.5em 1em;
+  min-height: 44px;
+  font-size: 14px;
+
+  /* Layered shadows for realistic depth */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.07),
+    0 2px 4px rgba(0, 0, 0, 0.07),
+    0 4px 8px rgba(0, 0, 0, 0.07);
+
+  transition: all 180ms ease-out;
+}
+
+.pose-widget__button:hover {
+  background-color: #2d3748;
+  transform: translateY(-1px);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.1),
+    0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.pose-widget__button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Accessible focus state - never remove outline without replacement */
+.pose-widget__button:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(66, 153, 225, 0.5),
+    0 1px 2px rgba(0, 0, 0, 0.07);
+}
+```
+
+**Why layered shadows?** As [Josh Comeau explains](https://www.joshwcomeau.com/css/designing-shadows/), stacking multiple shadows with different offsets creates more realistic depth than a single shadow. Real-world shadows have complex falloff that a single `box-shadow` cannot replicate.
+
+### Play/Pause Button with Icons
+
+Use inline SVG for crisp icons at any size. SVG scales perfectly and can inherit `currentColor`:
+
+```javascript
+// In JavaScript - create SVG elements
+function createIcon(type) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "currentColor");
+
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  if (type === "play") {
+    path.setAttribute("d", "M8 5v14l11-7z");  // Play triangle
+  } else {
+    path.setAttribute("d", "M6 19h4V5H6v14zm8-14v14h4V5h-4z");  // Pause bars
+  }
+  svg.appendChild(path);
+  return svg;
+}
+```
+
+Alternative: Unicode symbols (simpler but less consistent across platforms):
+- Play: `\u25B6` or `&#9654;`
+- Pause: `\u23F8` or `&#9208;`
+
+### Custom Seek Bar (Cross-Browser)
+
+Style the range input consistently across browsers:
+
+```css
+.pose-widget__seekbar {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  cursor: pointer;
+}
+
+/* Thumb - WebKit (Chrome, Safari, Edge) */
+.pose-widget__seekbar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4a5568;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: grab;
+  transition: transform 150ms ease;
+}
+
+.pose-widget__seekbar::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.pose-widget__seekbar::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+
+/* Thumb - Firefox */
+.pose-widget__seekbar::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4a5568;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: grab;
+}
+
+/* Track - Firefox */
+.pose-widget__seekbar::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+}
+
+/* Focus state */
+.pose-widget__seekbar:focus {
+  outline: none;
+}
+.pose-widget__seekbar:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5);
+}
+```
+
+### Video Container
+
+Add subtle borders and rounded corners. The `overflow: hidden` ensures the canvas overlay respects the border radius:
+
+```css
+.pose-widget__video-container {
+  position: relative;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  background: #1a1a1a;  /* Dark fallback while loading */
+}
+
+.pose-widget__video {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: fill;
+}
+
+.pose-widget__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+```
+
+### Keypoint Toggle Buttons
+
+Pill-shaped toggles with clear active states. The `box-shadow` ring indicates selection without layout shift:
+
+```css
+.pose-widget__keypoint-toggle {
+  border: none;
+  border-radius: 16px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+
+  /* Inactive state */
+  background: #f5f5f5;
+  color: #718096;
+}
+
+.pose-widget__keypoint-toggle:hover {
+  background: #e2e8f0;
+}
+
+.pose-widget__keypoint-toggle--active {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  /* Background color set dynamically from keypoint color */
+}
+
+/* Focus ring for keyboard navigation */
+.pose-widget__keypoint-toggle:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor;
+}
+
+/* Utility buttons (All/None) */
+.pose-widget__keypoint-toggle--utility {
+  background: #e2e8f0;
+  color: #4a5568;
+  border: 1px solid #cbd5e0;
+}
+```
+
+### Debug Info Panel
+
+Subtle styling that does not distract from the video:
+
+```css
+.pose-widget__debug {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 11px;
+  color: #718096;
+  background: transparent;
+  border-left: 2px solid #e2e8f0;
+  padding: 4px 0 4px 12px;
+  margin: 8px 0;
+  line-height: 1.4;
+}
+
+/* Optional: hide by default, show on hover */
+.pose-widget__debug--collapsible {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all 200ms ease;
+}
+
+.pose-widget:hover .pose-widget__debug--collapsible {
+  max-height: 50px;
+  opacity: 1;
+}
+```
+
+### Camera Selector Dropdown
+
+Style the select element to match the overall design:
+
+```css
+.pose-widget__select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 32px 8px 12px;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5568' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  font-size: 14px;
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.pose-widget__select:hover {
+  border-color: #cbd5e0;
+}
+
+.pose-widget__select:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.25);
+}
+```
+
+### Loading State
+
+Show visual feedback while video buffers:
+
+```css
+/* Loading spinner overlay */
+.pose-widget__loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+}
+
+.pose-widget__video-container--loading .pose-widget__loading {
+  display: block;
+}
+
+.pose-widget__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #4299e1;
+  border-radius: 50%;
+  animation: pose-widget-spin 0.8s linear infinite;
+}
+
+@keyframes pose-widget-spin {
+  to { transform: rotate(360deg); }
+}
+```
+
+In JavaScript, toggle the loading class:
+
+```javascript
+video.addEventListener("loadstart", () => {
+  videoContainer.classList.add("pose-widget__video-container--loading");
+});
+video.addEventListener("canplay", () => {
+  videoContainer.classList.remove("pose-widget__video-container--loading");
+});
+```
+
+### Color Palette
+
+A cohesive neutral palette inspired by Tailwind CSS:
+
+| Purpose | Color | Usage |
+|---------|-------|-------|
+| Background | `#f7fafc` | Widget wrapper |
+| Surface | `#ffffff` | Controls, dropdowns |
+| Border | `#e2e8f0` | Dividers, input borders |
+| Border hover | `#cbd5e0` | Interactive elements |
+| Text primary | `#2d3748` | Main labels |
+| Text secondary | `#718096` | Debug info, hints |
+| Accent | `#4299e1` | Focus rings, active states |
+| Accent dark | `#3182ce` | Accent hover |
+| Dark surface | `#4a5568` | Buttons |
+| Dark hover | `#2d3748` | Button hover |
+
+### Layout and Spacing
+
+Use CSS custom properties for consistent spacing:
+
+```css
+.pose-widget {
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: var(--spacing-lg);
+  background: #f7fafc;
+  border-radius: 12px;
+}
+
+.pose-widget__section {
+  margin-bottom: var(--spacing-md);
+}
+
+.pose-widget__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+```
+
+### Accessibility Checklist
+
+Based on [Modern CSS Button Guide](https://moderncss.dev/css-button-styling-guide/) recommendations:
+
+- **Touch targets**: Minimum 44x44px for buttons (WCAG 2.1)
+- **Color contrast**: 4.5:1 for text, 3:1 for UI components
+- **Focus indicators**: Never remove without replacement; use `box-shadow` to avoid layout shift
+- **Keyboard navigation**: All interactive elements focusable and operable
+- **High contrast mode**: Add fallback borders for Windows High Contrast
+
+```css
+@media (forced-colors: active) {
+  .pose-widget__button {
+    border: 2px solid currentColor;
+  }
+}
+```
+
+### Implementation Notes
+
+1. **Add class to wrapper**: In `render()`, add `el.classList.add("pose-widget")` to enable scoped styles
+
+2. **Replace inline styles**: Convert `element.style.property = value` to CSS classes
+
+3. **Maintain keypoint colors**: Dynamic colors (from Python) should still be applied inline for the keypoint-specific toggles
+
+4. **Test across environments**: Verify styling in JupyterLab, VS Code notebooks, and Google Colab
+
+### References
+
+- [Designing Beautiful Shadows in CSS](https://www.joshwcomeau.com/css/designing-shadows/) - Layered shadow techniques
+- [CSS Button Styling Guide](https://moderncss.dev/css-button-styling-guide/) - Accessibility and reset patterns
+- [anywidget Documentation](https://anywidget.dev/en/getting-started/) - CSS attribute and HMR
+- [MDN: Styling Video Controls](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Audio_and_video_delivery/Video_player_styling_basics) - Custom media player styling

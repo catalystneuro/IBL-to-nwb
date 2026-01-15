@@ -59,26 +59,15 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
     available_cameras = traitlets.List([]).tag(sync=True)
     camera_to_video = traitlets.Dict({}).tag(sync=True)
 
-    # Keypoint metadata (colors, labels) - small, JSON is fine
+    # Keypoint metadata (colors, labels)
     keypoint_metadata = traitlets.Dict({}).tag(sync=True)
 
-    # Binary coordinate data - using bytes for efficient transfer
-    # Why binary instead of JSON? (Inspired by Trevor Manz's anywidget patterns)
-    #
-    # Pose data can have 100k+ frames × 11 keypoints × 2 coords = 2.2M floats
-    # - JSON serialization: ~20 bytes/float = 44MB, plus slow Python list iteration
-    # - Binary Float32: 4 bytes/float = 8.8MB, numpy handles conversion in C
-    #
-    # This 5x size reduction + faster serialization makes camera switching snappy.
-    # JavaScript accesses the data via Float32Array view - zero parsing overhead.
-    # NaN values are preserved in IEEE 754 float format and checked with isNaN() in JS.
-    pose_coordinates = traitlets.Bytes(b"").tag(sync=True)
-    timestamps_binary = traitlets.Bytes(b"").tag(sync=True)
-
-    # Shape info needed to reconstruct arrays in JavaScript
-    n_frames = traitlets.Int(0).tag(sync=True)
-    n_keypoints = traitlets.Int(0).tag(sync=True)
-    keypoint_order = traitlets.List([]).tag(sync=True)
+    # Pose data as JSON - simple and reliable
+    # TODO: For better performance with large datasets, consider binary transfer
+    # using traitlets.Bytes and Float32Array views in JavaScript. See anywidget
+    # patterns by Trevor Manz for reference implementation.
+    pose_coordinates = traitlets.Dict({}).tag(sync=True)  # {keypoint_name: [[x, y], ...]}
+    timestamps = traitlets.List([]).tag(sync=True)
 
     show_labels = traitlets.Bool(True).tag(sync=True)
     visible_keypoints = traitlets.Dict({}).tag(sync=True)
@@ -145,39 +134,40 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
             """Load pose data for a single camera.
 
             Returns a dict with:
-            - keypoint_metadata: {name: {color, label}} for JSON transfer
-            - pose_coordinates: bytes of Float32 array [n_keypoints, n_frames, 2]
-            - timestamps_binary: bytes of Float64 array [n_frames]
-            - n_frames, n_keypoints, keypoint_order: shape info for JS reconstruction
+            - keypoint_metadata: {name: {color, label}}
+            - pose_coordinates: {name: [[x, y], ...]} as JSON-serializable lists
+            - timestamps: [t0, t1, ...] as JSON-serializable list
             """
             camera_pose = pose_estimation[camera_name]
 
             keypoint_names = list(camera_pose.pose_estimation_series.keys())
             n_kp = len(keypoint_names)
 
-            # Build metadata (small, JSON is fine) and collect coordinate arrays
             metadata = {}
-            coord_arrays = []
+            coordinates = {}
             timestamps = None
 
             for idx, (series_name, series) in enumerate(camera_pose.pose_estimation_series.items()):
                 short_name = series_name.replace("PoseEstimationSeries", "")
 
-                # Get coordinates as float32 - keeps NaN values intact
-                # NaN is valid in IEEE 754 and will be checked with isNaN() in JavaScript
-                data = series.data[:].astype(np.float32)  # shape: (n_frames, 2)
-                coord_arrays.append(data)
+                # Get coordinates - convert NaN to None for JSON compatibility
+                data = series.data[:]  # shape: (n_frames, 2)
+                # Convert to list, replacing NaN with None
+                coords_list = []
+                for x, y in data:
+                    if np.isnan(x) or np.isnan(y):
+                        coords_list.append(None)
+                    else:
+                        coords_list.append([float(x), float(y)])
+                coordinates[short_name] = coords_list
 
                 if timestamps is None:
-                    # Float64 for timestamps to preserve precision
-                    timestamps = series.timestamps[:].astype(np.float64)
+                    timestamps = series.timestamps[:].tolist()
 
                 # Assign color from custom dict or colormap
                 if short_name in custom_colors:
                     color = custom_colors[short_name]
                 else:
-                    # For listed colormaps (tab10, Set1, etc.), cycle through colors
-                    # For continuous colormaps, sample evenly across the range
                     if hasattr(cmap, "N") and cmap.N < 256:
                         rgba = cmap(idx % cmap.N)
                     else:
@@ -186,29 +176,10 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
 
                 metadata[short_name] = {"color": color, "label": short_name}
 
-            # Stack all coordinates into single array: shape (n_keypoints, n_frames, 2)
-            # This layout allows efficient indexing by keypoint then frame in JavaScript
-            all_coords = np.stack(coord_arrays, axis=0)
-            n_frames = all_coords.shape[1]
-
-            # Convert to bytes - numpy's tobytes() is fast (happens in C)
-            # Using little-endian which matches most systems and JavaScript's DataView default
-            coords_bytes = all_coords.astype("<f4").tobytes()  # <f4 = little-endian float32
-            timestamps_bytes = timestamps.astype("<f8").tobytes()  # <f8 = little-endian float64
-
-            # Short names in order (matches coord_arrays stacking order)
-            keypoint_order = [
-                name.replace("PoseEstimationSeries", "")
-                for name in keypoint_names
-            ]
-
             return {
                 "keypoint_metadata": metadata,
-                "pose_coordinates": coords_bytes,
-                "timestamps_binary": timestamps_bytes,
-                "n_frames": n_frames,
-                "n_keypoints": n_kp,
-                "keypoint_order": keypoint_order,
+                "pose_coordinates": coordinates,
+                "timestamps": timestamps,
             }
 
         # Initialize parent with computed values
@@ -235,8 +206,9 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
             print(f"Loading pose data for {camera_name}...")
             data = self._pose_loader(camera_name)
             self._camera_data_cache[camera_name] = data
-            print(f"  Loaded {data['n_keypoints']} keypoints, {data['n_frames']} frames")
-            print(f"  Binary size: {len(data['pose_coordinates']) / 1024:.1f} KB coordinates")
+            n_keypoints = len(data["keypoint_metadata"])
+            n_frames = len(data["timestamps"])
+            print(f"  Loaded {n_keypoints} keypoints, {n_frames} frames")
         else:
             data = self._camera_data_cache[camera_name]
             print(f"Using cached data for {camera_name}")
@@ -244,10 +216,7 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
         # Update all traitlets with new data
         self.keypoint_metadata = data["keypoint_metadata"]
         self.pose_coordinates = data["pose_coordinates"]
-        self.timestamps_binary = data["timestamps_binary"]
-        self.n_frames = data["n_frames"]
-        self.n_keypoints = data["n_keypoints"]
-        self.keypoint_order = data["keypoint_order"]
+        self.timestamps = data["timestamps"]
 
         # Initialize visibility for new keypoints
         new_visible = {**self.visible_keypoints}

@@ -2,13 +2,10 @@
  * Pose estimation video player widget.
  * Overlays DeepLabCut keypoints on streaming video with camera selection.
  *
- * Binary data format (from Python):
- * - pose_coordinates: Float32Array of shape [n_keypoints, n_frames, 2]
- *   Stored as little-endian bytes, accessed via Float32Array view
- * - timestamps_binary: Float64Array of shape [n_frames]
- *   Stored as little-endian bytes, accessed via Float64Array view
- *
- * Why binary? See Python code comments - 5x smaller than JSON, instant parsing.
+ * Data format (from Python via JSON):
+ * - pose_coordinates: {keypoint_name: [[x, y], null, [x, y], ...]}
+ *   Each keypoint has an array of coordinates per frame, null for missing data
+ * - timestamps: [t0, t1, t2, ...] array of frame timestamps
  */
 
 const DISPLAY_WIDTH = 640;
@@ -16,7 +13,7 @@ const DISPLAY_HEIGHT = 512;
 
 /**
  * Binary search for frame index closest to target time.
- * @param {Float64Array} timestamps - Sorted array of timestamps
+ * @param {number[]} timestamps - Sorted array of timestamps
  * @param {number} targetTime - Time to find
  * @returns {number} Index of closest timestamp
  */
@@ -148,75 +145,6 @@ function render({ model, el }) {
   let animationId = null;
   let visibleKeypoints = { ...model.get("visible_keypoints") };
 
-  // Typed array views for binary data - these are recreated when data changes
-  // Using views avoids copying data - just interprets the underlying ArrayBuffer
-  let coordsView = null; // Float32Array view of pose_coordinates
-  let timestampsView = null; // Float64Array view of timestamps_binary
-  let nFrames = 0;
-  let nKeypoints = 0;
-  let keypointOrder = [];
-
-  /**
-   * Update typed array views when binary data changes.
-   * Creates Float32Array/Float64Array views over the raw bytes.
-   *
-   * anywidget sends Bytes traitlets as DataView objects. We create typed
-   * array views using the DataView's byteOffset and byteLength to get the
-   * correct slice of the underlying shared buffer.
-   */
-  function updateDataViews() {
-    const coordsBuffer = model.get("pose_coordinates");
-    const timestampsBuffer = model.get("timestamps_binary");
-    nFrames = model.get("n_frames");
-    nKeypoints = model.get("n_keypoints");
-    keypointOrder = model.get("keypoint_order");
-
-    if (coordsBuffer && coordsBuffer.byteLength > 0) {
-      // Create Float32Array view with correct offset and length from DataView
-      coordsView = new Float32Array(
-        coordsBuffer.buffer,
-        coordsBuffer.byteOffset,
-        coordsBuffer.byteLength / 4
-      );
-    } else {
-      coordsView = null;
-    }
-
-    if (timestampsBuffer && timestampsBuffer.byteLength > 0) {
-      // Create Float64Array view with correct offset and length from DataView
-      timestampsView = new Float64Array(
-        timestampsBuffer.buffer,
-        timestampsBuffer.byteOffset,
-        timestampsBuffer.byteLength / 8
-      );
-    } else {
-      timestampsView = null;
-    }
-
-    seekBar.max = nFrames > 0 ? nFrames - 1 : 100;
-  }
-
-  /**
-   * Get coordinate for a keypoint at a frame.
-   * @param {number} keypointIdx - Index in keypoint_order
-   * @param {number} frameIdx - Frame index
-   * @returns {{x: number, y: number} | null} Coordinates or null if NaN
-   */
-  function getCoord(keypointIdx, frameIdx) {
-    if (!coordsView) return null;
-
-    // Data layout: [n_keypoints][n_frames][2]
-    // Index calculation: (keypointIdx * n_frames * 2) + (frameIdx * 2) + (0 or 1)
-    const baseIdx = keypointIdx * nFrames * 2 + frameIdx * 2;
-    const x = coordsView[baseIdx];
-    const y = coordsView[baseIdx + 1];
-
-    // NaN check - IEEE 754 NaN values come through as NaN in Float32Array
-    if (Number.isNaN(x) || Number.isNaN(y)) return null;
-
-    return { x, y };
-  }
-
   /**
    * Update debug info display.
    * @param {number} frameIdx - Current frame index
@@ -224,9 +152,8 @@ function render({ model, el }) {
    */
   function updateDebug(frameIdx, extra = "") {
     const camera = model.get("selected_camera");
-    const coordsInfo = coordsView
-      ? `coords[${coordsView.length}]`
-      : "coords=null";
+    const timestamps = model.get("timestamps");
+    const nFrames = timestamps ? timestamps.length : 0;
     debugDiv.textContent =
       camera +
       " | Frame: " +
@@ -237,8 +164,6 @@ function render({ model, el }) {
       video.videoWidth +
       "x" +
       video.videoHeight +
-      " | " +
-      coordsInfo +
       " | " +
       extra;
   }
@@ -341,8 +266,9 @@ function render({ model, el }) {
    * @returns {number}
    */
   function getFrameIndex() {
-    if (!timestampsView || timestampsView.length === 0) return 0;
-    return findFrameIndex(timestampsView, timestampsView[0] + video.currentTime);
+    const timestamps = model.get("timestamps");
+    if (!timestamps || timestamps.length === 0) return 0;
+    return findFrameIndex(timestamps, timestamps[0] + video.currentTime);
   }
 
   /**
@@ -353,9 +279,11 @@ function render({ model, el }) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const metadata = model.get("keypoint_metadata");
+    const coordinates = model.get("pose_coordinates");
+    const timestamps = model.get("timestamps");
     const showLabels = model.get("show_labels");
 
-    if (!coordsView || nKeypoints === 0) {
+    if (!coordinates || !timestamps || timestamps.length === 0) {
       updateDebug(0, "No pose data");
       return;
     }
@@ -372,16 +300,14 @@ function render({ model, el }) {
 
     let drawnCount = 0;
 
-    // Iterate keypoints using order and index for binary data access
-    for (let kpIdx = 0; kpIdx < keypointOrder.length; kpIdx++) {
-      const name = keypointOrder[kpIdx];
+    for (const [name, coords] of Object.entries(coordinates)) {
       if (visibleKeypoints[name] === false) continue;
 
-      const coord = getCoord(kpIdx, frameIdx);
-      if (!coord) continue; // NaN or out of bounds
+      const coord = coords[frameIdx];
+      if (!coord) continue; // null means no data for this frame
 
-      const x = coord.x * scaleX;
-      const y = coord.y * scaleY;
+      const x = coord[0] * scaleX;
+      const y = coord[1] * scaleY;
       const kp = metadata[name];
 
       ctx.beginPath();
@@ -420,7 +346,6 @@ function render({ model, el }) {
 
   // Initialize
   populateCameraSelect();
-  updateDataViews();
   loadVideo();
 
   video.addEventListener("loadedmetadata", () => {
@@ -430,17 +355,17 @@ function render({ model, el }) {
   video.addEventListener("seeked", drawPose);
   video.addEventListener("timeupdate", drawPose);
 
-  // Watch for pose data changes (when camera switches, Python sends new binary data)
-  model.on("change:pose_coordinates", () => {
-    updateDataViews();
+  // Watch for pose data changes (when camera switches)
+  function onPoseDataChange() {
+    const timestamps = model.get("timestamps");
+    seekBar.max = timestamps ? timestamps.length - 1 : 100;
     visibleKeypoints = { ...model.get("visible_keypoints") };
     createKeypointToggles();
     drawPose();
-  });
+  }
 
-  model.on("change:keypoint_metadata", () => {
-    createKeypointToggles();
-  });
+  model.on("change:pose_coordinates", onPoseDataChange);
+  model.on("change:keypoint_metadata", onPoseDataChange);
 
   cameraSelect.addEventListener("change", () => {
     if (isPlaying) {
@@ -470,8 +395,9 @@ function render({ model, el }) {
 
   seekBar.addEventListener("input", () => {
     const frameIdx = parseInt(seekBar.value);
-    if (timestampsView && timestampsView.length > 0) {
-      video.currentTime = timestampsView[frameIdx] - timestampsView[0];
+    const timestamps = model.get("timestamps");
+    if (timestamps && timestamps.length > 0) {
+      video.currentTime = timestamps[frameIdx] - timestamps[0];
     }
   });
 
