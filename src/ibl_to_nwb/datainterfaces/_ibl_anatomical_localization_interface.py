@@ -5,7 +5,6 @@ import logging
 import time
 
 import numpy as np
-import pandas as pd
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
