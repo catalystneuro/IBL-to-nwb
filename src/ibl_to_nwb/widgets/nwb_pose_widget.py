@@ -59,15 +59,12 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
     available_cameras = traitlets.List([]).tag(sync=True)
     camera_to_video = traitlets.Dict({}).tag(sync=True)
 
-    # Keypoint metadata (colors, labels)
-    keypoint_metadata = traitlets.Dict({}).tag(sync=True)
-
-    # Pose data as JSON - simple and reliable
+    # All pose data for all cameras - loaded upfront for instant camera switching
+    # Structure: {camera_name: {keypoint_metadata, pose_coordinates, timestamps}}
     # TODO: For better performance with large datasets, consider binary transfer
     # using traitlets.Bytes and Float32Array views in JavaScript. See anywidget
     # patterns by Trevor Manz for reference implementation.
-    pose_coordinates = traitlets.Dict({}).tag(sync=True)  # {keypoint_name: [[x, y], ...]}
-    timestamps = traitlets.List([]).tag(sync=True)
+    all_camera_data = traitlets.Dict({}).tag(sync=True)
 
     show_labels = traitlets.Bool(True).tag(sync=True)
     visible_keypoints = traitlets.Dict({}).tag(sync=True)
@@ -183,49 +180,24 @@ class NWBPoseEstimationWidget(anywidget.AnyWidget):
                 "timestamps": timestamps,
             }
 
+        # Load all camera data upfront for instant switching in JavaScript
+        all_camera_data = {}
+        for camera_name in available_cameras:
+            all_camera_data[camera_name] = load_camera_pose_data(camera_name)
+
+        # Initialize visibility for all keypoints across all cameras
+        visible_keypoints = {}
+        for camera_data in all_camera_data.values():
+            for name in camera_data["keypoint_metadata"].keys():
+                if name not in visible_keypoints:
+                    visible_keypoints[name] = True
+
         # Initialize parent with computed values
         super().__init__(
             selected_camera=selected_camera,
             available_cameras=available_cameras,
             camera_to_video=camera_to_video,
+            all_camera_data=all_camera_data,
+            visible_keypoints=visible_keypoints,
             **kwargs,
         )
-
-        # Set up pose loading
-        self._camera_data_cache = {}
-        self._pose_loader = load_camera_pose_data
-
-        # Load initial camera data
-        self._load_camera(selected_camera)
-
-        # Watch for camera changes
-        self.observe(self._on_camera_change, names=["selected_camera"])
-
-    def _load_camera(self, camera_name):
-        """Load data for a camera (with caching)."""
-        if camera_name not in self._camera_data_cache:
-            print(f"Loading pose data for {camera_name}...")
-            data = self._pose_loader(camera_name)
-            self._camera_data_cache[camera_name] = data
-            n_keypoints = len(data["keypoint_metadata"])
-            n_frames = len(data["timestamps"])
-            print(f"  Loaded {n_keypoints} keypoints, {n_frames} frames")
-        else:
-            data = self._camera_data_cache[camera_name]
-            print(f"Using cached data for {camera_name}")
-
-        # Update all traitlets with new data
-        self.keypoint_metadata = data["keypoint_metadata"]
-        self.pose_coordinates = data["pose_coordinates"]
-        self.timestamps = data["timestamps"]
-
-        # Initialize visibility for new keypoints
-        new_visible = {**self.visible_keypoints}
-        for name in data["keypoint_metadata"].keys():
-            if name not in new_visible:
-                new_visible[name] = True
-        self.visible_keypoints = new_visible
-
-    def _on_camera_change(self, change):
-        """Called when selected_camera changes."""
-        self._load_camera(change["new"])

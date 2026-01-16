@@ -3,6 +3,8 @@
  * Overlays DeepLabCut keypoints on streaming video with camera selection.
  *
  * Data format (from Python via JSON):
+ * - all_camera_data: {camera_name: {keypoint_metadata, pose_coordinates, timestamps}}
+ *   All camera data is loaded upfront for instant switching
  * - pose_coordinates: {keypoint_name: [[x, y], null, [x, y], ...]}
  *   Each keypoint has an array of coordinates per frame, null for missing data
  * - timestamps: [t0, t1, t2, ...] array of frame timestamps
@@ -57,14 +59,9 @@ function createIcon(type) {
 /**
  * Render the pose video player widget.
  *
- * This is the entry point called by anywidget when the widget is displayed.
- *
  * @param {Object} context - Provided by anywidget
- * @param {Object} context.model - Proxy to Python traitlets. Use model.get('name')
- *   to read synced traits and model.set('name', value) + model.save_changes()
- *   to update them. Listen for changes with model.on('change:name', callback).
- * @param {HTMLElement} context.el - The DOM element where the widget should render.
- *   Append all UI elements to this container.
+ * @param {Object} context.model - Proxy to Python traitlets
+ * @param {HTMLElement} context.el - The DOM element where the widget should render
  */
 function render({ model, el }) {
   // Root wrapper with scoped class
@@ -89,15 +86,13 @@ function render({ model, el }) {
   const debugDiv = document.createElement("div");
   debugDiv.classList.add("pose-widget__debug");
 
-  // Keypoint toggles container (holds both rows)
+  // Keypoint toggles container
   const keypointTogglesWrapper = document.createElement("div");
   keypointTogglesWrapper.classList.add("pose-widget__keypoint-toggles-wrapper");
 
-  // Utility buttons row (All/None)
   const utilityRow = document.createElement("div");
   utilityRow.classList.add("pose-widget__keypoint-toggles");
 
-  // Keypoint buttons row
   const keypointRow = document.createElement("div");
   keypointRow.classList.add("pose-widget__keypoint-toggles");
 
@@ -145,30 +140,29 @@ function render({ model, el }) {
   canvas.height = DISPLAY_HEIGHT;
   canvas.classList.add("pose-widget__canvas");
 
-  // Loading spinner
-  const loadingDiv = document.createElement("div");
-  loadingDiv.classList.add("pose-widget__loading");
-  const spinner = document.createElement("div");
-  spinner.classList.add("pose-widget__spinner");
-  loadingDiv.appendChild(spinner);
-
   videoContainer.appendChild(video);
   videoContainer.appendChild(canvas);
-  videoContainer.appendChild(loadingDiv);
 
   let isPlaying = false;
   let animationId = null;
   let visibleKeypoints = { ...model.get("visible_keypoints") };
 
   /**
+   * Get current camera's data from all_camera_data.
+   */
+  function getCurrentCameraData() {
+    const camera = model.get("selected_camera");
+    const allData = model.get("all_camera_data");
+    return allData[camera] || null;
+  }
+
+  /**
    * Update debug info display.
-   * @param {number} frameIdx - Current frame index
-   * @param {string} [extra] - Additional status text
    */
   function updateDebug(frameIdx, extra = "") {
     const camera = model.get("selected_camera");
-    const timestamps = model.get("timestamps");
-    const nFrames = timestamps ? timestamps.length : 0;
+    const data = getCurrentCameraData();
+    const nFrames = data?.timestamps?.length || 0;
     debugDiv.textContent =
       camera +
       " | Frame: " +
@@ -198,7 +192,8 @@ function render({ model, el }) {
 
   function updateToggleStyles() {
     const buttons = keypointRow.querySelectorAll("button[data-keypoint]");
-    const metadata = model.get("keypoint_metadata");
+    const data = getCurrentCameraData();
+    const metadata = data?.keypoint_metadata || {};
     buttons.forEach((btn) => {
       const name = btn.dataset.keypoint;
       const isVisible = visibleKeypoints[name] !== false;
@@ -219,8 +214,9 @@ function render({ model, el }) {
   function createKeypointToggles() {
     utilityRow.innerHTML = "";
     keypointRow.innerHTML = "";
-    const metadata = model.get("keypoint_metadata");
-    if (!metadata || Object.keys(metadata).length === 0) return;
+    const data = getCurrentCameraData();
+    const metadata = data?.keypoint_metadata || {};
+    if (Object.keys(metadata).length === 0) return;
 
     // All button
     const allBtn = document.createElement("button");
@@ -276,10 +272,10 @@ function render({ model, el }) {
 
   /**
    * Get current frame index based on video time.
-   * @returns {number}
    */
   function getFrameIndex() {
-    const timestamps = model.get("timestamps");
+    const data = getCurrentCameraData();
+    const timestamps = data?.timestamps;
     if (!timestamps || timestamps.length === 0) return 0;
     return findFrameIndex(timestamps, timestamps[0] + video.currentTime);
   }
@@ -291,9 +287,15 @@ function render({ model, el }) {
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const metadata = model.get("keypoint_metadata");
-    const coordinates = model.get("pose_coordinates");
-    const timestamps = model.get("timestamps");
+    const data = getCurrentCameraData();
+    if (!data) {
+      updateDebug(0, "No pose data");
+      return;
+    }
+
+    const metadata = data.keypoint_metadata;
+    const coordinates = data.pose_coordinates;
+    const timestamps = data.timestamps;
     const showLabels = model.get("show_labels");
 
     if (!coordinates || !timestamps || timestamps.length === 0) {
@@ -357,46 +359,43 @@ function render({ model, el }) {
     }
   }
 
-  /**
-   * Update play/pause button icon.
-   * @param {boolean} playing - Current play state
-   */
   function updatePlayPauseIcon(playing) {
     playPauseBtn.innerHTML = "";
     playPauseBtn.appendChild(createIcon(playing ? "pause" : "play"));
   }
 
-  // Initialize
-  populateCameraSelect();
-  loadVideo();
+  /**
+   * Switch to a new camera - updates UI immediately since all data is preloaded.
+   */
+  function switchCamera() {
+    // Update seek bar max for new camera
+    const data = getCurrentCameraData();
+    seekBar.max = data?.timestamps?.length - 1 || 100;
 
-  // Video loading state events
-  video.addEventListener("loadstart", () => {
-    videoContainer.classList.add("pose-widget__video-container--loading");
-  });
-
-  video.addEventListener("canplay", () => {
-    videoContainer.classList.remove("pose-widget__video-container--loading");
-  });
-
-  video.addEventListener("loadedmetadata", () => {
-    drawPose();
-  });
-
-  video.addEventListener("seeked", drawPose);
-  video.addEventListener("timeupdate", drawPose);
-
-  // Watch for pose data changes (when camera switches)
-  function onPoseDataChange() {
-    const timestamps = model.get("timestamps");
-    seekBar.max = timestamps ? timestamps.length - 1 : 100;
-    visibleKeypoints = { ...model.get("visible_keypoints") };
+    // Recreate keypoint toggles for new camera
     createKeypointToggles();
+
+    // Load new video URL
+    loadVideo();
+
+    // Draw immediately (data is already available)
     drawPose();
   }
 
-  model.on("change:pose_coordinates", onPoseDataChange);
-  model.on("change:keypoint_metadata", onPoseDataChange);
+  // Initialize
+  populateCameraSelect();
+  loadVideo();
+  createKeypointToggles();
+
+  // Set initial seek bar max
+  const initialData = getCurrentCameraData();
+  if (initialData?.timestamps) {
+    seekBar.max = initialData.timestamps.length - 1;
+  }
+
+  video.addEventListener("loadedmetadata", drawPose);
+  video.addEventListener("seeked", drawPose);
+  video.addEventListener("timeupdate", drawPose);
 
   cameraSelect.addEventListener("change", () => {
     if (isPlaying) {
@@ -405,10 +404,10 @@ function render({ model, el }) {
       if (animationId) cancelAnimationFrame(animationId);
       isPlaying = false;
     }
-    debugDiv.textContent = "Loading camera data...";
+
     model.set("selected_camera", cameraSelect.value);
     model.save_changes();
-    loadVideo();
+    switchCamera();
   });
 
   playPauseBtn.addEventListener("click", () => {
@@ -425,7 +424,8 @@ function render({ model, el }) {
 
   seekBar.addEventListener("input", () => {
     const frameIdx = parseInt(seekBar.value);
-    const timestamps = model.get("timestamps");
+    const data = getCurrentCameraData();
+    const timestamps = data?.timestamps;
     if (timestamps && timestamps.length > 0) {
       video.currentTime = timestamps[frameIdx] - timestamps[0];
     }
@@ -437,10 +437,7 @@ function render({ model, el }) {
     drawPose();
   });
 
-  updateDebug(0, "Initializing...");
-
-  // Initial UI setup
-  createKeypointToggles();
+  updateDebug(0, "Ready");
 
   wrapper.appendChild(cameraSelector);
   wrapper.appendChild(debugDiv);
@@ -449,7 +446,7 @@ function render({ model, el }) {
   wrapper.appendChild(videoContainer);
   el.appendChild(wrapper);
 
-  // Cleanup function (called when widget is destroyed)
+  // Cleanup function
   return () => {
     if (animationId) {
       cancelAnimationFrame(animationId);

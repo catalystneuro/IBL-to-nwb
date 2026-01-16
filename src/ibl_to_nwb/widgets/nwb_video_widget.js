@@ -89,6 +89,28 @@ function render({ model, el }) {
   /** @type {HTMLDivElement[]} */
   let videoContainers = [];
   let isPlaying = false;
+  let syncAnimationId = null;
+
+  /**
+   * Synchronize all videos to the master (first) video.
+   * Corrects drift that occurs due to network latency and buffering differences.
+   */
+  function syncVideos() {
+    if (videos.length < 2 || !isPlaying) {
+      return;
+    }
+
+    const masterTime = videos[0].currentTime;
+    for (let i = 1; i < videos.length; i++) {
+      const drift = videos[i].currentTime - masterTime;
+      // Correct if drift exceeds 100ms
+      if (Math.abs(drift) > 0.1) {
+        videos[i].currentTime = masterTime;
+      }
+    }
+
+    syncAnimationId = requestAnimationFrame(syncVideos);
+  }
 
   /**
    * Update play/pause button content.
@@ -190,8 +212,13 @@ function render({ model, el }) {
   playPauseBtn.addEventListener("click", () => {
     if (isPlaying) {
       videos.forEach((v) => v.pause());
+      if (syncAnimationId) {
+        cancelAnimationFrame(syncAnimationId);
+        syncAnimationId = null;
+      }
     } else {
       videos.forEach((v) => v.play());
+      syncVideos(); // Start synchronization loop
     }
     isPlaying = !isPlaying;
     updatePlayPauseButton(isPlaying);
@@ -209,6 +236,13 @@ function render({ model, el }) {
   wrapper.appendChild(controls);
   wrapper.appendChild(gridContainer);
   el.appendChild(wrapper);
+
+  // Cleanup function (called when widget is destroyed)
+  return () => {
+    if (syncAnimationId) {
+      cancelAnimationFrame(syncAnimationId);
+    }
+  };
 }
 
 export default { render };

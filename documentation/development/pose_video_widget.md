@@ -81,6 +81,53 @@ canvas.style.top = '0';
 canvas.style.left = '0';
 ```
 
+### 6. Multi-Video Synchronization
+
+The multi-camera video widget (`NWBFileVideoPlayer`) displays multiple videos simultaneously. Since each HTML5 `<video>` element plays independently, videos can drift apart due to:
+- Network latency differences (each video streams from a separate S3 URL)
+- Buffering and decoding speed variations
+- Browser scheduling differences
+
+**Synchronization approach:**
+
+The widget uses a master-slave pattern with continuous drift correction:
+
+```javascript
+function syncVideos() {
+  if (videos.length < 2 || !isPlaying) return;
+
+  const masterTime = videos[0].currentTime;
+  for (let i = 1; i < videos.length; i++) {
+    const drift = videos[i].currentTime - masterTime;
+    // Correct if drift exceeds 100ms
+    if (Math.abs(drift) > 0.1) {
+      videos[i].currentTime = masterTime;
+    }
+  }
+
+  syncAnimationId = requestAnimationFrame(syncVideos);
+}
+```
+
+**How it works:**
+
+1. **Master video**: The first video (`videos[0]`) is the timing reference
+2. **Drift detection**: On each animation frame (~60fps), check each video's time against the master
+3. **Correction threshold**: Only correct if drift exceeds 100ms to avoid constant seeking
+4. **Continuous monitoring**: Uses `requestAnimationFrame` for efficient polling during playback
+
+**Trade-offs:**
+
+- The 100ms threshold balances smoothness vs. sync accuracy
+- Correcting drift causes a brief seek, which may cause a visual "jump"
+- If the master video buffers, other videos continue briefly before correction
+
+**Alternative approaches not used:**
+
+- **Media Source Extensions (MSE)**: Would allow frame-accurate sync but requires server-side segmentation
+- **Web Audio API for timing**: More precise but adds complexity
+- **Pausing all on buffer**: Would prevent drift but creates jerky playback
+
 ## Why It's Performant
 
 ### No Python in the Render Loop
@@ -736,3 +783,268 @@ Based on [Modern CSS Button Guide](https://moderncss.dev/css-button-styling-guid
 - [CSS Button Styling Guide](https://moderncss.dev/css-button-styling-guide/) - Accessibility and reset patterns
 - [anywidget Documentation](https://anywidget.dev/en/getting-started/) - CSS attribute and HMR
 - [MDN: Styling Video Controls](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Audio_and_video_delivery/Video_player_styling_basics) - Custom media player styling
+
+---
+
+## Packaging Widgets as Standalone PyPI Packages
+
+If you want to distribute an anywidget as its own reusable package (separate from this project), this section covers the process from project setup to PyPI publishing.
+
+### Why Package Separately?
+
+- **Reusability**: Others can `pip install` your widget without the full IBL-to-NWB project
+- **Versioning**: Independent release cycle for the widget
+- **Smaller footprint**: Users only install what they need
+- **Discoverability**: Listed on PyPI and searchable
+
+### Project Structure
+
+A minimal standalone anywidget package looks like this:
+
+```
+my-widget/
+├── pyproject.toml           # Build configuration and metadata
+├── README.md                 # Package description for PyPI
+├── LICENSE                   # License file
+└── src/
+    └── my_widget/
+        ├── __init__.py       # Re-export widget class
+        ├── widget.py         # Python widget class
+        ├── widget.js         # JavaScript frontend code
+        └── widget.css        # CSS styles (optional)
+```
+
+The `src/` layout is recommended by Python packaging best practices to avoid import confusion.
+
+### pyproject.toml Configuration
+
+Here is a complete `pyproject.toml` for an anywidget package using hatchling as the build backend:
+
+```toml
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "my-widget"
+version = "0.1.0"
+description = "A reusable Jupyter widget for..."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Your Name", email = "you@example.com" }
+]
+keywords = ["jupyter", "widget", "anywidget", "visualization"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Jupyter",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "anywidget>=0.9.0",
+    # Add other runtime dependencies here
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourname/my-widget"
+Repository = "https://github.com/yourname/my-widget"
+
+[tool.hatch.build]
+# Include static files (JS, CSS) in the built package
+artifacts = ["src/my_widget/*.js", "src/my_widget/*.css"]
+```
+
+**Key points:**
+
+- **artifacts**: Hatchling by default only includes `.py` files. The `artifacts` setting ensures your `.js` and `.css` files are included in the wheel.
+- **anywidget dependency**: Specify `>=0.9.0` or whatever version introduced features you use.
+
+### Widget Implementation
+
+**widget.py**:
+
+```python
+"""My reusable Jupyter widget."""
+import pathlib
+import anywidget
+import traitlets
+
+class MyWidget(anywidget.AnyWidget):
+    """A widget that does something useful."""
+
+    # Synced traitlets
+    data = traitlets.Dict({}).tag(sync=True)
+    selected = traitlets.Unicode("").tag(sync=True)
+
+    # File paths relative to this Python file
+    _esm = pathlib.Path(__file__).parent / "widget.js"
+    _css = pathlib.Path(__file__).parent / "widget.css"
+
+    def __init__(self, data=None, **kwargs):
+        super().__init__(data=data or {}, **kwargs)
+```
+
+**Important**: Use `pathlib.Path(__file__).parent` to reference sibling files. This works regardless of where the package is installed.
+
+**__init__.py**:
+
+```python
+"""My widget package."""
+from .widget import MyWidget
+
+__all__ = ["MyWidget"]
+__version__ = "0.1.0"
+```
+
+### Scaffolding with create-anywidget
+
+For a quicker start, use the `create-anywidget` npm scaffolding tool:
+
+```bash
+npm create anywidget@latest
+```
+
+This interactive tool prompts you for:
+- Package name
+- Template type (vanilla JS, React, etc.)
+- Python package manager preference
+
+It generates:
+- A complete project structure
+- Pre-configured `pyproject.toml`
+- Example widget code
+- Development scripts
+
+### Development Workflow
+
+1. **Install in editable mode**:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+2. **Test in a notebook**: Create a test notebook and import your widget. With anywidget's hot module replacement (HMR), changes to `.js` and `.css` files appear immediately without kernel restart.
+
+3. **Run linting**:
+   ```bash
+   ruff check src/
+   ```
+
+### Building the Package
+
+Build a source distribution and wheel:
+
+```bash
+pip install build
+python -m build
+```
+
+This creates:
+- `dist/my_widget-0.1.0.tar.gz` (source distribution)
+- `dist/my_widget-0.1.0-py3-none-any.whl` (wheel)
+
+Verify the wheel contains your static files:
+
+```bash
+unzip -l dist/my_widget-0.1.0-py3-none-any.whl
+```
+
+You should see `my_widget/widget.js` and `my_widget/widget.css` listed.
+
+### Publishing to PyPI
+
+1. **Create a PyPI account** at https://pypi.org/account/register/
+
+2. **Create an API token** at https://pypi.org/manage/account/token/
+
+3. **Install twine**:
+   ```bash
+   pip install twine
+   ```
+
+4. **Upload** (first test on TestPyPI):
+   ```bash
+   # Test upload
+   twine upload --repository testpypi dist/*
+
+   # Production upload
+   twine upload dist/*
+   ```
+
+5. **Verify installation**:
+   ```bash
+   pip install my-widget
+   ```
+
+### Automating with GitHub Actions
+
+Create `.github/workflows/publish.yml` for automatic publishing on release:
+
+```yaml
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
+```
+
+Add your PyPI API token as a repository secret named `PYPI_API_TOKEN`.
+
+### Example Packages
+
+These anywidget packages on PyPI can serve as references:
+
+- **[wigglystuff](https://github.com/koaning/wigglystuff)**: Simple widgets demonstrating the pattern
+- **[drawdata](https://github.com/koaning/drawdata)**: Interactive data drawing widget
+- **[lonboard](https://github.com/developmentseed/lonboard)**: Large-scale geospatial visualization
+
+### Checklist Before Publishing
+
+- [ ] Version bumped in `pyproject.toml` and `__init__.py`
+- [ ] README has clear installation and usage instructions
+- [ ] LICENSE file present
+- [ ] Tested `pip install` from built wheel
+- [ ] Static files (JS, CSS) included in wheel
+- [ ] Works in JupyterLab, VS Code notebooks, and Colab
+- [ ] All dependencies listed in `pyproject.toml`
+
+### References
+
+- [anywidget Getting Started](https://anywidget.dev/en/getting-started/) - Official documentation
+- [create-anywidget](https://github.com/manzt/anywidget/tree/main/packages/create-anywidget) - Project scaffolding tool
+- [Python Packaging User Guide](https://packaging.python.org/) - Official packaging documentation
+- [hatchling documentation](https://hatch.pypa.io/latest/) - Build backend configuration
