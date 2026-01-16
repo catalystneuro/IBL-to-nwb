@@ -154,7 +154,6 @@ class IblSpikeGlxConverter(ConverterPipe):
             Data requirements for raw ephys files (.cbin, .meta, .ch, wiring.json)
         """
         return {
-            "one_objects": [],
             "exact_files_options": {
                 "standard": [
                     # Compressed binary files (AP and LF bands)

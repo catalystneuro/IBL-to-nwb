@@ -176,7 +176,6 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             Data requirements for spike sorting
         """
         return {
-            "one_objects": [],  # Uses SpikeSortingLoader abstraction
             "exact_files_options": {
                 "standard": [
                     # Per-probe spike files

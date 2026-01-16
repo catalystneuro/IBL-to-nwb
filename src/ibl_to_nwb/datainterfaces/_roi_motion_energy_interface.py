@@ -44,18 +44,6 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
         """
         camera_view = re.search(r"(left|right|body)", camera_name).group(1)
         return {
-            "one_objects": [
-                {
-                    "object": camera_name,
-                    "collection": "alf",
-                    "attributes": ["ROIMotionEnergy", "times"],
-                },
-                {
-                    "object": f"{camera_view}ROIMotionEnergy",
-                    "collection": "alf",
-                    "attributes": ["position"],
-                },
-            ],
             "exact_files_options": {
                 "standard": [
                     f"alf/{camera_name}.ROIMotionEnergy.npy",
@@ -174,30 +162,35 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
             logger.info(f"Downloading ROI motion energy for {camera_view} camera (session {eid})")
 
         start_time = time.time()
-        downloaded_objects = []
 
-        # Download camera objects - NO try-except, let failures propagate
-        for obj_spec in requirements["one_objects"]:
-            if logger:
-                logger.info(f"  Loading {obj_spec['object']}")
+        # Download camera object and ROI position data
+        if logger:
+            logger.info(f"  Loading {camera_name}")
+        one.load_object(
+            id=eid,
+            obj=camera_name,
+            collection="alf",
+            revision=revision,
+            download_only=download_only,
+        )
 
-            one.load_object(
-                id=eid,
-                obj=obj_spec["object"],
-                collection=obj_spec["collection"],
-                revision=revision,
-                download_only=download_only,
-            )
-            downloaded_objects.append(obj_spec["object"])
+        if logger:
+            logger.info(f"  Loading {camera_view}ROIMotionEnergy")
+        one.load_object(
+            id=eid,
+            obj=f"{camera_view}ROIMotionEnergy",
+            collection="alf",
+            revision=revision,
+            download_only=download_only,
+        )
 
         download_time = time.time() - start_time
 
         if logger:
-            logger.info(f"  Downloaded {len(downloaded_objects)} objects in {download_time:.2f}s")
+            logger.info(f"  Downloaded camera objects in {download_time:.2f}s")
 
         return {
             "success": True,
-            "downloaded_objects": downloaded_objects,
             "downloaded_files": requirements["exact_files_options"]["standard"],
             "already_cached": [],
             "alternative_used": None,

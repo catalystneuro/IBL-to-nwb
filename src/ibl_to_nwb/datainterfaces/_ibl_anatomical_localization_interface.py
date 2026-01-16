@@ -146,7 +146,6 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             Data requirements with generic file patterns
         """
         return {
-            "one_objects": [],  # Uses SpikeSortingLoader abstraction
             "exact_files_options": {
                 "standard": [
                     # Histology files (anatomical coordinates and brain regions)

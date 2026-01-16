@@ -118,7 +118,6 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
             Data requirements with exact file patterns
         """
         return {
-            "one_objects": [],
             "exact_files_options": {
                 "standard": [
                     "alf/_ibl_passiveStims.table.csv",

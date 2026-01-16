@@ -6,12 +6,12 @@ This document details how each data interface implements the four key methods de
 
 | Interface | REVISION | check_availability | download_data | Data Loading |
 |-----------|----------|-------------------|---------------|--------------|
-| WheelInterface | 2025-05-06 | Base class | Custom (iterates one_objects) | `one.load_object()` |
+| WheelInterface | 2025-05-06 | Base class | Custom (iterates files) | `one.load_object()` |
 | LickInterface | 2025-05-06 | Base class | Custom (single file) | `one.load_dataset()` |
 | BrainwideMapTrialsInterface | 2025-05-06 | Base class | Custom (SessionLoader) | `SessionLoader` |
 | IblPoseEstimationInterface | 2025-05-06 | QC override | Custom (file discovery) | `SessionLoader` |
 | PupilTrackingInterface | 2025-05-06 | QC override | Custom (load_object) | `one.load_object()` |
-| RoiMotionEnergyInterface | 2025-05-06 | QC override | Custom (iterates one_objects) | `one.load_object()` |
+| RoiMotionEnergyInterface | 2025-05-06 | QC override | Custom (iterates files) | `one.load_object()` |
 | IblSortingInterface | 2025-05-06 | Base class | Custom (SpikeSortingLoader) | `SpikeSortingLoader` |
 | IblNIDQInterface | 2025-05-06 | Base class | Custom (with try-except) | `one.load_dataset()` |
 | RawVideoInterface | 2025-05-06 | QC override | Custom (mixed) | `one.load_object()` + `one.load_dataset()` |
@@ -42,10 +42,6 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 **get_data_requirements():**
 ```python
 {
-    "one_objects": [
-        {"object": "wheel", "collection": "alf", "attributes": ["position", "timestamps"]},
-        {"object": "wheelMoves", "collection": "alf", "attributes": ["intervals", "peakAmplitude"]},
-    ],
     "exact_files_options": {
         "standard": [
             "alf/wheel.position.npy",
@@ -57,11 +53,11 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 }
 ```
 
-**Why these requirements?** Wheel data has two components: (1) raw position timeseries for computing velocity/acceleration, and (2) discrete movement intervals with peak amplitudes. Both are required for complete wheel kinematics analysis. The `one_objects` field documents that this interface loads two distinct ONE objects.
+**Why these requirements?** Wheel data has two components: (1) raw position timeseries for computing velocity/acceleration, and (2) discrete movement intervals with peak amplitudes. Both are required for complete wheel kinematics analysis.
 
 **check_availability():** Uses base class implementation. No additional QC checks.
 
-**download_data():** Custom implementation that iterates through `one_objects` and calls `one.load_object()` for each. Essentially reimplements base class logic with timing instrumentation.
+**download_data():** Custom implementation that calls `one.load_object()` for wheel and wheelMoves objects.
 
 **add_to_nwbfile():**
 - Loads wheel and wheelMoves via `one.load_object()`
@@ -89,7 +85,7 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 }
 ```
 
-**Why these requirements?** Licks are discrete point events detected from tongue pose (Lightning Pose). Only timestamps are needed - no amplitude or duration data exists. Single file, so no `one_objects` abstraction needed.
+**Why these requirements?** Licks are discrete point events detected from tongue pose (Lightning Pose). Only timestamps are needed - no amplitude or duration data exists.
 
 **check_availability():** Uses base class implementation.
 
@@ -130,7 +126,7 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 }
 ```
 
-**Why these requirements?** IBL data release had format evolution. Brain-Wide Map (BWM) uses a consolidated parquet table for efficiency. Legacy sessions still have individual `.npy` files (one per trial attribute). The two format options allow the pipeline to convert both old and new sessions. `SessionLoader` handles the abstraction internally, so no `one_objects` needed.
+**Why these requirements?** IBL data release had format evolution. Brain-Wide Map (BWM) uses a consolidated parquet table for efficiency. Legacy sessions still have individual `.npy` files (one per trial attribute). The two format options allow the pipeline to convert both old and new sessions.
 
 **check_availability():** Uses base class implementation. The base class tries each format option until finding one where ALL files exist.
 
@@ -190,9 +186,6 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 **get_data_requirements(camera_name):**
 ```python
 {
-    "one_objects": [
-        {"object": f"{camera_name}Camera", "collection": "alf", "attributes": ["features", "times"]},
-    ],
     "exact_files_options": {
         "standard": [
             f"alf/_ibl_{camera_name}Camera.features.pqt",
@@ -202,7 +195,7 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 }
 ```
 
-**Why these requirements?** Pupil tracking data consists of: (1) a features parquet containing diameter measurements (raw and smoothed), and (2) timestamps shared across video frames. The `one_objects` documents that these form a single camera object. Timestamps are separate because they're shared with other camera-derived data.
+**Why these requirements?** Pupil tracking data consists of: (1) a features parquet containing diameter measurements (raw and smoothed), and (2) timestamps shared across video frames. These form a single camera object in the ONE API. Timestamps are separate because they're shared with other camera-derived data.
 
 **check_availability():** **Overridden with QC filtering.** Checks `bwm_qc.json` for video QC. CRITICAL/FAIL excluded.
 
@@ -226,10 +219,6 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 **get_data_requirements(camera_name):**
 ```python
 {
-    "one_objects": [
-        {"object": f"{camera_name}Camera", "collection": "alf", "attributes": ["times"]},
-        {"object": f"{camera_name}ROIMotionEnergy", "collection": "alf", "attributes": ["position"]},
-    ],
     "exact_files_options": {
         "standard": [
             f"alf/_ibl_{camera_name}Camera.ROIMotionEnergy.npy",
@@ -240,11 +229,11 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 }
 ```
 
-**Why these requirements?** Motion energy requires both data AND metadata: (1) the motion energy timeseries, (2) timestamps, and (3) ROI definition (width, height, x, y position). The ROI metadata is essential to interpret what region of the video the motion energy was computed from. Two ONE objects are needed because camera timestamps and ROI metadata are separate objects.
+**Why these requirements?** Motion energy requires both data AND metadata: (1) the motion energy timeseries, (2) timestamps, and (3) ROI definition (width, height, x, y position). The ROI metadata is essential to interpret what region of the video the motion energy was computed from. Camera timestamps and ROI metadata are loaded as separate ONE objects.
 
 **check_availability():** **Overridden with QC filtering.** Checks `bwm_qc.json`. CRITICAL/FAIL excluded.
 
-**download_data():** Custom implementation. Iterates through `one_objects` and calls `one.load_object()` for each - similar pattern to WheelInterface.
+**download_data():** Custom implementation. Calls `one.load_object()` for camera and ROIMotionEnergy objects.
 
 **add_to_nwbfile():**
 - Loads camera object and ROIMotionEnergy metadata via `one.load_object()`
@@ -264,9 +253,6 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 **get_data_requirements(camera_name):**
 ```python
 {
-    "one_objects": [
-        {"object": f"{camera_name}Camera", "collection": "alf", "attributes": ["times"]},
-    ],
     "exact_files_options": {
         "standard": [
             f"alf/_ibl_{camera_name}Camera.times.npy",
@@ -318,7 +304,7 @@ In principle, new interfaces could rely on the base class `download_data()` if t
 }
 ```
 
-**Why these requirements?** Complete spike sorting requires per-spike data (times, cluster assignments, amplitudes, depths) AND per-cluster data (channel assignments, depths, quality metrics). Wildcards (`probe*`) are used because sessions have variable numbers of probes (1-8). No `one_objects` because `SpikeSortingLoader` handles the abstraction internally.
+**Why these requirements?** Complete spike sorting requires per-spike data (times, cluster assignments, amplitudes, depths) AND per-cluster data (channel assignments, depths, quality metrics). Wildcards (`probe*`) are used because sessions have variable numbers of probes (1-8). `SpikeSortingLoader` handles the loading abstraction internally.
 
 **check_availability():** Uses base class implementation. Base class expands wildcards via regex matching.
 

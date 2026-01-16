@@ -37,18 +37,6 @@ class WheelInterface(BaseIBLDataInterface):
             Data requirements with ONE objects and exact file paths
         """
         return {
-            "one_objects": [
-                {
-                    "object": "wheel",
-                    "collection": "alf",
-                    "attributes": ["position", "timestamps"],
-                },
-                {
-                    "object": "wheelMoves",
-                    "collection": "alf",
-                    "attributes": ["intervals", "peakAmplitude"],
-                },
-            ],
             "exact_files_options": {
                 "standard": [
                     "alf/wheel.position.npy",
@@ -98,30 +86,35 @@ class WheelInterface(BaseIBLDataInterface):
             logger.info(f"Downloading wheel data for session {eid} (revision {revision})")
 
         start_time = time.time()
-        downloaded_objects = []
 
-        # Download wheel objects - NO try-except, let failures propagate
-        for obj_spec in requirements["one_objects"]:
-            if logger:
-                logger.info(f"  Loading {obj_spec['object']}")
+        # Download wheel and wheelMoves objects
+        if logger:
+            logger.info("  Loading wheel")
+        one.load_object(
+            id=eid,
+            obj="wheel",
+            collection="alf",
+            revision=revision,
+            download_only=download_only,
+        )
 
-            one.load_object(
-                id=eid,
-                obj=obj_spec["object"],
-                collection=obj_spec["collection"],
-                revision=revision,
-                download_only=download_only,
-            )
-            downloaded_objects.append(obj_spec["object"])
+        if logger:
+            logger.info("  Loading wheelMoves")
+        one.load_object(
+            id=eid,
+            obj="wheelMoves",
+            collection="alf",
+            revision=revision,
+            download_only=download_only,
+        )
 
         download_time = time.time() - start_time
 
         if logger:
-            logger.info(f"  Downloaded {len(downloaded_objects)} objects in {download_time:.2f}s")
+            logger.info(f"  Downloaded wheel objects in {download_time:.2f}s")
 
         return {
             "success": True,
-            "downloaded_objects": downloaded_objects,
             "downloaded_files": requirements["exact_files_options"]["standard"],
             "already_cached": [],
             "alternative_used": None,

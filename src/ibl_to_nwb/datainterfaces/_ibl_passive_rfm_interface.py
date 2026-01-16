@@ -115,7 +115,6 @@ class PassiveRFMInterface(BaseIBLDataInterface):
             Data requirements with exact file patterns
         """
         return {
-            "one_objects": [],
             "exact_files_options": {
                 "standard": [
                     "alf/_ibl_passiveRFM.times.npy",

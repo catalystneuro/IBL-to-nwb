@@ -328,24 +328,14 @@ max_displacement = np.max(np.abs(move_position - onset_position))
 
 ```python
 {
-    "one_objects": [
-        {
-            "object": "wheel",
-            "collection": "alf",
-            "attributes": ["position", "timestamps"],
-        },
-        {
-            "object": "wheelMoves",
-            "collection": "alf",
-            "attributes": ["intervals", "peakAmplitude"],
-        },
-    ],
-    "exact_files": [
-        "alf/wheel.position.npy",
-        "alf/wheel.timestamps.npy",
-        "alf/wheelMoves.intervals.npy",
-        "alf/wheelMoves.peakAmplitude.npy",
-    ],
+    "exact_files_options": {
+        "standard": [
+            "alf/wheel.position.npy",
+            "alf/wheel.timestamps.npy",
+            "alf/wheelMoves.intervals.npy",
+            "alf/wheelMoves.peakAmplitude.npy",
+        ],
+    },
 }
 ```
 

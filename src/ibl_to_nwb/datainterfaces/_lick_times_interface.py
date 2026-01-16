@@ -31,7 +31,6 @@ class LickInterface(BaseIBLDataInterface):
             Data requirements specification with exact file path
         """
         return {
-            "one_objects": [],  # Uses load_dataset directly, not load_object
             "exact_files_options": {
                 "standard": [
                     "alf/licks.times.npy",

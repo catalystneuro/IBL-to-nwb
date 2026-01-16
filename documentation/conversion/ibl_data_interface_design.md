@@ -63,45 +63,15 @@ class BaseIBLDataInterface:
 
 ### Structure
 
-`get_data_requirements()` returns a dictionary with two optional keys:
+`get_data_requirements()` returns a dictionary with `exact_files_options`:
 
 ```python
 @classmethod
 def get_data_requirements(cls, **kwargs) -> dict:
     return {
-        "one_objects": [...],           # Optional: ONE API object abstractions
         "exact_files_options": {...},   # Required: specific file paths
     }
 ```
-
-### `one_objects` (Optional)
-
-Declares data using ONE API's object abstraction. This is primarily for **documentation purposes** - it describes the logical data objects an interface needs, making it easier for developers to understand the data dependencies at a glance.
-
-**Why a list?** A single interface often needs multiple related objects. For example, wheel data requires both the wheel position/timestamps AND the wheel movement intervals. Each object maps to a distinct `one.load_object()` call.
-
-**Structure:**
-```python
-"one_objects": [
-    {
-        "object": "wheel",                              # ONE object name
-        "collection": "alf",                            # Collection path (where to find it)
-        "attributes": ["position", "timestamps"],       # Required attributes of this object
-    },
-    {
-        "object": "wheelMoves",                         # Second object needed by this interface
-        "collection": "alf",
-        "attributes": ["intervals", "peakAmplitude"],
-    },
-]
-```
-
-**How it's used:**
-- `download_data()` iterates through the list and calls `one.load_object()` for each entry
-- `add_to_nwbfile()` loads the same objects from cache
-- The `attributes` field documents which attributes are required (not all objects have all attributes)
-
-**Note:** `check_availability()` uses `exact_files_options` for file-level checking, not `one_objects`. The `one_objects` field provides a higher-level view that maps to how the code loads data.
 
 ### `exact_files_options` (Required)
 
@@ -220,18 +190,9 @@ return {
 Downloads the files declared in `get_data_requirements()`:
 
 ```python
-# Pattern 1: Object-based download
 requirements = cls.get_data_requirements(**kwargs)
-for obj_spec in requirements.get("one_objects", []):
-    one.load_object(
-        id=eid,
-        obj=obj_spec["object"],
-        collection=obj_spec["collection"],
-        revision=cls.REVISION,
-        download_only=True,
-    )
 
-# Pattern 2: File-based download with format fallback
+# Try each format option until one succeeds
 for option_name, files in requirements["exact_files_options"].items():
     try:
         for file_path in files:
@@ -254,7 +215,6 @@ raise FileNotFoundError("No complete format option available")
 ```python
 {
     "success": bool,
-    "downloaded_objects": [str],    # ONE objects that were downloaded
     "downloaded_files": [str],      # Individual files downloaded
     "already_cached": [str],        # Files that were already local
     "alternative_used": str,        # Which format option was used
@@ -347,9 +307,9 @@ class LickInterface(BaseIBLDataInterface):
         # Add to NWB...
 ```
 
-### Object-Based Interface: WheelInterface
+### Multi-File Interface: WheelInterface
 
-Uses ONE objects with multiple attributes:
+Multiple related files loaded together:
 
 ```python
 class WheelInterface(BaseIBLDataInterface):
@@ -358,18 +318,6 @@ class WheelInterface(BaseIBLDataInterface):
     @classmethod
     def get_data_requirements(cls, **kwargs) -> dict:
         return {
-            "one_objects": [
-                {
-                    "object": "wheel",
-                    "collection": "alf",
-                    "attributes": ["position", "timestamps"],
-                },
-                {
-                    "object": "wheelMoves",
-                    "collection": "alf",
-                    "attributes": ["intervals", "peakAmplitude"],
-                },
-            ],
             "exact_files_options": {
                 "standard": [
                     "alf/wheel.position.npy",
@@ -379,7 +327,25 @@ class WheelInterface(BaseIBLDataInterface):
                 ],
             },
         }
+
+    def add_to_nwbfile(self, nwbfile, metadata, stub_test=False):
+        # Load using ONE object abstraction (groups related files)
+        wheel = self.one.load_object(
+            id=self.session,
+            obj="wheel",
+            collection="alf",
+            revision=self.revision,
+        )
+        wheel_moves = self.one.load_object(
+            id=self.session,
+            obj="wheelMoves",
+            collection="alf",
+            revision=self.revision,
+        )
+        # Process and add to NWB...
 ```
+
+**Note:** While `get_data_requirements()` declares individual files, `add_to_nwbfile()` can use `one.load_object()` to load related files together. The file declaration is for availability checking; the loading method is an implementation detail.
 
 ### Format-Flexible Interface: BrainwideMapTrialsInterface
 

@@ -89,7 +89,6 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         """
         camera_view = re.search(r"(left|right|body)", camera_name).group(1)
         return {
-            "one_objects": [],  # Uses SessionLoader, not direct load_object
             "exact_files_options": {
                 "standard": [f"alf/_ibl_{camera_view}Camera.lightningPose.pqt"],
             },

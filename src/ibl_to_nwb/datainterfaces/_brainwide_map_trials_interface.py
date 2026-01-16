@@ -126,7 +126,6 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
             Data requirements with alternatives for BWM vs legacy formats
         """
         return {
-            "one_objects": [],  # Uses SessionLoader abstraction
             "exact_files_options": {
                 # BWM format: consolidated parquet table (preferred)
                 "bwm_format": ["alf/trials.table.pqt"],

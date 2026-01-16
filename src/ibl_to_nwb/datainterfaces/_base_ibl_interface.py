@@ -74,14 +74,6 @@ class BaseIBLDataInterface(BaseDataInterface):
         dict
             Dictionary with standardized structure:
             {
-                "one_objects": [  # Optional: for documentation only
-                    {
-                        "object": str,          # ONE API object name (e.g., "wheel")
-                        "collection": str,      # Collection name (e.g., "alf")
-                        "attributes": [str],    # Optional: specific attributes used
-                    },
-                    ...
-                ],
                 "exact_files_options": {  # Named file format options (required)
                     "option_name": [str, ...],  # List of files for this option
                     # Examples:
@@ -276,7 +268,6 @@ class BaseIBLDataInterface(BaseDataInterface):
         dict
             {
                 "success": bool,                    # Overall success
-                "downloaded_objects": [str],        # ONE objects downloaded
                 "downloaded_files": [str],          # Exact files downloaded
                 "already_cached": [str],            # Files that were already cached
                 "alternative_used": str,            # Which alternative was used (if applicable)
@@ -306,64 +297,37 @@ class BaseIBLDataInterface(BaseDataInterface):
                 + (f" (revision {revision})" if revision else "")
             )
 
-        downloaded_objects = []
         downloaded_files = []
         already_cached = []
         loaded_data = {} if not download_only else None
         alternative_used = None
 
-        # Download using ONE objects (respects abstraction)
-        for obj_spec in requirements.get("one_objects", []):
-            obj_name = obj_spec["object"]
-            collection = obj_spec["collection"]
+        # Download files from exact_files_options
+        # Try each format option until one succeeds
+        exact_files_options = requirements.get("exact_files_options", {})
 
-            if logger:
-                logger.info(f"  Loading object: {obj_name} from {collection}")
-
-            # NO try-except - let it fail if missing!
-            data = one.load_object(
-                id=eid,
-                obj=obj_name,
-                collection=collection,
-                revision=revision,
-                download_only=download_only,
-            )
-
-            downloaded_objects.append(obj_name)
-
-            if not download_only:
-                loaded_data[obj_name] = data
-
-            # Track individual files
-            for attr in obj_spec.get("attributes", []):
-                file_pattern = f"{obj_name}.{attr}"
-                downloaded_files.append(file_pattern)
-
-        # Handle alternatives (e.g., lightningPose OR dlc)
-        for alt_group in requirements.get("exact_files_alternatives", []):
-            downloaded_alt = False
-            for exact_file in alt_group:
-                try:
-                    one.load_dataset(eid, exact_file, revision=revision, download_only=download_only)
-                    downloaded_files.append(exact_file)
-                    alternative_used = exact_file
-                    downloaded_alt = True
+        for option_name, files in exact_files_options.items():
+            try:
+                for file_path in files:
                     if logger:
-                        logger.info(f"  Using alternative: {exact_file}")
-                    break  # Got one alternative, don't need others
-                except:
-                    continue  # Try next alternative
+                        logger.info(f"  Loading file: {file_path}")
+                    one.load_dataset(eid, file_path, revision=revision, download_only=download_only)
+                    downloaded_files.append(file_path)
+                alternative_used = option_name
+                break  # Successfully downloaded all files for this option
+            except Exception:
+                downloaded_files = []  # Reset for next option
+                continue  # Try next format option
 
-            if not downloaded_alt:
-                # FAIL LOUDLY - no alternative worked
-                raise FileNotFoundError(
-                    f"No alternative data found for {cls.__name__}. "
-                    f"Tried: {alt_group}"
-                )
+        if not alternative_used and exact_files_options:
+            # FAIL LOUDLY - no option worked
+            raise FileNotFoundError(
+                f"No complete format option available for {cls.__name__}. "
+                f"Tried options: {list(exact_files_options.keys())}"
+            )
 
         return {
             "success": True,
-            "downloaded_objects": downloaded_objects,
             "downloaded_files": downloaded_files,
             "already_cached": already_cached,
             "alternative_used": alternative_used,

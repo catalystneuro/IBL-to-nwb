@@ -71,7 +71,6 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
             Data requirements specification
         """
         return {
-            "one_objects": [],  # Uses Alyx REST API, not ONE objects
             "exact_files_options": {
                 # No files required - data comes from Alyx REST API
                 # We use a special marker to indicate API-based data

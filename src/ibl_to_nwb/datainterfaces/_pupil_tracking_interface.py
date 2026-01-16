@@ -45,13 +45,6 @@ class PupilTrackingInterface(BaseIBLDataInterface):
             Data requirements with ONE objects and exact file paths
         """
         return {
-            "one_objects": [
-                {
-                    "object": camera_name,
-                    "collection": "alf",
-                    "attributes": ["features", "times"],
-                },
-            ],
             "exact_files_options": {
                 "standard": [
                     f"alf/{camera_name}.features.pqt",

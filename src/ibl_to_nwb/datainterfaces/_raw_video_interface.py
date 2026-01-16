@@ -70,13 +70,6 @@ class RawVideoInterface(BaseIBLDataInterface):
         """
         camera_object_name = f"{camera_name}Camera"
         return {
-            "one_objects": [
-                {
-                    "object": camera_object_name,
-                    "collection": "alf",
-                    "attributes": ["times"],
-                },
-            ],
             "exact_files_options": {
                 "standard": [
                     f"alf/{camera_object_name}.times.npy",

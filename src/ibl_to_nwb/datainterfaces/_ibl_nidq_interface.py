@@ -71,7 +71,6 @@ class IblNIDQInterface(SpikeGLXNIDQInterface, BaseIBLDataInterface):
             Dictionary with required NIDQ files including wiring.json.
         """
         return {
-            "one_objects": [],
             "exact_files_options": {
                 "standard": [
                     "raw_ephys_data/_spikeglx_ephysData_g0_t0.nidq.cbin",
