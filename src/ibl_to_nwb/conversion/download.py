@@ -6,14 +6,16 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ..bwm_to_nwb import setup_paths
+from ..utils import setup_paths
 from ..converters import IblSpikeGlxConverter
 from ..datainterfaces import (
     IblSortingInterface,
     IblAnatomicalLocalizationInterface,
     IblNIDQInterface,
     BrainwideMapTrialsInterface,
-    WheelInterface,
+    WheelPositionInterface,
+    WheelMovementsInterface,
+    WheelKinematicsInterface,
     PassiveIntervalsInterface,
     PassiveReplayStimInterface,
     PassiveRFMInterface,
@@ -85,7 +87,9 @@ def download_session_data(
     # Core behavioral/processed data interfaces (always available)
     interfaces_to_download.extend([
         ("Trials", BrainwideMapTrialsInterface, {}),
-        ("Wheel", WheelInterface, {}),
+        ("WheelPosition", WheelPositionInterface, {}),
+        ("WheelMovements", WheelMovementsInterface, {}),
+        ("WheelKinematics", WheelKinematicsInterface, {}),
     ])
 
     # Licks are optional - not all sessions have lick detection data

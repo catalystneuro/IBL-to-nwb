@@ -18,17 +18,18 @@ from one.api import ONE
 from one import alf
 from pynwb import NWBFile, read_nwb
 
-from ..bwm_to_nwb import (
-    BrainwideMapConverter,
-    decompress_ephys_cbins,
-    setup_paths,
-    tree_copy,
-    check_camera_health_by_qc,
-)
-from ..converters import IblSpikeGlxConverter
+from ..converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ..datainterfaces import IblAnatomicalLocalizationInterface, IblNIDQInterface, RawVideoInterface, SessionEpochsInterface
 from ..fixtures import load_fixtures
-from ..utils import add_probe_electrodes_with_localization, get_ibl_subject_metadata, sanitize_subject_id_for_dandi
+from ..utils import (
+    add_probe_electrodes_with_localization,
+    check_camera_health_by_qc,
+    decompress_ephys_cbins,
+    get_ibl_subject_metadata,
+    sanitize_subject_id_for_dandi,
+    setup_paths,
+    tree_copy,
+)
 
 
 def _valid_existing_nwb(nwb_path: Path, overwrite: bool, logger: logging.Logger | None = None) -> bool:

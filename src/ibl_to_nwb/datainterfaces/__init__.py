@@ -5,7 +5,9 @@ from ._ibl_sorting_interface import IblSortingInterface
 from ._lick_times_interface import LickInterface
 from ._pupil_tracking_interface import PupilTrackingInterface
 from ._roi_motion_energy_interface import RoiMotionEnergyInterface
-from ._wheel_movement_interface import WheelInterface
+from ._wheel_position_interface import WheelPositionInterface
+from ._wheel_movements_interface import WheelMovementsInterface
+from ._wheel_kinematics_interface import WheelKinematicsInterface
 from ._brainwide_map_trials_interface import BrainwideMapTrialsInterface
 from ._raw_video_interface import RawVideoInterface
 from ._session_epochs_interface import SessionEpochsInterface
@@ -26,7 +28,9 @@ __all__ = [
     "LickInterface",
     "PupilTrackingInterface",
     "RoiMotionEnergyInterface",
-    "WheelInterface",
+    "WheelPositionInterface",
+    "WheelMovementsInterface",
+    "WheelKinematicsInterface",
     "RawVideoInterface",
     "SessionEpochsInterface",
     "PassiveIntervalsInterface",

@@ -1,0 +1,14 @@
+WheelPositionFiltered:
+  name: WheelPositionFiltered
+  description: |
+    Wheel position interpolated to 1000 Hz and filtered with 8th order Butterworth lowpass (20 Hz corner, zero-phase). This is the signal used to derive velocity and acceleration.
+
+WheelVelocity:
+  name: WheelVelocity
+  description: |
+    Wheel angular velocity derived from filtered position. Position is interpolated to 1000 Hz and passed through an 8th order lowpass Butterworth filter (20 Hz corner, zero-phase) before differentiation.
+
+WheelAcceleration:
+  name: WheelAcceleration
+  description: |
+    Wheel angular acceleration derived from velocity. Position is interpolated to 1000 Hz and passed through an 8th order lowpass Butterworth filter (20 Hz corner, zero-phase) before computing velocity and acceleration.

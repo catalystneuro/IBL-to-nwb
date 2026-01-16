@@ -15,12 +15,14 @@ from one.api import ONE
 from one import alf
 from pynwb import NWBFile, read_nwb
 
-from ..bwm_to_nwb import setup_paths
+from ..utils import setup_paths
 from ..datainterfaces import (
     IblSortingInterface,
     IblAnatomicalLocalizationInterface,
     BrainwideMapTrialsInterface,
-    WheelInterface,
+    WheelPositionInterface,
+    WheelMovementsInterface,
+    WheelKinematicsInterface,
     SessionEpochsInterface,
     PassiveIntervalsInterface,
     PassiveReplayStimInterface,
@@ -157,7 +159,9 @@ def convert_processed_session(
 
     # Behavioral data
     data_interfaces.append(BrainwideMapTrialsInterface(**interface_kwargs))
-    data_interfaces.append(WheelInterface(**interface_kwargs))
+    data_interfaces.append(WheelPositionInterface(**interface_kwargs))
+    data_interfaces.append(WheelMovementsInterface(**interface_kwargs))
+    data_interfaces.append(WheelKinematicsInterface(**interface_kwargs))
 
     # Session epochs (high-level task vs passive phases)
     if SessionEpochsInterface.check_availability(one, eid)["available"]:
@@ -253,7 +257,13 @@ def convert_processed_session(
     }
 
     # Wheel interface options
-    conversion_options["WheelInterface"] = {
+    conversion_options["WheelPositionInterface"] = {
+        "stub_test": stub_test,
+    }
+    conversion_options["WheelMovementsInterface"] = {
+        "stub_test": stub_test,
+    }
+    conversion_options["WheelKinematicsInterface"] = {
         "stub_test": stub_test,
     }
 

@@ -318,59 +318,96 @@ max_displacement = np.max(np.abs(move_position - onset_position))
 
 ## IBL-to-NWB Conversion
 
-### Interface: `WheelInterface`
+Wheel data is converted using three specialized interfaces, each handling distinct data types with clear provenance:
 
-**Purpose**: Converts wheel behavioral data to NWB format
+### Interface: `WheelPositionInterface`
 
-**Revision**: Uses BWM standard revision "2025-05-06"
+**Purpose**: Raw wheel position from quadrature encoder (event-driven, irregular timestamps)
 
-### Data Requirements
-
+**Data Requirements**:
 ```python
 {
     "exact_files_options": {
-        "standard": [
-            "alf/wheel.position.npy",
-            "alf/wheel.timestamps.npy",
-            "alf/wheelMoves.intervals.npy",
-            "alf/wheelMoves.peakAmplitude.npy",
-        ],
-    },
+        "standard": ["alf/wheel.position.npy", "alf/wheel.timestamps.npy"]
+    }
 }
 ```
 
+**Processing**: None (raw data passthrough)
+
+### Interface: `WheelMovementsInterface`
+
+**Purpose**: Detected wheel movement epochs (pre-computed by IBL pipeline)
+
+**Data Requirements**:
+```python
+{
+    "exact_files_options": {
+        "standard": ["alf/wheelMoves.intervals.npy", "alf/wheelMoves.peakAmplitude.npy"]
+    }
+}
+```
+
+**Processing**: None (pre-computed intervals)
+
+### Interface: `WheelKinematicsInterface`
+
+**Purpose**: Derived kinematics (interpolated position, velocity, acceleration)
+
+**Data Requirements**:
+```python
+{
+    "exact_files_options": {
+        "standard": ["alf/wheel.position.npy", "alf/wheel.timestamps.npy"]
+    }
+}
+```
+
+**Processing Pipeline** (hardcoded IBL defaults):
+1. Interpolate position to 1000 Hz (linear)
+2. Apply 8th order Butterworth lowpass filter (20 Hz corner, zero-phase)
+3. Compute velocity as derivative of filtered position
+4. Compute acceleration as derivative of velocity
+
 ### NWB Output Structure
+
+All three interfaces write to a dedicated `wheel` processing module:
 
 ```
 NWBFile
 └── processing
-    └── wheel                              # Processing module
-        ├── SpatialSeriesWheelPosition     # Raw position data
+    └── wheel                           # Dedicated wheel module
+        ├── WheelPosition               # From WheelPositionInterface (raw)
         │   ├── data: wheel positions (radians)
-        │   ├── timestamps: sample times
+        │   ├── timestamps: irregular sample times
         │   └── reference_frame: "Initial angle at start..."
-        ├── TimeSeriesWheelVelocity        # Derived velocity
+        ├── WheelMovement               # From WheelMovementsInterface
+        │   ├── start_time: movement onsets
+        │   ├── stop_time: movement offsets
+        │   └── peak_amplitude: max displacement per movement
+        ├── WheelPositionFiltered       # From WheelKinematicsInterface
+        │   ├── data: filtered position (radians)
+        │   ├── starting_time: first interpolated time
+        │   └── rate: 1000 Hz
+        ├── WheelVelocity               # From WheelKinematicsInterface
         │   ├── data: velocity (rad/s)
         │   ├── starting_time: first interpolated time
         │   └── rate: 1000 Hz
-        ├── TimeSeriesWheelAcceleration    # Derived acceleration
-        │   ├── data: acceleration (rad/s^2)
-        │   ├── starting_time: first interpolated time
-        │   └── rate: 1000 Hz
-        └── TimeIntervalsWheelMovement     # Detected movements
-            ├── start_time: movement onsets
-            ├── stop_time: movement offsets
-            └── peak_amplitude: max displacement per movement
+        └── WheelAcceleration           # From WheelKinematicsInterface
+            ├── data: acceleration (rad/s^2)
+            ├── starting_time: first interpolated time
+            └── rate: 1000 Hz
 ```
 
 ### NWB Types Used
 
-| Data Stream | NWB Type | Rationale |
-|-------------|----------|-----------|
-| Position | `SpatialSeries` | Represents position in space (angular) |
-| Velocity | `TimeSeries` | Generic time-varying signal |
-| Acceleration | `TimeSeries` | Generic time-varying signal |
-| Movements | `TimeIntervals` | Discrete temporal epochs with metadata |
+| Data Stream | NWB Type | Interface | Rationale |
+|-------------|----------|-----------|-----------|
+| Raw Position | `SpatialSeries` | WheelPositionInterface | Angular position in space |
+| Movements | `TimeIntervals` | WheelMovementsInterface | Discrete temporal epochs |
+| Filtered Position | `SpatialSeries` | WheelKinematicsInterface | Processed angular position |
+| Velocity | `TimeSeries` | WheelKinematicsInterface | Derived time-varying signal |
+| Acceleration | `TimeSeries` | WheelKinematicsInterface | Derived time-varying signal |
 
 ## Data Analysis Applications
 
@@ -386,19 +423,24 @@ with NWBHDF5IO("session.nwb", "r") as io:
     # Access wheel processing module
     wheel_module = nwbfile.processing["wheel"]
 
-    # Load position data
-    position = wheel_module["SpatialSeriesWheelPosition"]
+    # Load raw position data (irregular timestamps)
+    position = wheel_module["WheelPosition"]
     pos_data = position.data[:]
     pos_times = position.timestamps[:]
 
+    # Load filtered position (regularly sampled at 1000 Hz)
+    filtered_pos = wheel_module["WheelPositionFiltered"]
+    filtered_data = filtered_pos.data[:]
+    filtered_rate = filtered_pos.rate  # 1000 Hz
+
     # Load velocity (regularly sampled)
-    velocity = wheel_module["TimeSeriesWheelVelocity"]
+    velocity = wheel_module["WheelVelocity"]
     vel_data = velocity.data[:]
     vel_rate = velocity.rate  # 1000 Hz
     vel_start = velocity.starting_time
 
     # Load movement intervals
-    movements = wheel_module["TimeIntervalsWheelMovement"].to_dataframe()
+    movements = wheel_module["WheelMovement"].to_dataframe()
 ```
 
 ### Reaction Time Analysis
@@ -534,11 +576,12 @@ alf/
 ```
 NWBFile
 └── processing
-    └── wheel                           # Wheel behavior module
-        ├── SpatialSeriesWheelPosition  # Raw position + timestamps
-        ├── TimeSeriesWheelVelocity     # 1000 Hz interpolated velocity
-        ├── TimeSeriesWheelAcceleration # 1000 Hz interpolated acceleration
-        └── TimeIntervalsWheelMovement  # Detected movement epochs
+    └── wheel                    # Wheel behavior module
+        ├── WheelPosition        # Raw position + irregular timestamps
+        ├── WheelMovement        # Detected movement epochs
+        ├── WheelPositionFiltered# 1000 Hz interpolated + filtered position
+        ├── WheelVelocity        # 1000 Hz derived velocity
+        └── WheelAcceleration    # 1000 Hz derived acceleration
 ```
 
 ## Scientific Applications
