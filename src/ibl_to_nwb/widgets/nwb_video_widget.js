@@ -7,14 +7,15 @@
  */
 
 /**
- * Format seconds as MM:SS string.
+ * Format seconds as MM:SS.ms string for session time display.
  * @param {number} seconds
  * @returns {string}
  */
 function formatTime(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return mins + ":" + secs.toString().padStart(2, "0");
+  const ms = Math.floor((seconds % 1) * 10);
+  return mins + ":" + secs.toString().padStart(2, "0") + "." + ms;
 }
 
 /**
@@ -73,7 +74,7 @@ function render({ model, el }) {
   seekBar.classList.add("video-widget__seekbar");
 
   const timeLabel = document.createElement("span");
-  timeLabel.textContent = "0:00 / 0:00";
+  timeLabel.textContent = "0:00.0 / 0:00.0";
   timeLabel.classList.add("video-widget__time-label");
 
   controls.appendChild(playPauseBtn);
@@ -122,6 +123,40 @@ function render({ model, el }) {
     playPauseBtn.appendChild(
       document.createTextNode(playing ? " Pause All" : " Play All")
     );
+  }
+
+  /**
+   * Get the session time offset for the first video in the grid.
+   * This is the starting timestamp from the NWB file.
+   */
+  function getSessionTimeOffset() {
+    const timestamps = model.get("video_timestamps");
+    const gridLayout = model.get("grid_layout");
+    // Find the first video in the grid that has timestamps
+    for (const row of gridLayout) {
+      for (const name of row) {
+        if (timestamps[name] && timestamps[name].length > 0) {
+          return timestamps[name][0];
+        }
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Get the session end time (last timestamp) for the first video.
+   */
+  function getSessionEndTime() {
+    const timestamps = model.get("video_timestamps");
+    const gridLayout = model.get("grid_layout");
+    for (const row of gridLayout) {
+      for (const name of row) {
+        if (timestamps[name] && timestamps[name].length > 1) {
+          return timestamps[name][timestamps[name].length - 1];
+        }
+      }
+    }
+    return null; // Will fall back to video duration
   }
 
   function updateVideos() {
@@ -195,16 +230,21 @@ function render({ model, el }) {
     if (videos.length > 0) {
       videos[0].addEventListener("loadedmetadata", () => {
         seekBar.max = videos[0].duration;
-        timeLabel.textContent = "0:00 / " + formatTime(videos[0].duration);
+        const offset = getSessionTimeOffset();
+        const endTime = getSessionEndTime();
+        const displayEnd = endTime !== null ? endTime : offset + videos[0].duration;
+        timeLabel.textContent = formatTime(offset) + " / " + formatTime(displayEnd);
       });
       videos[0].addEventListener("timeupdate", () => {
         if (!seekBar.matches(":active")) {
           seekBar.value = videos[0].currentTime;
         }
+        const offset = getSessionTimeOffset();
+        const endTime = getSessionEndTime();
+        const displayEnd = endTime !== null ? endTime : offset + videos[0].duration;
+        const currentSessionTime = offset + videos[0].currentTime;
         timeLabel.textContent =
-          formatTime(videos[0].currentTime) +
-          " / " +
-          formatTime(videos[0].duration);
+          formatTime(currentSessionTime) + " / " + formatTime(displayEnd);
       });
     }
   }

@@ -14,6 +14,18 @@ const DISPLAY_WIDTH = 640;
 const DISPLAY_HEIGHT = 512;
 
 /**
+ * Format seconds as MM:SS.ms string for session time display.
+ * @param {number} seconds - Time in seconds
+ * @returns {string} Formatted time string
+ */
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 10);
+  return mins + ":" + secs.toString().padStart(2, "0") + "." + ms;
+}
+
+/**
  * Binary search for frame index closest to target time.
  * @param {number[]} timestamps - Sorted array of timestamps
  * @param {number} targetTime - Time to find
@@ -114,6 +126,10 @@ function render({ model, el }) {
   seekBar.value = 0;
   seekBar.classList.add("pose-widget__seekbar");
 
+  const timeLabel = document.createElement("span");
+  timeLabel.classList.add("pose-widget__time-label");
+  timeLabel.textContent = "0:00.0 / 0:00.0";
+
   const labelToggle = document.createElement("label");
   labelToggle.classList.add("pose-widget__label-toggle");
   const checkbox = document.createElement("input");
@@ -124,6 +140,7 @@ function render({ model, el }) {
 
   controls.appendChild(playPauseBtn);
   controls.appendChild(seekBar);
+  controls.appendChild(timeLabel);
   controls.appendChild(labelToggle);
 
   // Video container
@@ -175,6 +192,22 @@ function render({ model, el }) {
       video.videoHeight +
       " | " +
       extra;
+  }
+
+  /**
+   * Update time label with NWB session timestamps.
+   * Shows current time / total duration in session time (not video-relative).
+   */
+  function updateTimeLabel(frameIdx) {
+    const data = getCurrentCameraData();
+    const timestamps = data?.timestamps;
+    if (!timestamps || timestamps.length === 0) {
+      timeLabel.textContent = "0:00.0 / 0:00.0";
+      return;
+    }
+    const currentTime = timestamps[frameIdx] || timestamps[0];
+    const endTime = timestamps[timestamps.length - 1];
+    timeLabel.textContent = formatTime(currentTime) + " / " + formatTime(endTime);
   }
 
   function populateCameraSelect() {
@@ -344,6 +377,7 @@ function render({ model, el }) {
       }
     }
     updateDebug(frameIdx, "Drew " + drawnCount + " keypoints");
+    updateTimeLabel(frameIdx);
   }
 
   function animate() {
@@ -438,6 +472,7 @@ function render({ model, el }) {
   });
 
   updateDebug(0, "Ready");
+  updateTimeLabel(0);
 
   wrapper.appendChild(cameraSelector);
   wrapper.appendChild(debugDiv);
