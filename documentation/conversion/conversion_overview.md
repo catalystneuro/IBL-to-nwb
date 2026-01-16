@@ -159,24 +159,34 @@ dandi upload dandiset/
 
 ## Data Requirements
 
-Each interface declares **exactly** what data it needs:
+Each interface declares exactly what data it needs via `get_data_requirements()`. This declaration is the **single source of truth** that drives both availability checking and downloading:
 
 ```python
 class ExampleInterface(BaseIBLDataInterface):
-    def get_data_requirements(self):
+    REVISION = "2025-05-06"  # Fixed version for reproducibility
+
+    @classmethod
+    def get_data_requirements(cls, **kwargs) -> dict:
         return {
-            'spikes.times.npy': 'alf/probe00/',
-            'spikes.clusters.npy': 'alf/probe00/',
-            'clusters.metrics.pqt': 'alf/probe00/',
+            "exact_files_options": {
+                "standard": [
+                    "alf/probe00/spikes.times.npy",
+                    "alf/probe00/spikes.clusters.npy",
+                    "alf/probe00/clusters.metrics.pqt",
+                ],
+            },
         }
 ```
 
-**Benefits**:
-- Explicit, transparent dependencies
-- Enables automated dependency analysis
-- Makes testing easier
+The conversion pipeline uses this declaration in sequence:
 
-See `src/ibl_to_nwb/datainterfaces/` for examples from each interface.
+1. **`check_availability()`** - Reads requirements, queries ONE API to verify files exist (no download)
+2. **`download_data()`** - Reads requirements, downloads files using the class `REVISION`
+3. **`add_to_nwbfile()`** - Loads the same files from cache and converts to NWB
+
+**Format alternatives**: Some interfaces support multiple file formats (e.g., `bwm_format` vs `legacy_format`). The system tries each option until finding one where all files exist.
+
+See [ibl_data_interface_design.md](ibl_data_interface_design.md) for the complete specification of the requirements format.
 
 ## Quality Control Integration
 
@@ -394,17 +404,19 @@ from ibl_to_nwb.datainterfaces import BaseIBLDataInterface
 class MyNewInterface(BaseIBLDataInterface):
     REVISION = "2025-05-06"
 
-    def get_data_requirements(self):
-        return {...}
+    @classmethod
+    def get_data_requirements(cls, **kwargs) -> dict:
+        return {
+            "exact_files_options": {
+                "standard": ["alf/my_data.npy"],
+            },
+        }
 
-    def check_availability(self, one, eid):
-        return {...}
-
-    def download_data(self, one, eid, base_path):
-        pass  # Download implementation
+    # check_availability() and download_data() use base class defaults
+    # Override only if you need custom logic (e.g., QC checks)
 
     def add_to_nwbfile(self, nwbfile, metadata):
-        pass  # Conversion logic
+        pass  # Load data and add to NWB
 ```
 
 2. **Add to converter**:
@@ -420,15 +432,4 @@ self.interfaces = [
 
 4. **Add tests**
 
-See [ARCHITECTURE.md](../ARCHITECTURE.md) for the base interface pattern.
-
-## Related Documentation
-
-- [ARCHITECTURE.md](../ARCHITECTURE.md) - System design and components
-- [conversion_modalities.md](conversion_modalities.md) - Details on each data type
-- [revisions.md](revisions.md) - Data versioning
-- [../ibl_concepts/ibl_synchronization.md](../ibl_concepts/ibl_synchronization.md) - How timing works
-
----
-
-**Next**: Read [conversion_modalities.md](conversion_modalities.md) for details on each data modality, or see [../GETTING_STARTED.md](../GETTING_STARTED.md) for quickstart instructions.
+See [ibl_data_interface_design.md](ibl_data_interface_design.md) for the complete interface contract specification.

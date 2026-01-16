@@ -203,20 +203,36 @@ base_path/
 
 ## Key Design Patterns
 
-### 1. Explicit Requirements
+### 1. Data Requirements as Single Source of Truth
 
-Each interface explicitly declares what data it needs:
+Each interface declares exactly what data it needs via `get_data_requirements()`. This declaration drives both availability checking and downloading:
 
 ```python
-def get_data_requirements(self):
+@classmethod
+def get_data_requirements(cls, **kwargs) -> dict:
     return {
-        'trials.intervals.npy': 'alf/',
-        'trials.choice.npy': 'alf/',
-        'trials.feedback_times.npy': 'alf/',
+        "exact_files_options": {
+            "standard": [
+                "alf/wheel.position.npy",
+                "alf/wheel.timestamps.npy",
+            ],
+        },
     }
 ```
 
-**Benefit:** Automated dependency analysis, predictable downloads.
+The three-method flow ensures consistency:
+- `get_data_requirements()` - Declares files needed (source of truth)
+- `check_availability()` - Reads requirements, queries ONE API without downloading
+- `download_data()` - Reads requirements, downloads files using class-level `REVISION`
+- `add_to_nwbfile()` - Loads from cache using same files and revision
+
+**Benefits:**
+- Explicit, auditable data dependencies
+- Automated availability checking before downloads
+- Support for multiple format alternatives (e.g., `bwm_format` vs `legacy_format`)
+- Wildcard patterns for multi-probe sessions
+
+See [conversion/ibl_data_interface_design.md](conversion/ibl_data_interface_design.md) for the complete specification.
 
 ### 2. Quality Control
 
@@ -400,16 +416,6 @@ electrodes_table = get_probe_electrodes(probe_type='3B')
 from ibl_to_nwb.utils.ephys_decompression import decompress_cbin
 decompress_cbin(input_bin, output_bin)
 ```
-
-## Related Documentation
-
-For deeper dives into specific systems:
-
-- **[Synchronization](ibl_concepts/ibl_synchronization.md)** - How multi-system timing works
-- **[Conversion Modalities](conversion/conversion_modalities.md)** - Detailed description of each data type
-- **[Brain Atlas](ibl_concepts/brain_atlas_hierarchy_guide.md)** - Understanding brain region organization
-- **[Passive Task](ibl_concepts/ibl_passive_task.md)** - Passive stimulus protocol
-- **[Revisions](conversion/revisions.md)** - Data versioning system
 
 ## Testing and Development
 
