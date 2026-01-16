@@ -17,7 +17,7 @@ IBL-to-NWB is a data conversion pipeline that transforms International Brain Lab
 - Specific data modality → [conversion/conversion_modalities.md](conversion/conversion_modalities.md)
 - Brain region mapping → [ibl_concepts/brain_atlas_hierarchy_guide.md](ibl_concepts/brain_atlas_hierarchy_guide.md)
 - Spike timing alignment → [ibl_concepts/ibl_synchronization.md](ibl_concepts/ibl_synchronization.md)
-- Data access methods → [one_api_data_access/index.md](one_api_data_access/index.md)
+- Data access methods → [one_api_data_access/data_access_overview.md](one_api_data_access/data_access_overview.md)
 - Loading behavioral data → [one_api_data_access/session_loader.md](one_api_data_access/session_loader.md)
 - Loading spike data → [one_api_data_access/spike_sorting_loader.md](one_api_data_access/spike_sorting_loader.md)
 - Spike data in NWB → [conversion/sorting_interface.md](conversion/sorting_interface.md)

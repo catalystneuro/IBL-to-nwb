@@ -6,20 +6,28 @@ This document details how each data interface implements the four key methods de
 
 | Interface | REVISION | check_availability | download_data | Data Loading |
 |-----------|----------|-------------------|---------------|--------------|
-| WheelInterface | 2025-05-06 | Base class | Custom | `one.load_object()` |
-| LickInterface | 2025-05-06 | Base class | Custom | `one.load_dataset()` |
-| BrainwideMapTrialsInterface | 2025-05-06 | Base class | Custom | `SessionLoader` |
-| IblPoseEstimationInterface | 2025-05-06 | QC override | Custom | `SessionLoader` |
-| PupilTrackingInterface | 2025-05-06 | QC override | Custom | `one.load_object()` |
-| RoiMotionEnergyInterface | 2025-05-06 | QC override | Custom | `one.load_object()` |
-| IblSortingInterface | 2025-05-06 | Base class | Custom | `SpikeSortingLoader` |
-| IblNIDQInterface | 2025-05-06 | Base class | Custom | `one.load_dataset()` |
-| RawVideoInterface | 2025-05-06 | QC override | Custom | `one.load_object()` + `one.load_dataset()` |
-| PassiveIntervalsInterface | Dynamic | Base class | Custom | `one.load_dataset()` |
-| PassiveReplayStimInterface | Dynamic | Base class | Custom | `one.load_dataset()` |
-| SessionEpochsInterface | Dynamic | Base class | Custom | `one.load_dataset()` |
-| ProbeTrajectoryInterface | None | Custom (API) | No-op | `one.alyx.rest()` |
-| IblAnatomicalLocalizationInterface | 2025-05-06 | Custom (QC) | Custom | `SpikeSortingLoader` |
+| WheelInterface | 2025-05-06 | Base class | Custom (iterates one_objects) | `one.load_object()` |
+| LickInterface | 2025-05-06 | Base class | Custom (single file) | `one.load_dataset()` |
+| BrainwideMapTrialsInterface | 2025-05-06 | Base class | Custom (SessionLoader) | `SessionLoader` |
+| IblPoseEstimationInterface | 2025-05-06 | QC override | Custom (file discovery) | `SessionLoader` |
+| PupilTrackingInterface | 2025-05-06 | QC override | Custom (load_object) | `one.load_object()` |
+| RoiMotionEnergyInterface | 2025-05-06 | QC override | Custom (iterates one_objects) | `one.load_object()` |
+| IblSortingInterface | 2025-05-06 | Base class | Custom (SpikeSortingLoader) | `SpikeSortingLoader` |
+| IblNIDQInterface | 2025-05-06 | Base class | Custom (with try-except) | `one.load_dataset()` |
+| RawVideoInterface | 2025-05-06 | QC override | Custom (mixed) | `one.load_object()` + `one.load_dataset()` |
+| PassiveIntervalsInterface | Dynamic | Base class | Custom (dynamic revision) | `one.load_dataset()` |
+| PassiveReplayStimInterface | Dynamic | Base class | Custom (dynamic revision) | `one.load_dataset()` |
+| SessionEpochsInterface | Dynamic | Base class | Custom (dynamic revision) | `one.load_dataset()` |
+| ProbeTrajectoryInterface | None | Custom (API query) | No-op | `one.alyx.rest()` |
+| IblAnatomicalLocalizationInterface | 2025-05-06 | Custom (histology QC) | Custom (SpikeSortingLoader) | `SpikeSortingLoader` |
+
+**Note:** `download_data()` is **not** an abstract method - the base class provides a default implementation. However, all current interfaces override it for one of these reasons:
+- Uses high-level abstractions (`SessionLoader`, `SpikeSortingLoader`) instead of direct ONE calls
+- Needs dynamic revision resolution (passive protocol interfaces)
+- Simpler implementation for single files
+- Reimplements base logic with timing instrumentation
+
+In principle, new interfaces could rely on the base class `download_data()` if their requirements fit the standard pattern.
 
 ---
 

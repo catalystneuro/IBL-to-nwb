@@ -1,35 +1,88 @@
 # ONE API Data Access Guide
 
-This section documents all methods for loading IBL experimental data using the ONE API and ibllib utilities. Use this guide to choose the right loader for your analysis task.
+This section documents all methods for loading IBL experimental data using the ONE API and ibllib utilities. Use this guide to choose the right approach for your data access needs.
 
 ## Quick Reference
 
 ```python
 from one.api import ONE
-one = ONE()  # Initialize ONE API (required for all loaders)
+one = ONE()  # Initialize ONE API (required for all data access)
 ```
 
 **New to IBL data?** Start with the [ALF Data Structure](alf_data_structure.md) guide to understand how IBL organizes and names files.
 
-## Loader Comparison
+## Data Access Methods
 
-| Loader | Module | Data Types | Best For |
-|--------|--------|------------|----------|
-| [SessionLoader](session_loader.md) | `brainbox.io.one` | trials, wheel, pose, motion energy, pupil | Behavioral analysis |
-| [SpikeSortingLoader](spike_sorting_loader.md) | `brainbox.io.one` | spikes, clusters, channels, raw waveforms | Single-probe ephys |
-| [EphysSessionLoader](ephys_session_loader.md) | `brainbox.io.one` | All behavioral + all probes | Combined analysis |
-| [Raw data loaders](raw_data_loaders.md) | `ibllib.io.raw_data_loaders` | PyBpod, camera, encoder, DAQ | Custom pipelines |
-| [Video utilities](video_data.md) | `ibllib.io.video` | Video frames, metadata | Frame extraction |
+IBL data can be accessed at three levels, from lowest to highest:
 
-## Pros and Cons
+### 1. Direct ONE API Methods
 
-| Loader | Pros | Cons |
-|--------|------|------|
-| **SessionLoader** | Unified interface, automatic processing, pandas output, lazy loading | No ephys data, single session at a time |
-| **SpikeSortingLoader** | Auto spike sorter selection, histology alignment, streaming support | Single probe, must manage separately from behavior |
-| **EphysSessionLoader** | Single object for all data (behavior + ephys) | Higher memory usage, slower initialization |
-| **Raw data loaders** | Direct file access, no processing overhead, full control | Manual timestamp alignment, no convenience features |
-| **Video utilities** | Memory-efficient streaming, frame-by-frame access | Network latency for remote access |
+The fundamental methods for loading IBL data. Most interfaces use these directly.
+
+| Method | Purpose | Return type |
+|--------|---------|-------------|
+| `one.load_dataset()` | Load a single file | numpy array (or pandas DataFrame for `.pqt` files) |
+| `one.load_object()` | Load all files for an ALF object | dict of arrays |
+| `one.alyx.rest()` | Query Alyx database directly | JSON/dict |
+
+**`one.load_dataset()`** - Load a single data file:
+```python
+# Load a single array
+timestamps = one.load_dataset(eid, 'wheel.timestamps', collection='alf')
+position = one.load_dataset(eid, 'wheel.position', collection='alf')
+
+# With revision
+licks = one.load_dataset(eid, 'licks.times', collection='alf', revision='2024-05-06')
+```
+
+**`one.load_object()`** - Load all attributes of an ALF object as a dict:
+```python
+# Load all wheel files at once (position, timestamps)
+wheel = one.load_object(eid, 'wheel', collection='alf')
+# Returns: {'position': array, 'timestamps': array}
+
+# Load camera object
+left_camera = one.load_object(eid, 'leftCamera', collection='alf',
+                               attribute=['dlc', 'times'])
+```
+
+**Pros**: Simple, direct, no dependencies beyond ONE API, full control over what's loaded
+**Cons**: No automatic processing, must handle file organization manually, no convenience features
+
+### 2. High-Level Loaders (brainbox)
+
+Convenience classes that wrap ONE API calls with automatic processing.
+
+| Loader | Module | Data Types | Return type |
+|--------|--------|------------|-------------|
+| [SessionLoader](session_loader.md) | `brainbox.io.one` | trials, wheel, pose, motion energy, pupil | pandas DataFrame |
+| [SpikeSortingLoader](spike_sorting_loader.md) | `brainbox.io.one` | spikes, clusters, channels, raw waveforms | dict of numpy arrays |
+| [EphysSessionLoader](ephys_session_loader.md) | `brainbox.io.one` | All behavioral + all probes | dict of DataFrames |
+
+**Pros**: Automatic processing (filtering, interpolation, thresholding), pandas output, handles complexity
+**Cons**: Less control, may do processing you don't need, higher-level abstraction
+
+### 3. Raw Data Loaders (ibllib)
+
+For accessing unprocessed source files before IBL's standard processing.
+
+| Module | Data Types | Use Case |
+|--------|------------|----------|
+| [Raw data loaders](raw_data_loaders.md) | PyBpod, camera, encoder, DAQ | Custom pipelines, debugging |
+| [Video utilities](video_data.md) | Video frames, metadata | Frame extraction |
+
+**Pros**: Access to original unprocessed data, full control
+**Cons**: Requires understanding of raw file formats, manual timestamp alignment
+
+## Comparison Summary
+
+| Method | Processing | Complexity | When to Use |
+|--------|------------|------------|-------------|
+| `one.load_dataset()` | None | Low | Single file, simple data |
+| `one.load_object()` | None | Low | Multiple related files, no processing needed |
+| SessionLoader | Interpolation, filtering, thresholding | Medium | Behavioral data needing processing |
+| SpikeSortingLoader | Spike sorter selection, histology alignment | Medium | Ephys data with brain regions |
+| Raw loaders | None | High | Debugging, custom pipelines |
 
 ## Decision Guide for NWB Conversion
 
