@@ -434,9 +434,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
         for band in ["lf", "ap"]:
             # pid = pidname_map[pname]
             spike_sorting_loader = SpikeSortingLoader(eid=eid, pname=pname, one=one, revision=revision)
-            # forcing this to run only with one in local mode (as required for SDSC)
             stream = False
-            # stream = False if "USE_SDSC_ONE" in os.environ else True
             sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=revision)
             data_one = sglx_streamer._raw
 

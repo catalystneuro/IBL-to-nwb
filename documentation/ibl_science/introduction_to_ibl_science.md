@@ -19,6 +19,10 @@ The International Brain Laboratory (IBL) is a collaboration studying the neural 
 - [Passive Task](passive_task.md) - The passive replay protocol run after the main task
 - [Audio Stimuli](audio_stimuli.md) - Go cues, error tones, and audio stimulus timing
 
+### Video-Derived Behavioral Metrics
+
+- [ROI Motion Energy](roi_motion_energy.md) - Scalar movement metric from video regions, used to separate movement-related from task-related neural activity
+
 ### Technical Infrastructure
 
 - [Synchronization](synchronization.md) - The multi-clock system that aligns neural recordings, video, and behavior across independent devices

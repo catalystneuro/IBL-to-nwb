@@ -1,6 +1,5 @@
 """Path utilities for IBL-to-NWB conversion."""
 
-import os
 import shutil
 from pathlib import Path
 
@@ -15,10 +14,6 @@ def setup_paths(
 ) -> dict:
     """
     Create a structured dictionary of paths for NWB conversion.
-
-    All paths are derived from base_path:
-    - logs_path: base_path/conversion_logs (persistent logs - small, kept for auditing)
-    - decompressed_ephys_path: base_path/decompressed_ephys (temporary decompressed ephys files)
 
     Parameters
     ----------
@@ -35,39 +30,23 @@ def setup_paths(
         A dictionary containing the following paths:
         - output_folder: Path to store the output NWB files.
         - session_folder: Path to the original session data (ONE cache).
-        - logs_folder: Path for conversion logs (persistent).
-        - decompressed_ephys_folder: Path for temporary decompressed ephys files.
-        - session_decompressed_ephys_folder: Path for this session's ephys files.
+        - session_decompressed_ephys_folder: Path for this session's decompressed ephys files.
         - spikeglx_source_folder: Path to the raw ephys data for this session.
     """
     base_path = Path.home() / "ibl_bmw_to_nwb" if base_path is None else base_path
+    decompressed_ephys_root = base_path / "decompressed_ephys"
+    session_decompressed_ephys_folder = decompressed_ephys_root / eid
+    spikeglx_source_folder = session_decompressed_ephys_folder / "raw_ephys_data"
 
-    # Logs go to a persistent location (derived from base_path)
-    logs_path = base_path / "conversion_logs"
-
-    # Decompressed ephys uses fast temporary storage (derived from base_path or environment)
-    if "USE_SDSC_ONE" in os.environ:
-        decompressed_ephys_path = Path("/scratch")  # on SDSC, a per node /scratch folder exists
-    else:
-        decompressed_ephys_path = base_path / "decompressed_ephys"
-
-    subject = one.eid2ref(eid)["subject"]
     paths = dict(
         output_folder=base_path / "nwbfiles",
-        subject=subject,
         session_folder=one.eid2path(eid),
-        logs_folder=logs_path,
-        decompressed_ephys_folder=decompressed_ephys_path,
+        session_decompressed_ephys_folder=session_decompressed_ephys_folder,
+        spikeglx_source_folder=spikeglx_source_folder,
     )
 
-    # Session-specific paths
-    paths["session_decompressed_ephys_folder"] = paths["decompressed_ephys_folder"] / eid
-    paths["spikeglx_source_folder"] = paths["session_decompressed_ephys_folder"] / "raw_ephys_data"
-
-    # Create base directories
+    # Create directories
     paths["output_folder"].mkdir(exist_ok=True, parents=True)
-    paths["logs_folder"].mkdir(exist_ok=True, parents=True)
-    paths["decompressed_ephys_folder"].mkdir(exist_ok=True, parents=True)
     paths["session_decompressed_ephys_folder"].mkdir(exist_ok=True, parents=True)
     paths["spikeglx_source_folder"].mkdir(exist_ok=True, parents=True)
 
