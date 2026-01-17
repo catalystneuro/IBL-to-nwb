@@ -2,7 +2,6 @@
 
 import logging
 import re
-import time
 from typing import Optional
 
 from neuroconv.tools.nwb_helpers import get_module
@@ -50,21 +49,6 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
                 ],
             },
         }
-
-    @classmethod
-    def get_load_object_kwargs(cls, camera_name: str) -> list[dict]:
-        """
-        Return kwargs for one.load_object() calls.
-
-        Returns a list because this interface loads two objects:
-        1. Camera data (ROIMotionEnergy, times)
-        2. ROI position data
-        """
-        camera_view = re.search(r"(left|right|body)", camera_name).group(1)
-        return [
-            {"obj": camera_name, "collection": "alf"},
-            {"obj": f"{camera_view}ROIMotionEnergy", "collection": "alf"},
-        ]
 
     @classmethod
     def check_availability(
@@ -133,91 +117,25 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
         return file_check_result
 
     @classmethod
-    def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        camera_name: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> dict:
+    def get_load_object_kwargs(cls, camera_name: str) -> list[dict]:
         """
-        Download ROI motion energy data for a specific camera.
+        Return kwargs for one.load_object() calls.
 
-        NOTE: Uses class-level REVISION attribute automatically.
-
-        Parameters
-        ----------
-        one : ONE
-            ONE API instance
-        eid : str
-            Session ID
-        camera_name : str
-            Camera name (required)
-        download_only : bool, default=True
-            If True, download but don't load into memory
-        logger : logging.Logger, optional
-            Logger for progress tracking
-
-        Returns
-        -------
-        dict
-            Download status
+        Returns a list because this interface loads two objects:
+        1. Camera data (ROIMotionEnergy, times)
+        2. ROI position data
         """
-        requirements = cls.get_data_requirements(camera_name=camera_name)
         camera_view = re.search(r"(left|right|body)", camera_name).group(1)
-
-        # Use class-level REVISION attribute
-        revision = cls.REVISION
-
-        if logger:
-            logger.info(f"Downloading ROI motion energy for {camera_view} camera (session {eid})")
-
-        start_time = time.time()
-
-        # Download camera object and ROI position data
-        load_object_kwargs_list = cls.get_load_object_kwargs(camera_name=camera_name)
-
-        if logger:
-            logger.info(f"  Loading {camera_name}")
-        one.load_object(
-            id=eid,
-            revision=revision,
-            download_only=download_only,
-            **load_object_kwargs_list[0],
-        )
-
-        if logger:
-            logger.info(f"  Loading {camera_view}ROIMotionEnergy")
-        one.load_object(
-            id=eid,
-            revision=revision,
-            download_only=download_only,
-            **load_object_kwargs_list[1],
-        )
-
-        download_time = time.time() - start_time
-
-        if logger:
-            logger.info(f"  Downloaded camera objects in {download_time:.2f}s")
-
-        return {
-            "success": True,
-            "downloaded_files": requirements["exact_files_options"]["standard"],
-            "already_cached": [],
-            "alternative_used": None,
-            "data": None,
-        }
+        return [
+            {"obj": camera_name, "collection": "alf"},
+            {"obj": f"{camera_view}ROIMotionEnergy", "collection": "alf"},
+        ]
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
-        # left_right_or_body = self.camera_name[:5].rstrip("C")
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
-        load_object_kwargs_list = self.get_load_object_kwargs(camera_name=self.camera_name)
+        load_kwargs_list = self.get_load_object_kwargs(self.camera_name)
 
-        camera_data = self.one.load_object(
-            id=self.session, revision=self.revision, **load_object_kwargs_list[0]
-        )
+        camera_data = self.one.load_object(id=self.session, revision=self.revision, **load_kwargs_list[0])
 
         if "ROIMotionEnergy" not in camera_data or "times" not in camera_data:
             raise RuntimeError(
@@ -229,9 +147,7 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
                 f"ROI motion energy timestamps for camera '{self.camera_name}' in session '{self.session}' are empty"
             )
 
-        motion_energy_video_region = self.one.load_object(
-            id=self.session, revision=self.revision, **load_object_kwargs_list[1]
-        )
+        motion_energy_video_region = self.one.load_object(id=self.session, revision=self.revision, **load_kwargs_list[1])
 
         # extra dirty hack to be removed
         # if self.session == "dc21e80d-97d7-44ca-a729-a8e3f9b14305" and camera_view == 'right': # the broken session

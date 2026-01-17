@@ -1,9 +1,5 @@
 """Interface for derived wheel kinematics (filtered position, velocity, acceleration)."""
 
-import logging
-import time
-from typing import Optional
-
 import numpy as np
 from brainbox.behavior import wheel as wheel_methods
 from neuroconv.tools.nwb_helpers import get_module
@@ -50,64 +46,6 @@ class WheelKinematicsInterface(BaseIBLDataInterface):
     def get_load_object_kwargs(cls) -> dict:
         """Return kwargs for one.load_object() call."""
         return {"obj": "wheel", "collection": "alf"}
-
-    @classmethod
-    def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> dict:
-        """
-        Download wheel position data (used to derive kinematics).
-
-        Parameters
-        ----------
-        one : ONE
-            ONE API instance
-        eid : str
-            Session ID
-        download_only : bool, default=True
-            If True, download but don't load into memory
-        logger : logging.Logger, optional
-            Logger for progress tracking
-
-        Returns
-        -------
-        dict
-            Download status
-        """
-        requirements = cls.get_data_requirements()
-        revision = cls.REVISION
-
-        if logger:
-            logger.info(f"Downloading wheel data for kinematics (session {eid}, revision {revision})")
-
-        start_time = time.time()
-
-        if logger:
-            logger.info("  Loading wheel")
-        one.load_object(
-            id=eid,
-            revision=revision,
-            download_only=download_only,
-            **cls.get_load_object_kwargs(),
-        )
-
-        download_time = time.time() - start_time
-
-        if logger:
-            logger.info(f"  Downloaded wheel data in {download_time:.2f}s")
-
-        return {
-            "success": True,
-            "downloaded_files": requirements["exact_files_options"]["standard"],
-            "already_cached": [],
-            "alternative_used": None,
-            "data": None,
-        }
 
     def add_to_nwbfile(self, nwbfile, metadata: dict, stub_test: bool = False, stub_duration: float = 10.0):
         """

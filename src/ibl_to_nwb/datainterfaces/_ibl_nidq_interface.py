@@ -7,11 +7,12 @@ in a static YAML file, and channel IDs are determined at runtime from wiring.jso
 
 import warnings
 from pathlib import Path
-from ._base_ibl_interface import BaseIBLDataInterface
 
 from neuroconv.datainterfaces import SpikeGLXNIDQInterface
 from neuroconv.utils import dict_deep_update, load_dict_from_file
 from pydantic import DirectoryPath
+
+from ._base_ibl_interface import BaseIBLDataInterface
 
 # =============================================================================
 # Digital Device Labels (needed at init time for digital_channel_groups)
@@ -79,55 +80,6 @@ class IblNIDQInterface(SpikeGLXNIDQInterface, BaseIBLDataInterface):
                     "raw_ephys_data/_spikeglx_ephysData_g0_t0.nidq.wiring.json",
                 ],
             },
-        }
-
-    @classmethod
-    def download_data(cls, one, eid, download_only=True, logger=None, **kwargs):
-        """
-        Download NIDQ files for this session.
-
-        Parameters
-        ----------
-        one : ONE
-            ONE API instance
-        eid : str
-            Session ID
-        download_only : bool, default=True
-            If True, only download without loading into memory
-        logger : logging.Logger, optional
-            Logger instance
-        **kwargs
-            Additional keyword arguments
-
-        Returns
-        -------
-        dict
-            Download status with keys: success, downloaded_files, already_cached, etc.
-        """
-        requirements = cls.get_data_requirements()
-
-        if logger:
-            logger.info(f"Downloading NIDQ files for session {eid}")
-
-        downloaded_files = []
-        for nidq_file in requirements["exact_files_options"]["standard"]:
-            try:
-                one.load_dataset(eid, nidq_file, download_only=download_only)
-                downloaded_files.append(nidq_file)
-                if logger:
-                    logger.info(f"  Downloaded {nidq_file}")
-            except Exception as e:
-                if logger:
-                    logger.error(f"  Failed to download {nidq_file}: {e}")
-                raise
-
-        return {
-            "success": True,
-            "downloaded_objects": [],
-            "downloaded_files": downloaded_files,
-            "already_cached": [],
-            "alternative_used": None,
-            "data": None,
         }
 
     def __init__(

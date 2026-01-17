@@ -2,7 +2,6 @@
 
 import logging
 import re
-import time
 from typing import Optional
 
 import numpy as np
@@ -49,11 +48,6 @@ class PupilTrackingInterface(BaseIBLDataInterface):
                 ],
             },
         }
-
-    @classmethod
-    def get_load_object_kwargs(cls, camera_name: str) -> dict:
-        """Return kwargs for one.load_object() call."""
-        return {"obj": camera_name, "collection": "alf"}
 
     @classmethod
     def check_availability(
@@ -122,75 +116,14 @@ class PupilTrackingInterface(BaseIBLDataInterface):
         return file_check_result
 
     @classmethod
-    def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        camera_name: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> dict:
-        """
-        Download pupil tracking data for a specific camera.
-
-        NOTE: Uses class-level REVISION attribute automatically.
-
-        Parameters
-        ----------
-        one : ONE
-            ONE API instance
-        eid : str
-            Session ID
-        camera_name : str
-            Camera name (required)
-        download_only : bool, default=True
-            If True, download but don't load into memory
-        logger : logging.Logger, optional
-            Logger for progress tracking
-
-        Returns
-        -------
-        dict
-            Download status
-        """
-        requirements = cls.get_data_requirements(camera_name=camera_name)
-        camera_view = re.search(r"(left|right|body)", camera_name).group(1)
-
-        # Use class-level REVISION attribute
-        revision = cls.REVISION
-
-        if logger:
-            logger.info(f"Downloading pupil tracking for {camera_view} camera (session {eid})")
-
-        start_time = time.time()
-
-        # Download camera object - NO try-except, let failures propagate
-        one.load_object(
-            id=eid,
-            revision=revision,
-            download_only=download_only,
-            **cls.get_load_object_kwargs(camera_name=camera_name),
-        )
-
-        download_time = time.time() - start_time
-
-        if logger:
-            logger.info(f"  Downloaded pupil data in {download_time:.2f}s")
-
-        return {
-            "success": True,
-            "downloaded_objects": [camera_name],
-            "downloaded_files": requirements["exact_files_options"]["standard"],
-            "already_cached": [],
-            "alternative_used": None,
-            "data": None,
-        }
+    def get_load_object_kwargs(cls, camera_name: str) -> dict:
+        """Return kwargs for one.load_object() call."""
+        return {"obj": camera_name, "collection": "alf"}
 
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
         camera_data = self.one.load_object(
-            id=self.session, revision=self.revision, **self.get_load_object_kwargs(camera_name=self.camera_name)
+            id=self.session, revision=self.revision, **self.get_load_object_kwargs(self.camera_name)
         )
 
         if "features" not in camera_data:
