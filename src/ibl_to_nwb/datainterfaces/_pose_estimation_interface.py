@@ -83,12 +83,15 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         Returns
         -------
         dict
-            Data requirements
+            Data requirements with Lightning Pose (preferred) and DLC fallback
         """
         camera_view = re.search(r"(left|right|body)", camera_name).group(1)
         return {
             "exact_files_options": {
-                "standard": [f"alf/_ibl_{camera_view}Camera.lightningPose.pqt"],
+                # Lightning Pose (preferred) - BWM standard
+                "lightning_pose": [f"alf/_ibl_{camera_view}Camera.lightningPose.pqt"],
+                # DLC fallback for older sessions
+                "dlc": [f"alf/_ibl_{camera_view}Camera.dlc.pqt"],
             },
         }
 
@@ -352,7 +355,9 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
             skeleton_kwargs["subject"] = nwbfile.subject
         skeleton = Skeleton(**skeleton_kwargs)
 
-        camera_module = get_module(nwbfile=nwbfile, name="pose_estimation", description="Pose estimation from video using Lightning Pose.")
+        # Map tracker parameter to display names
+        tracker_display_name = "Lightning Pose" if self.tracker == "lightningPose" else "DeepLabCut"
+        camera_module = get_module(nwbfile=nwbfile, name="pose_estimation", description=f"Pose estimation from video using {tracker_display_name}.")
         if skeletons_container_name in camera_module.data_interfaces:
             skeletons_container = camera_module.data_interfaces[skeletons_container_name]
             if skeleton_name in skeletons_container.skeletons:
@@ -367,8 +372,8 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         pose_estimation_kwargs = dict(
             name=f"{camera_view.capitalize()}Camera",
             pose_estimation_series=all_pose_estimation_series,
-            description="Estimated positions of body parts using Lightning Pose.",
-            source_software="Lightning Pose",
+            description=f"Estimated positions of body parts using {tracker_display_name}.",
+            source_software=tracker_display_name,
             skeleton=skeleton,
         )
         pose_estimation_container = PoseEstimation(**pose_estimation_kwargs)

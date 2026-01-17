@@ -188,9 +188,13 @@ def convert_processed_session(
         camera_name = f"{camera_view}Camera"
 
         # Pose estimation - check_availability handles Lightning Pose → DLC fallback
-        if IblPoseEstimationInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
+        pose_availability = IblPoseEstimationInterface.check_availability(one, eid, camera_name=camera_name)
+        if pose_availability["available"]:
+            # Determine tracker from which alternative was found
+            alternative = pose_availability.get("alternative_used", "lightning_pose")
+            tracker = "lightningPose" if alternative == "lightning_pose" else "dlc"
             data_interfaces.append(
-                IblPoseEstimationInterface(camera_name=camera_name, tracker="lightningPose", **interface_kwargs)
+                IblPoseEstimationInterface(camera_name=camera_name, tracker=tracker, **interface_kwargs)
             )
 
         # Pupil tracking - only for left/right cameras (body camera doesn't capture eyes)
