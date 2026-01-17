@@ -2,12 +2,6 @@
 
 IBL-to-NWB is a data conversion pipeline that transforms International Brain Laboratory (IBL) experimental data into Neurodata Without Borders (NWB) format. This documentation is organized into six sections by topic.
 
-## Getting Started
-
-**New to the project?** Start here:
-1. [conversion/introduction_to_conversion.md](conversion/introduction_to_conversion.md) - System overview: Interfaces, Converters, and the NeuroConv framework
-2. [conversion/conversion_overview.md](conversion/conversion_overview.md) - How data flows through the conversion pipeline
-
 ## Documentation Sections
 
 ### [IBL Science](ibl_science/)
@@ -20,6 +14,7 @@ Experimental and scientific foundations of IBL data.
 - [wheel_data.md](ibl_science/wheel_data.md) - Rotary encoder wheel behavior
 - [passive_task.md](ibl_science/passive_task.md) - Passive replay protocol
 - [audio_stimuli.md](ibl_science/audio_stimuli.md) - Go cues and audio timing
+- [roi_motion_energy.md](ibl_science/roi_motion_energy.md) - Motion energy from video ROIs
 
 ### [IBL Data Organization](ibl_data_organization/)
 How IBL structures and versions data.
@@ -48,6 +43,7 @@ Converting IBL data to NWB format.
 - [ibl_data_interface_design.md](conversion/ibl_data_interface_design.md) - Interface contract specification
 - [sorting_interface.md](conversion/sorting_interface.md) - Spike sorting interface details
 - [trials_interface.md](conversion/trials_interface.md) - Behavioral trials interface details
+- [path_handling.md](conversion/path_handling.md) - File path handling and data requirements
 
 ### [DANDI & AWS](dandi_and_aws/)
 Cloud infrastructure for uploads and distributed processing.
@@ -65,6 +61,7 @@ Tools, debugging, and technical deep dives.
 - [pose_video_widget.md](development/pose_video_widget.md) - Pose visualization tool
 - [probe_slice_visualization_guide.md](development/probe_slice_visualization_guide.md) - Probe trajectory visualization
 - [insertion_and_localization_status_nwb.md](development/insertion_and_localization_status_nwb.md) - NWB representation details
+- [one_api_bug_with_caching.md](development/one_api_bug_with_caching.md) - Known ONE API caching issues
 
 ## Quick Reference
 
