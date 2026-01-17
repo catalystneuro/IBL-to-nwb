@@ -8,16 +8,25 @@ It defines a three-method pattern for declaring, checking, and downloading data 
 2. check_availability() - Checks if required data exists without downloading
 3. download_data() - Downloads the required data, failing loudly if unavailable
 
+Additionally, interfaces that use ONE API loading should implement:
+
+4. get_load_object_kwargs() - Returns kwargs for one.load_object() calls
+5. get_load_dataset_kwargs() - Returns kwargs for one.load_dataset() calls
+
+These methods provide a single source of truth for loading parameters, used by both
+download_data() and add_to_nwbfile(). This avoids duplicating collection names, object
+names, and other loading parameters in multiple places.
+
 Philosophy: Fail-fast. Missing required data should raise exceptions, not be silently caught.
 This ensures data quality issues are caught early and conversion failures are explicit.
 """
 
+import logging
 from abc import abstractmethod
 from typing import Optional
-import logging
 
-from one.api import ONE
 from neuroconv.basedatainterface import BaseDataInterface
+from one.api import ONE
 
 
 class BaseIBLDataInterface(BaseDataInterface):
@@ -42,6 +51,28 @@ class BaseIBLDataInterface(BaseDataInterface):
     3. Fail-Fast: download_data() raises exceptions for missing required data
     4. Provenance: Exact file paths are documented for audit trails
     5. No Silent Failures: Missing data causes loud, explicit failures
+
+    Loading Methods
+    ---------------
+    Interfaces that use ONE API should implement one of:
+
+    get_load_object_kwargs(**kwargs) -> dict | list[dict]
+        Returns kwargs for one.load_object() call(s). Use dict for single object,
+        list[dict] for multiple objects. Example:
+            {"obj": "wheel", "collection": "alf"}
+
+    get_load_dataset_kwargs(**kwargs) -> dict
+        Returns kwargs for one.load_dataset() call. Example:
+            {"dataset": "licks.times", "collection": "alf"}
+
+    get_session_loader_kwargs(**kwargs) -> dict
+        Returns kwargs for SessionLoader method calls (e.g., load_pose, load_trials).
+        Used when the interface uses brainbox.io.one.SessionLoader. Example:
+            {"tracker": "lightningPose", "views": ["left"]}
+
+    These are used by download_data() and add_to_nwbfile() to avoid duplicating
+    loading parameters. The kwargs should NOT include id/eid, revision, or
+    download_only - those are always added by the caller.
     """
 
     # Subclasses MUST override this to explicitly declare revision requirement

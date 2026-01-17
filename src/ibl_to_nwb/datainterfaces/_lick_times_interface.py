@@ -1,5 +1,5 @@
-from typing import Optional
 import logging
+from typing import Optional
 
 from ndx_events import Events
 from neuroconv.tools.nwb_helpers import get_module
@@ -38,6 +38,10 @@ class LickInterface(BaseIBLDataInterface):
             },
         }
 
+    @classmethod
+    def get_load_dataset_kwargs(cls) -> dict:
+        """Return kwargs for one.load_dataset() call."""
+        return {"dataset": "licks.times", "collection": "alf"}
 
     @classmethod
     def download_data(
@@ -82,10 +86,9 @@ class LickInterface(BaseIBLDataInterface):
         # NO try-except - let it fail if file missing!
         one.load_dataset(
             eid,
-            "licks.times",
-            collection="alf",
             revision=revision,
             download_only=download_only,
+            **cls.get_load_dataset_kwargs(),
         )
 
         return {
@@ -98,7 +101,7 @@ class LickInterface(BaseIBLDataInterface):
         }
 
     def add_to_nwbfile(self, nwbfile: NWBFile, metadata: dict):
-        lick_timestamps = self.one.load_dataset(self.session, "licks.times", collection="alf", revision=self.revision)
+        lick_timestamps = self.one.load_dataset(self.session, revision=self.revision, **self.get_load_dataset_kwargs())
 
         # Use ndx-events Events type for point events (timestamps only)
         lick_events = Events(

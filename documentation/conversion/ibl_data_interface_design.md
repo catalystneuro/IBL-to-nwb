@@ -59,6 +59,86 @@ class BaseIBLDataInterface:
         ...
 ```
 
+### Loading Kwargs Methods (Optional)
+
+Interfaces that use ONE API for loading should implement one of these methods to centralize loading parameters:
+
+```python
+@classmethod
+def get_load_object_kwargs(cls, **kwargs) -> dict | list[dict]:
+    """Return kwargs for one.load_object() call(s)."""
+    return {"obj": "wheel", "collection": "alf"}
+
+@classmethod
+def get_load_dataset_kwargs(cls, **kwargs) -> dict:
+    """Return kwargs for one.load_dataset() call."""
+    return {"dataset": "licks.times", "collection": "alf"}
+```
+
+**Why use these methods?**
+
+The loading kwargs (object name, collection) are duplicated between `download_data()` and `add_to_nwbfile()`. If someone changes the collection in one place but forgets the other, conversion breaks silently. These methods provide a single source of truth for loading parameters.
+
+**Usage pattern:**
+
+```python
+# In download_data():
+one.load_object(
+    id=eid,
+    revision=cls.REVISION,
+    download_only=download_only,
+    **cls.get_load_object_kwargs(),
+)
+
+# In add_to_nwbfile():
+wheel = self.one.load_object(
+    id=self.session,
+    revision=self.revision,
+    **self.get_load_object_kwargs(),
+)
+```
+
+**What to include:**
+
+| Include in kwargs | Do NOT include |
+|-------------------|----------------|
+| `obj` or `dataset` | `id` / `eid` |
+| `collection` | `revision` |
+| Other loader-specific params | `download_only` |
+
+The caller always provides `id`/`eid`, `revision`, and `download_only`.
+
+**For multiple objects:**
+
+Return a list of dicts when loading multiple objects:
+
+```python
+@classmethod
+def get_load_object_kwargs(cls, camera_name: str) -> list[dict]:
+    """Return kwargs for multiple one.load_object() calls."""
+    camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+    return [
+        {"obj": camera_name, "collection": "alf"},
+        {"obj": f"{camera_view}ROIMotionEnergy", "collection": "alf"},
+    ]
+```
+
+**For SessionLoader-based interfaces:**
+
+Some interfaces use `SessionLoader` from brainbox instead of raw ONE API calls. Use `get_session_loader_kwargs()`:
+
+```python
+@classmethod
+def get_session_loader_kwargs(cls, camera_name: str, tracker: str = "lightningPose") -> dict:
+    """Return kwargs for SessionLoader.load_pose() call."""
+    camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+    return {"tracker": tracker, "views": [camera_view]}
+
+# Usage in add_to_nwbfile():
+session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
+session_loader.load_pose(**self.get_session_loader_kwargs(camera_name=self.camera_name, tracker=self.tracker))
+```
+
 ## Data Requirements Format
 
 ### Structure

@@ -1,9 +1,9 @@
 """Interface for raw wheel position data from quadrature encoder."""
 
-from pathlib import Path
-from typing import Optional
 import logging
 import time
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from neuroconv.tools.nwb_helpers import get_module
@@ -45,6 +45,11 @@ class WheelPositionInterface(BaseIBLDataInterface):
         }
 
     @classmethod
+    def get_load_object_kwargs(cls) -> dict:
+        """Return kwargs for one.load_object() call."""
+        return {"obj": "wheel", "collection": "alf"}
+
+    @classmethod
     def download_data(
         cls,
         one: ONE,
@@ -84,10 +89,9 @@ class WheelPositionInterface(BaseIBLDataInterface):
             logger.info("  Loading wheel")
         one.load_object(
             id=eid,
-            obj="wheel",
-            collection="alf",
             revision=revision,
             download_only=download_only,
+            **cls.get_load_object_kwargs(),
         )
 
         download_time = time.time() - start_time
@@ -123,7 +127,7 @@ class WheelPositionInterface(BaseIBLDataInterface):
         stub_duration : float, default: 10.0
             Duration in seconds to include when stub_test=True.
         """
-        wheel = self.one.load_object(id=self.session, obj="wheel", collection="alf", revision=self.revision)
+        wheel = self.one.load_object(id=self.session, revision=self.revision, **self.get_load_object_kwargs())
 
         # Subset data if stub_test
         if stub_test:

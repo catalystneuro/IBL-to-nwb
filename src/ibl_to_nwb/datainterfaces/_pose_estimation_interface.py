@@ -1,7 +1,7 @@
 import logging
 import re
-from typing import Optional
 import time
+from typing import Optional
 
 import numpy as np
 from brainbox.io.one import SessionLoader
@@ -9,11 +9,9 @@ from ndx_pose import PoseEstimation, PoseEstimationSeries, Skeleton, Skeletons
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import NWBFile
-from one.alf.exceptions import ALFObjectNotFound
 
 from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures import load_fixtures
-
 
 # Mapping from IBL body part names (snake_case) to NWB names
 # Following NWB best practices: PoseEstimationSeries{BodyPart}
@@ -93,6 +91,26 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
                 "standard": [f"alf/_ibl_{camera_view}Camera.lightningPose.pqt"],
             },
         }
+
+    @classmethod
+    def get_session_loader_kwargs(cls, camera_name: str, tracker: str = "lightningPose") -> dict:
+        """
+        Return kwargs for SessionLoader.load_pose() call.
+
+        Parameters
+        ----------
+        camera_name : str
+            Camera name (e.g., "leftCamera", "rightCamera", "bodyCamera")
+        tracker : str
+            Tracker name. Default is "lightningPose".
+
+        Returns
+        -------
+        dict
+            Kwargs for SessionLoader.load_pose()
+        """
+        camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+        return {"tracker": tracker, "views": [camera_view]}
 
     @classmethod
     def check_availability(
@@ -260,9 +278,9 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.revision)
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
 
-        # Load pose data using the tracker specified during initialization
-        # If download_data was called, the correct tracker is already set
-        session_loader.load_pose(tracker=self.tracker, views=[camera_view])
+        # Load pose data using kwargs from get_session_loader_kwargs
+        session_loader_kwargs = self.get_session_loader_kwargs(camera_name=self.camera_name, tracker=self.tracker)
+        session_loader.load_pose(**session_loader_kwargs)
 
         if self.camera_name not in session_loader.pose:
             raise RuntimeError(

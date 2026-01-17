@@ -1,15 +1,13 @@
 """Data Interface for the special data type of ROI Motion Energy."""
 
-import re
-from typing import Optional
 import logging
+import re
 import time
+from typing import Optional
 
 from neuroconv.tools.nwb_helpers import get_module
 from one.api import ONE
 from pynwb import TimeSeries
-import pandas as pd
-from pathlib import Path
 
 from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures import load_fixtures
@@ -52,6 +50,21 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
                 ],
             },
         }
+
+    @classmethod
+    def get_load_object_kwargs(cls, camera_name: str) -> list[dict]:
+        """
+        Return kwargs for one.load_object() calls.
+
+        Returns a list because this interface loads two objects:
+        1. Camera data (ROIMotionEnergy, times)
+        2. ROI position data
+        """
+        camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+        return [
+            {"obj": camera_name, "collection": "alf"},
+            {"obj": f"{camera_view}ROIMotionEnergy", "collection": "alf"},
+        ]
 
     @classmethod
     def check_availability(
@@ -164,24 +177,24 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
         start_time = time.time()
 
         # Download camera object and ROI position data
+        load_object_kwargs_list = cls.get_load_object_kwargs(camera_name=camera_name)
+
         if logger:
             logger.info(f"  Loading {camera_name}")
         one.load_object(
             id=eid,
-            obj=camera_name,
-            collection="alf",
             revision=revision,
             download_only=download_only,
+            **load_object_kwargs_list[0],
         )
 
         if logger:
             logger.info(f"  Loading {camera_view}ROIMotionEnergy")
         one.load_object(
             id=eid,
-            obj=f"{camera_view}ROIMotionEnergy",
-            collection="alf",
             revision=revision,
             download_only=download_only,
+            **load_object_kwargs_list[1],
         )
 
         download_time = time.time() - start_time
@@ -200,8 +213,10 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         # left_right_or_body = self.camera_name[:5].rstrip("C")
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
+        load_object_kwargs_list = self.get_load_object_kwargs(camera_name=self.camera_name)
+
         camera_data = self.one.load_object(
-            id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
+            id=self.session, revision=self.revision, **load_object_kwargs_list[0]
         )
 
         if "ROIMotionEnergy" not in camera_data or "times" not in camera_data:
@@ -215,7 +230,7 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
             )
 
         motion_energy_video_region = self.one.load_object(
-            id=self.session, obj=f"{camera_view}ROIMotionEnergy", collection="alf", revision=self.revision
+            id=self.session, revision=self.revision, **load_object_kwargs_list[1]
         )
 
         # extra dirty hack to be removed

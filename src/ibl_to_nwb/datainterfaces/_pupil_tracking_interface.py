@@ -1,17 +1,16 @@
 """Data Interface for the pupil tracking."""
 
+import logging
 import re
+import time
 from pathlib import Path
 from typing import Optional
-import logging
-import time
 
 import numpy as np
 from neuroconv.tools.nwb_helpers import get_module
 from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
-import pandas as pd
 
 from ._base_ibl_interface import BaseIBLDataInterface
 from ..fixtures import load_fixtures
@@ -52,6 +51,11 @@ class PupilTrackingInterface(BaseIBLDataInterface):
                 ],
             },
         }
+
+    @classmethod
+    def get_load_object_kwargs(cls, camera_name: str) -> dict:
+        """Return kwargs for one.load_object() call."""
+        return {"obj": camera_name, "collection": "alf"}
 
     @classmethod
     def check_availability(
@@ -166,10 +170,9 @@ class PupilTrackingInterface(BaseIBLDataInterface):
         # Download camera object - NO try-except, let failures propagate
         one.load_object(
             id=eid,
-            obj=camera_name,
-            collection="alf",
             revision=revision,
             download_only=download_only,
+            **cls.get_load_object_kwargs(camera_name=camera_name),
         )
 
         download_time = time.time() - start_time
@@ -197,7 +200,7 @@ class PupilTrackingInterface(BaseIBLDataInterface):
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
         camera_data = self.one.load_object(
-            id=self.session, obj=self.camera_name, collection="alf", revision=self.revision
+            id=self.session, revision=self.revision, **self.get_load_object_kwargs(camera_name=self.camera_name)
         )
 
         if "features" not in camera_data:
