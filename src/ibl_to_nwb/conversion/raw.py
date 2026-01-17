@@ -167,7 +167,7 @@ def convert_raw_session(
                 ", ".join(probe_name_to_probe_id_dict.keys()),
             )
 
-    scratch_ephys_folder = paths["session_scratch_folder"] / "raw_ephys_data"
+    scratch_ephys_folder = paths["session_decompressed_ephys_folder"] / "raw_ephys_data"
     existing_bins = (
         scratch_ephys_folder.exists() and next(scratch_ephys_folder.rglob("*.bin"), None) is not None
     )
@@ -215,7 +215,7 @@ def convert_raw_session(
         else:
             if logger:
                 logger.info("Decompressing .cbin files...")
-            decompress_ephys_cbins(paths["session_folder"], paths["session_scratch_folder"])
+            decompress_ephys_cbins(paths["session_folder"], paths["session_decompressed_ephys_folder"])
             bins_available = True
 
         # Note: Metadata files (.meta, .ch) are automatically copied alongside .bin files
@@ -241,10 +241,10 @@ def convert_raw_session(
     if include_ecephys:
         # Clean up macOS hidden files before Neo scans directory
         # This prevents Neo's scan_files() from encountering ._* AppleDouble files
-        if bins_available and paths["session_scratch_folder"].exists():
+        if bins_available and paths["session_decompressed_ephys_folder"].exists():
             import platform
             if platform.system() == "Darwin":
-                for hidden_file in paths["session_scratch_folder"].rglob("._*"):
+                for hidden_file in paths["session_decompressed_ephys_folder"].rglob("._*"):
                     hidden_file.unlink()
                 if logger:
                     logger.debug("Removed macOS hidden files from scratch folder")
