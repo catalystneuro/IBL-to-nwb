@@ -343,6 +343,6 @@ clusters.channels.npy → Links to: channels.*
 
 ## Related Documentation
 
-- [Session Loader](session_loader.md) - High-level data loading
-- [Spike Sorting Loader](spike_sorting_loader.md) - Ephys data access
-- [IBL Synchronization](../ibl_concepts/ibl_synchronization.md) - Multi-clock alignment
+- [Session Loader](../one_api_data_access/session_loader.md) - High-level data loading
+- [Spike Sorting Loader](../one_api_data_access/spike_sorting_loader.md) - Ephys data access
+- [IBL Synchronization](../ibl_science/synchronization.md) - Multi-clock alignment

@@ -17,7 +17,7 @@ cd IBL-to-nwb
 pip install -e .
 ```
 
-For development (with testing tools), see [documentation/GETTING_STARTED.md](documentation/GETTING_STARTED.md).
+For development, install with `uv sync --group dev`.
 
 ### Running a Conversion
 
@@ -83,7 +83,7 @@ For contributing to the codebase:
    pre-commit run --all-files
    ```
 
-3. Read [documentation/GETTING_STARTED.md](documentation/GETTING_STARTED.md) for development setup and adding new interfaces.
+3. See [documentation/conversion/ibl_data_interface_design.md](documentation/conversion/ibl_data_interface_design.md) for adding new interfaces.
 
 ## Key Dependencies
 

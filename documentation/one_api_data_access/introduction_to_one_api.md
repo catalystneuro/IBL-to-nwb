@@ -9,7 +9,7 @@ from one.api import ONE
 one = ONE()  # Initialize ONE API (required for all data access)
 ```
 
-**New to IBL data?** Start with the [ALF Data Structure](alf_data_structure.md) guide to understand how IBL organizes and names files.
+**New to IBL data?** Start with the [ALF Data Structure](../ibl_data_organization/alf_data_structure.md) guide to understand how IBL organizes and names files.
 
 ## Data Access Methods
 
@@ -156,7 +156,7 @@ loader = SessionLoader(one=one, eid=eid, revision="2024-05-06")
 
 ## Related Documentation
 
-- [ALF Data Structure](alf_data_structure.md) - Understanding IBL's file naming conventions
-- [Brain Atlas Hierarchy](../ibl_concepts/brain_atlas_hierarchy_guide.md) - Understanding brain region mappings
-- [IBL Synchronization](../ibl_concepts/ibl_synchronization.md) - Multi-clock alignment system
+- [ALF Data Structure](../ibl_data_organization/alf_data_structure.md) - Understanding IBL's file naming conventions
+- [Brain Atlas Hierarchy](../ibl_science/brain_atlas_hierarchy_guide.md) - Understanding brain region mappings
+- [IBL Synchronization](../ibl_science/synchronization.md) - Multi-clock alignment system
 - [Conversion Overview](../conversion/conversion_overview.md) - How data flows into NWB format

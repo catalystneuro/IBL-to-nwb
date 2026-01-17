@@ -290,7 +290,7 @@ class IblSortingInterface(BaseIBLDataInterface):
 - Makes future updates explicit
 - Reproducible science
 
-See [revisions.md](revisions.md) for details.
+See [Revisions System](../ibl_data_organization/revisions_system.md) for details.
 
 ## Error Handling
 

@@ -193,7 +193,7 @@ The audio extraction pipeline aligns microphone recordings with Bpod behavioral 
 
 After the main 2AFC task, sessions include a **passive replay period** where stimuli are presented without requiring a behavioral response.
 
-**Documentation**: `documentation/ibl_passive_task.md`
+**Documentation**: [passive_task.md](passive_task.md)
 
 ### Audio Component in Passive Task
 
@@ -481,8 +481,8 @@ audio_qc = qc['audioQC']  # 'PASS', 'WARNING', or 'FAIL'
 
 ## Related Documentation
 
-- **[IBL Synchronization](ibl_synchronization.md)**: Details on temporal alignment across recording systems
-- **[IBL Passive Task](ibl_passive_task.md)**: Description of passive replay protocol including audio stimuli
+- **[Synchronization](synchronization.md)**: Details on temporal alignment across recording systems
+- **[Passive Task](passive_task.md)**: Description of passive replay protocol including audio stimuli
 - **[IBL Trials Metadata](_metadata/trials.yml)**: Complete specification of trials table columns including audio events
 
 ## Code References

@@ -564,7 +564,8 @@ IBL data evolved over time. Format options allow:
 
 ## Related Documentation
 
-- [ARCHITECTURE.md](../ARCHITECTURE.md) - System overview and component relationships
+- [introduction_to_conversion.md](introduction_to_conversion.md) - Conversion architecture overview
 - [conversion_overview.md](conversion_overview.md) - How to run conversions
-- [revisions.md](revisions.md) - Data versioning system
-- [ONE API Data Access](../one_api_data_access/index.md) - Data loading patterns
+- [Revisions System](../ibl_data_organization/revisions_system.md) - Data versioning concepts
+- [ONE API Revision Behavior](../one_api_data_access/one_api_revision_behavior.md) - How API methods handle revisions
+- [ONE API Data Access](../one_api_data_access/) - Data loading patterns
