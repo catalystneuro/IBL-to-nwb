@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
 
 def run_aws_command(cmd):
@@ -183,14 +184,67 @@ def clear_screen():
     print("\033[2J\033[H", end="")
 
 
-def monitor_instances(interval=30, continuous=True, show_logs=0):
-    """Monitor instances and display status.
+def save_console_logs(instances: list, logs_dir: Path) -> None:
+    """Save console output for each instance to local log files.
 
     Args:
-        interval: Refresh interval in seconds
-        continuous: If True, keep refreshing; if False, run once
-        show_logs: Number of recent log lines to show per instance (0 = none)
+        instances: List of instance dicts with 'id', 'session_eid', etc.
+        logs_dir: Directory to save log files to.
     """
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    for inst in instances:
+        instance_id = inst["id"]
+        session_eid = inst.get("session_eid") or "unknown"
+        session_index = inst.get("session_index") or "unknown"
+
+        # Get full console output
+        console = get_console_output(instance_id, lines=10000)
+
+        if console and console != "[No console output available yet]":
+            # Create filename with session info for easy identification
+            filename = f"ec2_console_{session_eid}_{session_index}_{instance_id}_{timestamp}.log"
+            log_file = logs_dir / filename
+
+            # Write console output with header
+            with open(log_file, "w") as f:
+                f.write(f"# EC2 Console Output\n")
+                f.write(f"# Instance ID: {instance_id}\n")
+                f.write(f"# Session EID: {session_eid}\n")
+                f.write(f"# Session Index: {session_index}\n")
+                f.write(f"# Captured at: {datetime.now().isoformat()}\n")
+                f.write(f"# Instance Name: {inst.get('name', 'N/A')}\n")
+                f.write(f"# Stub Test: {inst.get('stub_test', 'N/A')}\n")
+                f.write("#" + "=" * 79 + "\n\n")
+                f.write(console)
+
+            print(f"  Saved logs to: {log_file.name}")
+
+
+DEFAULT_LOGS_DIR = Path.home() / "ibl_scratch" / "conversion_logs"
+
+
+def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=True, logs_dir=None):
+    """Monitor instances and display status.
+
+    Parameters
+    ----------
+    interval : int, optional
+        Refresh interval in seconds. Default is 30.
+    continuous : bool, optional
+        If True, keep refreshing; if False, run once. Default is True.
+    show_logs : int, optional
+        Number of recent log lines to show per instance. Default is 0 (none).
+    save_logs : bool, optional
+        If True, save console logs to disk on each refresh. Default is True.
+    logs_dir : Path or str, optional
+        Directory to save log files. Default is '~/ibl_scratch/conversion_logs'.
+    """
+    if save_logs:
+        logs_dir = Path(logs_dir) if logs_dir else DEFAULT_LOGS_DIR
+    else:
+        logs_dir = None
     try:
         while True:
             clear_screen()
@@ -259,6 +313,12 @@ def monitor_instances(interval=30, continuous=True, show_logs=0):
 
                 print()
 
+            # Save logs if enabled
+            if logs_dir:
+                print()
+                print(f"Saving logs to: {logs_dir}")
+                save_console_logs(instances, logs_dir)
+
             print("-" * 80)
             print(f"Refreshing every {interval} seconds... (Press Ctrl+C to exit)")
             print()
@@ -314,6 +374,17 @@ if __name__ == "__main__":
         metavar="N",
         help="Show last N log lines for each instance in overview (default: 0, meaning off)",
     )
+    parser.add_argument(
+        "--no-save-logs",
+        action="store_true",
+        help="Disable saving console logs to disk (logs are saved by default)",
+    )
+    parser.add_argument(
+        "--logs-dir",
+        type=str,
+        metavar="DIR",
+        help=f"Directory to save console logs (default: {DEFAULT_LOGS_DIR})",
+    )
 
     args = parser.parse_args()
 
@@ -328,4 +399,10 @@ if __name__ == "__main__":
             print(f"No console output available for {args.logs}")
         sys.exit(0)
 
-    monitor_instances(interval=args.interval, continuous=not args.once, show_logs=args.show_logs)
+    monitor_instances(
+        interval=args.interval,
+        continuous=not args.once,
+        show_logs=args.show_logs,
+        save_logs=not args.no_save_logs,
+        logs_dir=args.logs_dir,
+    )

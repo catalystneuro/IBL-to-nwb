@@ -44,7 +44,7 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
             "exact_files_options": {
                 "standard": [
                     f"alf/{camera_name}.ROIMotionEnergy.npy",
-                    f"alf/{camera_name}.times.npy",
+                    f"alf/_ibl_{camera_name}.times.npy",
                     f"alf/{camera_view}ROIMotionEnergy.position.npy",
                 ],
             },
