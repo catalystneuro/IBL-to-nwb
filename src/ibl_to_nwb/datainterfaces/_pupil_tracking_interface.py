@@ -43,8 +43,8 @@ class PupilTrackingInterface(BaseIBLDataInterface):
         return {
             "exact_files_options": {
                 "standard": [
-                    f"alf/{camera_name}.features.pqt",
-                    f"alf/{camera_name}.times.npy",
+                    f"alf/_ibl_{camera_name}.features.pqt",
+                    f"alf/_ibl_{camera_name}.times.npy",
                 ],
             },
         }

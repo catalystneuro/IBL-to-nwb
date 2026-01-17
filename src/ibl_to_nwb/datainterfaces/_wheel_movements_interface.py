@@ -32,8 +32,8 @@ class WheelMovementsInterface(BaseIBLDataInterface):
         return {
             "exact_files_options": {
                 "standard": [
-                    "alf/wheelMoves.intervals.npy",
-                    "alf/wheelMoves.peakAmplitude.npy",
+                    "alf/_ibl_wheelMoves.intervals.npy",
+                    "alf/_ibl_wheelMoves.peakAmplitude.npy",
                 ],
             },
         }

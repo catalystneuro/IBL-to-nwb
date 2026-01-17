@@ -72,7 +72,7 @@ class RawVideoInterface(BaseIBLDataInterface):
         return {
             "exact_files_options": {
                 "standard": [
-                    f"alf/{camera_object_name}.times.npy",
+                    f"alf/_ibl_{camera_object_name}.times.npy",
                     f"raw_video_data/_iblrig_{camera_object_name}.raw.mp4",
                 ],
             },

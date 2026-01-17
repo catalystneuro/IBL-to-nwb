@@ -404,18 +404,9 @@ class BaseIBLDataInterface(BaseDataInterface):
                         collection = None
                         filename = file_path
 
-                    # Try the exact filename first, then with _ibl_ prefix
-                    # ONE API requires exact match including namespace prefix
-                    try:
-                        one.load_dataset(
-                            eid, filename, collection=collection, revision=revision, download_only=download_only
-                        )
-                    except Exception:
-                        # Try with _ibl_ prefix (e.g., "wheel.position.npy" -> "_ibl_wheel.position.npy")
-                        ibl_filename = f"_ibl_{filename}"
-                        one.load_dataset(
-                            eid, ibl_filename, collection=collection, revision=revision, download_only=download_only
-                        )
+                    one.load_dataset(
+                        eid, filename, collection=collection, revision=revision, download_only=download_only
+                    )
                     downloaded_files.append(file_path)
                 alternative_used = option_name
                 break  # Successfully downloaded all files for this option

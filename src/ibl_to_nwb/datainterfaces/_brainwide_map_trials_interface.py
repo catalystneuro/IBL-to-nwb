@@ -128,22 +128,22 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         return {
             "exact_files_options": {
                 # BWM format: consolidated parquet table (preferred)
-                "bwm_format": ["alf/trials.table.pqt"],
+                "bwm_format": ["alf/_ibl_trials.table.pqt"],
                 # Legacy format: individual npy files
                 "legacy_format": [
-                    "alf/trials.intervals.npy",
-                    "alf/trials.choice.npy",
-                    "alf/trials.feedbackType.npy",
-                    "alf/trials.rewardVolume.npy",
-                    "alf/trials.contrastLeft.npy",
-                    "alf/trials.contrastRight.npy",
-                    "alf/trials.probabilityLeft.npy",
-                    "alf/trials.feedback_times.npy",
-                    "alf/trials.response_times.npy",
-                    "alf/trials.stimOff_times.npy",
-                    "alf/trials.stimOn_times.npy",
-                    "alf/trials.goCue_times.npy",
-                    "alf/trials.firstMovement_times.npy",
+                    "alf/_ibl_trials.intervals.npy",
+                    "alf/_ibl_trials.choice.npy",
+                    "alf/_ibl_trials.feedbackType.npy",
+                    "alf/_ibl_trials.rewardVolume.npy",
+                    "alf/_ibl_trials.contrastLeft.npy",
+                    "alf/_ibl_trials.contrastRight.npy",
+                    "alf/_ibl_trials.probabilityLeft.npy",
+                    "alf/_ibl_trials.feedback_times.npy",
+                    "alf/_ibl_trials.response_times.npy",
+                    "alf/_ibl_trials.stimOff_times.npy",
+                    "alf/_ibl_trials.stimOn_times.npy",
+                    "alf/_ibl_trials.goCue_times.npy",
+                    "alf/_ibl_trials.firstMovement_times.npy",
                 ],
             },
         }

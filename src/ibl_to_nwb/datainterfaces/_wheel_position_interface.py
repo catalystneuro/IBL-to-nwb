@@ -32,8 +32,8 @@ class WheelPositionInterface(BaseIBLDataInterface):
         return {
             "exact_files_options": {
                 "standard": [
-                    "alf/wheel.position.npy",
-                    "alf/wheel.timestamps.npy",
+                    "alf/_ibl_wheel.position.npy",
+                    "alf/_ibl_wheel.timestamps.npy",
                 ],
             },
         }
