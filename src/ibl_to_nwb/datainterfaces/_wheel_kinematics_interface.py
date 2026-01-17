@@ -121,7 +121,7 @@ class WheelKinematicsInterface(BaseIBLDataInterface):
 
         # Velocity derived from smoothed position
         velocity_series = TimeSeries(
-            name="WheelSmoothedVelocity",
+            name="WheelVelocitySmoothed",
             description=(
                 "Wheel angular velocity derived from smoothed position (WheelPositionSmoothed). "
                 "Computed as the first derivative of position after interpolation to 1000 Hz "
@@ -135,9 +135,9 @@ class WheelKinematicsInterface(BaseIBLDataInterface):
 
         # Acceleration derived from velocity
         acceleration_series = TimeSeries(
-            name="WheelSmoothedAcceleration",
+            name="WheelAccelerationSmoothed",
             description=(
-                "Wheel angular acceleration derived from velocity (WheelSmoothedVelocity). "
+                "Wheel angular acceleration derived from velocity (WheelVelocitySmoothed). "
                 "Computed as the second derivative of the smoothed position signal."
             ),
             data=acceleration,
