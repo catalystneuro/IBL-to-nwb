@@ -1,10 +1,28 @@
 # Conversion Overview
 
-This document explains how data conversions work in IBL-to-NWB and provides an overview of the conversion pipeline.
+This document explains how to run conversions and how the conversion pipeline works.
 
-## Entry Points
+## Running Conversions
 
-The pipeline has two main conversion functions:
+### Command-Line Scripts
+
+**Single session** - Convert one session by EID:
+```bash
+python src/ibl_to_nwb/_scripts/convert_single_bwm_to_nwb.py <session-eid>
+```
+
+Or edit `TARGET_EID` in the script and run without arguments. The script converts both raw and processed data.
+
+**All Brain-Wide Map sessions** - Batch conversion of all 459 sessions:
+```bash
+python src/ibl_to_nwb/_scripts/convert_bwm_to_nwb.py
+```
+
+This iterates through all BWM sessions, converting each one. For distributed processing on AWS, see the [AWS README](../../src/ibl_to_nwb/_aws/README.md).
+
+### Python API
+
+The scripts use these underlying functions:
 
 ### Raw Conversion
 
@@ -336,60 +354,48 @@ Large files require careful handling:
 - Lazy loading (data not read until accessed)
 - Parallel processing (multiple probes)
 
-## Performance Tips
+## AWS Infrastructure
 
-### 1. Use Stub Test First
+For converting the full Brain-Wide Map dataset (459 sessions), we use AWS EC2 instances running one session per instance in parallel. This reduces total conversion time from weeks to hours.
 
-```bash
-# 5 minutes to test interface
-python -c "from ibl_to_nwb.conversion import convert_raw_session; \
-  convert_raw_session(eid='xxx', one=one, stub_test=True)"
-```
-
-### 2. Local Caching
-
-```python
-# ONE caches data locally (~/.one/)
-# Second conversion much faster than first
-```
-
-### 3. Parallel Processing
-
-For full dataset (459 sessions):
-- AWS EC2 instances (one session per instance)
-- 2-4 hours per session
-- ~$0.42/hour per instance
-- Total cost: ~$600 for full dataset
-
-See [documentation/dandi_and_aws/aws_infrastructure.md](../dandi_and_aws/aws_infrastructure.md).
+See the [AWS README](../../src/ibl_to_nwb/_aws/README.md) for setup instructions, cost estimates, and monitoring.
 
 ## Testing Conversions
 
-### Unit Testing
+### Single Session
 
-```python
-# Test individual interface
-from ibl_to_nwb.datainterfaces import IblSortingInterface
-
-interface = IblSortingInterface(eid=eid, pname='probe00', one=one)
-assert interface.check_availability()["available"]
-metadata = interface.get_metadata()
-```
-
-### Integration Testing
-
+Test a full conversion on one session:
 ```bash
-# Test single session conversion
 python src/ibl_to_nwb/_scripts/convert_single_bwm_to_nwb.py <session-eid>
 ```
 
-### End-to-End Testing
+### Single Interface
+
+Test an individual interface without running the full pipeline:
+```python
+from one.api import ONE
+from ibl_to_nwb.datainterfaces import IblSortingInterface
+
+one = ONE()
+eid = "your-session-uuid"
+
+# Initialize interface
+interface = IblSortingInterface(eid=eid, pname='probe00', one=one)
+
+# Check if data is available
+availability = interface.check_availability()
+print(availability)
+
+# Download required data
+interface.download_data()
+
+# Create NWB file with just this interface's data
+nwbfile = interface.create_nwbfile()
+```
+
+### Validate NWB Output
 
 ```bash
-# Test conversion script (batch mode)
-python src/ibl_to_nwb/_scripts/convert_bwm_to_nwb.py
-
-# Validate NWB
 dandi validate /path/to/file.nwb
 ```
 

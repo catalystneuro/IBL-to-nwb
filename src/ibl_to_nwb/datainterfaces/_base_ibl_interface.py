@@ -128,6 +128,41 @@ class BaseIBLDataInterface(BaseDataInterface):
         )
 
     @classmethod
+    def check_quality(
+        cls,
+        one: ONE,
+        eid: str,
+        logger: Optional[logging.Logger] = None,
+        **kwargs
+    ) -> Optional[dict]:
+        """
+        Check data quality (QC) before checking file availability.
+
+        Override this method to add quality control filtering. Called by
+        check_availability() before checking file existence.
+
+        Parameters
+        ----------
+        one : ONE
+            ONE API instance
+        eid : str
+            Session ID
+        logger : logging.Logger, optional
+            Logger for progress tracking
+        **kwargs
+            Additional parameters (e.g., camera_name)
+
+        Returns
+        -------
+        Optional[dict]
+            - None: No quality issues, proceed with file check
+            - {"available": False, "reason": str, ...}: Reject with reason
+            - {"extra_field": value, ...}: Extra fields to merge into result
+              (without "available" key = no rejection, just extra data)
+        """
+        return None
+
+    @classmethod
     def check_availability(
         cls,
         one: ONE,
@@ -178,6 +213,19 @@ class BaseIBLDataInterface(BaseDataInterface):
         >>> if not result["available"]:
         >>>     print(f"Missing: {result['missing_required']}")
         """
+        # STEP 1: Check quality (QC filtering)
+        quality_result = cls.check_quality(one=one, eid=eid, logger=logger, **kwargs)
+
+        if quality_result is not None:
+            # If quality check explicitly rejects, return immediately
+            if quality_result.get("available") is False:
+                return quality_result
+            # Otherwise, save extra fields to merge later
+            extra_fields = quality_result
+        else:
+            extra_fields = {}
+
+        # STEP 2: Check file existence
         requirements = cls.get_data_requirements(**kwargs)
 
         # Query without revision filtering to get latest version of ALL files
@@ -251,13 +299,17 @@ class BaseIBLDataInterface(BaseDataInterface):
             first_option_name = next(iter(exact_files_options.keys()))
             missing_required.extend(exact_files_options[first_option_name])
 
-        return {
+        # STEP 3: Build result and merge extra fields from quality check
+        result = {
             "available": len(missing_required) == 0,
             "missing_required": missing_required,
             "found_files": found_files,
             "alternative_used": alternative_used,
             "requirements": requirements,
         }
+        result.update(extra_fields)
+
+        return result
 
     @classmethod
     def download_data(
@@ -342,7 +394,28 @@ class BaseIBLDataInterface(BaseDataInterface):
                 for file_path in files:
                     if logger:
                         logger.info(f"  Loading file: {file_path}")
-                    one.load_dataset(eid, file_path, revision=revision, download_only=download_only)
+                    # Parse file path into collection and dataset name for proper revision handling
+                    # ONE API requires collection/revision as kwargs, not embedded in path
+                    parts = file_path.split('/')
+                    if len(parts) >= 2:
+                        collection = '/'.join(parts[:-1])
+                        filename = parts[-1]
+                    else:
+                        collection = None
+                        filename = file_path
+
+                    # Try the exact filename first, then with _ibl_ prefix
+                    # ONE API requires exact match including namespace prefix
+                    try:
+                        one.load_dataset(
+                            eid, filename, collection=collection, revision=revision, download_only=download_only
+                        )
+                    except Exception:
+                        # Try with _ibl_ prefix (e.g., "wheel.position.npy" -> "_ibl_wheel.position.npy")
+                        ibl_filename = f"_ibl_{filename}"
+                        one.load_dataset(
+                            eid, ibl_filename, collection=collection, revision=revision, download_only=download_only
+                        )
                     downloaded_files.append(file_path)
                 alternative_used = option_name
                 break  # Successfully downloaded all files for this option

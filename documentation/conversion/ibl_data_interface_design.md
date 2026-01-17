@@ -20,7 +20,8 @@ get_data_requirements()  ──────────────────�
         │                                                      │
         │  Declares exact files needed (source of truth)       │
         ↓                                                      │
-check_availability() ← reads requirements, queries ONE API     │
+check_availability() ← calls check_quality() first (QC hook)   │
+        │              then reads requirements, queries ONE    │
         │              returns: available, alternative_used    │
         │              NO downloads, read-only check           │
         ↓                                                      │
@@ -45,8 +46,13 @@ class BaseIBLDataInterface:
         ...
 
     @classmethod
+    def check_quality(cls, one: ONE, eid: str, **kwargs) -> Optional[dict]:
+        """Quality control hook. Called before file checks. Override to add QC filtering."""
+        ...
+
+    @classmethod
     def check_availability(cls, one: ONE, eid: str, **kwargs) -> dict:
-        """Read-only check without downloading. Uses get_data_requirements()."""
+        """Read-only check without downloading. Calls check_quality() first, then checks files."""
         ...
 
     @classmethod
@@ -139,6 +145,73 @@ session_loader = SessionLoader(one=self.one, eid=self.session, revision=self.rev
 session_loader.load_pose(**self.get_session_loader_kwargs(camera_name=self.camera_name, tracker=self.tracker))
 ```
 
+### Quality Control Hook (Optional)
+
+The `check_quality()` method allows interfaces to add quality control filtering without overriding the entire `check_availability()` method. This is useful when you need to exclude data based on QC status before checking file existence.
+
+**How it works:**
+
+The base class `check_availability()` follows this order:
+1. Call `check_quality()` first
+2. If it returns `{"available": False, ...}`, return immediately (reject)
+3. Otherwise, proceed with file existence checks
+4. Merge any extra fields from `check_quality()` into the result
+
+**Return values:**
+
+| Return Value | Behavior |
+|--------------|----------|
+| `None` | No quality filtering, proceed with file check |
+| `{"available": False, "reason": str, ...}` | Reject immediately with reason |
+| `{"extra_field": value, ...}` | Pass quality check, merge fields into result |
+
+**Example: Video QC filtering**
+
+Several interfaces (PupilTracking, RoiMotionEnergy, PoseEstimation, RawVideo) exclude data when video quality control is CRITICAL or FAIL:
+
+```python
+@classmethod
+def check_quality(
+    cls,
+    one: ONE,
+    eid: str,
+    logger: Optional[logging.Logger] = None,
+    **kwargs
+) -> Optional[dict]:
+    """Check video QC status from bwm_qc.json."""
+    camera_name = kwargs.get("camera_name")
+    camera_view = re.search(r"(left|right|body)", camera_name).group(1)
+
+    bwm_qc = load_fixtures.load_bwm_qc()
+
+    if eid not in bwm_qc:
+        if logger:
+            logger.warning(f"Session {eid} not in QC database - allowing")
+        return {"qc_status": None}
+
+    video_qc_key = f"video{camera_view.capitalize()}"
+    video_qc_status = bwm_qc[eid].get(video_qc_key, None)
+
+    if video_qc_status in ['CRITICAL', 'FAIL']:
+        if logger:
+            logger.info(f"Data excluded: video QC is {video_qc_status}")
+        return {
+            "available": False,
+            "reason": f"Video quality control failed: {video_qc_status}",
+            "qc_status": video_qc_status
+        }
+
+    return {"qc_status": video_qc_status}
+```
+
+**When to use `check_quality()` vs override `check_availability()`:**
+
+| Use `check_quality()` | Override `check_availability()` |
+|-----------------------|--------------------------------|
+| Adding QC filtering before file checks | Complex custom file checking logic |
+| Need to add extra fields (like `qc_status`) to result | Need to use different ONE API methods |
+| Standard file checking is sufficient | Non-file based availability (e.g., Alyx API) |
+
 ## Data Requirements Format
 
 ### Structure
@@ -223,23 +296,31 @@ The system tries each option in order until finding one where ALL files exist.
 
 The base class provides a default implementation that:
 
-1. Calls `get_data_requirements()` to get `exact_files_options`
-2. Queries ONE API for available datasets (no download)
-3. Tries each option until finding one where ALL files exist
-4. Returns availability status and which option was found
+1. Calls `check_quality()` first (QC hook - returns early if rejected)
+2. Calls `get_data_requirements()` to get `exact_files_options`
+3. Queries ONE API for available datasets (no download)
+4. Tries each option until finding one where ALL files exist
+5. Merges any extra fields from `check_quality()` into result
+6. Returns availability status and which option was found
 
 ```python
 # Simplified logic
+quality_result = cls.check_quality(one=one, eid=eid, **kwargs)
+if quality_result and quality_result.get("available") is False:
+    return quality_result  # Early rejection from QC
+
 requirements = cls.get_data_requirements(**kwargs)
 available_datasets = one.list_datasets(eid)
 
 for option_name, files in requirements["exact_files_options"].items():
     if all(file_exists(f, available_datasets) for f in files):
-        return {
+        result = {
             "available": True,
             "alternative_used": option_name,
             "found_files": files,
         }
+        result.update(quality_result or {})  # Merge extra fields
+        return result
 
 return {
     "available": False,

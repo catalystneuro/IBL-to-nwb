@@ -12,7 +12,7 @@ from ibl_to_nwb.datainterfaces import (
     IblSortingInterface,
     IblAnatomicalLocalizationInterface,
     BrainwideMapTrialsInterface,
-    WheelInterface,
+    WheelPositionInterface,
     PassiveIntervalsInterface,
     PassiveReplayStimInterface,
     PassiveRFMInterface,
@@ -36,7 +36,7 @@ TARGET_REVISION = "2025-05-06"
 DATA_SOURCE_DESCRIPTIONS = {
     # Core behavioral data
     "trials": "Trials data (BrainwideMapTrialsInterface)",
-    "wheel": "Wheel movement data (WheelInterface)",
+    "wheel": "Wheel movement data (WheelPositionInterface)",
     "licks": "Lick times (LickInterface)",
 
     # Passive period data (now separated into three interfaces)
@@ -141,7 +141,7 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
     # Define interfaces to check using the new interface methods
     interfaces_to_check = [
         ("trials", BrainwideMapTrialsInterface, {}),
-        ("wheel", WheelInterface, {}),
+        ("wheel", WheelPositionInterface, {}),
         ("licks", LickInterface, {}),
         ("passive_intervals", PassiveIntervalsInterface, {}),
         ("passive_replay", PassiveReplayStimInterface, {}),

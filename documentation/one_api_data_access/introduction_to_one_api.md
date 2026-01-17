@@ -13,105 +13,49 @@ one = ONE()  # Initialize ONE API (required for all data access)
 
 ## Data Access Methods
 
-IBL data can be accessed at three levels, from lowest to highest:
+| Method | Level | Processing | Returns | Best For |
+|--------|-------|------------|---------|----------|
+| `one.load_dataset()` | Direct ONE | None | numpy array / DataFrame | Single file, simple data |
+| `one.load_object()` | Direct ONE | None | dict of arrays | Multiple related files |
+| `one.alyx.rest()` | Direct ONE | None | JSON/dict | Database queries |
+| [SessionLoader](session_loader.md) | brainbox | Interpolation, filtering, thresholding | DataFrame | Behavioral data |
+| [SpikeSortingLoader](spike_sorting_loader.md) | brainbox | Sorter selection, histology alignment | dict of arrays | Ephys with brain regions |
+| [EphysSessionLoader](ephys_session_loader.md) | brainbox | Combined behavioral + ephys | dict of DataFrames | Full session analysis |
+| [Raw data loaders](raw_data_loaders.md) | ibllib | None | Various | Custom pipelines, debugging |
+| [Video utilities](video_data.md) | ibllib | None | Frames, metadata | Frame extraction |
 
-### 1. Direct ONE API Methods
+### Direct ONE API Examples
 
-The fundamental methods for loading IBL data. Most interfaces use these directly.
-
-| Method | Purpose | Return type |
-|--------|---------|-------------|
-| `one.load_dataset()` | Load a single file | numpy array (or pandas DataFrame for `.pqt` files) |
-| `one.load_object()` | Load all files for an ALF object | dict of arrays |
-| `one.alyx.rest()` | Query Alyx database directly | JSON/dict |
-
-**`one.load_dataset()`** - Load a single data file:
 ```python
 # Load a single array
 timestamps = one.load_dataset(eid, 'wheel.timestamps', collection='alf')
-position = one.load_dataset(eid, 'wheel.position', collection='alf')
 
 # With revision
 licks = one.load_dataset(eid, 'licks.times', collection='alf', revision='2024-05-06')
-```
 
-**`one.load_object()`** - Load all attributes of an ALF object as a dict:
-```python
-# Load all wheel files at once (position, timestamps)
+# Load all wheel files at once
 wheel = one.load_object(eid, 'wheel', collection='alf')
 # Returns: {'position': array, 'timestamps': array}
-
-# Load camera object
-left_camera = one.load_object(eid, 'leftCamera', collection='alf',
-                               attribute=['dlc', 'times'])
 ```
 
-**Pros**: Simple, direct, no dependencies beyond ONE API, full control over what's loaded
-**Cons**: No automatic processing, must handle file organization manually, no convenience features
+## IBL-to-NWB Interface Mapping
 
-### 2. High-Level Loaders (brainbox)
-
-Convenience classes that wrap ONE API calls with automatic processing.
-
-| Loader | Module | Data Types | Return type |
-|--------|--------|------------|-------------|
-| [SessionLoader](session_loader.md) | `brainbox.io.one` | trials, wheel, pose, motion energy, pupil | pandas DataFrame |
-| [SpikeSortingLoader](spike_sorting_loader.md) | `brainbox.io.one` | spikes, clusters, channels, raw waveforms | dict of numpy arrays |
-| [EphysSessionLoader](ephys_session_loader.md) | `brainbox.io.one` | All behavioral + all probes | dict of DataFrames |
-
-**Pros**: Automatic processing (filtering, interpolation, thresholding), pandas output, handles complexity
-**Cons**: Less control, may do processing you don't need, higher-level abstraction
-
-### 3. Raw Data Loaders (ibllib)
-
-For accessing unprocessed source files before IBL's standard processing.
-
-| Module | Data Types | Use Case |
-|--------|------------|----------|
-| [Raw data loaders](raw_data_loaders.md) | PyBpod, camera, encoder, DAQ | Custom pipelines, debugging |
-| [Video utilities](video_data.md) | Video frames, metadata | Frame extraction |
-
-**Pros**: Access to original unprocessed data, full control
-**Cons**: Requires understanding of raw file formats, manual timestamp alignment
-
-## Comparison Summary
-
-| Method | Processing | Complexity | When to Use |
-|--------|------------|------------|-------------|
-| `one.load_dataset()` | None | Low | Single file, simple data |
-| `one.load_object()` | None | Low | Multiple related files, no processing needed |
-| SessionLoader | Interpolation, filtering, thresholding | Medium | Behavioral data needing processing |
-| SpikeSortingLoader | Spike sorter selection, histology alignment | Medium | Ephys data with brain regions |
-| Raw loaders | None | High | Debugging, custom pipelines |
-
-## Decision Guide for NWB Conversion
-
-**Which loader should your DataInterface use?**
-
-- **Behavioral interfaces** (trials, wheel, pose, licks): Use [SessionLoader](session_loader.md) - provides pre-processed DataFrames ready for NWB
-- **Spike sorting interfaces**: Use [SpikeSortingLoader](spike_sorting_loader.md) - handles spike sorter selection, histology alignment, and channel localization
-- **Raw ephys interfaces** (SpikeGLX binary): Use SpikeSortingLoader's `raw_electrophysiology()` for streaming access
-- **Custom interfaces requiring raw timestamps**: Use [raw data loaders](raw_data_loaders.md) when you need data before synchronization
-- **Video-related interfaces**: Use [video utilities](video_data.md) for frame extraction
-
-**What does IBL-to-NWB use?**
-
-| Interface | Data Loading Method | Rationale |
-|-----------|---------------------|-----------|
-| **BrainwideMapTrialsInterface** | `SessionLoader.load_trials()` | SessionLoader aggregates trial columns from multiple files into a single DataFrame. Direct ONE would require manually loading and merging ~20 separate trial attribute files. |
-| **IblPoseEstimationInterface** | `SessionLoader.load_pose()` | SessionLoader provides likelihood thresholding and consistent timestamp handling across camera views. Direct ONE would require manual filtering of low-confidence points. |
-| **IblSortingInterface** | `SpikeSortingLoader.load_spike_sorting()` | SpikeSortingLoader handles spike sorter selection (pykilosort vs iblsorter), histology alignment priority, and channel-to-brain-region mapping. No simpler alternative exists for this complexity. |
-| **IblAnatomicalLocalizationInterface** | `SpikeSortingLoader` + AllenAtlas | Requires SpikeSortingLoader for channel locations with histology alignment, plus atlas for region hierarchy lookups. No alternative. |
-| **WheelInterface** | Direct ONE: `one.load_object()` | Stores raw wheel position for NWB. Alternative: `SessionLoader.load_wheel()` provides interpolation and filtering, but NWB users may prefer raw data to apply their own processing. |
-| **LickInterface** | Direct ONE: `one.load_dataset()` | Simple timestamp array. No SessionLoader method exists for licks. No alternative needed. |
-| **PupilTrackingInterface** | Direct ONE: `one.load_object()` | Loads full eye tracking data (position, diameter, etc.). Alternative: `SessionLoader.load_pupil()` only returns pupil diameter, not full tracking data needed for NWB. |
-| **RoiMotionEnergyInterface** | Direct ONE: `one.load_object()` | Simple time series. Alternative: `SessionLoader.load_motion_energy()` exists but adds no processing - just wraps the same ONE call. |
-| **RawVideoInterface** | Direct ONE: `one.load_object()` | Raw video file metadata. SessionLoader doesn't handle raw videos. No alternative. |
-| **PassiveIntervalsInterface** | Direct ONE: `one.load_dataset()` | Passive protocol intervals. Not covered by SessionLoader. No alternative. |
-| **PassiveReplayStimInterface** | Direct ONE: `one.load_dataset()` | Passive stimulus replay data. Not covered by SessionLoader. No alternative. |
-| **SessionEpochsInterface** | Direct ONE: `one.load_dataset()` | Session epoch boundaries (metadata). Not covered by any loader. No alternative. |
-| **IblNIDQInterface** | Direct ONE: `one.load_dataset()` | Raw NIDQ analog data. This is acquisition data, not processed behavioral data. No alternative. |
-| **ProbeTrajectoryInterface** | Alyx REST: `one.alyx.rest()` | Probe trajectory metadata from Alyx database. Not file-based data. No alternative. |
+| Interface | Loading Method | Why This Method |
+|-----------|----------------|-----------------|
+| BrainwideMapTrialsInterface | `SessionLoader.load_trials()` | Aggregates ~20 trial attribute files into one DataFrame |
+| IblPoseEstimationInterface | `SessionLoader.load_pose()` | Provides likelihood thresholding across camera views |
+| IblSortingInterface | `SpikeSortingLoader` | Handles sorter selection and histology alignment |
+| IblAnatomicalLocalizationInterface | `SpikeSortingLoader` + AllenAtlas | Channel locations with region hierarchy |
+| WheelInterface | `one.load_object()` | Raw data preferred; users apply own processing |
+| LickInterface | `one.load_dataset()` | Simple timestamp array |
+| PupilTrackingInterface | `one.load_object()` | Full eye tracking (SessionLoader only returns diameter) |
+| RoiMotionEnergyInterface | `one.load_object()` | Simple time series |
+| RawVideoInterface | `one.load_object()` | Raw video metadata |
+| PassiveIntervalsInterface | `one.load_dataset()` | Not covered by SessionLoader |
+| PassiveReplayStimInterface | `one.load_dataset()` | Not covered by SessionLoader |
+| SessionEpochsInterface | `one.load_dataset()` | Session metadata |
+| IblNIDQInterface | `one.load_dataset()` | Raw acquisition data |
+| ProbeTrajectoryInterface | `one.alyx.rest()` | Database metadata, not file-based |
 
 ## Common Initialization Patterns
 

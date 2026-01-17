@@ -53,7 +53,7 @@ Converting IBL data to NWB format.
 Cloud infrastructure for uploads and distributed processing.
 
 - [introduction_to_infrastructure.md](dandi_and_aws/introduction_to_infrastructure.md) - Section overview
-- [aws_infrastructure.md](dandi_and_aws/aws_infrastructure.md) - Running conversions on AWS EC2
+- [AWS README](../src/ibl_to_nwb/_aws/README.md) - Running conversions on AWS EC2
 - [dandi_file_patterns.md](dandi_and_aws/dandi_file_patterns.md) - DANDI file naming conventions
 
 ### [Development](development/)
@@ -75,5 +75,5 @@ Tools, debugging, and technical deep dives.
 | Find brain region for electrode | [brain_atlas_hierarchy_guide.md](ibl_science/brain_atlas_hierarchy_guide.md) |
 | Load spike sorting data | [spike_sorting_loader.md](one_api_data_access/spike_sorting_loader.md) |
 | Understand ALF file names | [alf_data_structure.md](ibl_data_organization/alf_data_structure.md) |
-| Run distributed conversions | [aws_infrastructure.md](dandi_and_aws/aws_infrastructure.md) |
+| Run distributed conversions | [AWS README](../src/ibl_to_nwb/_aws/README.md) |
 | Debug timing issues | [nidq_timing_details.md](development/nidq_timing_details.md) |

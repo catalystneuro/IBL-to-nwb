@@ -8,7 +8,7 @@ IBL NWB files are published on the [DANDI archive](https://dandiarchive.org/) (D
 
 ## Documents in This Section
 
-- [AWS Infrastructure](aws_infrastructure.md) - Running distributed conversions on AWS EC2: instance setup, session management, cost estimation, and monitoring
+- [AWS Infrastructure](../../src/ibl_to_nwb/_aws/README.md) - Running distributed conversions on AWS EC2: instance setup, session management, cost estimation, and monitoring
 - [DANDI File Patterns](dandi_file_patterns.md) - File naming conventions and directory structure for DANDI uploads
 
 ## Key Workflows

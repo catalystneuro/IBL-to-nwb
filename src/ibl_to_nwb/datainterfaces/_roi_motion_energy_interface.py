@@ -51,70 +51,41 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
         }
 
     @classmethod
-    def check_availability(
+    def check_quality(
         cls,
         one: ONE,
         eid: str,
-        camera_name: str,
         logger: Optional[logging.Logger] = None,
         **kwargs
-    ) -> dict:
+    ) -> Optional[dict]:
         """
-        Check if ROI motion energy data is available for a session/camera, including QC filtering.
+        Check video QC status from bwm_qc.json.
 
-        This method checks BOTH file existence AND video quality control status.
         Sessions with CRITICAL or FAIL video QC are excluded to ensure high-quality motion energy data.
-
-        Parameters
-        ----------
-        one : ONE
-            ONE API instance
-        eid : str
-            Session ID
-        camera_name : str
-            Camera name (e.g., "leftCamera", "rightCamera", "bodyCamera")
-        logger : logging.Logger, optional
-            Logger for progress tracking
-
-        Returns
-        -------
-        dict
-            {"available": bool, "reason": str, "qc_status": str or None}
         """
+        camera_name = kwargs.get("camera_name")
         camera_view = re.search(r"(left|right|body)", camera_name).group(1)
 
-        # STEP 1: Check video quality control from bwm_qc.json
-        # Following revision_2 approach: exclude CRITICAL/FAIL videos
-        # Fail-fast: if bwm_qc.json is missing/corrupted, let exception propagate
         bwm_qc = load_fixtures.load_bwm_qc()
 
         if eid not in bwm_qc:
-            # Session not in QC database - allow it (might be new session)
             if logger:
                 logger.warning(f"Session {eid} not in QC database - allowing ROI motion energy")
-            video_qc_status = None
-        else:
-            video_qc_key = f"video{camera_view.capitalize()}"
-            video_qc_status = bwm_qc[eid].get(video_qc_key, None)
+            return {"qc_status": None}
 
-            if video_qc_status in ['CRITICAL', 'FAIL']:
-                if logger:
-                    logger.info(f"ROI motion energy for {camera_name} excluded: video QC is {video_qc_status}")
-                return {
-                    "available": False,
-                    "reason": f"Video quality control failed: {video_qc_status}",
-                    "qc_status": video_qc_status
-                }
+        video_qc_key = f"video{camera_view.capitalize()}"
+        video_qc_status = bwm_qc[eid].get(video_qc_key, None)
 
-        # STEP 2: Check if ROI motion energy files exist (uses base class implementation)
-        file_check_result = super(RoiMotionEnergyInterface, cls).check_availability(
-            one=one, eid=eid, camera_name=camera_name, logger=logger, **kwargs
-        )
+        if video_qc_status in ['CRITICAL', 'FAIL']:
+            if logger:
+                logger.info(f"ROI motion energy for {camera_name} excluded: video QC is {video_qc_status}")
+            return {
+                "available": False,
+                "reason": f"Video quality control failed: {video_qc_status}",
+                "qc_status": video_qc_status
+            }
 
-        # Add QC status to result
-        file_check_result["qc_status"] = video_qc_status
-
-        return file_check_result
+        return {"qc_status": video_qc_status}
 
     @classmethod
     def get_load_object_kwargs(cls, camera_name: str) -> list[dict]:
