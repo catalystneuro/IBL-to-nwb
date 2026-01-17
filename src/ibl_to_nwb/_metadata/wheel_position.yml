@@ -1,4 +1,0 @@
-WheelPosition:
-  name: WheelPosition
-  description: |
-    Absolute unwrapped angle of the wheel from session start. Recorded from quadrature rotary encoder with event-driven sampling (timestamps only when wheel moves). The sign from the subject perspective corresponds to mathematical convention; counter-clockwise is positive. The wheel diameter is 6.2 cm and the number of ticks is 4096 per revolution, giving a resolution of 2*pi/4096 radians (~0.088 degrees).

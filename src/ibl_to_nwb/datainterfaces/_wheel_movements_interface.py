@@ -2,12 +2,10 @@
 
 import logging
 import time
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
 from neuroconv.tools.nwb_helpers import get_module
-from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb.epoch import TimeIntervals
 
@@ -107,11 +105,6 @@ class WheelMovementsInterface(BaseIBLDataInterface):
             "data": None,
         }
 
-    def get_metadata(self) -> dict:
-        metadata = super().get_metadata()
-        metadata.update(load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "wheel_movements.yml"))
-        return metadata
-
     def add_to_nwbfile(self, nwbfile, metadata: dict, stub_test: bool = False, stub_duration: float = 10.0):
         """
         Add wheel movement epochs to NWBFile.
@@ -144,14 +137,21 @@ class WheelMovementsInterface(BaseIBLDataInterface):
 
         # Wheel movement intervals
         wheel_movement_intervals = TimeIntervals(
-            name=metadata["WheelMovement"]["name"],
-            description=metadata["WheelMovement"]["description"],
+            name="WheelMovement",
+            description=(
+                "The onset and offset times of all detected movements. "
+                "Movements are defined as a wheel movement of at least 0.012 rad over 200ms. "
+                "For a rotary encoder of resolution 1024 in X4 encoding, this is equivalent to around 8 ticks. "
+                "Movements below 50ms are discarded and two detected movements within 100ms of one another "
+                "are considered as a single movement. For the onsets a lower threshold is used to find a more "
+                "precise onset time. The wheel diameter is 6.2 cm and the number of ticks is 4096 per revolution."
+            ),
         )
         for start_time, stop_time in wheel_moves["intervals"]:
             wheel_movement_intervals.add_row(start_time=start_time, stop_time=stop_time)
         wheel_movement_intervals.add_column(
-            name=metadata["WheelMovement"]["columns"]["peakAmplitude"]["name"],
-            description=metadata["WheelMovement"]["columns"]["peakAmplitude"]["description"],
+            name="peak_amplitude",
+            description="The absolute maximum amplitude of each detected wheel movement, relative to onset position.",
             data=wheel_moves["peakAmplitude"],
         )
 

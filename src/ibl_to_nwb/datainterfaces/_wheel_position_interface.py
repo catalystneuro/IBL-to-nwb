@@ -2,12 +2,10 @@
 
 import logging
 import time
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
 from neuroconv.tools.nwb_helpers import get_module
-from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb.behavior import SpatialSeries
 
@@ -107,11 +105,6 @@ class WheelPositionInterface(BaseIBLDataInterface):
             "data": None,
         }
 
-    def get_metadata(self) -> dict:
-        metadata = super().get_metadata()
-        metadata.update(load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "wheel_position.yml"))
-        return metadata
-
     def add_to_nwbfile(self, nwbfile, metadata: dict, stub_test: bool = False, stub_duration: float = 10.0):
         """
         Add raw wheel position data to NWBFile.
@@ -152,12 +145,25 @@ class WheelPositionInterface(BaseIBLDataInterface):
 
         # Raw wheel position with irregular timestamps from encoder
         wheel_position_series = SpatialSeries(
-            name=metadata["WheelPosition"]["name"],
-            description=metadata["WheelPosition"]["description"],
+            name="WheelPosition",
+            description=(
+                "Absolute unwrapped wheel angle recorded from a quadrature rotary encoder. "
+                "The wheel (diameter 6.2 cm) is positioned under the mouse's forepaws and serves "
+                "as the primary behavioral input device for reporting perceptual decisions. "
+                "Sampling is event-driven: timestamps are recorded only when the wheel moves "
+                "(i.e., when the encoder generates TTL edges), resulting in irregular inter-sample "
+                "intervals. The encoder uses X4 decoding of two 90-degree phase-shifted channels, "
+                "providing 4096 effective counts per revolution (angular resolution ~0.088 degrees "
+                "or 2*pi/4096 radians). Position is NOT periodic: values grow unboundedly as the "
+                "wheel rotates, accumulating across multiple full revolutions (e.g., 3 full turns "
+                "clockwise = -6*pi radians). The position is never wrapped back to [0, 2*pi]. "
+                "Sign convention follows mathematical standard: counter-clockwise rotation "
+                "(from the subject's perspective) is positive."
+            ),
             data=wheel["position"],
             timestamps=wheel["timestamps"],
             unit="radians",
-            reference_frame="Initial angle at start time is zero. Counter-clockwise is positive.",
+            reference_frame="Initial angle at session start is defined as zero. Counter-clockwise is positive.",
         )
 
         wheel_module = get_module(nwbfile=nwbfile, name="wheel", description="Wheel behavioral data.")

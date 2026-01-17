@@ -385,15 +385,15 @@ NWBFile
         │   ├── start_time: movement onsets
         │   ├── stop_time: movement offsets
         │   └── peak_amplitude: max displacement per movement
-        ├── WheelPositionFiltered       # From WheelKinematicsInterface
+        ├── WheelPositionSmoothed       # From WheelKinematicsInterface
         │   ├── data: filtered position (radians)
         │   ├── starting_time: first interpolated time
         │   └── rate: 1000 Hz
-        ├── WheelVelocity               # From WheelKinematicsInterface
+        ├── WheelSmoothedVelocity               # From WheelKinematicsInterface
         │   ├── data: velocity (rad/s)
         │   ├── starting_time: first interpolated time
         │   └── rate: 1000 Hz
-        └── WheelAcceleration           # From WheelKinematicsInterface
+        └── WheelSmoothedAcceleration           # From WheelKinematicsInterface
             ├── data: acceleration (rad/s^2)
             ├── starting_time: first interpolated time
             └── rate: 1000 Hz
@@ -428,13 +428,13 @@ with NWBHDF5IO("session.nwb", "r") as io:
     pos_data = position.data[:]
     pos_times = position.timestamps[:]
 
-    # Load filtered position (regularly sampled at 1000 Hz)
-    filtered_pos = wheel_module["WheelPositionFiltered"]
-    filtered_data = filtered_pos.data[:]
-    filtered_rate = filtered_pos.rate  # 1000 Hz
+    # Load smoothed position (uniformly sampled at 1000 Hz)
+    smoothed_pos = wheel_module["WheelPositionSmoothed"]
+    smoothed_data = smoothed_pos.data[:]
+    smoothed_rate = smoothed_pos.rate  # 1000 Hz
 
     # Load velocity (regularly sampled)
-    velocity = wheel_module["WheelVelocity"]
+    velocity = wheel_module["WheelSmoothedVelocity"]
     vel_data = velocity.data[:]
     vel_rate = velocity.rate  # 1000 Hz
     vel_start = velocity.starting_time
@@ -579,9 +579,9 @@ NWBFile
     └── wheel                    # Wheel behavior module
         ├── WheelPosition        # Raw position + irregular timestamps
         ├── WheelMovement        # Detected movement epochs
-        ├── WheelPositionFiltered# 1000 Hz interpolated + filtered position
-        ├── WheelVelocity        # 1000 Hz derived velocity
-        └── WheelAcceleration    # 1000 Hz derived acceleration
+        ├── WheelPositionSmoothed# 1000 Hz interpolated + filtered position
+        ├── WheelSmoothedVelocity        # 1000 Hz derived velocity
+        └── WheelSmoothedAcceleration    # 1000 Hz derived acceleration
 ```
 
 ## Scientific Applications

@@ -2,13 +2,11 @@
 
 import logging
 import time
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
 from brainbox.behavior import wheel as wheel_methods
 from neuroconv.tools.nwb_helpers import get_module
-from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
 from pynwb.behavior import SpatialSeries
@@ -111,11 +109,6 @@ class WheelKinematicsInterface(BaseIBLDataInterface):
             "data": None,
         }
 
-    def get_metadata(self) -> dict:
-        metadata = super().get_metadata()
-        metadata.update(load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "wheel_kinematics.yml"))
-        return metadata
-
     def add_to_nwbfile(self, nwbfile, metadata: dict, stub_test: bool = False, stub_duration: float = 10.0):
         """
         Add derived wheel kinematics to NWBFile.
@@ -171,21 +164,31 @@ class WheelKinematicsInterface(BaseIBLDataInterface):
         interpolated_starting_time = interpolated_timestamps[0]
         interpolated_rate = 1 / (interpolated_timestamps[1] - interpolated_timestamps[0])
 
-        # Filtered position (interpolated to 1000 Hz, Butterworth lowpass)
-        filtered_position_series = SpatialSeries(
-            name=metadata["WheelPositionFiltered"]["name"],
-            description=metadata["WheelPositionFiltered"]["description"],
+        # Smoothed position (interpolated to uniform 1000 Hz, then lowpass filtered)
+        smoothed_position_series = SpatialSeries(
+            name="WheelPositionSmoothed",
+            description=(
+                "Wheel position resampled to a uniform 1000 Hz grid and smoothed. The raw wheel position "
+                "has irregular timestamps (event-driven from encoder edges). This series provides uniformly "
+                "sampled position by: (1) linear interpolation to 1000 Hz, then (2) 8th order Butterworth "
+                "lowpass filter (20 Hz corner, zero-phase) to remove high-frequency noise. This smoothed "
+                "signal is used to derive velocity and acceleration via differentiation."
+            ),
             data=interpolated_position,
             starting_time=interpolated_starting_time,
             rate=interpolated_rate,
             unit="radians",
-            reference_frame="Interpolated to 1000 Hz, 8th order Butterworth 20 Hz lowpass, zero-phase.",
+            reference_frame="Uniformly sampled at 1000 Hz via linear interpolation, then lowpass filtered.",
         )
 
-        # Velocity derived from filtered position
+        # Velocity derived from smoothed position
         velocity_series = TimeSeries(
-            name=metadata["WheelVelocity"]["name"],
-            description=metadata["WheelVelocity"]["description"],
+            name="WheelSmoothedVelocity",
+            description=(
+                "Wheel angular velocity derived from smoothed position (WheelPositionSmoothed). "
+                "Computed as the first derivative of position after interpolation to 1000 Hz "
+                "and lowpass filtering."
+            ),
             data=velocity,
             starting_time=interpolated_starting_time,
             rate=interpolated_rate,
@@ -194,8 +197,11 @@ class WheelKinematicsInterface(BaseIBLDataInterface):
 
         # Acceleration derived from velocity
         acceleration_series = TimeSeries(
-            name=metadata["WheelAcceleration"]["name"],
-            description=metadata["WheelAcceleration"]["description"],
+            name="WheelSmoothedAcceleration",
+            description=(
+                "Wheel angular acceleration derived from velocity (WheelSmoothedVelocity). "
+                "Computed as the second derivative of the smoothed position signal."
+            ),
             data=acceleration,
             starting_time=interpolated_starting_time,
             rate=interpolated_rate,
@@ -203,6 +209,6 @@ class WheelKinematicsInterface(BaseIBLDataInterface):
         )
 
         wheel_module = get_module(nwbfile=nwbfile, name="wheel", description="Wheel behavioral data.")
-        wheel_module.add(filtered_position_series)
+        wheel_module.add(smoothed_position_series)
         wheel_module.add(velocity_series)
         wheel_module.add(acceleration_series)

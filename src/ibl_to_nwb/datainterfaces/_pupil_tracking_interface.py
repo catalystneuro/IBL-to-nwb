@@ -3,12 +3,10 @@
 import logging
 import re
 import time
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
 from neuroconv.tools.nwb_helpers import get_module
-from neuroconv.utils import load_dict_from_file
 from one.api import ONE
 from pynwb import TimeSeries
 
@@ -189,14 +187,6 @@ class PupilTrackingInterface(BaseIBLDataInterface):
             "data": None,
         }
 
-    def get_metadata(self) -> dict:
-        metadata = super().get_metadata()
-
-        pupils_metadata = load_dict_from_file(file_path=Path(__file__).parent.parent / "_metadata" / "pupils.yml")
-        metadata.update(pupils_metadata)
-
-        return metadata
-
     def add_to_nwbfile(self, nwbfile, metadata: dict):
         camera_view = re.search(r"(left|right|body)Camera*", self.camera_name).group(1)
         camera_data = self.one.load_object(
@@ -246,18 +236,33 @@ class PupilTrackingInterface(BaseIBLDataInterface):
         # Flatten pupil data directly into video module (no PupilTracking container)
         video_module = get_module(nwbfile=nwbfile, name="video", description="Scalar signals derived from video.")
 
+        # Check required columns exist
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:
             if ibl_key not in camera_data["features"]:
                 raise RuntimeError(
                     f"Pupil tracking data for camera '{self.camera_name}' in session '{self.session}' is missing column '{ibl_key}'"
                 )
-            # Naming: TimeSeries{Left|Right}{Raw|Smoothed}PupilDiameter
-            series_name = f"TimeSeries{camera_view.capitalize()}{metadata['Pupils'][ibl_key]['name']}"
-            pupil_series = TimeSeries(
-                name=series_name,
-                description=metadata["Pupils"][ibl_key]["description"],
-                data=np.array(camera_data["features"][ibl_key]),
-                timestamps=camera_data["times"],
-                unit="px",
-            )
-            video_module.add(pupil_series)
+
+        # Raw pupil diameter
+        raw_pupil_series = TimeSeries(
+            name=f"{camera_view.capitalize()}RawPupilDiameter",
+            description=(
+                "Estimates pupil diameter by taking the median of different computations. "
+                "The two most straightforward estimates are d1 = top - bottom, d2 = left - right. "
+                "In addition, assume the pupil is a circle and estimate diameter from other pairs of points."
+            ),
+            data=np.array(camera_data["features"]["pupilDiameter_raw"]),
+            timestamps=camera_data["times"],
+            unit="px",
+        )
+        video_module.add(raw_pupil_series)
+
+        # Smoothed pupil diameter
+        smoothed_pupil_series = TimeSeries(
+            name=f"{camera_view.capitalize()}SmoothedPupilDiameter",
+            description="Smoothed and interpolated version of the RawPupilDiameter.",
+            data=np.array(camera_data["features"]["pupilDiameter_smooth"]),
+            timestamps=camera_data["times"],
+            unit="px",
+        )
+        video_module.add(smoothed_pupil_series)
