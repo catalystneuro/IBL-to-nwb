@@ -75,7 +75,7 @@ def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
 
     processing_module = nwbfile.processing["wheel"]
     wheel_position_series = processing_module.data_interfaces["WheelPosition"]
-    wheel_movement_table = processing_module.data_interfaces["WheelMovement"][:]
+    wheel_movement_table = processing_module.data_interfaces["WheelMovementIntervals"][:]
 
     # wheel position
     data_from_ONE = one.load_dataset(id=eid, dataset="_ibl_wheel.position", **load_kwargs)

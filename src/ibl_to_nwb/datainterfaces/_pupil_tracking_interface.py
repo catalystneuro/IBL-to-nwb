@@ -137,8 +137,18 @@ class PupilTrackingInterface(BaseIBLDataInterface):
                 )
                 camera_data["times"] = camera_data["times"][:features_len]
 
-        # Flatten pupil data directly into video module (no PupilTracking container)
-        video_module = get_module(nwbfile=nwbfile, name="video", description="Scalar signals derived from video.")
+        # Add pupil data to dedicated pupil module
+        pupil_module = get_module(
+            nwbfile=nwbfile,
+            name="pupil",
+            description=(
+                "Pupil diameter measurements from video-based eye tracking. "
+                "Pupil diameter is estimated using pose estimation (DLC/Lightning Pose) to track keypoints "
+                "around the pupil boundary. Diameter is computed as the median of multiple estimates "
+                "(vertical, horizontal, and circular fits) for robustness. "
+                "Pupil diameter correlates with arousal, attention, and cognitive state."
+            ),
+        )
 
         # Check required columns exist
         for ibl_key in ["pupilDiameter_raw", "pupilDiameter_smooth"]:
@@ -147,26 +157,31 @@ class PupilTrackingInterface(BaseIBLDataInterface):
                     f"Pupil tracking data for camera '{self.camera_name}' in session '{self.session}' is missing column '{ibl_key}'"
                 )
 
-        # Raw pupil diameter
+        # Pupil diameter (unsmoothed)
         raw_pupil_series = TimeSeries(
-            name=f"{camera_view.capitalize()}RawPupilDiameter",
+            name=f"{camera_view.capitalize()}PupilDiameter",
             description=(
-                "Estimates pupil diameter by taking the median of different computations. "
-                "The two most straightforward estimates are d1 = top - bottom, d2 = left - right. "
-                "In addition, assume the pupil is a circle and estimate diameter from other pairs of points."
+                "Raw pupil diameter estimated from pose tracking keypoints around the pupil boundary. "
+                "Multiple diameter estimates are computed: vertical (top-bottom distance), horizontal "
+                "(left-right distance), and circular fits from other keypoint pairs. The final value "
+                "is the median of these estimates, providing robustness against individual tracking errors."
             ),
             data=np.array(camera_data["features"]["pupilDiameter_raw"]),
             timestamps=camera_data["times"],
             unit="px",
         )
-        video_module.add(raw_pupil_series)
+        pupil_module.add(raw_pupil_series)
 
         # Smoothed pupil diameter
         smoothed_pupil_series = TimeSeries(
-            name=f"{camera_view.capitalize()}SmoothedPupilDiameter",
-            description="Smoothed and interpolated version of the RawPupilDiameter.",
+            name=f"{camera_view.capitalize()}PupilDiameterSmoothed",
+            description=(
+                "Smoothed pupil diameter. This version has been temporally smoothed and interpolated "
+                "over frames with missing or low-confidence keypoint detections. Useful for analyses "
+                "where smooth trajectories are preferred over frame-by-frame accuracy."
+            ),
             data=np.array(camera_data["features"]["pupilDiameter_smooth"]),
             timestamps=camera_data["times"],
             unit="px",
         )
-        video_module.add(smoothed_pupil_series)
+        pupil_module.add(smoothed_pupil_series)

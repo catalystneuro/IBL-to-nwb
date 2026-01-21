@@ -132,20 +132,30 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
         width, height, x, y = motion_energy_video_region["position"]
 
         description = (
-            f"Motion energy calculated for a region of the {camera_view} camera video that is {width} pixels "
-            f"wide, {height} pixels tall, and the top-left corner of the region is the pixel ({x}, {y}).\n\n"
-            "CAUTION: As each software will load the video in a different orientation, the ROI might need to be "
-            "adapted. For example, when loading the video with cv2 in Python, x and y axes are flipped from the "
-            f"convention used above. The region then becomes [{y}:{y + height}, {x}:{x + width}]."
+            f"Motion energy calculated for a region of the {camera_view} camera video. "
+            f"ROI dimensions: {width} pixels wide, {height} pixels tall, top-left corner at ({x}, {y}).\n\n"
+            "Calculation: For each frame, pixel intensity differences are computed between frame N and frame N+2 "
+            "(default offset). The Euclidean norm (L2) of differences is summed across all ROI pixels, then "
+            "min-max normalized to [0, 1] range. Higher values indicate more movement within the ROI.\n\n"
+            "CAUTION: Video loading libraries may use different axis conventions. When loading with cv2 in Python, "
+            f"x and y axes are flipped. The region then becomes [{y}:{y + height}, {x}:{x + width}]."
         )
 
         motion_energy_series = TimeSeries(
-            name=f"TimeSeries{camera_view.capitalize()}MotionEnergy",
+            name=f"{camera_view.capitalize()}CameraMotionEnergy",
             description=description,
             data=camera_data["ROIMotionEnergy"],
             timestamps=camera_data["times"],
             unit="a.u.",
         )
 
-        video_module = get_module(nwbfile=nwbfile, name="video", description="Scalar signals derived from video.")
-        video_module.add(motion_energy_series)
+        motion_energy_module = get_module(
+            nwbfile=nwbfile,
+            name="motion_energy",
+            description=(
+                "Motion energy quantifies total movement within video regions of interest (ROIs). "
+                "Values are computed as the sum of Euclidean pixel intensity differences between frames, "
+                "normalized to [0, 1] range. Useful as a behavioral covariate for neural analysis."
+            ),
+        )
+        motion_energy_module.add(motion_energy_series)

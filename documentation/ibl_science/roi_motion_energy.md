@@ -4,11 +4,30 @@ ROI Motion Energy is a scalar behavioral metric derived from video recordings th
 
 ## What It Measures
 
-Motion energy is computed as the **sum of squared pixel intensity differences between consecutive video frames** within a defined rectangular region:
+Motion energy quantifies total movement within a region of interest (ROI) by computing pixel intensity changes across video frames.
+
+### Calculation Pipeline
+
+The motion energy calculation (implemented in `ibllib/brainbox/video.py`) follows these steps:
+
+1. **Frame differencing**: Compare frame N with frame N+2 (default offset of 2 frames)
+2. **Euclidean norm**: For each pixel, compute `sqrt(diff^2)` (or for color: `sqrt(R_diff^2 + G_diff^2 + B_diff^2)`)
+3. **Spatial summation**: Sum all pixel values across the ROI
+4. **Min-max normalization**: Scale to [0, 1] range: `(value - min) / (max - min)`
 
 ```
-motion_energy[t] = sum((frame[t] - frame[t-1])^2) for all pixels in ROI
+# Per-pixel difference (grayscale)
+pixel_diff[t] = sqrt((frame[t+2] - frame[t])^2)
+
+# Motion energy for frame t
+motion_energy[t] = normalize(sum(pixel_diff[t]) for all pixels in ROI)
 ```
+
+**Key details:**
+- **Frame offset (diff=2)**: Compares frame N with frame N+2, not consecutive frames. This reduces noise while capturing movement.
+- **Euclidean distance**: Uses L2 norm (sqrt of squared differences), not raw squared differences.
+- **Normalization**: Output is scaled to [0, 1] range, making values comparable across sessions.
+- **Optional smoothing**: A 9x9 Gaussian blur can be applied (not used by default).
 
 Any movement within the ROI (whisker twitches, grooming, fidgeting, breathing) contributes to higher motion energy values. Static frames produce near-zero values.
 
@@ -104,8 +123,9 @@ In the NWB file, motion energy is stored as a `TimeSeries` in the `video` proces
 ```
 
 Each `TimeSeries` includes:
-- `data` - Motion energy values (arbitrary units)
+- `data` - Motion energy values (normalized to 0-1 range)
 - `timestamps` - Frame times in seconds
+- `unit` - "a.u." (arbitrary units, normalized)
 - `description` - ROI dimensions and position
 
 ## Scientific Applications
@@ -136,10 +156,11 @@ with NWBHDF5IO("session.nwb", "r") as io:
 # (after aligning to common time base)
 ```
 
-## Related Interfaces
+## Related Documentation
 
+- [Pupil Tracking](pupil_tracking.md) - Pupil diameter measurements from video
+- [Lick Detection](lick_detection.md) - Lick event timestamps from tongue pose estimation
 - [Pose Estimation](../conversion/conversion_modalities.md) - Keypoint tracking for specific body parts
-- [Pupil Tracking](../conversion/conversion_modalities.md) - Eye/pupil diameter and position
 - [Raw Video](../conversion/conversion_modalities.md) - Source video files
 
 ## References

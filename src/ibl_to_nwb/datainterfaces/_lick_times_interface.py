@@ -56,5 +56,14 @@ class LickInterface(BaseIBLDataInterface):
             timestamps=lick_timestamps,
         )
 
-        lick_times_module = get_module(nwbfile=nwbfile, name="lick_times", description="Discrete behavioral events.")
+        lick_times_module = get_module(
+            nwbfile=nwbfile,
+            name="lick_times",
+            description=(
+                "Lick event timestamps detected from video-based tongue pose estimation. "
+                "Licks are detected by tracking tongue landmark positions (Lightning Pose) and identifying "
+                "frames with significant tongue movement. Licking indicates consummatory behavior "
+                "following water reward delivery."
+            ),
+        )
         lick_times_module.add(lick_events)

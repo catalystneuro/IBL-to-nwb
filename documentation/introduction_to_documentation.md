@@ -15,6 +15,8 @@ Experimental and scientific foundations of IBL data.
 - [passive_task.md](ibl_science/passive_task.md) - Passive replay protocol
 - [audio_stimuli.md](ibl_science/audio_stimuli.md) - Go cues and audio timing
 - [roi_motion_energy.md](ibl_science/roi_motion_energy.md) - Motion energy from video ROIs
+- [pupil_tracking.md](ibl_science/pupil_tracking.md) - Pupil diameter tracking from video
+- [lick_detection.md](ibl_science/lick_detection.md) - Lick event detection from pose estimation
 
 ### [IBL Data Organization](ibl_data_organization/)
 How IBL structures and versions data.
@@ -62,15 +64,3 @@ Tools, debugging, and technical deep dives.
 - [probe_slice_visualization_guide.md](development/probe_slice_visualization_guide.md) - Probe trajectory visualization
 - [insertion_and_localization_status_nwb.md](development/insertion_and_localization_status_nwb.md) - NWB representation details
 - [one_api_bug_with_caching.md](development/one_api_bug_with_caching.md) - Known ONE API caching issues
-
-## Quick Reference
-
-| Task | Document |
-|------|----------|
-| Install and run first conversion | [README.md](../README.md) |
-| Understand conversion architecture | [introduction_to_conversion.md](conversion/introduction_to_conversion.md) |
-| Find brain region for electrode | [brain_atlas_hierarchy_guide.md](ibl_science/brain_atlas_hierarchy_guide.md) |
-| Load spike sorting data | [spike_sorting_loader.md](one_api_data_access/spike_sorting_loader.md) |
-| Understand ALF file names | [alf_data_structure.md](ibl_data_organization/alf_data_structure.md) |
-| Run distributed conversions | [AWS README](../src/ibl_to_nwb/_aws/README.md) |
-| Debug timing issues | [nidq_timing_details.md](development/nidq_timing_details.md) |

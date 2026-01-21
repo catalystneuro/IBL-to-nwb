@@ -22,6 +22,8 @@ The International Brain Laboratory (IBL) is a collaboration studying the neural 
 ### Video-Derived Behavioral Metrics
 
 - [ROI Motion Energy](roi_motion_energy.md) - Scalar movement metric from video regions, used to separate movement-related from task-related neural activity
+- [Pupil Tracking](pupil_tracking.md) - Pupil diameter measurements indicating arousal and cognitive state
+- [Lick Detection](lick_detection.md) - Lick event timestamps from tongue pose estimation
 
 ### Technical Infrastructure
 

@@ -104,5 +104,14 @@ class WheelPositionInterface(BaseIBLDataInterface):
             reference_frame="Initial angle at session start is defined as zero. Counter-clockwise is positive.",
         )
 
-        wheel_module = get_module(nwbfile=nwbfile, name="wheel", description="Wheel behavioral data.")
+        wheel_module = get_module(
+            nwbfile=nwbfile,
+            name="wheel",
+            description=(
+                "Rotary encoder wheel used for behavioral responses. The wheel (6.2 cm diameter) is positioned "
+                "under the mouse's forepaws, and rotation is measured via a quadrature encoder (1024 ticks, "
+                "X4 encoding = 4096 effective ticks per revolution). Mice turn the wheel to move visual stimuli "
+                "and report perceptual decisions. Contains raw position, detected movements, and derived kinematics."
+            ),
+        )
         wheel_module.add(wheel_position_series)

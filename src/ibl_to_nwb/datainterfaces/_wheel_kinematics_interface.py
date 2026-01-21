@@ -146,7 +146,16 @@ class WheelKinematicsInterface(BaseIBLDataInterface):
             unit="rad/s^2",
         )
 
-        wheel_module = get_module(nwbfile=nwbfile, name="wheel", description="Wheel behavioral data.")
+        wheel_module = get_module(
+            nwbfile=nwbfile,
+            name="wheel",
+            description=(
+                "Rotary encoder wheel used for behavioral responses. The wheel (6.2 cm diameter) is positioned "
+                "under the mouse's forepaws, and rotation is measured via a quadrature encoder (1024 ticks, "
+                "X4 encoding = 4096 effective ticks per revolution). Mice turn the wheel to move visual stimuli "
+                "and report perceptual decisions. Contains raw position, detected movements, and derived kinematics."
+            ),
+        )
         wheel_module.add(smoothed_position_series)
         wheel_module.add(velocity_series)
         wheel_module.add(acceleration_series)
