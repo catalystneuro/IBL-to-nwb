@@ -1,11 +1,12 @@
 # This does not run on popeye
 
 # download bwm units table
+import json
 from pathlib import Path
+
 import pandas as pd
 from brainwidemap import bwm_query, download_aggregate_tables
 from one.api import ONE
-import json
 from tqdm import tqdm
 
 one = ONE()
