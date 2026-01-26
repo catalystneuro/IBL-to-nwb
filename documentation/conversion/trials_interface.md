@@ -10,10 +10,10 @@ This document provides comprehensive documentation for the `BrainwideMapTrialsIn
    - [Visual Stimulus](#visual-stimulus)
    - [Trial Structure and Timing](#trial-structure-and-timing)
    - [Task Variants](#task-variants)
-3. [Trial Columns Reference](#trial-columns-reference)
-4. [Data Extraction with ibllib](#data-extraction-with-ibllib)
-5. [Interface Implementation](#interface-implementation)
-6. [References](#references)
+3. [Data Extraction with ibllib](#data-extraction-with-ibllib)
+4. [Interface Implementation](#interface-implementation)
+5. [Trial Columns Reference](#trial-columns-reference)
+6. [Usage Examples](#usage-examples)
 
 ---
 
@@ -22,7 +22,7 @@ This document provides comprehensive documentation for the `BrainwideMapTrialsIn
 The `BrainwideMapTrialsInterface` converts behavioral trial data from IBL experiments into the NWB trials table format. This interface handles the standardized decision-making task used across all IBL laboratories, ensuring consistent representation of behavioral events and their timing.
 
 **Key characteristics:**
-- Adds 15 columns to the NWB trials table
+- Adds 17 columns to the NWB trials table
 - Supports both BWM parquet format and legacy NumPy file formats
 - Uses revision `2025-05-06` for Brain-Wide Map standard data
 - Available for 100% of the 459 BWM sessions
@@ -31,9 +31,11 @@ The `BrainwideMapTrialsInterface` converts behavioral trial data from IBL experi
 
 ## The IBL Behavioral Task
 
+The IBL developed a standardized two-alternative forced-choice perceptual detection task to study decision-making across multiple laboratories. The full task protocol is described in the [IBL eLife paper](https://doi.org/10.7554/eLife.63711) (Appendix 2), and the [Brain-Wide Map preprint](https://doi.org/10.1101/2020.01.17.909838) describes the dataset and analysis methods.
+
 ### Task Description
 
-The IBL developed a standardized two-alternative forced-choice perceptual detection task to study decision-making across multiple laboratories. In this task:
+In this task:
 
 1. **Goal**: Mice detect the presence of a visual grating (Gabor patch) appearing in their left or right visual field
 2. **Response**: Mice turn a steering wheel to move the stimulus to the center of the screen
@@ -135,74 +137,6 @@ The IBL uses two main task variants:
 - **Session start**: 90 trials at 50:50 probability, then alternating blocks
 
 This variant tests the ability of mice to incorporate prior probability information into their decisions.
-
----
-
-## Trial Columns Reference
-
-The interface adds the following 17 columns to the NWB trials table:
-
-### Temporal Columns
-
-| NWB Column | IBL Source | Description |
-|------------|------------|-------------|
-| `start_time` | `intervals_0` | The beginning of the trial (seconds from session start) |
-| `stop_time` | `intervals_1` | The end of the trial (seconds from session start) |
-| `quiescence_period` | `quiescencePeriod` | Required duration (seconds) the mouse must hold the wheel still before stimulus presentation. Sampled from exponential distribution (400-700ms, mean ~550ms). If wheel moves during this period, the timer resets. Relationship: `gabor_stimulus_onset_time` ≈ `start_time` + `quiescence_period` |
-
-### Event Timing Columns (Chronological Order)
-
-| NWB Column | IBL Source | Description |
-|------------|------------|-------------|
-| `gabor_stimulus_onset_time` | `stimOn_times` | Time when the visual stimulus (Gabor patch) appears on screen, detected by photodiode. Coincides with auditory go cue |
-| `auditory_cue_time` | `goCue_times` | Time of the auditory go cue (100ms, 5kHz tone) signaling the mouse may respond. Presented simultaneously with visual stimulus |
-| `wheel_movement_onset_time` | `firstMovement_times` | Time of first detected wheel movement (>= 0.1 radians threshold) after go cue |
-| `choice_registration_time` | `response_times` | Time when the mouse's choice was registered: either wheel movement reached the +/-35 degree threshold, or 60-second timeout elapsed |
-| `feedback_time` | `feedback_times` | Time of feedback delivery: water reward for correct responses, or white noise pulse + 2-second timeout for incorrect responses |
-| `gabor_stimulus_offset_time` | `stimOff_times` | Time when the Gabor patch disappears from screen, recorded by external photodiode |
-
-### Stimulus Columns
-
-| NWB Column | IBL Source | Description |
-|------------|------------|-------------|
-| `gabor_stimulus_contrast` | computed | Contrast of the Gabor patch as a percentage (0, 6.25, 12.5, 25, or 100). Uniformly sampled across trials. At 0% contrast (no visible stimulus), mice can still perform above chance using block probability prior. Computed from `contrastLeft`/`contrastRight` |
-| `gabor_stimulus_side` | computed | Side where stimulus was assigned: `"left"` or `"right"`. Even at 0% contrast (invisible), trials are assigned a correct side based on block probability, allowing mice to use prior information. Computed from `contrastLeft`/`contrastRight` |
-| `probability_left` | `probabilityLeft` | Block prior probability for stimulus on left side. After initial 90 unbiased trials (0.5), blocks alternate between 0.2 (right-biased) and 0.8 (left-biased). Block lengths: 20-100 trials from truncated geometric distribution (mean 51). Block changes are not cued |
-| `block_index` | computed | Zero-indexed block number. Increments each time `probability_left` changes. Block 0 is typically the initial unbiased block (~90 trials at 0.5 probability). Computed from `probabilityLeft` |
-| `block_type` | computed | Block type based on stimulus probability bias: `"unbiased"` (probability_left=0.5), `"left_block"` (probability_left=0.8, stimulus 80% likely on left), or `"right_block"` (probability_left=0.2, stimulus 80% likely on right). Computed from `probabilityLeft` |
-
-### Response and Outcome Columns
-
-| NWB Column | IBL Source | Description |
-|------------|------------|-------------|
-| `mouse_wheel_choice` | `choice` | Mouse's response: `"left"` (CCW wheel turn moving stimulus rightward), `"right"` (CW wheel turn moving stimulus leftward), or `"no_go"` (no response within 60s timeout). Transformed from IBL's -1/0/+1 encoding |
-| `is_mouse_rewarded` | `feedbackType` | Whether the mouse received a water reward (`True`) or negative feedback consisting of white noise pulse and 2-second timeout (`False`). Transformed from IBL's +1/-1 encoding |
-| `reward_volume_uL` | `rewardVolume` | Volume of water reward in microliters (0 for incorrect/timeout trials)
-
-### NOT Available in Database (Extracted but Not Saved)
-
-The following parameters are extracted from Bpod raw data during IBL's pipeline but are **not saved to the database**:
-
-| Parameter | Description | Why Not Saved |
-|-----------|-------------|---------------|
-| `phase` | Spatial phase of the Gabor sinusoid (0-2*pi radians) | Random value for experimental control; rarely needed for analysis |
-| `position` | Stimulus position (-35 or +35 degrees azimuth) | Redundant with `contrastLeft`/`contrastRight` columns |
-
-These parameters exist in the raw Bpod data files but would require re-extraction from `_iblrig_taskData.raw.jsonable` to access. The extraction code in `ibllib` sets `save_names = None` for these fields, meaning they are computed but discarded.
-
-**To recover phase/position from raw data:**
-```python
-from ibllib.io.extractors.training_trials import PhasePosQuiescence
-from ibllib.io import raw_data_loaders as raw
-
-# Load raw Bpod data
-bpod_trials = raw.load_data(session_path)
-settings = raw.load_settings(session_path)
-
-# Extract (requires local raw data, not available via ONE for most sessions)
-extractor = PhasePosQuiescence(session_path, bpod_trials=bpod_trials, settings=settings)
-phase, position, quiescence = extractor.extract()
-```
 
 ---
 
@@ -318,96 +252,71 @@ trials_interface.add_to_nwbfile(
 
 ---
 
-## References
+## Trial Columns Reference
 
-### Primary Publications
+The trials table follows [tidy data principles](https://vita.had.co.nz/papers/tidy-data.pdf) (Wickham, 2014) to make the data self-documenting and easier to analyze.
 
-1. **Task Protocol**: International Brain Laboratory, et al. "Standardized and reproducible measurement of decision-making in mice." *eLife* 10 (2021): e63711.
-   - DOI: [10.7554/eLife.63711](https://doi.org/10.7554/eLife.63711)
-   - Full task protocol in Appendix 2
+### Design Principles
 
-2. **Brain-Wide Map**: International Brain Laboratory, et al. "Brain-wide map of neural activity during a task." (2020).
-   - DOI: [10.1101/2020.01.17.909838](https://doi.org/10.1101/2020.01.17.909838)
+- **Self-documenting column names**: Column names are understandable without consulting documentation (e.g., `gabor_stimulus_onset_time` instead of `stimOn_times`)
+- **String values instead of numeric encodings**: IBL's `-1/0/+1` becomes `"left"/"no_go"/"right"`
+- **Consolidated columns**: IBL's redundant `contrastLeft`/`contrastRight` encoding becomes two tidy columns
+- **Units in column names**: Where applicable (e.g., `reward_volume_uL`)
 
-### Data Resources
+### IBL to NWB Column Mapping
 
-- **IBL Data Portal**: [data.internationalbrainlab.org](https://data.internationalbrainlab.org)
-- **FigShare Dataset**: [10.6084/m9.figshare.21400815.v6](https://doi.org/10.6084/m9.figshare.21400815.v6)
+| IBL Column | NWB Column | Transformation |
+|------------|------------|----------------|
+| `intervals_0` | `start_time` | Direct copy |
+| `intervals_1` | `stop_time` | Direct copy |
+| `quiescencePeriod` | `quiescence_period` | Direct copy |
+| `stimOn_times` | `gabor_stimulus_onset_time` | Direct copy |
+| `goCue_times` | `auditory_cue_time` | Direct copy |
+| `firstMovement_times` | `wheel_movement_onset_time` | Direct copy |
+| `response_times` | `choice_registration_time` | Direct copy |
+| `feedback_times` | `feedback_time` | Direct copy |
+| `stimOff_times` | `gabor_stimulus_offset_time` | Direct copy |
+| `contrastLeft`/`contrastRight` | `gabor_stimulus_contrast` | Consolidated (x100) |
+| `contrastLeft`/`contrastRight` | `gabor_stimulus_side` | Computed |
+| `probabilityLeft` | `probability_left` | Direct copy |
+| (none) | `block_index` | Computed |
+| (none) | `block_type` | Computed |
+| `choice` | `mouse_wheel_choice` | -1/0/+1 to strings |
+| `feedbackType` | `is_mouse_rewarded` | -1/+1 to boolean |
+| `rewardVolume` | `reward_volume_uL` | Direct copy |
 
-### Software Documentation
+### Column Details
 
-- **ONE API**: [int-brain-lab.github.io/ONE](https://int-brain-lab.github.io/ONE/)
-- **ibllib**: [int-brain-lab.github.io/iblenv](https://int-brain-lab.github.io/iblenv/)
-- **NeuroConv**: [neuroconv.readthedocs.io](https://neuroconv.readthedocs.io/)
+#### Temporal Columns
 
----
+| NWB Column | IBL Source | Description |
+|------------|------------|-------------|
+| `start_time` | `intervals_0` | The beginning of the trial (seconds from session start) |
+| `stop_time` | `intervals_1` | The end of the trial (seconds from session start) |
+| `quiescence_period` | `quiescencePeriod` | Required duration (seconds) the mouse must hold the wheel still before stimulus presentation. Sampled from exponential distribution (400-700ms, mean ~550ms). If wheel moves during this period, the timer resets. Relationship: `gabor_stimulus_onset_time` ≈ `start_time` + `quiescence_period` |
 
-## Appendix: Column Value Interpretations
+#### Event Timing Columns (Chronological Order)
 
-### mouse_wheel_choice Values
-| Value | Meaning | Wheel Direction | Stimulus Movement |
-|-------|---------|-----------------|-------------------|
-| `"left"` | Left choice | Counter-clockwise | Stimulus moves right |
-| `"right"` | Right choice | Clockwise | Stimulus moves left |
-| `"no_go"` | Timeout | No movement to threshold | N/A |
+| NWB Column | IBL Source | Description |
+|------------|------------|-------------|
+| `gabor_stimulus_onset_time` | `stimOn_times` | Time when the visual stimulus (Gabor patch) appears on screen, detected by photodiode. Coincides with auditory go cue |
+| `auditory_cue_time` | `goCue_times` | Time of the auditory go cue (100ms, 5kHz tone) signaling the mouse may respond. Presented simultaneously with visual stimulus |
+| `wheel_movement_onset_time` | `firstMovement_times` | Time of first detected wheel movement (>= 0.1 radians threshold) after go cue |
+| `choice_registration_time` | `response_times` | Time when the mouse's choice was registered: either wheel movement reached the +/-35 degree threshold, or 60-second timeout elapsed |
+| `feedback_time` | `feedback_times` | Time of feedback delivery: water reward for correct responses, or white noise pulse + 2-second timeout for incorrect responses |
+| `gabor_stimulus_offset_time` | `stimOff_times` | Time when the Gabor patch disappears from screen, recorded by external photodiode |
 
-### is_mouse_rewarded Values
-| Value | Meaning | Consequence |
-|-------|---------|-------------|
-| `True` | Correct response | Sugar water reward delivered |
-| `False` | Incorrect response or timeout | White noise burst, 2s timeout |
+#### Stimulus Columns
 
-### probability_left Values (biasedChoiceWorld)
-| Value | Block Type | Stimulus More Likely On |
-|-------|------------|------------------------|
-| 0.2 | Right-biased block | Right side (80%) |
-| 0.5 | Neutral block | Equal (50/50) |
-| 0.8 | Left-biased block | Left side (80%) |
+| NWB Column | IBL Source | Description |
+|------------|------------|-------------|
+| `gabor_stimulus_contrast` | computed | Contrast of the Gabor patch as a percentage (0, 6.25, 12.5, 25, or 100). Uniformly sampled across trials. At 0% contrast (no visible stimulus), mice can still perform above chance using block probability prior. Computed from `contrastLeft`/`contrastRight` |
+| `gabor_stimulus_side` | computed | Side where stimulus was assigned: `"left"` or `"right"`. Even at 0% contrast (invisible), trials are assigned a correct side based on block probability, allowing mice to use prior information. Computed from `contrastLeft`/`contrastRight` |
+| `probability_left` | `probabilityLeft` | Block prior probability for stimulus on left side. After initial 90 unbiased trials (0.5), blocks alternate between 0.2 (right-biased) and 0.8 (left-biased). Block lengths: 20-100 trials from truncated geometric distribution (mean 51). Block changes are not cued |
+| `block_index` | computed | Zero-indexed block number. Increments each time `probability_left` changes. Block 0 is typically the initial unbiased block (~90 trials at 0.5 probability). Computed from `probabilityLeft` |
+| `block_type` | computed | Block type based on stimulus probability bias: `"unbiased"` (probability_left=0.5), `"left_block"` (probability_left=0.8, stimulus 80% likely on left), or `"right_block"` (probability_left=0.2, stimulus 80% likely on right). Computed from `probabilityLeft` |
 
-### gabor_stimulus_side and gabor_stimulus_contrast Interpretation
-| gabor_stimulus_side | gabor_stimulus_contrast | Trial Type |
-|---------------------|-------------------------------------|------------|
-| `"left"` | 6.25 - 100 | Left stimulus trial (visible) |
-| `"right"` | 6.25 - 100 | Right stimulus trial (visible) |
-| `"left"` | 0 | 0% contrast trial assigned to left (invisible, but mouse can use block prior) |
-| `"right"` | 0 | 0% contrast trial assigned to right (invisible, but mouse can use block prior) |
-
----
-
-## Tidy Data Format Implementation
-
-The trials table follows [tidy data principles](https://vita.had.co.nz/papers/tidy-data.pdf) (Wickham, 2014) to make the data more self-documenting, easier to analyze, and aligned with best practices for tabular data.
-
-### Design Rationale
-
-#### Self-Documenting Column Names
-
-Column names are designed to be understandable without consulting documentation:
-
-| Column | Rationale |
-|--------|-----------|
-| `quiescence_period` | Clear that this is a duration (period), not a timestamp. Relates to other columns: `gabor_stimulus_onset_time` ≈ `start_time` + `quiescence_period` |
-| `gabor_stimulus_onset_time` | Specifies stimulus type (Gabor) and event (onset) |
-| `auditory_cue_time` | Explicit that cue is auditory (vs visual) |
-| `wheel_movement_onset_time` | Specifies wheel (the response mechanism) and onset |
-| `choice_registration_time` | When choice was registered by the system |
-| `gabor_stimulus_offset_time` | Specifies stimulus type (Gabor) and event (offset) |
-| `gabor_stimulus_contrast` | Specifies the stimulus type (Gabor patch) and includes units (percentage) |
-| `gabor_stimulus_side` | Consistent naming with other gabor_stimulus_* columns |
-| `mouse_wheel_choice` | Explicit that this is the mouse's choice |
-| `is_mouse_rewarded` | Boolean for easy filtering; outcome-focused |
-| `reward_volume_uL` | Includes units in the name |
-
-#### Categorical String Values
-
-String and boolean values replace numeric encodings for clarity:
-
-| IBL Encoding | NWB Value | Benefit |
-|--------------|-----------|---------|
-| choice: -1/0/+1 | `"left"`/`"no_go"`/`"right"` | Self-documenting queries |
-| feedbackType: -1/+1 | `True`/`False` | Direct boolean filtering |
-
-#### Tidy Contrast Representation
+**Contrast Column Transformation:**
 
 The original IBL format uses two columns (`contrastLeft`, `contrastRight`) where one column contains the contrast value and the other is NaN. This encoding comes from the IBL extraction pipeline (see `ibllib/io/extractors/biased_trials.py`):
 
@@ -420,8 +329,6 @@ contrastRight = [t['contrast'] if np.sign(t['position']) > 0 else np.nan for t i
 The stimulus `position` determines which column gets the contrast value:
 - `position < 0` (left, -35 degrees): contrast stored in `contrastLeft`, `contrastRight` is NaN
 - `position > 0` (right, +35 degrees): contrast stored in `contrastRight`, `contrastLeft` is NaN
-
-This applies to all contrast levels including 0% contrast trials, where the contrast value is 0 but still stored in the appropriate column based on which side the trial was assigned to.
 
 **IBL format** (redundant, one column always NaN):
 | contrastLeft | contrastRight | Meaning |
@@ -439,20 +346,64 @@ This applies to all contrast levels including 0% contrast trials, where the cont
 | 0 | `"left"` | 0% contrast trial assigned to left (invisible, but mouse can use block prior) |
 | 0 | `"right"` | 0% contrast trial assigned to right (invisible, but mouse can use block prior) |
 
-#### Chronological Column Ordering
+**Block Type Values (biasedChoiceWorld):**
+| probability_left | block_type | Stimulus More Likely On |
+|------------------|------------|------------------------|
+| 0.2 | `"right_block"` | Right side (80%) |
+| 0.5 | `"unbiased"` | Equal (50/50) |
+| 0.8 | `"left_block"` | Left side (80%) |
 
-Event timing columns are ordered chronologically within a trial:
+#### Response and Outcome Columns
 
-| Order | Column | Typical Timing |
-|-------|--------|----------------|
-| 1 | `gabor_stimulus_onset_time` | 0 ms (reference) |
-| 2 | `auditory_cue_time` | ~0 ms (simultaneous) |
-| 3 | `wheel_movement_onset_time` | +200 ms |
-| 4 | `choice_registration_time` | +593 ms |
-| 5 | `feedback_time` | +593 ms |
-| 6 | `gabor_stimulus_offset_time` | +1950 ms |
+| NWB Column | IBL Source | Description |
+|------------|------------|-------------|
+| `mouse_wheel_choice` | `choice` | Mouse's response: `"left"` (CCW wheel turn moving stimulus rightward), `"right"` (CW wheel turn moving stimulus leftward), or `"no_go"` (no response within 60s timeout). Transformed from IBL's -1/0/+1 encoding |
+| `is_mouse_rewarded` | `feedbackType` | Whether the mouse received a water reward (`True`) or negative feedback consisting of white noise pulse and 2-second timeout (`False`). Transformed from IBL's +1/-1 encoding |
+| `reward_volume_uL` | `rewardVolume` | Volume of water reward in microliters (0 for incorrect/timeout trials) |
 
-### Example Queries
+**mouse_wheel_choice Value Mapping:**
+| IBL Value | NWB Value | Wheel Direction | Stimulus Movement |
+|-----------|-----------|-----------------|-------------------|
+| -1 | `"left"` | Counter-clockwise | Stimulus moves right |
+| 0 | `"no_go"` | No movement to threshold | N/A (60s timeout) |
+| +1 | `"right"` | Clockwise | Stimulus moves left |
+
+**is_mouse_rewarded Value Mapping:**
+| IBL Value | NWB Value | Consequence |
+|-----------|-----------|-------------|
+| +1 | `True` | Sugar water reward delivered |
+| -1 | `False` | White noise burst, 2-second timeout |
+
+### NOT Available in Database (Extracted but Not Saved)
+
+The following parameters are extracted from Bpod raw data during IBL's pipeline but are **not saved to the database**:
+
+| Parameter | Description | Why Not Saved |
+|-----------|-------------|---------------|
+| `phase` | Spatial phase of the Gabor sinusoid (0-2*pi radians) | Random value for experimental control; rarely needed for analysis |
+| `position` | Stimulus position (-35 or +35 degrees azimuth) | Redundant with `contrastLeft`/`contrastRight` columns |
+
+These parameters exist in the raw Bpod data files but would require re-extraction from `_iblrig_taskData.raw.jsonable` to access. The extraction code in `ibllib` sets `save_names = None` for these fields, meaning they are computed but discarded.
+
+**To recover phase/position from raw data:**
+```python
+from ibllib.io.extractors.training_trials import PhasePosQuiescence
+from ibllib.io import raw_data_loaders as raw
+
+# Load raw Bpod data
+bpod_trials = raw.load_data(session_path)
+settings = raw.load_settings(session_path)
+
+# Extract (requires local raw data, not available via ONE for most sessions)
+extractor = PhasePosQuiescence(session_path, bpod_trials=bpod_trials, settings=settings)
+phase, position, quiescence = extractor.extract()
+```
+
+---
+
+## Usage Examples
+
+Common pandas queries for analyzing the trials table:
 
 ```python
 # Get left stimulus trials with correct outcomes (rewarded)
@@ -469,31 +420,11 @@ trials['reaction_time'] = trials['wheel_movement_onset_time'] - trials['gabor_st
 
 # Calculate motor time (movement onset to choice registration)
 trials['motor_time'] = trials['choice_registration_time'] - trials['wheel_movement_onset_time']
+
+# Filter by block type
+left_block_trials = trials[trials['block_type'] == 'left_block']
+
+# Get high contrast trials only
+high_contrast = trials[trials['gabor_stimulus_contrast'] >= 50]
 ```
 
-### IBL to NWB Column Mapping
-
-For users familiar with IBL naming conventions:
-
-| IBL Column | NWB Column | Transformation |
-|------------|------------|----------------|
-| `intervals_0` | `start_time` | Direct copy |
-| `intervals_1` | `stop_time` | Direct copy |
-| `quiescencePeriod` | `quiescence_period` | Direct copy |
-| `stimOn_times` | `gabor_stimulus_onset_time` | Direct copy |
-| `goCue_times` | `auditory_cue_time` | Direct copy |
-| `firstMovement_times` | `wheel_movement_onset_time` | Direct copy |
-| `response_times` | `choice_registration_time` | Direct copy |
-| `feedback_times` | `feedback_time` | Direct copy |
-| `stimOff_times` | `gabor_stimulus_offset_time` | Direct copy |
-| `contrastLeft`/`contrastRight` | `gabor_stimulus_contrast` | Consolidated (x100) |
-| `contrastLeft`/`contrastRight` | `gabor_stimulus_side` | Computed |
-| `probabilityLeft` | `probability_left` | Direct copy |
-| `choice` | `mouse_wheel_choice` | -1/0/+1 to strings |
-| `feedbackType` | `is_mouse_rewarded` | -1/+1 to boolean |
-| `rewardVolume` | `reward_volume_uL` | Direct copy |
-
-### References
-
-- Wickham, H. (2014). Tidy Data. *Journal of Statistical Software*, 59(10), 1-23. https://doi.org/10.18637/jss.v059.i10
-- NWB Best Practices: https://www.nwb.org/best-practices/
