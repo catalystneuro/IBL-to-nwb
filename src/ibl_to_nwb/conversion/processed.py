@@ -329,21 +329,6 @@ def convert_processed_session(
         backend="hdf5",
     )
 
-    # Set units table metadata attributes directly in HDF5
-    # This is a workaround for neuroconv's configure_backend which strips these attributes
-    import h5py
-    with h5py.File(nwbfile_path, "a") as hf:
-        if "units/waveform_mean" in hf:
-            hf["units/waveform_mean"].attrs["sampling_rate"] = 30000.0  # IBL Neuropixels sampling rate in Hz
-            hf["units/waveform_mean"].attrs["unit"] = "microvolts"  # Data converted from Volts to uV
-            hf["units/waveform_mean"].attrs["description"] = (
-                "Mean spike waveform for each unit. Shape: (num_samples=82, num_channels=32). "
-                "Channel dimension is ordered by proximity to max amplitude channel, NOT by depth. "
-                "Use the electrodes column's rel_y values to reorder channels by depth for visualization."
-            )
-        if "units/spike_times" in hf:
-            hf["units/spike_times"].attrs["resolution"] = 1.0 / 30000.0  # Smallest time difference in seconds
-
     write_time = time.time() - write_start
 
     # Get NWB file size

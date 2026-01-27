@@ -364,13 +364,17 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             max_electrodes.append(channel_map[max_channel_index])
 
             # Map waveform channels to electrode indices
-            # waveform_channels is a list of channel indices from clusters.waveformsChannels
-            if waveform_channels:
+            # Note: Waveform channels are reordered with real channels first, padding last
+            # Real channels (< 384) are mapped to electrodes; padding channels (384) are skipped
+            # This ensures waveform_mean[:, i] corresponds to electrodes[i] for i < n_real_channels
+            if waveform_channels is not None and len(waveform_channels) > 0:
                 electrode_indices = []
                 for channel in waveform_channels:
                     channel_index = int(channel)
                     if channel_index in channel_map:
+                        # Real channel (0-383) - map to electrode
                         electrode_indices.append(channel_map[channel_index])
+                    # Padding channel (384) is skipped - no electrode mapping needed
                 unit_electrode_indices.append(electrode_indices)
             else:
                 # If waveformsChannels not available, use empty list
@@ -515,15 +519,12 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             self._waveform_channels = ibl_properties["_waveform_channels"]
 
             # Store waveform templates directly to NWB's waveform_mean column.
-            # We use clusters.waveforms (32 channels, 82 samples) instead of waveforms.templates
-            # (128 channels, 40 samples) because it provides higher time resolution and is
-            # centered on the max amplitude channel, matching NWB's waveform_mean convention.
-            # Note: IBL's clusters.waveforms contains templates (averaged across all spikes per cluster),
-            # NOT individual spike waveforms.
-            # Shape: (num_units, num_samples=82, num_channels=32)
-            # Channel ordering: by proximity to max amplitude channel, NOT by depth.
+            # We use waveforms.templates (mean of actual pre-processed spike waveforms) which provides
+            # real recorded data with standard IBL preprocessing applied.
+            # Shape: (num_units, num_samples=128, num_channels=nc) where nc is typically 40-60
+            # Note: nc (number of channels) varies by session based on probe geometry
+            # Axis order: (time, channels) after transposition from IBL's (channels, time) format
             # The channel dimension matches the electrodes column order (per NWB spec).
-            # To visualize waveforms by depth, use unit['electrodes']['rel_y'] to reorder.
             # Convert from Volts to microvolts for consistency with amplitude columns
             self._waveform_means = np.array(ibl_properties["waveform_mean"], dtype=np.float32) * 1e6
 
@@ -574,8 +575,14 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             name: spec["description"] for name, spec in UNITS_COLUMNS.items()
         }
 
-        # Call add_sorting_to_nwbfile directly to pass waveform_means parameter
+        # Call add_sorting_to_nwbfile with waveform_data_dict
         # This uses NWB's predefined waveform_mean column correctly (non-ragged 3D array)
+        waveform_data_dict = {
+            "means": self._waveform_means,
+            "sampling_rate": 30000.0,  # IBL Neuropixels sampling rate in Hz
+            "unit": "microvolts",  # Data already converted from Volts to uV
+        }
+
         add_sorting_to_nwbfile(
             self.sorting_extractor,
             nwbfile=nwbfile,
@@ -584,9 +591,8 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             units_name=units_name,
             units_description=units_description,
             unit_electrode_indices=unit_electrode_indices,
-            waveform_means=self._waveform_means,
+            waveform_data_dict=waveform_data_dict,
         )
 
-        # Note: waveform_rate and resolution are set directly on the HDF5 file in the conversion
-        # pipeline (processed.py) because neuroconv's configure_backend strips these attributes.
-        # The values are: waveform_rate=30000.0 Hz, resolution=1/30000 seconds
+        # Note: Additional waveform metadata (description) is set directly on the HDF5 file in the
+        # conversion pipeline (processed.py) to document data source and preprocessing
