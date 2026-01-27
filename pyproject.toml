@@ -26,6 +26,14 @@ dependencies = [
     "ibl-neuropixel",
     "ibllib", 
     "ndx-anatomical-localization",
+    "anywidget>=0.9.21",
+    "brainglobe-atlasapi>=2.1.0",
+    "brainglobe-heatmap>=0.5.5",
+    "brainrender>=2.1.16",
+    "matplotlib>=3.10.7",
+    "pynapple>=0.10.2",
+    "remfile>=0.1.13",
+    "scikit-learn>=1.7.2",
 ]
 
 classifiers = [
@@ -102,13 +110,5 @@ known-first-party = ["ibl_to_nwb"]
 [dependency-groups]
 dev = [
     "allensdk>=0.16.3",
-    "anywidget>=0.9.21",
-    "brainglobe-atlasapi>=2.1.0",
-    "brainglobe-heatmap>=0.5.5",
-    "brainrender>=2.1.16",
     "ipykernel>=7.1.0",
-    "matplotlib>=3.10.7",
-    "pynapple>=0.10.2",
-    "remfile>=0.1.13",
-    "scikit-learn>=1.7.2",
 ]
