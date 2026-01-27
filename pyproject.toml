@@ -14,7 +14,7 @@ keywords = ["nwb", "dandi", "ibl"]
 license = {file = "license.txt"}
 requires-python = ">=3.10"
 dependencies = [
-    "dandi>=0.73.2",  # Required for DANDI_SANDBOX_API_KEY env var support
+    "dandi>=0.73.2", # Required for DANDI_SANDBOX_API_KEY env var support
     "neuroconv>=0.9.0",
     "spikeinterface",
     "probeinterface",
@@ -24,7 +24,7 @@ dependencies = [
     "ndx-ibl",
     "ndx-events==0.2.1",
     "ibl-neuropixel",
-    "ibllib", 
+    "ibllib",
     "ndx-anatomical-localization",
     "anywidget>=0.9.21",
     "brainglobe-atlasapi>=2.1.0",
@@ -34,6 +34,7 @@ dependencies = [
     "pynapple>=0.10.2",
     "remfile>=0.1.13",
     "scikit-learn>=1.7.2",
+    "pandas<3.0",
 ]
 
 classifiers = [
@@ -49,8 +50,8 @@ classifiers = [
 ]
 
 [tool.uv.sources]
-neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "main"}
-# neuroconv = {path = "../../work_repos/neuroconv", editable = true}
+# neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "main"}
+neuroconv = {path = "../../work_repos/neuroconv", editable = true}
 ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "main"}
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 ndx-anatomical-localization = {git = "https://github.com/catalystneuro/ndx-anatomical-localization", branch = "main"}

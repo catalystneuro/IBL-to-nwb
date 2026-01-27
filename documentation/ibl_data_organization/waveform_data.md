@@ -138,6 +138,74 @@ cluster_channels = unique_sets[most_common_idx]  # Shape: (nc,)
 
 ---
 
+## 6. NWB Conversion: Channel Reordering for Electrode Alignment
+
+### Background
+
+IBL's `waveforms.templates` has variable channel counts per unit, padded to uniform shape:
+- **Real channels**: IDs 0-383 (actual electrode data from Neuropixels probe)
+- **Padding channels**: Channel ID 384 with NaN values (used to make array uniform across units)
+
+Example: A unit with 21 real channels is stored as:
+- Shape: (21 real channels, 128 time samples) → padded to → (40 channels, 128 time samples)
+- Channel IDs: [0, 1, 2, ..., 20, 384, 384, ..., 384]
+- Waveform values: [real data...] + [NaN, NaN, ..., NaN]
+
+### Problem
+
+NWB requires clear alignment between `units.waveform_mean` and `units.electrodes`:
+- All waveforms must have the same shape (NWB requirement)
+- Each waveform channel should correspond to an electrode
+- Padding channels (ID 384) have no real electrode (probe only has channels 0-383)
+
+### Solution: Channel Reordering
+
+The conversion code reorders channels to put real channels first, padding last:
+
+**Before reordering** (IBL storage):
+```
+Channel IDs: [0, 1, 2, ..., 20, 384, 384, ..., 384]
+Waveform shape: (128 time, 40 channels)
+```
+
+**After reordering** (NWB storage):
+```
+Channel IDs: [0, 1, 2, ..., 20, 384, 384, ..., 384]  (already ordered in this example)
+Waveform shape: (128 time, 40 channels)
+Electrodes: [0, 1, 2, ..., 20]  (21 entries, only real channels)
+```
+
+**Result**:
+- `waveform_mean[:, 0:21]` → maps to `electrodes[0:21]` (clear 1:1 correspondence)
+- `waveform_mean[:, 21:40]` → padding (all NaN, no electrode mapping)
+
+### Implementation
+
+See code in:
+- `src/ibl_to_nwb/datainterfaces/_ibl_sorting_extractor.py` (lines 210-248)
+- `src/ibl_to_nwb/datainterfaces/_ibl_sorting_interface.py` (lines 366-378)
+
+### Usage Example
+
+```python
+# Access waveform for unit with clear electrode mapping
+unit = nwbfile.units[unit_id]
+waveform = unit['waveform_mean']  # Shape: (128, 40)
+electrodes = unit['electrodes']   # Length: 21 (only real channels)
+
+# Direct mapping for real channels
+for i in range(len(electrodes)):
+    channel_waveform = waveform[:, i]  # Corresponds to electrodes[i]
+    electrode_depth = electrodes[i]['rel_y']
+    # ... analyze waveform at this depth
+
+# Padding channels (no electrode mapping)
+n_padding = waveform.shape[1] - len(electrodes)  # 40 - 21 = 19
+# waveform[:, 21:40] is all NaN (padding)
+```
+
+---
+
 ## Appendix: When to Use Each Template Type
 
 ### Use waveforms.templates for:
