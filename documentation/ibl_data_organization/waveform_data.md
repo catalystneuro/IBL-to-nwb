@@ -76,65 +76,152 @@ The number of channels (nc) in `waveforms.templates` varies by session:
 
 ---
 
-## 2. Channel Mapping for waveforms.templates
+## 2. The Missing Link: Mapping Templates to Channels
 
-**File**: `waveforms.channels.npz`
+### The Problem
+
+IBL provides `waveforms.templates` (one per cluster) but does NOT provide a direct cluster→channels mapping. To use the templates, we must infer which channels each template represents.
+
+### Available Metadata Files
+
+#### waveforms.table.pqt (The Bridge)
+
+**Purpose**: Links individual waveforms to clusters
 
 **Structure**:
-- Shape: (n_waveforms, nc) - per-waveform, not per-cluster
-- Contains channel indices for each individual waveform in `waveforms.traces.npy`
-- Each cluster typically uses 30-43 different channel sets across its waveforms
+- Shape: (n_waveforms, 5) - typically ~114,000 rows for 448 clusters
+- Columns:
+  - `cluster`: Cluster ID (0 to n_clusters-1)
+  - `sample`: Time sample in recording where spike occurred
+  - `peak_channel`: Channel with maximum amplitude
+  - `index`: Global waveform index in `waveforms.traces.npy`
+  - `index_within_clusters`: Index within cluster (0 to ~255)
 
-**Mapping Strategy**:
-1. Load `waveforms.table.pqt` to identify which waveforms belong to each cluster
-2. Load `waveforms.channels.npz` to get channel sets for all waveforms
-3. For each cluster, find the most frequently used channel set among its waveforms
-4. Use this as the representative channel set for that cluster's template
+**Key insight**: Each cluster has approximately 250-256 individual waveforms
+
+**Example data**:
+```
+   cluster    sample  peak_channel  index  index_within_clusters
+0       0   1234567            42      0                      0
+1       0   2345678            42      1                      1
+...
+255     0   9876543            42    255                    255
+256     1   1111111            38    256                      0
+```
+
+**What it tells us**:
+- Which waveforms belong to which cluster
+- When each spike occurred
+- The peak channel for each spike
+- How to index into `waveforms.traces.npy` and `waveforms.channels.npz`
+
+**What it does NOT tell us**:
+- Which channels are used in `waveforms.templates` for each cluster
+
+---
+
+#### waveforms.channels.npz (Per-Waveform Channel IDs)
+
+**Purpose**: Specifies which channels are included in each individual waveform
+
+**Structure**:
+- Shape: (n_waveforms, nc) - one row per waveform
+- Contains channel indices (0-383) for Neuropixels channels
+- Corresponds to columns in `waveforms.traces.npy`
+
+**Key insight**: This is per-waveform granularity, NOT per-cluster
+
+**Example data**:
+```
+Waveform 0 (cluster 0): [10, 11, 12, 13, ..., 48, 49]  # 40 channels
+Waveform 1 (cluster 0): [10, 11, 12, 13, ..., 48, 49]  # Same channels
+Waveform 2 (cluster 0): [9, 10, 11, 12, ..., 47, 48]   # Slightly different!
+...
+Waveform 256 (cluster 1): [35, 36, 37, 38, ..., 73, 74]  # Different cluster
+```
+
+**Why channel sets vary within a cluster**:
+- Spikes detected at slightly different times may use different channels
+- Different local field potentials affect channel selection
+- Drift in recording may shift optimal channels
+- Some waveforms may use more/fewer channels based on amplitude
+
+**What it tells us**:
+- Exact channel IDs for each row in each individual waveform
+- Channel variability within a cluster (typically 30-43 unique channel sets per cluster)
+
+**What it does NOT tell us**:
+- Which channel set to use for `waveforms.templates` (the cluster-level template)
+
+---
+
+### The Inference Solution
+
+Since IBL does NOT provide direct cluster→channels mapping for templates, we must infer:
+
+**Strategy**: Voting/Consensus across individual waveforms
+
+1. Use `waveforms.table.pqt` to find all waveforms belonging to a cluster
+2. Use `waveforms.channels.npz` to get channel sets for those waveforms
+3. Find the most common (mode) channel set across all waveforms
+4. Use this as the representative channel set for the cluster's template
 
 **Example**:
 ```python
+import pandas as pd
+import numpy as np
+
+# Load metadata
+table = pd.read_parquet('waveforms.table.pqt')
+channels = np.load('waveforms.channels.npz')['channels']
+
 # Get waveforms for cluster_id
 cluster_waveforms = table[table['cluster'] == cluster_id]
 wf_indices = cluster_waveforms.index.tolist()
 
-# Get channel sets used by this cluster
-channel_sets = traces_channels[wf_indices]
+# Get channel sets used by this cluster (typically ~256 waveforms)
+channel_sets = channels[wf_indices]  # Shape: (256, 40)
 
-# Find most common channel set
+# Find most common channel set using voting
 unique_sets, counts = np.unique(channel_sets, axis=0, return_counts=True)
 most_common_idx = np.argmax(counts)
-cluster_channels = unique_sets[most_common_idx]  # Shape: (nc,)
+cluster_channels = unique_sets[most_common_idx]  # Shape: (40,)
 ```
 
 **Result**: Per-cluster channel mapping array of shape (n_clusters, nc)
+
+**Implementation**: See `_infer_cluster_channels()` in [src/ibl_to_nwb/datainterfaces/_ibl_sorting_extractor.py](src/ibl_to_nwb/datainterfaces/_ibl_sorting_extractor.py) (lines 258-322)
 
 ---
 
 ## 4. Supporting Files
 
 ### waveforms.traces.npy
-- Individual spike waveforms (up to 256 per cluster)
-- Shape: (n_waveforms, nc, 128)
-- Used to compute `waveforms.templates` (median of these)
-- Large size (~1-2 GB per probe)
-
-### waveforms.table.pqt
-- Metadata linking waveforms to clusters
-- Columns: sample, cluster, peak_channel, waveform_index, index_within_clusters
-- Required for inferring template channel mapping
+- **Purpose**: Individual spike waveforms extracted from continuous recording
+- **Shape**: (n_waveforms, nc, 128) - typically ~114,000 individual waveforms
+- **Content**: Each waveform is 128 time samples across nc channels (~40)
+- **Relationship**: `waveforms.templates` is the median of traces belonging to each cluster
+- **Size**: Large (~1-2 GB per probe)
+- **Usage**: Used to compute `waveforms.templates`, not directly loaded in conversion
 
 ---
 
 ## 5. Data Summary
 
-| File | Shape | Axis Order | Purpose |
-|------|-------|------------|---------|
-| `waveforms.templates.npy` | (n_clusters, nc, 128) | (units, channels, time) | Mean waveforms |
-| `waveforms.channels.npz` | (n_waveforms, nc) | - | Channel indices (per-waveform) |
-| `waveforms.table.pqt` | (n_waveforms, 6) | - | Waveform metadata |
-| `waveforms.traces.npy` | (n_waveforms, nc, 128) | (waveforms, channels, time) | Individual waveforms |
-| `clusters.waveforms.npy` | (n_clusters, 82, 32) | (units, time, channels) | Sorting templates |
-| `clusters.waveformsChannels.npy` | (n_clusters, 32) | - | Channel indices (per-cluster) |
+| File | Shape | Granularity | Purpose |
+|------|-------|-------------|---------|
+| `waveforms.templates.npy` | (n_clusters, nc, 128) | **Per-cluster** | Mean waveforms (what we convert to NWB) |
+| `waveforms.channels.npz` | (n_waveforms, nc) | **Per-waveform** | Which channels each individual waveform uses |
+| `waveforms.table.pqt` | (n_waveforms, 5) | **Per-waveform** | Maps individual waveforms → clusters |
+| `waveforms.traces.npy` | (n_waveforms, nc, 128) | **Per-waveform** | Raw individual waveforms (~256 per cluster) |
+| `clusters.waveforms.npy` | (n_clusters, 82, 32) | **Per-cluster** | Spike sorting algorithm templates |
+| `clusters.waveformsChannels.npy` | (n_clusters, 32) | **Per-cluster** | Direct channel mapping (32 channels) |
+
+**Key distinction**:
+- **Per-cluster files** (`waveforms.templates`, `clusters.waveforms`) have one entry per unit
+- **Per-waveform files** (`waveforms.channels`, `waveforms.table`, `waveforms.traces`) have ~256 entries per unit
+- **The gap**: `waveforms.templates` is per-cluster, but `waveforms.channels` is per-waveform
+- **The solution**: Use `waveforms.table.pqt` to bridge the gap via voting/consensus
 
 ---
 
