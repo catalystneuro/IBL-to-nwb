@@ -514,9 +514,16 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             # Store waveform channels for multi-electrode linking
             self._waveform_channels = ibl_properties["_waveform_channels"]
 
-            # Store waveform_mean separately - will be passed directly to add_sorting_to_nwbfile
-            # to use NWB's predefined waveform_mean column (non-ragged 3D array)
+            # Store waveform templates directly to NWB's waveform_mean column.
+            # We use clusters.waveforms (32 channels, 82 samples) instead of waveforms.templates
+            # (128 channels, 40 samples) because it provides higher time resolution and is
+            # centered on the max amplitude channel, matching NWB's waveform_mean convention.
+            # Note: IBL's clusters.waveforms contains templates (averaged across all spikes per cluster),
+            # NOT individual spike waveforms.
             # Shape: (num_units, num_samples=82, num_channels=32)
+            # Channel ordering: by proximity to max amplitude channel, NOT by depth.
+            # The channel dimension matches the electrodes column order (per NWB spec).
+            # To visualize waveforms by depth, use unit['electrodes']['rel_y'] to reorder.
             # Convert from Volts to microvolts for consistency with amplitude columns
             self._waveform_means = np.array(ibl_properties["waveform_mean"], dtype=np.float32) * 1e6
 

@@ -166,19 +166,26 @@ class IblSortingExtractor(BaseSorting):
             )
 
             # Waveform channels for multi-electrode linking
-            # clusters.waveformsChannels has shape [n_clusters, n_selected_channels]
+            # clusters.waveformsChannels has shape [n_clusters, n_selected_channels=32]
+            # Channel ordering: by proximity to max amplitude channel, NOT by depth.
+            # This ordering defines the electrode dimension in waveform_mean and matches
+            # the electrodes column in the units table (per NWB spec).
+            # To visualize waveforms by depth, use electrodes['rel_y'] to reorder.
             waveform_channels = additional_cluster_data['waveformsChannels']
             if stub_test:
                 waveform_channels = waveform_channels[:number_of_units]
             # Convert each row to a list for storage
             unit_properties["_waveform_channels"].extend(waveform_channels.tolist())
 
-            # Mean waveforms: shape [n_clusters, n_samples=82, n_channels=32]
-            # Stored as list of (n_samples, n_channels) arrays for NWB waveform_mean
-            waveforms = additional_cluster_data['waveforms']
+            # Waveform templates: stored directly to NWB waveform_mean.
+            # We use clusters.waveforms (82 samples, 32 channels) instead of waveforms.templates
+            # (40 samples, 128 channels) for higher time resolution and NWB convention compliance.
+            # Note: IBL's clusters.waveforms contains templates (averaged across all spikes per cluster),
+            # NOT individual spike waveforms. Channel dimension ordered by proximity to max channel.
+            waveform_templates = additional_cluster_data['waveforms']
             if stub_test:
-                waveforms = waveforms[:number_of_units]
-            unit_properties["waveform_mean"].extend(waveforms.tolist())
+                waveform_templates = waveform_templates[:number_of_units]
+            unit_properties["waveform_mean"].extend(waveform_templates.tolist())
 
             # Peak-to-trough duration in milliseconds
             peak_to_trough = additional_cluster_data['peakToTrough']

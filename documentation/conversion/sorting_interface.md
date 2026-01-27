@@ -351,18 +351,36 @@ The interface adds the following columns to the NWB units table. Each column inc
 
 | Property | Value |
 |----------|-------|
-| **IBL Source** | `clusters.waveforms.npy` |
+| **IBL Source** | `clusters.waveforms.npy` (contains templates, not raw waveforms) |
 | **Shape** | `(82, 32)` per unit - (time samples, channels) |
+| **Units** | Microvolts (uV) |
 | **SpikeInterface** | Yes (`waveform_mean`) |
 
-**What it measures**: The average spike waveform across all spikes assigned to this unit, sampled at 30 kHz across 32 channels centered on the maximum amplitude channel.
+**What it measures**: The waveform template (average spike waveform) across all spikes assigned to this unit, sampled at 30 kHz across 32 channels centered on the maximum amplitude channel.
+
+**Terminology note**: IBL names this file `clusters.waveforms`, but it contains **templates** (mean waveforms averaged across all spikes per cluster), NOT individual spike waveforms. Raw spike waveforms would have shape `[n_spikes, samples, channels]` and are not stored due to size constraints.
+
+**Data source choice**: IBL provides two sources for waveform templates:
+
+| Source | File | Shape | Channels | Order |
+|--------|------|-------|----------|-------|
+| `clusters.waveforms` | `clusters.waveforms.npy` | `(n_clusters, 82, 32)` | 32 | Proximity |
+| `waveforms.templates` | `waveforms.templates.npy` | `(n_clusters, 40, 128)` | 128 | Depth |
+
+Note: Neuropixel 1.0 probes have 384 channels, but spike signals are spatially localized. Both 32 and 128 are **channel neighborhoods** around the peak channel (not all channels).
+
+We store templates from `clusters.waveforms` directly to NWB's `waveform_mean` because:
+1. **Focused on signal**: 32 channels centered on max amplitude captures the relevant signal
+2. **Higher time resolution**: 82 samples (2.73 ms) vs 40 samples (1.33 ms)
+3. **NWB convention**: `waveform_mean` expects templates centered on the unit's primary electrode
+4. **Size efficiency**: 32 channels vs 128 channels per unit
 
 **Time basis**:
 - 82 samples at 30 kHz = 2.733 ms total duration
 - Sample period = 0.0333 ms (1/30000 seconds)
 - Waveform is approximately centered on the trough (negative peak) at sample ~41
 
-**Channel arrangement**: The 32 channels are the channels closest to and including the maximum amplitude channel, taken from `clusters.waveformsChannels`. The first channel in the array corresponds to the first channel in the waveformsChannels list for that unit.
+**Channel arrangement**: The 32 channels are ordered by proximity to the maximum amplitude channel, NOT by depth. This ordering comes from `clusters.waveformsChannels` and matches the order of electrodes in the unit's `electrodes` column (per NWB spec). To visualize waveforms by depth, use the `electrodes` column's `rel_y` values to reorder the channels.
 
 **Intuition**: The mean waveform is the "fingerprint" of the unit - its characteristic voltage deflection pattern. It's used for:
 1. **Quality assessment**: Well-isolated units have clean, consistent waveforms
@@ -381,6 +399,8 @@ plt.plot(time_ms, waveform[:, 0])
 plt.xlabel('Time (ms)')
 plt.ylabel('Amplitude')
 ```
+
+**See also**: [Waveform Data Documentation](../ibl_data_organization/waveform_data.md) for detailed information on IBL waveform storage, channel ordering, raw waveforms, and visualization techniques.
 
 ---
 
@@ -764,7 +784,7 @@ The interface loads from these ALF (Alyx File) format files:
 | `clusters.metrics.pqt` | DataFrame | All quality metrics (Parquet format) |
 | `clusters.uuids.csv` | `(n_clusters,)` | Unique identifiers |
 | `clusters.waveformsChannels.npy` | `(n_clusters, 32)` | Channel indices for waveform data |
-| `clusters.waveforms.npy` | `(n_clusters, 82, 32)` | Mean waveform per cluster (82 samples x 32 channels) |
+| `clusters.waveforms.npy` | `(n_clusters, 82, 32)` | Waveform templates (mean waveforms) per cluster (82 samples x 32 channels) |
 | `clusters.peakToTrough.npy` | `(n_clusters,)` | Peak-to-trough duration in milliseconds |
 
 #### Typical File Paths

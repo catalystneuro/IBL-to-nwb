@@ -336,6 +336,11 @@ def convert_processed_session(
         if "units/waveform_mean" in hf:
             hf["units/waveform_mean"].attrs["sampling_rate"] = 30000.0  # IBL Neuropixels sampling rate in Hz
             hf["units/waveform_mean"].attrs["unit"] = "microvolts"  # Data converted from Volts to uV
+            hf["units/waveform_mean"].attrs["description"] = (
+                "Mean spike waveform for each unit. Shape: (num_samples=82, num_channels=32). "
+                "Channel dimension is ordered by proximity to max amplitude channel, NOT by depth. "
+                "Use the electrodes column's rel_y values to reorder channels by depth for visualization."
+            )
         if "units/spike_times" in hf:
             hf["units/spike_times"].attrs["resolution"] = 1.0 / 30000.0  # Smallest time difference in seconds
 
