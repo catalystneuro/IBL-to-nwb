@@ -362,12 +362,12 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
             VectorData(
                 name="start_time",
                 description="The beginning of the stimulus.",
-                data=gabor_cleaned["start"].values,
+                data=gabor_cleaned["start"].to_numpy(),
             ),
             VectorData(
                 name="stop_time",
                 description="The end of the stimulus.",
-                data=gabor_cleaned["stop"].values,
+                data=gabor_cleaned["stop"].to_numpy(),
             ),
         ]
 
@@ -383,7 +383,7 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
                 VectorData(
                     name=name,
                     description=meta[name],
-                    data=gabor_cleaned[name].values,
+                    data=gabor_cleaned[name].to_numpy(),
                 )
             )
 

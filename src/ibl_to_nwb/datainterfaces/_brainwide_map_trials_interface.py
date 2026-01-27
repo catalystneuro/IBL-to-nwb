@@ -242,7 +242,7 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
                 VectorData(
                     name=nwb_name,
                     description=col_info["description"],
-                    data=trials[col_info["ibl_name"]].values,
+                    data=trials[col_info["ibl_name"]].to_numpy(),
                 )
             )
 
