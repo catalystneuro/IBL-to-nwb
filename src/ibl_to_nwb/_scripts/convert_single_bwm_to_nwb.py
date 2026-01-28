@@ -25,6 +25,7 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     logger = logging.getLogger("IBL_Conversion_Single_EID")
     logger.setLevel(logging.DEBUG)
     logger.handlers = []
+    logger.propagate = False  # Prevent duplicate logs from root logger
 
     log_file_path.parent.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(log_file_path, mode="a")
@@ -57,9 +58,9 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = False              # Write raw-ephys NWBs
+    CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = True               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False           # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate

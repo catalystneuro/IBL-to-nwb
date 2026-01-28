@@ -408,16 +408,11 @@ def add_probe_definition_to_nwbfile(
         ("rel_x", "Relative x coordinate on the probe (µm)."),
         ("rel_y", "Relative y coordinate on the probe (µm)."),
         ("probe_name", "IBL probe name in canonical format (e.g., 'Probe00', 'Probe01')."),
-    ]
-    # Add SpikeGLX-specific properties that will be needed when SpikeGLX interfaces add data
-    # These properties exist in the probe object from probeinterface and prevent null value errors
-    # in multi-probe sessions when neuroconv tries to add electrode columns
-    required_columns.extend([
         ("contact_ids", "Channel IDs as specified by the probe manufacturer."),
         ("shank_ids", "Shank ID for each electrode (for multi-shank probes)."),
         ("adc_group", "ADC group index from SpikeGLX metadata."),
         ("adc_sample_order", "ADC sample order from SpikeGLX metadata."),
-    ])
+    ]
     required_columns.extend(
         (column["name"], column.get("description", ""))
         for column in ecephys_metadata.get("Electrodes", [])
@@ -472,16 +467,10 @@ def add_probe_definition_to_nwbfile(
 
         # Add SpikeGLX-specific properties from probe metadata
         if has_contact_ids:
-            raw_value = contact["contact_ids"]
-            if isinstance(raw_value, bytes):
-                raw_value = raw_value.decode()
-            electrode_kwargs["contact_ids"] = str(raw_value) if raw_value else ""
+            electrode_kwargs["contact_ids"] = str(contact["contact_ids"])
 
         if has_shank_ids:
-            raw_value = contact["shank_ids"]
-            if isinstance(raw_value, bytes):
-                raw_value = raw_value.decode()
-            electrode_kwargs["shank_ids"] = str(raw_value) if raw_value else ""
+            electrode_kwargs["shank_ids"] = str(contact["shank_ids"])
 
         if has_adc_group:
             electrode_kwargs["adc_group"] = int(contact["adc_group"])
@@ -639,26 +628,9 @@ def add_probe_electrodes_with_localization(
 
     BWM_REVISION = "2025-05-06"  # Must match IblAnatomicalLocalizationInterface.REVISION
     loader = SpikeSortingLoader(pid=pid, eid=eid, pname=probe_name, one=one, atlas=atlas, revision=BWM_REVISION)
-    try:
-        channels = loader.load_channels()
-    except Exception as exc:
-        warnings.warn(
-            f"Unable to load histology channels for probe '{probe_name}': {exc}",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        return electrode_indices
-    if channels is None:
-        warnings.warn(
-            f"Histology channels unavailable for probe '{probe_name}'. "
-            f"Electrode table will have probe geometry from .meta file but no anatomical localization.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        return electrode_indices
-
-    def _has_channel_field(field: str) -> bool:
-        return field in channels
+    channels = loader.load_channels()
+    
+    _has_channel_field = lambda field: field in channels
 
     if not all(_has_channel_field(field) for field in ("x", "y", "z", "atlas_id", "acronym")):
         warnings.warn(

@@ -371,17 +371,4 @@ class IblSpikeGlxConverter(ConverterPipe):
 
         self.temporally_align_data_interfaces()
 
-        # TODO: Remove this workaround when neuroconv 0.9 is released
-        # inter_sample_shift is a computed property added by spikeinterface (from adc_group/adc_sample_order)
-        # In multi-probe sessions, this causes null value errors when the second probe tries to add electrodes
-        # because the first probe's electrodes don't have this column yet. Remove the property to avoid the issue.
-        for interface_name, interface in self.data_interface_objects.items():
-            if interface_name == "nidq" or ".sync" in interface_name:
-                continue
-
-            if hasattr(interface, "recording_extractor"):
-                rec = interface.recording_extractor
-                if "inter_sample_shift" in rec.get_property_keys():
-                    rec.delete_property("inter_sample_shift")
-
         super().add_to_nwbfile(nwbfile=nwbfile, metadata=metadata, conversion_options=conversion_options)
