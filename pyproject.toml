@@ -16,6 +16,8 @@ requires-python = ">=3.10"
 dependencies = [
     "dandi>=0.73.2", # Required for DANDI_SANDBOX_API_KEY env var support
     "neuroconv>=0.9.0",
+    "pynwb",
+    "hdmf-zarr",
     "spikeinterface",
     "probeinterface",
     "ndx-pose>=0.2.2",
@@ -49,8 +51,12 @@ classifiers = [
 ]
 
 [tool.uv.sources]
-# neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "main"}
-neuroconv = {path = "../../work_repos/neuroconv", editable = true}
+neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "main"}
+# neuroconv = {path = "../../work_repos/neuroconv", editable = true}
+pynwb = {git = "https://github.com/NeurodataWithoutBorders/pynwb", branch = "dev"}
+# pynwb = {path = "../../work_repos/pynwb", editable = true}
+hdmf-zarr = {git = "https://github.com/hdmf-dev/hdmf-zarr", branch = "dev"}
+# hdmf-zarr = {path = "../../work_repos/hdmf-zarr", editable = true}
 ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "main"}
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 ndx-anatomical-localization = {git = "https://github.com/catalystneuro/ndx-anatomical-localization", branch = "main"}

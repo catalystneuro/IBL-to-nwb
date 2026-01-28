@@ -329,6 +329,21 @@ def convert_processed_session(
         backend="hdf5",
     )
 
+    # ========================================================================
+    # STEP 7: Fix units table metadata attributes
+    # ========================================================================
+    # Workaround for ndx-events bug that overrides pynwb's VectorDataMap, causing
+    # sampling_rate and resolution attributes to not be written.
+    # See: documentation/development/waveform_sampling_rate_bug.md
+    # TODO: Remove this workaround once ndx-events is integrated into NWB core
+    import h5py
+
+    with h5py.File(nwbfile_path, "a") as hf:
+        if "units/waveform_mean" in hf:
+            hf["units/waveform_mean"].attrs["sampling_rate"] = 30000.0
+        if "units/spike_times" in hf:
+            hf["units/spike_times"].attrs["resolution"] = 1.0 / 30000.0
+
     write_time = time.time() - write_start
 
     # Get NWB file size
