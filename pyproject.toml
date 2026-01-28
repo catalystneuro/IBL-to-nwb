@@ -52,7 +52,7 @@ classifiers = [
 
 [tool.uv.sources]
 neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "main"}
-# neuroconv = {path = "../../work_repos/neuroconv", editable = true}
+#neuroconv = {path = "../../work_repos/neuroconv", editable = true}
 pynwb = {git = "https://github.com/NeurodataWithoutBorders/pynwb", branch = "dev"}
 # pynwb = {path = "../../work_repos/pynwb", editable = true}
 hdmf-zarr = {git = "https://github.com/hdmf-dev/hdmf-zarr", branch = "dev"}

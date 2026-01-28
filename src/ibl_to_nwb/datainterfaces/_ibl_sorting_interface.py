@@ -602,8 +602,8 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             self._unit_probe_names = ibl_properties["probe_name"]
 
             # Store raw waveform templates (not yet reordered - that happens after electrodes table exists)
-            # Convert from Volts to microvolts for consistency with amplitude columns
-            self._raw_waveform_means = np.array(ibl_properties["waveform_mean"], dtype=np.float32) * 1e6
+            # Keep in Volts to comply with NWB schema (waveform_mean unit is fixed to 'volts')
+            self._raw_waveform_means = np.array(ibl_properties["waveform_mean"], dtype=np.float32)
 
             # Set peak-to-trough duration
             self.sorting_extractor.set_property(
@@ -671,7 +671,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         waveform_data_dict = {
             "means": self._waveform_means,
             "sampling_rate": 30000.0,  # IBL Neuropixels sampling rate in Hz
-            "unit": "microvolts",  # Data already converted from Volts to uV
+            "unit": "volts",  # NWB schema has unit fixed to 'volts', data is in Volts
         }
 
         add_sorting_to_nwbfile(
