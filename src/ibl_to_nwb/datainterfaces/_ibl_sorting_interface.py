@@ -5,6 +5,7 @@ import logging
 import time
 
 import numpy as np
+from ibldsp.utils import make_channel_index
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import BaseSortingExtractorInterface
 from neuroconv.tools.spikeinterface import add_sorting_to_nwbfile
 from neuroconv.utils import DeepDict
@@ -302,6 +303,90 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
 
         return channel_to_electrode_map
 
+    def _compute_waveform_channels_and_reorder(
+        self, nwbfile: NWBFile, waveform_means: np.ndarray, radius_um: float = 200.0
+    ) -> tuple[np.ndarray, list[np.ndarray]]:
+        """
+        Compute per-unit waveform channels using geometric reconstruction and reorder for electrode alignment.
+
+        IBL does NOT provide direct cluster→channels mapping for waveforms.templates.
+        We reconstruct it using the same logic IBL used during extraction:
+        1. Use clusters['channels'] (peak channel per cluster)
+        2. Use probe geometry (rel_x, rel_y from electrodes table) to find channels within radius
+
+        After computing channels, we reorder so real channels come first, padding last.
+        This ensures clear alignment: waveform_mean[:, i] → electrodes[i] for i < n_real_channels.
+
+        Parameters
+        ----------
+        nwbfile : NWBFile
+            The NWB file containing the electrodes table with rel_x, rel_y
+        waveform_means : np.ndarray
+            Raw waveform templates, shape (n_units, n_samples, n_channels)
+        radius_um : float
+            Radius in micrometers for channel selection (IBL default: 200)
+
+        Returns
+        -------
+        tuple of (np.ndarray, list of np.ndarray)
+            - reordered_waveforms: Waveforms with real channels first, padding last
+            - waveform_channels: List of channel arrays for each unit (reordered)
+        """
+        # Access electrode columns directly (no dataframe conversion)
+        all_rel_x = np.asarray(nwbfile.electrodes['rel_x'][:])
+        all_rel_y = np.asarray(nwbfile.electrodes['rel_y'][:])
+        all_group_names = np.asarray(nwbfile.electrodes['group_name'][:])
+
+        unit_probe_names = self._unit_probe_names
+        unit_max_channels = self._max_amplitude_channels
+        nc = waveform_means.shape[2]  # Number of channels in templates
+
+        all_waveform_channels = []
+        reordered_waveforms = np.empty_like(waveform_means)
+
+        # Process each probe separately (different electrode subsets)
+        probe_channel_lookups = {}
+        for probe_name in self.sorting_extractor.probe_names:
+            group_name = get_ibl_probe_name(probe_name)
+            probe_mask = all_group_names == group_name
+
+            # Get probe geometry in micrometers from electrodes table
+            probe_geometry = np.c_[all_rel_x[probe_mask], all_rel_y[probe_mask]]
+            n_probe_channels = len(probe_geometry)
+            pad_val = n_probe_channels  # 384 for Neuropixels 1.0
+
+            # Build channel lookup: for each channel, which channels are within radius
+            channel_lookup = make_channel_index(probe_geometry, radius=radius_um, pad_val=pad_val)
+
+            # Ensure lookup has enough columns for nc channels
+            if channel_lookup.shape[1] < nc:
+                padding = np.full((channel_lookup.shape[0], nc - channel_lookup.shape[1]), pad_val, dtype=int)
+                channel_lookup = np.hstack([channel_lookup, padding])
+            elif channel_lookup.shape[1] > nc:
+                channel_lookup = channel_lookup[:, :nc]
+
+            probe_channel_lookups[probe_name] = (channel_lookup, pad_val)
+
+        # Compute channels for each unit and reorder
+        for unit_index, (probe_name, peak_channel) in enumerate(zip(unit_probe_names, unit_max_channels)):
+            channel_lookup, pad_val = probe_channel_lookups[probe_name]
+
+            # Get channels within radius of peak channel
+            waveform_channels = channel_lookup[int(peak_channel)]
+
+            # Reorder: real channels first, padding last
+            is_real = waveform_channels < pad_val
+            real_indices = np.where(is_real)[0]
+            padding_indices = np.where(~is_real)[0]
+            reorder_index = np.concatenate([real_indices, padding_indices])
+
+            # Reorder waveform and channel IDs
+            reordered_waveforms[unit_index] = waveform_means[unit_index][:, reorder_index]
+            reordered_channels = waveform_channels[reorder_index]
+            all_waveform_channels.append(reordered_channels)
+
+        return reordered_waveforms, all_waveform_channels
+
     def _map_units_to_electrodes(self, nwbfile: NWBFile, channel_to_electrode_map: dict = None) -> tuple:
         """
         Map units to electrode indices based on waveform channels.
@@ -515,18 +600,10 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             # Store max amplitude channel internally for electrode linking (not written to NWB)
             self._max_amplitude_channels = ibl_properties["_max_amplitude_channel"]
             self._unit_probe_names = ibl_properties["probe_name"]
-            # Store waveform channels for multi-electrode linking
-            self._waveform_channels = ibl_properties["_waveform_channels"]
 
-            # Store waveform templates directly to NWB's waveform_mean column.
-            # We use waveforms.templates (mean of actual pre-processed spike waveforms) which provides
-            # real recorded data with standard IBL preprocessing applied.
-            # Shape: (num_units, num_samples=128, num_channels=nc) where nc is typically 40-60
-            # Note: nc (number of channels) varies by session based on probe geometry
-            # Axis order: (time, channels) after transposition from IBL's (channels, time) format
-            # The channel dimension matches the electrodes column order (per NWB spec).
+            # Store raw waveform templates (not yet reordered - that happens after electrodes table exists)
             # Convert from Volts to microvolts for consistency with amplitude columns
-            self._waveform_means = np.array(ibl_properties["waveform_mean"], dtype=np.float32) * 1e6
+            self._raw_waveform_means = np.array(ibl_properties["waveform_mean"], dtype=np.float32) * 1e6
 
             # Set peak-to-trough duration
             self.sorting_extractor.set_property(
@@ -556,6 +633,20 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         if nwbfile.electrodes is None or len(nwbfile.electrodes) == 0:
             print("Creating electrodes table with anatomical localization (processed mode)...")
             channel_to_electrode_map = self._create_electrodes_table_with_localization(nwbfile)
+
+        # ===================================================================
+        # COMPUTE WAVEFORM CHANNELS AND REORDER FOR ELECTRODE ALIGNMENT
+        # ===================================================================
+        # Now that electrodes table exists, compute waveform channels using probe geometry
+        # (rel_x, rel_y) and reorder so real channels come first, padding last.
+        # This ensures waveform_mean[:, i] corresponds to electrodes[i] for i < n_real_channels.
+        # See documentation/ibl_data_organization/waveform_data.md for details.
+        # ===================================================================
+        print("Computing waveform channels from electrode geometry...")
+        self._waveform_means, self._waveform_channels = self._compute_waveform_channels_and_reorder(
+            nwbfile=nwbfile,
+            waveform_means=self._raw_waveform_means,
+        )
 
         # Automatically link units to electrodes if not provided
         if unit_electrode_indices is None:

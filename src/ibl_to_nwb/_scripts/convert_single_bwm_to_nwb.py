@@ -58,9 +58,9 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = True              # Write raw-ephys NWBs
+    CONVERT_RAW = False            # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = True               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = False            # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False           # Force re-download even if cached
     REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True                # Regenerate NWBs even if existing files validate

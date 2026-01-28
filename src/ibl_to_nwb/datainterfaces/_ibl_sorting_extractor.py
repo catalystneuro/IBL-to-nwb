@@ -173,7 +173,7 @@ class IblSortingExtractor(BaseSorting):
             # Load waveform data (templates from pre-processed raw data)
             waveforms_data = sorting_loader.load_spike_sorting_object(
                 'waveforms',
-                dataset_types=['waveforms.templates', 'waveforms.channels', 'waveforms.table'],
+                dataset_types=['waveforms.templates'],
                 revision=self.revision,
             )
 
@@ -184,70 +184,12 @@ class IblSortingExtractor(BaseSorting):
             # Transpose from (units, channels, time) to (units, time, channels) for NWB convention
             waveform_templates = np.transpose(waveform_templates, (0, 2, 1))
 
-            # Load channel mapping (per-waveform, needs inference to per-cluster)
-            # waveforms.channels.npz has shape (n_waveforms, nc)
-            # If channels is an NpzFile, extract the 'channels' key from it
-            traces_channels = waveforms_data['channels']
-            if isinstance(traces_channels, np.lib.npyio.NpzFile):
-                traces_channels = traces_channels['channels']
-
-            # Load waveforms.table.pqt to map waveforms to clusters
-            # alfio.load_object loads parquet files as individual columns, so we need to reconstruct the DataFrame
-            table_data = {
-                'cluster': waveforms_data['cluster'],
-                'sample': waveforms_data['sample'],
-                'peak_channel': waveforms_data['peak_channel'],
-            }
-            table = pd.DataFrame(table_data)
-
-            # Infer per-cluster channel mapping by finding most common channel set per cluster
-            waveform_channels = self._infer_cluster_channels(table, traces_channels, number_of_units)
-
             if stub_test:
                 waveform_templates = waveform_templates[:number_of_units]
-                waveform_channels = waveform_channels[:number_of_units]
 
-            # ===================================================================
-            # WAVEFORM CHANNEL REORDERING FOR CLEAR ELECTRODE ALIGNMENT
-            # ===================================================================
-            # IBL's waveforms.templates has variable channel counts per unit (padded to uniform shape):
-            # - Real channels: IDs 0-383 (actual electrode data)
-            # - Padding: Channel ID 384 with NaN values to make array uniform
-            #
-            # Strategy: Reorder channels to put real channels first, padding last
-            # This ensures clear alignment: waveform_mean[:, i] → electrodes[i] for i < n_real_channels
-            #
-            # Example: Unit with 21 real channels + 19 padding:
-            #   Before reordering: channels = [0, 1, 2, ..., 20, 384, 384, ..., 384]
-            #   After reordering:  channels = [0, 1, 2, ..., 20, 384, 384, ..., 384] (already ordered)
-            #   Result: waveform_mean[:, 0:21] maps to electrodes[0:21]
-            #           waveform_mean[:, 21:40] is padding (NaN, no electrode mapping)
-            #
-            # See documentation/ibl_data_organization/waveform_data.md for details
-            # ===================================================================
-            # Preallocate arrays for reordered data (fixed shape per probe)
-            n_units, n_samples, n_channels = waveform_templates.shape
-            reordered_waveforms = np.empty_like(waveform_templates)
-            reordered_channels = np.empty_like(waveform_channels)
-
-            for unit_index in range(n_units):
-                wf = waveform_templates[unit_index]
-                channels = waveform_channels[unit_index]
-
-                # Identify real channels (< 384) vs padding (>= 384)
-                is_real = channels < 384
-
-                # Create reordering: real channels first, then padding
-                real_indices = np.where(is_real)[0]
-                padding_indices = np.where(~is_real)[0]
-                reorder_index = np.concatenate([real_indices, padding_indices])
-
-                # Reorder waveform (shape: time x channels) and channel IDs
-                reordered_waveforms[unit_index] = wf[:, reorder_index]
-                reordered_channels[unit_index] = channels[reorder_index]
-
-            unit_properties["waveform_mean"].extend(list(reordered_waveforms))
-            unit_properties["_waveform_channels"].extend(list(reordered_channels))
+            # Store raw waveform templates - channel mapping and reordering
+            # happens in the interface where we have access to the electrodes table
+            unit_properties["waveform_mean"].extend(list(waveform_templates))
 
         return {
             "spike_times_by_id": dict(spike_times_by_id),
@@ -256,72 +198,6 @@ class IblSortingExtractor(BaseSorting):
             "cluster_ids": cluster_ids,
             "unit_properties": dict(unit_properties),
         }
-
-    def _infer_cluster_channels(self, table: pd.DataFrame, traces_channels: np.ndarray, n_clusters: int) -> np.ndarray:
-        """
-        Infer per-cluster channel mapping from per-waveform channel data using voting.
-
-        Background
-        ----------
-        IBL's waveforms.channels provides channel mappings at per-waveform granularity,
-        not per-cluster. Each cluster has ~256 individual waveforms, and empirically:
-        - 100% of clusters have multiple different channel sets across their waveforms
-        - Clusters typically have 66-99 unique channel sets (out of 256 waveforms)
-        - This variability arises from electrode drift, variable peak detection,
-          and dynamic channel selection over the recording session
-
-        Since waveforms.templates provides ONE template per cluster, we must select
-        ONE representative channel set from the many used by that cluster's waveforms.
-
-        Strategy
-        --------
-        Use voting to find the most frequently occurring channel set among all waveforms
-        belonging to each cluster. This gives the most representative channel mapping
-        for that cluster's template.
-
-        Example
-        -------
-        Cluster 5 with 256 waveforms:
-        - Set A (40 channels): used by 21 waveforms (8.2%)
-        - Set B (40 channels): used by 20 waveforms (7.8%)
-        - ... 90 other unique sets with varying frequencies
-        → We select Set A as the representative (most common)
-
-        Parameters
-        ----------
-        table : pd.DataFrame
-            waveforms.table.pqt containing cluster-to-waveform mapping
-        traces_channels : np.ndarray
-            waveforms.channels array with shape (n_waveforms, nc)
-        n_clusters : int
-            Number of clusters
-
-        Returns
-        -------
-        np.ndarray
-            Per-cluster channel indices with shape (n_clusters, nc)
-            Each row contains the most frequently used channel set for that cluster
-        """
-        nc = traces_channels.shape[1]
-        cluster_channels = np.full((n_clusters, nc), -1, dtype=int)
-
-        for cluster_id in range(n_clusters):
-            # Get all waveforms for this cluster
-            cluster_waveforms = table[table['cluster'] == cluster_id]
-
-            if len(cluster_waveforms) == 0:
-                continue
-
-            # Get channel sets used by this cluster's waveforms
-            wf_indices = cluster_waveforms.index.tolist()
-            channel_sets = traces_channels[wf_indices]
-
-            # Find most common channel set
-            unique_sets, counts = np.unique(channel_sets, axis=0, return_counts=True)
-            most_common_idx = np.argmax(counts)
-            cluster_channels[cluster_id] = unique_sets[most_common_idx]
-
-        return cluster_channels
 
     def initialize_sorting(self, spike_times_by_id: dict, cluster_ids: list):
         """Initialize the BaseSorting with spike times.

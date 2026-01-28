@@ -76,121 +76,69 @@ The number of channels (nc) in `waveforms.templates` varies by session:
 
 ---
 
-## 2. The Missing Link: Mapping Templates to Channels
+## 2. Mapping Templates to Channels
 
 ### The Problem
 
-IBL provides `waveforms.templates` (one per cluster) but does NOT provide a direct cluster→channels mapping. To use the templates, we must infer which channels each template represents.
+IBL provides `waveforms.templates` (one per cluster) but does NOT provide a direct cluster→channels mapping file. To use the templates, we must determine which channels each template represents.
 
-### Available Metadata Files
+### Solution: Geometric Reconstruction
 
-#### waveforms.table.pqt (The Bridge)
+IBL recommended using **geometric reconstruction** rather than loading additional metadata files. This approach:
+1. Uses `clusters['channels']` - the peak channel for each cluster (already loaded with spike sorting)
+2. Uses probe geometry (x, y coordinates) to compute which channels are within 200μm radius
 
-**Purpose**: Links individual waveforms to clusters
+This is the same logic IBL uses during waveform extraction (`ibldsp.waveform_extraction`), making it both efficient and correct.
 
-**Structure**:
-- Shape: (n_waveforms, 5) - typically ~114,000 rows for 448 clusters
-- Columns:
-  - `cluster`: Cluster ID (0 to n_clusters-1)
-  - `sample`: Time sample in recording where spike occurred
-  - `peak_channel`: Channel with maximum amplitude
-  - `index`: Global waveform index in `waveforms.traces.npy`
-  - `index_within_clusters`: Index within cluster (0 to ~255)
-
-**Key insight**: Each cluster has approximately 250-256 individual waveforms
-
-**Example data**:
-```
-   cluster    sample  peak_channel  index  index_within_clusters
-0       0   1234567            42      0                      0
-1       0   2345678            42      1                      1
-...
-255     0   9876543            42    255                    255
-256     1   1111111            38    256                      0
-```
-
-**What it tells us**:
-- Which waveforms belong to which cluster
-- When each spike occurred
-- The peak channel for each spike
-- How to index into `waveforms.traces.npy` and `waveforms.channels.npz`
-
-**What it does NOT tell us**:
-- Which channels are used in `waveforms.templates` for each cluster
-
----
-
-#### waveforms.channels.npz (Per-Waveform Channel IDs)
-
-**Purpose**: Specifies which channels are included in each individual waveform
-
-**Structure**:
-- Shape: (n_waveforms, nc) - one row per waveform
-- Contains channel indices (0-383) for Neuropixels channels
-- Corresponds to columns in `waveforms.traces.npy`
-
-**Key insight**: This is per-waveform granularity, NOT per-cluster
-
-**Example data**:
-```
-Waveform 0 (cluster 0): [10, 11, 12, 13, ..., 48, 49]  # 40 channels
-Waveform 1 (cluster 0): [10, 11, 12, 13, ..., 48, 49]  # Same channels
-Waveform 2 (cluster 0): [9, 10, 11, 12, ..., 47, 48]   # Slightly different!
-...
-Waveform 256 (cluster 1): [35, 36, 37, 38, ..., 73, 74]  # Different cluster
-```
-
-**Why channel sets vary within a cluster**:
-- Spikes detected at slightly different times may use different channels
-- Different local field potentials affect channel selection
-- Drift in recording may shift optimal channels
-- Some waveforms may use more/fewer channels based on amplitude
-
-**What it tells us**:
-- Exact channel IDs for each row in each individual waveform
-- Channel variability within a cluster (typically 30-43 unique channel sets per cluster)
-
-**What it does NOT tell us**:
-- Which channel set to use for `waveforms.templates` (the cluster-level template)
-
----
-
-### The Inference Solution
-
-Since IBL does NOT provide direct cluster→channels mapping for templates, we must infer:
-
-**Strategy**: Voting/Consensus across individual waveforms
-
-1. Use `waveforms.table.pqt` to find all waveforms belonging to a cluster
-2. Use `waveforms.channels.npz` to get channel sets for those waveforms
-3. Find the most common (mode) channel set across all waveforms
-4. Use this as the representative channel set for the cluster's template
-
-**Example**:
+**Implementation**:
 ```python
-import pandas as pd
-import numpy as np
+from ibldsp.utils import make_channel_index
 
-# Load metadata
-table = pd.read_parquet('waveforms.table.pqt')
-channels = np.load('waveforms.channels.npz')['channels']
+# Get probe geometry from electrodes table (rel_x, rel_y in micrometers)
+# Note: channels["x"] and channels["y"] are brain atlas coordinates in meters, NOT probe geometry
+probe_geometry = np.c_[electrodes['rel_x'], electrodes['rel_y']]  # (384, 2) in micrometers
+channel_lookup = make_channel_index(probe_geometry, radius=200.0, pad_val=384)
 
-# Get waveforms for cluster_id
-cluster_waveforms = table[table['cluster'] == cluster_id]
-wf_indices = cluster_waveforms.index.tolist()
-
-# Get channel sets used by this cluster (typically ~256 waveforms)
-channel_sets = channels[wf_indices]  # Shape: (256, 40)
-
-# Find most common channel set using voting
-unique_sets, counts = np.unique(channel_sets, axis=0, return_counts=True)
-most_common_idx = np.argmax(counts)
-cluster_channels = unique_sets[most_common_idx]  # Shape: (40,)
+# Index by peak channel to get channels for each cluster
+peak_channels = clusters['channels']  # (n_clusters,)
+cluster_channels = channel_lookup[peak_channels]  # (n_clusters, nc)
 ```
 
-**Result**: Per-cluster channel mapping array of shape (n_clusters, nc)
+**How it works**:
+1. `make_channel_index()` precomputes, for each of the 384 channels, which other channels are within 200μm
+2. Indexing with peak channels gives the exact channel set used during extraction
+3. Channels outside the probe (padding) are marked with 384
 
-**Implementation**: See `_infer_cluster_channels()` in [src/ibl_to_nwb/datainterfaces/_ibl_sorting_extractor.py](src/ibl_to_nwb/datainterfaces/_ibl_sorting_extractor.py) (lines 258-322)
+**Important**: Use `rel_x` and `rel_y` from the electrodes table (probe-relative positions in micrometers), NOT `channels["x"]` and `channels["y"]` which are brain atlas coordinates in meters.
+
+**Advantages over loading waveforms.channels.npz**:
+- No additional file downloads needed
+- Deterministic (no voting/consensus required)
+- Matches IBL's extraction logic exactly
+- More efficient
+
+**Implementation**: See `_compute_waveform_channels_and_reorder()` in [_ibl_sorting_interface.py](../../src/ibl_to_nwb/datainterfaces/_ibl_sorting_interface.py)
+
+---
+
+### Alternative: Metadata-Based Inference (Not Used)
+
+For reference, IBL also provides per-waveform metadata that could theoretically be used:
+
+#### waveforms.table.pqt
+- Links individual waveforms (~256 per cluster) to clusters
+- Contains: cluster ID, sample time, peak_channel, index
+
+#### waveforms.channels.npz
+- Per-waveform channel IDs (n_waveforms, nc)
+- Shows which channels each individual waveform uses
+
+However, this approach requires:
+1. Loading two additional files
+2. Voting/consensus to select representative channel set per cluster
+3. Handling variability (clusters can have 30-43 unique channel sets)
+
+The geometric reconstruction method is preferred as it's simpler, more efficient, and recommended by IBL.
 
 ---
 
@@ -220,8 +168,8 @@ cluster_channels = unique_sets[most_common_idx]  # Shape: (40,)
 **Key distinction**:
 - **Per-cluster files** (`waveforms.templates`, `clusters.waveforms`) have one entry per unit
 - **Per-waveform files** (`waveforms.channels`, `waveforms.table`, `waveforms.traces`) have ~256 entries per unit
-- **The gap**: `waveforms.templates` is per-cluster, but `waveforms.channels` is per-waveform
-- **The solution**: Use `waveforms.table.pqt` to bridge the gap via voting/consensus
+- **The gap**: `waveforms.templates` is per-cluster, but channel mapping metadata is per-waveform
+- **The solution**: Use geometric reconstruction with `clusters['channels']` and `make_channel_index()`
 
 ---
 
@@ -268,9 +216,14 @@ Electrodes: [0, 1, 2, ..., 20]  (21 entries, only real channels)
 
 ### Implementation
 
-See code in:
-- `src/ibl_to_nwb/datainterfaces/_ibl_sorting_extractor.py` (lines 210-248)
-- `src/ibl_to_nwb/datainterfaces/_ibl_sorting_interface.py` (lines 366-378)
+See `_compute_waveform_channels_and_reorder()` in:
+- `src/ibl_to_nwb/datainterfaces/_ibl_sorting_interface.py`
+
+This method:
+1. Gets probe geometry (`rel_x`, `rel_y`) from the electrodes table
+2. Uses `make_channel_index()` to find channels within 200μm of each unit's peak channel
+3. Reorders waveforms so real channels come first (sorted by depth), padding last
+4. Links only the real electrodes to each unit
 
 ### Usage Example
 

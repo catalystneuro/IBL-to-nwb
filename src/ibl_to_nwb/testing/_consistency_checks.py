@@ -48,6 +48,7 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
             _check_trials_data(nwbfile=nwbfile, one=one)
             _check_wheel_data(nwbfile=nwbfile, one=one)
             _check_spike_sorting_data(nwbfile=nwbfile, one=one)
+            _check_waveform_electrode_alignment(nwbfile=nwbfile)
             _check_passive_data(nwbfile=nwbfile, one=one)
 
             # these are not always present for all datasets, therefore check for existence first
@@ -319,6 +320,34 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
             _logger.debug(f"pupil data for {view} passed")
 
 
+def _check_waveform_electrode_alignment(*, nwbfile: NWBFile):
+    """
+    Verify that waveform_mean channels are correctly aligned with electrodes.
+
+    The geometric reconstruction stores waveforms sorted by electrode depth (rel_y).
+    This check verifies that for each unit, the electrode depths are already in sorted order,
+    confirming that waveform_mean[:, i] correctly corresponds to electrodes[i].
+    """
+    eid = nwbfile.session_id
+    _logger = get_logger(eid)
+
+    units_df = nwbfile.units.to_dataframe()
+
+    for unit_id, unit in units_df.iterrows():
+        electrode_depths = unit["electrodes"]["rel_y"].values
+        sorted_depths = np.sort(electrode_depths)
+
+        # Verify electrodes are stored in depth-sorted order
+        if not np.array_equal(electrode_depths, sorted_depths):
+            raise AssertionError(
+                f"Unit {unit_id}: electrode depths are not sorted. "
+                f"Waveform-electrode alignment may be incorrect. "
+                f"Original: {electrode_depths[:5]}..., Sorted: {sorted_depths[:5]}..."
+            )
+
+    _logger.debug(f"waveform electrode alignment passed ({len(units_df)} units checked)")
+
+
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
@@ -524,7 +553,7 @@ def _check_passive_data(*, one: ONE, nwbfile: NWBFile):
     if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets:
         passive_intervals_df = one.load_dataset(eid, "_ibl_passivePeriods.intervalsTable.csv", **load_kwargs)
         epochs = nwbfile.intervals["epochs"][:]
-        for protocol, group in epochs.groupby("protocol_name"):
+        for protocol, group in epochs.groupby("protocol_type"):
             if protocol != "experiment":
                 start_time, stop_time = passive_intervals_df[protocol]
                 assert group["start_time"].values == start_time

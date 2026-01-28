@@ -315,45 +315,30 @@ class IblSpikeGlxConverter(ConverterPipe):
     def temporally_align_data_interfaces(self) -> None:
         """Align the raw data timestamps to the other data streams using the ONE API."""
 
-        # only interate over present data interfaces
         for key, interface in self.data_interface_objects.items():
-            # Parse new key format: "probe00.imec.ap" -> probe_name="probe00", band="ap"
+            # Parse new key format: "probe00.imec.ap" -> probe_name="probe00"
             parts = key.split(".")
             probe_name = parts[0]  # "probe00"
 
-            # Determine band: sync channels use AP band alignment
-            if '.sync' in key:
-                band = 'ap'  # Sync came from AP-SYNC stream
-            else:
-                band = parts[2]  # "ap" or "lf"
-
             pid = self.probe_name_to_probe_id_dict[probe_name]
 
+            # Get ns and fs directly from the recording interface instead of calling raw_electrophysiology()
+            # This avoids instantiating spikeglx.Reader which triggers warnings about missing geometry
+            # Both SpikeGLXRecordingInterface and SpikeGLXSyncChannelInterface have recording_extractor
+            recording_extractor = interface.recording_extractor
+            ns = recording_extractor.get_num_samples()
+            fs = recording_extractor.get_sampling_frequency()
+
             spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)
-            stream = False
-            sglx_streamer = spike_sorting_loader.raw_electrophysiology(
-                band=band, stream=stream, revision=self.revision
-            )
-
-            # data_one = sglx_streamer._raw
-
-            # if all we need is the number of samples, then this seems a bit overkill
-            # and it is a not possible to get this work offline
-            # sl = spike_sorting_loader.raw_electrophysiology(band=band, stream=True)
-
-            # rather, the ns can be retrieved directly from the recording interface
-            # ns = recording_interface._extractor_instance.get_num_samples()
-            # aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, sl.ns), direction="forward")
-            # Get sampling frequency from the reader (AP=30000Hz, LF=2500Hz)
             aligned_timestamps = spike_sorting_loader.samples2times(
-                np.arange(0, sglx_streamer.ns), direction="forward", fs=sglx_streamer.fs
+                np.arange(0, ns), direction="forward", fs=fs
             )
 
             # Handle different interface types
             if hasattr(interface, 'set_aligned_timestamps'):
                 # Recording interfaces (AP/LF) have this method
                 interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
-            elif hasattr(interface, 'recording_extractor'):
+            else:
                 # Sync interface doesn't have set_aligned_timestamps, use recording_extractor directly
                 interface.recording_extractor.set_times(times=aligned_timestamps, with_warning=False)
 
