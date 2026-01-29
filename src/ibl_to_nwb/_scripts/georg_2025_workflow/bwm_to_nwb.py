@@ -16,12 +16,12 @@ from ibl_to_nwb.datainterfaces import (
     IblPoseEstimationInterface,
     IblSortingInterface,
     LickInterface,
-    PassivePeriodDataInterface,
     PupilTrackingInterface,
     RawVideoInterface,
     RoiMotionEnergyInterface,
-    WheelInterface,
 )
+from ibl_to_nwb._scripts.georg_2025_workflow._ibl_passive_interface import PassivePeriodDataInterface
+from ibl_to_nwb._scripts.georg_2025_workflow._wheel_interface import WheelInterface
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import joblib
 
-from ibl_to_nwb import bwm_to_nwb
+from ibl_to_nwb._scripts.georg_2025_workflow import bwm_to_nwb
 from ibl_to_nwb.fixtures import load_fixtures
 
 # Set the filter to show each warning only once for a specific module

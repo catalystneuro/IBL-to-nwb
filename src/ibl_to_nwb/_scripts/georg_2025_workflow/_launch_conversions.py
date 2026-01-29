@@ -15,7 +15,7 @@ else:
     print("using regular ONE")
     from one.api import ONE
 
-from ibl_to_nwb import bwm_to_nwb
+from ibl_to_nwb._scripts.georg_2025_workflow import bwm_to_nwb
 from ibl_to_nwb.fixtures import load_fixtures
 
 _logger = setup_logger("bwm_to_nwb")

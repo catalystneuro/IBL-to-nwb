@@ -99,11 +99,15 @@ The **IBL Passive Task** is a critical experimental protocol that occurs after t
 - Visual events: `_ibl_passiveGabor.table.csv`
 - Auditory events: `_ibl_passiveStims.table.csv`
 
-## IBL-to-NWB Conversion Interface
+## IBL-to-NWB Conversion Interfaces
 
-The conversion to NWB format is handled by the `PassivePeriodDataInterface` and its sub-interfaces:
+There are two approaches to converting passive data to NWB format:
 
-### Main Interface: `PassivePeriodDataInterface`
+### Legacy Interface: `PassivePeriodDataInterface`
+
+**Location**: `ibl_to_nwb._scripts.georg_2025_workflow._ibl_passive_interface`
+
+This is a composite interface used by the legacy `bwm_to_nwb` workflow. It detects available passive datasets and coordinates conversion using internal sub-interfaces (`PassiveEpochsInterface`, `TaskReplayInterface`, `ReceptiveFieldMappingInterface`).
 
 **Purpose**: Detects available passive datasets and coordinates conversion
 
@@ -167,9 +171,23 @@ The conversion to NWB format is handled by the `PassivePeriodDataInterface` and 
 **NWB Output**:
 - **Location**: `passive` processing module
 - **Object**: `rfm_stim` TimeSeries
-- **Data**: 15×15 pixel grid stimulus patterns over time
+- **Data**: 15x15 pixel grid stimulus patterns over time
 - **Timestamps**: Frame presentation times
 - **Unit**: "px" (pixels)
+
+### Modern Interfaces (Recommended for New Code)
+
+**Location**: `ibl_to_nwb.datainterfaces`
+
+For new conversion workflows, the passive data functionality has been refactored into three standalone interfaces that follow the standard `BaseIBLDataInterface` pattern with explicit data requirements and download methods:
+
+| Interface | Purpose | Source File |
+|-----------|---------|-------------|
+| `PassiveIntervalsInterface` | Passive period timing intervals | `_ibl_passivePeriods.intervalsTable.csv` |
+| `PassiveReplayStimInterface` | Task replay events (Gabor, auditory) | `_ibl_passiveGabor.table.csv`, `_ibl_passiveStims.table.csv` |
+| `PassiveRFMInterface` | Receptive field mapping stimulus | `_ibl_passiveRFM.times.npy`, `_iblrig_RFMapStim.raw.bin` |
+
+These interfaces support revision-aware data loading and can be used independently or combined as needed.
 
 ## Data Analysis Applications
 
