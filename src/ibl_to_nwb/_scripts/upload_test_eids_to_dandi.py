@@ -30,6 +30,7 @@ SESSIONS_TO_REUPLOAD = [
 ]
 
 PROFILE = "catalyst_neuro"
+PROFILE = "ibl"
 DANDI_INSTANCE = "dandi"
 DANDISET_ID = "000409"
 STUB_TEST = False

@@ -1,15 +1,21 @@
-"""Standalone script to convert an IBL Neuropixels 2.0 session to an NWB file.
+"""Standalone script to convert an IBL Neuropixels 2.0 session to NWB files.
 
-This script is adapted from convert_single_bwm_to_nwb.py but handles the specific
+This script is adapted from convert_bwm_to_nwb.py but handles the specific
 case of Neuropixels 2.0 multi-shank recordings where each shank is stored in a
 separate compressed file (probe00a/, probe00b/, etc.).
+
+Like the BWM conversion, this creates two types of NWB files:
+- RAW: Contains raw ephys data (AP and LF bands) and NIDQ sync signals
+- PROCESSED: Contains behavioral data, pose estimation, trials, etc.
 
 NOTE: Data download is disabled because NP2.0 sessions are not yet available on
 openalyx. The data must be pre-downloaded to the local cache folder.
 
-Data sources included:
+Data sources for RAW NWB:
 - Raw ephys (AP and LF bands) via IblNeuropixels2Converter
 - NIDQ behavioral sync signals
+
+Data sources for PROCESSED NWB:
 - Pose estimation (Lightning Pose) for all cameras
 - Lick times
 - Wheel position and movements
@@ -34,10 +40,14 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 from neuroconv.tools import configure_and_write_nwbfile
-from neuroconv.tools.nwb_helpers import get_default_backend_configuration
+from neuroconv.tools.nwb_helpers import get_default_backend_configuration, get_module
+from neuroconv.utils import dict_deep_update
 from ndx_ibl import IblMetadata, IblSubject
+from ndx_pose import PoseEstimation, PoseEstimationSeries, Skeleton, Skeletons
 from one.api import ONE
 from pynwb import NWBFile, NWBHDF5IO
+from pynwb.behavior import Position, SpatialSeries, BehavioralTimeSeries
+from pynwb.epoch import TimeIntervals
 
 from ibl_to_nwb.converters import IblNeuropixels2Converter
 from ibl_to_nwb.datainterfaces import IblNIDQInterface
@@ -119,382 +129,117 @@ def setup_np2_paths(
     return paths
 
 
-if __name__ == "__main__":
-    # ========================================================================
-    # MAIN CONFIGURATION
-    # ========================================================================
+def get_base_metadata(target_eid: str) -> dict:
+    """Get base metadata for NWB files."""
+    session_start_time = datetime(2025, 5, 19, 12, 0, 0, tzinfo=ZoneInfo("America/Los_Angeles"))
 
-    STUB_TEST = True                # Work on lightweight subsets of data
-    REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
-    OVERWRITE = True                # Regenerate NWBs even if existing files validate
-    INCLUDE_EPHYS = True           # Include raw ephys data (requires decompression - slow first run)
-    INCLUDE_LF_BAND = True          # Include LF band data (2.5 kHz) in addition to AP (30 kHz)
-    INCLUDE_NIDQ = True            # Include NIDQ behavioral sync signals (requires decompression)
-    INCLUDE_BEHAVIOR = True         # Include behavioral data (wheel, licks, trials)
-    INCLUDE_POSE = True             # Include pose estimation data (Lightning Pose)
-    INCLUDE_MOTION_ENERGY = True    # Include ROI motion energy data
-
-    # --------------------------------------------------------------------------
-    # NOTE: Data download is DISABLED for NP2.0 sessions
-    # --------------------------------------------------------------------------
-    # NP2.0 data is not yet available on openalyx. The session data must be
-    # pre-downloaded to the local cache folder before running this script.
-    #
-    # To download NP2.0 data, use the internal alyx server:
-    #   ONE.setup(base_url="https://alyx.internationalbrainlab.org", ...)
-    #
-    # The following features from convert_single_bwm_to_nwb.py are disabled:
-    #   - REDOWNLOAD_DATA: Data must be pre-downloaded
-    #   - download_session_data(): Not called
-    #   - RUN_CONSISTENCY_CHECKS: Requires ONE API access to source data
-    # --------------------------------------------------------------------------
-
-    # Paths configuration
-    base_folder = Path("/media/heberto/Expansion")
-    cache_dir = base_folder / "ibl_cache"
-    base_path = base_folder / "ibl_conversion"
-
-    # NP2.0 test session (KM_038)
-    # This session has 3 physical probes x 4 shanks = 12 shank folders
-    TARGET_EID = "0fc48eb3-0a80-4287-95f6-892a00c3cac1"
-    target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
-
-    # Session folder in the cache (must be pre-downloaded)
-    session_folder = cache_dir / "steinmetzlab" / "Subjects" / "KM_038" / "2025-05-19" / "001"
-
-    if not session_folder.exists():
-        raise FileNotFoundError(
-            f"Session folder not found: {session_folder}\n"
-            "NP2.0 data must be pre-downloaded from the internal alyx server."
-        )
-
-    # Probe insertion IDs for this session
-    # NOTE: These would normally come from load_fixtures, but NP2.0 sessions
-    # may not be in the fixtures yet. For now, we use placeholder IDs.
-    # TODO: Update with real probe insertion IDs when available
-    probe_name_to_probe_id_dict = {
-        "probe00": "placeholder_pid_probe00",
-        "probe01": "placeholder_pid_probe01",
-        "probe02": "placeholder_pid_probe02",
+    metadata = {
+        "NWBFile": {
+            "session_start_time": session_start_time,
+            "session_id": target_eid,
+            "identifier": target_eid,
+            "lab": "steinmetzlab",
+            "institution": "University of Washington",
+        },
+        "Subject": {
+            "subject_id": "KM_038",
+            "species": "Mus musculus",
+            "description": "IBL subject",
+        },
     }
+    return metadata
 
-    # Setup ONE for metadata access (using openalyx for subject info)
-    # NOTE: Session-specific data won't be available, but subject metadata may be
-    one = ONE(
-        base_url="https://openalyx.internationalbrainlab.org",
-        cache_dir=cache_dir,
-        password='international',
-        silent=True,
-    )
 
-    # Setup logging
-    logs_path = base_path / "conversion_logs"
-    logs_path.mkdir(exist_ok=True, parents=True)
-    log_file_path = logs_path / f"np2_conversion_{target_eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
-    logger = setup_logger(log_file_path)
+# =============================================================================
+# MANUAL DATA LOADING AND ADDITION FUNCTIONS
+# =============================================================================
+# Why Manual Functions Instead of ONE-Based Interfaces?
+#
+# The BWM conversion script (convert_bwm_to_nwb.py) uses ONE-based interfaces like
+# WheelPositionInterface, LickInterface, IblPoseEstimationInterface, etc. These
+# interfaces query the ONE API to find and load data, which requires the session
+# to be registered on openalyx.
+#
+# Since the NP2.0 session (KM_038) is not on openalyx yet, those interfaces fail:
+#     [Errno 404] /sessions/0fc48eb3-0a80-4287-95f6-892a00c3cac1:
+#     'No Session matches the given query.'
+#
+# So these manual functions load directly from local ALF files instead of going
+# through ONE. Once the NP2.0 data is uploaded to openalyx, these functions can
+# be replaced with the standard ONE-based interfaces.
+# =============================================================================
 
-    logger.info("=" * 80)
-    logger.info("IBL NEUROPIXELS 2.0 CONVERSION SCRIPT STARTED")
-    logger.info("=" * 80)
-    logger.info(f"EID: {target_eid}")
-    logger.info(f"Session folder: {session_folder}")
-    logger.info(f"Stub test mode: {STUB_TEST}")
-    logger.info(f"Include LF band: {INCLUDE_LF_BAND}")
-    logger.info(f"Re-decompress ephys: {REDECOMPRESS_EPHYS}")
-    logger.info(f"Overwrite existing NWB: {OVERWRITE}")
-    logger.info(f"Log file: {log_file_path}")
-    logger.info("=" * 80)
 
-    script_start_time = time.time()
-
-    # ========================================================================
-    # STEP 1: Setup paths
-    # ========================================================================
-    logger.info("Setting up paths...")
-    paths = setup_np2_paths(session_folder, base_path, target_eid)
-    logger.info(f"  Session folder: {paths['session_folder']}")
-    logger.info(f"  Decompressed ephys: {paths['session_decompressed_ephys_folder']}")
-    logger.info(f"  Output folder: {paths['output_folder']}")
-
-    # Check for existing decompressed data
-    scratch_ephys_folder = paths["spikeglx_source_folder"]
-
-    # Check for existing decompressed shank data (not just NIDQ)
-    # Look for probeXXY folders with .bin files inside
-    existing_shank_folders = []
-    if scratch_ephys_folder.exists():
-        existing_shank_folders = [
-            f for f in scratch_ephys_folder.iterdir()
-            if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
-            and list(f.glob("*.ap.bin"))  # Must have decompressed AP data
-        ]
-    existing_ephys_bins = len(existing_shank_folders) > 0
-
-    # Check for NIDQ separately
-    existing_nidq = any(scratch_ephys_folder.glob("*.nidq.bin")) if scratch_ephys_folder.exists() else False
-
-    # ========================================================================
-    # STEP 2: Decompress raw ephys data (if needed)
-    # ========================================================================
-    if INCLUDE_EPHYS or INCLUDE_NIDQ:
-        logger.info("Preparing raw ephys data...")
-        decompress_start = time.time()
-
-        if scratch_ephys_folder.exists() and REDECOMPRESS_EPHYS:
-            logger.info(f"REDECOMPRESS_EPHYS is True - removing existing data at {scratch_ephys_folder}")
-            shutil.rmtree(scratch_ephys_folder)
-            scratch_ephys_folder.mkdir(parents=True, exist_ok=True)
-            existing_ephys_bins = False
-            existing_nidq = False
-
-        # Determine if we need to decompress
-        need_decompress = False
-        if INCLUDE_EPHYS and not existing_ephys_bins:
-            need_decompress = True
-            logger.info("  Need to decompress ephys data (no shank folders found)")
-        if INCLUDE_NIDQ and not existing_nidq:
-            need_decompress = True
-            logger.info("  Need to decompress NIDQ data")
-
-        if need_decompress:
-            logger.info("Decompressing .cbin files (using multithreading)...")
-            decompress_ephys_cbins(paths["session_folder"], paths["session_decompressed_ephys_folder"])
-        else:
-            logger.info(f"Reusing existing decompressed data from {scratch_ephys_folder}")
-
-        decompress_time = time.time() - decompress_start
-        logger.info(f"Decompression completed in {decompress_time:.2f}s")
-
-        # Count shank folders
-        shank_folders = sorted([
-            f for f in scratch_ephys_folder.iterdir()
-            if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
-        ])
-        logger.info(f"Found {len(shank_folders)} shank folders: {[f.name for f in shank_folders]}")
-    else:
-        logger.info("Skipping ephys decompression (INCLUDE_EPHYS=False, INCLUDE_NIDQ=False)")
-
-    # ========================================================================
-    # STEP 3: Create NP2.0 converter (if including ephys)
-    # ========================================================================
-    converter = None
-    if INCLUDE_EPHYS:
-        logger.info("Creating IblNeuropixels2Converter...")
-        converter_start = time.time()
-
-        bands = ["ap", "lf"] if INCLUDE_LF_BAND else ["ap"]
-
-        converter = IblNeuropixels2Converter(
-            folder_path=paths["session_decompressed_ephys_folder"],
-            one=one,
-            eid=target_eid,
-            probe_name_to_probe_id_dict=probe_name_to_probe_id_dict,
-            bands=bands,
-            verbose=True,
-            logger=logger,
-        )
-
-        converter_time = time.time() - converter_start
-        logger.info(f"Converter created in {converter_time:.2f}s")
-        logger.info(f"Number of ephys interfaces: {len(converter.data_interface_objects)}")
-
-        # Log interface details
-        for key in sorted(converter.data_interface_objects.keys()):
-            interface = converter.data_interface_objects[key]
-            extractor = interface.recording_extractor
-            n_channels = extractor.get_num_channels()
-            n_samples = extractor.get_num_samples()
-            fs = extractor.get_sampling_frequency()
-            duration = n_samples / fs
-            logger.info(f"  {key}: {n_channels} channels, {duration:.1f}s @ {fs:.0f} Hz")
-    else:
-        logger.info("Skipping ephys converter (INCLUDE_EPHYS=False)")
-
-    # ========================================================================
-    # STEP 4: Load local data (behavioral and pose)
-    # ========================================================================
-    # NOTE: The standard IBL interfaces (WheelPositionInterface, etc.) rely on the
-    # ONE API having the session registered. Since NP2.0 sessions are not on openalyx,
-    # we load data directly from local files and add them manually in STEP 6.
-    logger.info("Loading local data files...")
-
-    # Collect all data interfaces (starting with the NP2 converter's interfaces if present)
-    data_interfaces = []
-    if converter is not None:
-        data_interfaces = list(converter.data_interface_objects.values())
-
-    # --------------------------------------------------------------------------
-    # NIDQ Interface (behavioral sync signals)
-    # --------------------------------------------------------------------------
-    if INCLUDE_NIDQ:
-        try:
-            nidq_interface = IblNIDQInterface(
-                folder_path=str(paths["spikeglx_source_folder"]),
-                one=one,
-                eid=target_eid,
-                verbose=False,
-            )
-            data_interfaces.append(nidq_interface)
-            logger.info("  Added NIDQ interface (behavioral sync)")
-        except Exception as e:
-            logger.warning(f"  Could not create NIDQ interface: {e}")
-
-    # --------------------------------------------------------------------------
-    # Local data loading (behavioral and pose)
-    # --------------------------------------------------------------------------
-    # Since the session is not on openalyx, we load data from local ALF files
+def load_local_behavioral_data(session_folder: Path, logger: logging.Logger) -> dict:
+    """Load behavioral and pose data from local ALF files."""
     alf_folder = session_folder / "alf"
     task_folder = alf_folder / "task_00"
-
     local_data = {}
 
     # Wheel position
-    if INCLUDE_BEHAVIOR:
-        wheel_position_file = task_folder / "_ibl_wheel.position.npy"
-        wheel_timestamps_file = task_folder / "_ibl_wheel.timestamps.npy"
-        if wheel_position_file.exists() and wheel_timestamps_file.exists():
-            local_data["wheel_position"] = np.load(wheel_position_file)
-            local_data["wheel_timestamps"] = np.load(wheel_timestamps_file)
-            logger.info(f"  Loaded wheel position: {len(local_data['wheel_position'])} samples")
-        else:
-            logger.warning(f"  Wheel position files not found")
+    wheel_position_file = task_folder / "_ibl_wheel.position.npy"
+    wheel_timestamps_file = task_folder / "_ibl_wheel.timestamps.npy"
+    if wheel_position_file.exists() and wheel_timestamps_file.exists():
+        local_data["wheel_position"] = np.load(wheel_position_file)
+        local_data["wheel_timestamps"] = np.load(wheel_timestamps_file)
+        logger.info(f"  Loaded wheel position: {len(local_data['wheel_position'])} samples")
+    else:
+        logger.warning("  Wheel position files not found")
 
-        # Wheel movements
-        wheel_moves_file = task_folder / "_ibl_wheelMoves.intervals.npy"
-        wheel_moves_amp_file = task_folder / "_ibl_wheelMoves.peakAmplitude.npy"
-        if wheel_moves_file.exists():
-            local_data["wheel_moves_intervals"] = np.load(wheel_moves_file)
-            if wheel_moves_amp_file.exists():
-                local_data["wheel_moves_amplitude"] = np.load(wheel_moves_amp_file)
-            logger.info(f"  Loaded wheel movements: {len(local_data['wheel_moves_intervals'])} intervals")
+    # Wheel movements
+    wheel_moves_file = task_folder / "_ibl_wheelMoves.intervals.npy"
+    wheel_moves_amp_file = task_folder / "_ibl_wheelMoves.peakAmplitude.npy"
+    if wheel_moves_file.exists():
+        local_data["wheel_moves_intervals"] = np.load(wheel_moves_file)
+        if wheel_moves_amp_file.exists():
+            local_data["wheel_moves_amplitude"] = np.load(wheel_moves_amp_file)
+        logger.info(f"  Loaded wheel movements: {len(local_data['wheel_moves_intervals'])} intervals")
 
-        # Licks
-        licks_file = alf_folder / "licks.times.npy"
-        if licks_file.exists():
-            local_data["licks_times"] = np.load(licks_file)
-            logger.info(f"  Loaded lick times: {len(local_data['licks_times'])} licks")
-        else:
-            logger.warning(f"  Licks file not found")
+    # Licks
+    licks_file = alf_folder / "licks.times.npy"
+    if licks_file.exists():
+        local_data["licks_times"] = np.load(licks_file)
+        logger.info(f"  Loaded lick times: {len(local_data['licks_times'])} licks")
+    else:
+        logger.warning("  Licks file not found")
 
-        # Trials
-        trials_file = task_folder / "_ibl_trials.table.pqt"
-        if trials_file.exists():
-            local_data["trials"] = pd.read_parquet(trials_file)
-            logger.info(f"  Loaded trials: {len(local_data['trials'])} trials")
-        else:
-            logger.warning(f"  Trials file not found")
+    # Trials
+    trials_file = task_folder / "_ibl_trials.table.pqt"
+    if trials_file.exists():
+        local_data["trials"] = pd.read_parquet(trials_file)
+        logger.info(f"  Loaded trials: {len(local_data['trials'])} trials")
+    else:
+        logger.warning("  Trials file not found")
 
     # Pose estimation (Lightning Pose)
-    if INCLUDE_POSE:
-        for camera_name in ["left", "right", "body"]:
-            pose_file = alf_folder / f"_ibl_{camera_name}Camera.lightningPose.pqt"
-            times_file = alf_folder / f"_ibl_{camera_name}Camera.times.npy"
-            if pose_file.exists() and times_file.exists():
-                local_data[f"pose_{camera_name}"] = pd.read_parquet(pose_file)
-                local_data[f"pose_{camera_name}_times"] = np.load(times_file)
-                logger.info(f"  Loaded pose estimation ({camera_name}Camera): {len(local_data[f'pose_{camera_name}'])} frames")
-            else:
-                logger.warning(f"  Pose estimation files not found for {camera_name}Camera")
+    for camera_name in ["left", "right", "body"]:
+        pose_file = alf_folder / f"_ibl_{camera_name}Camera.lightningPose.pqt"
+        times_file = alf_folder / f"_ibl_{camera_name}Camera.times.npy"
+        if pose_file.exists() and times_file.exists():
+            local_data[f"pose_{camera_name}"] = pd.read_parquet(pose_file)
+            local_data[f"pose_{camera_name}_times"] = np.load(times_file)
+            logger.info(f"  Loaded pose estimation ({camera_name}Camera): {len(local_data[f'pose_{camera_name}'])} frames")
+        else:
+            logger.warning(f"  Pose estimation files not found for {camera_name}Camera")
 
     # ROI motion energy
-    if INCLUDE_MOTION_ENERGY:
-        for camera_name in ["left", "right", "body"]:
-            motion_energy_file = alf_folder / f"{camera_name}Camera.ROIMotionEnergy.npy"
-            times_file = alf_folder / f"_ibl_{camera_name}Camera.times.npy"
-            if motion_energy_file.exists() and times_file.exists():
-                local_data[f"motion_energy_{camera_name}"] = np.load(motion_energy_file)
-                # Reuse pose timestamps or load separately
-                if f"pose_{camera_name}_times" not in local_data:
-                    local_data[f"motion_energy_{camera_name}_times"] = np.load(times_file)
-                logger.info(f"  Loaded ROI motion energy ({camera_name}Camera): {len(local_data[f'motion_energy_{camera_name}'])} samples")
-            else:
-                logger.warning(f"  ROI motion energy files not found for {camera_name}Camera")
+    for camera_name in ["left", "right", "body"]:
+        motion_energy_file = alf_folder / f"{camera_name}Camera.ROIMotionEnergy.npy"
+        times_file = alf_folder / f"_ibl_{camera_name}Camera.times.npy"
+        if motion_energy_file.exists() and times_file.exists():
+            local_data[f"motion_energy_{camera_name}"] = np.load(motion_energy_file)
+            # Reuse pose timestamps or load separately
+            if f"pose_{camera_name}_times" not in local_data:
+                local_data[f"motion_energy_{camera_name}_times"] = np.load(times_file)
+            logger.info(f"  Loaded ROI motion energy ({camera_name}Camera): {len(local_data[f'motion_energy_{camera_name}'])} samples")
+        else:
+            logger.warning(f"  ROI motion energy files not found for {camera_name}Camera")
 
-    logger.info(f"Total ephys interfaces: {len(data_interfaces)}")
+    return local_data
 
-    # ========================================================================
-    # STEP 5: Get metadata
-    # ========================================================================
-    logger.info("Getting metadata...")
-    if converter is not None:
-        metadata = converter.get_metadata()
-    else:
-        # Initialize empty metadata when no ephys converter
-        metadata = {}
 
-    # Add session metadata
-    # NOTE: Since this session may not be on openalyx, we construct metadata manually
-    nwbfile_metadata = metadata.setdefault("NWBFile", {})
-    subject_metadata_block = metadata.setdefault("Subject", {})
-
-    # Session metadata (manual for NP2.0 sessions not on openalyx)
-    session_start_time = datetime(2025, 5, 19, 12, 0, 0, tzinfo=ZoneInfo("America/Los_Angeles"))
-    nwbfile_metadata["session_start_time"] = session_start_time
-    nwbfile_metadata["session_id"] = target_eid
-    nwbfile_metadata["identifier"] = target_eid  # Required by NWBFile
-    nwbfile_metadata["lab"] = "steinmetzlab"
-    nwbfile_metadata["institution"] = "University of Washington"
-    nwbfile_metadata["session_description"] = "IBL Neuropixels 2.0 recording session"
-
-    # Subject metadata
-    subject_metadata_block["subject_id"] = "KM_038"
-    subject_metadata_block["species"] = "Mus musculus"
-    subject_metadata_block["description"] = "IBL subject"
-
-    # ========================================================================
-    # STEP 6: Create NWBFile and add data
-    # ========================================================================
-    logger.info("Creating NWBFile...")
-    conversion_start = time.time()
-
-    # Create subject
-    subject_metadata_for_ndx = metadata.pop("Subject")
-    ibl_subject = IblSubject(**subject_metadata_for_ndx)
-
-    # Create NWBFile
-    nwbfile = NWBFile(**metadata["NWBFile"])
-    nwbfile.subject = ibl_subject
-    nwbfile.add_lab_meta_data(lab_meta_data=IblMetadata(revision=IblNeuropixels2Converter.REVISION))
-
-    # Configure conversion options for ephys interfaces and add ephys data
-    if converter is not None:
-        conversion_options = {}
-        for key in converter.data_interface_objects.keys():
-            conversion_options[key] = {
-                "stub_test": STUB_TEST,
-                "iterator_options": {
-                    "display_progress": True,
-                    "progress_bar_options": {"desc": f"Writing {key}"},
-                },
-            }
-
-        # Add data from NP2.0 converter (raw ephys)
-        logger.info("Adding ephys data to NWBFile...")
-        converter.add_to_nwbfile(
-            nwbfile=nwbfile,
-            metadata=metadata,
-            conversion_options=conversion_options,
-        )
-
-    # Add NIDQ interface if present
-    for interface in data_interfaces:
-        if isinstance(interface, IblNIDQInterface):
-            try:
-                interface.add_to_nwbfile(nwbfile=nwbfile, metadata=metadata)
-                logger.info("  Added NIDQ data")
-            except Exception as e:
-                logger.warning(f"  Failed to add NIDQ: {e}")
-
-    # --------------------------------------------------------------------------
-    # Add local data to NWB file
-    # --------------------------------------------------------------------------
-    logger.info("Adding behavioral and pose data to NWBFile...")
-    from neuroconv.tools.nwb_helpers import get_module
-    from pynwb.behavior import Position, SpatialSeries, BehavioralTimeSeries, BehavioralEpochs
-    from pynwb.epoch import TimeIntervals
-    from ndx_pose import PoseEstimation, PoseEstimationSeries, Skeleton, Skeletons
-
-    # Get or create behavior processing module
+def add_behavioral_data_to_nwbfile(nwbfile: NWBFile, local_data: dict, logger: logging.Logger) -> None:
+    """Add behavioral data (wheel, licks, trials) to NWB file."""
     behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Behavioral data")
 
     # Wheel position
@@ -538,7 +283,6 @@ if __name__ == "__main__":
     # Licks
     if "licks_times" in local_data:
         try:
-            from pynwb.behavior import BehavioralEvents
             lick_times_series = BehavioralTimeSeries(
                 name="LickTimes",
                 time_series=[
@@ -595,7 +339,9 @@ if __name__ == "__main__":
         except Exception as e:
             logger.warning(f"  Failed to add trials: {e}")
 
-    # Pose estimation (Lightning Pose)
+
+def add_pose_data_to_nwbfile(nwbfile: NWBFile, local_data: dict, logger: logging.Logger) -> None:
+    """Add pose estimation data to NWB file."""
     pose_module = get_module(nwbfile=nwbfile, name="pose_estimation", description="Pose estimation from video using Lightning Pose")
     skeletons_container = None
 
@@ -673,7 +419,11 @@ if __name__ == "__main__":
             except Exception as e:
                 logger.warning(f"  Failed to add pose estimation for {camera_name}: {e}")
 
-    # ROI Motion Energy
+
+def add_motion_energy_to_nwbfile(nwbfile: NWBFile, local_data: dict, logger: logging.Logger) -> None:
+    """Add ROI motion energy data to NWB file."""
+    behavior_module = get_module(nwbfile=nwbfile, name="behavior", description="Behavioral data")
+
     for camera_name in ["left", "right", "body"]:
         me_key = f"motion_energy_{camera_name}"
         times_key = f"pose_{camera_name}_times"  # Reuse pose timestamps
@@ -711,42 +461,190 @@ if __name__ == "__main__":
             except Exception as e:
                 logger.warning(f"  Failed to add motion energy for {camera_name}: {e}")
 
-    conversion_time = time.time() - conversion_start
-    logger.info(f"Data added in {conversion_time:.2f}s")
 
-    # ========================================================================
-    # STEP 7: Write NWB file
-    # ========================================================================
-    logger.info("Writing NWB file...")
-    write_start = time.time()
+def convert_raw_np2_session(
+    paths: dict,
+    target_eid: str,
+    one: ONE,
+    probe_name_to_probe_id_dict: dict,
+    stub_test: bool,
+    include_lf_band: bool,
+    logger: logging.Logger,
+) -> dict:
+    """Convert raw ephys data to NWB file."""
+    logger.info("Starting RAW NP2.0 conversion...")
+    conversion_start = time.time()
 
-    conversion_type = "stub" if STUB_TEST else "full"
-    output_dir = paths["output_folder"] / conversion_type / f"sub-KM-038"
+    # Get metadata
+    metadata = get_base_metadata(target_eid)
+    metadata["NWBFile"]["session_description"] = "IBL Neuropixels 2.0 raw ephys recording"
+
+    # Create converter
+    bands = ["ap", "lf"] if include_lf_band else ["ap"]
+    converter = IblNeuropixels2Converter(
+        folder_path=paths["session_decompressed_ephys_folder"],
+        one=one,
+        eid=target_eid,
+        probe_name_to_probe_id_dict=probe_name_to_probe_id_dict,
+        bands=bands,
+        verbose=True,
+        logger=logger,
+    )
+
+    logger.info(f"Created converter with {len(converter.data_interface_objects)} interfaces")
+    for key in sorted(converter.data_interface_objects.keys()):
+        interface = converter.data_interface_objects[key]
+        extractor = interface.recording_extractor
+        n_channels = extractor.get_num_channels()
+        n_samples = extractor.get_num_samples()
+        fs = extractor.get_sampling_frequency()
+        duration = n_samples / fs
+        logger.info(f"  {key}: {n_channels} channels, {duration:.1f}s @ {fs:.0f} Hz")
+
+    # Merge converter metadata (deep merge to preserve our base metadata)
+    converter_metadata = converter.get_metadata()
+    metadata = dict_deep_update(metadata, converter_metadata)
+    metadata["NWBFile"]["session_description"] = "IBL Neuropixels 2.0 raw ephys recording"
+
+    # Create subject and NWBFile
+    subject_metadata = metadata.pop("Subject")
+    ibl_subject = IblSubject(**subject_metadata)
+    nwbfile = NWBFile(**metadata["NWBFile"])
+    nwbfile.subject = ibl_subject
+    nwbfile.add_lab_meta_data(lab_meta_data=IblMetadata(revision=IblNeuropixels2Converter.REVISION))
+
+    # Add NIDQ interface
+    try:
+        nidq_interface = IblNIDQInterface(
+            folder_path=str(paths["spikeglx_source_folder"]),
+            one=one,
+            eid=target_eid,
+            verbose=False,
+        )
+        nidq_interface.add_to_nwbfile(nwbfile=nwbfile, metadata=metadata)
+        logger.info("  Added NIDQ data")
+    except Exception as e:
+        logger.warning(f"  Could not add NIDQ: {e}")
+
+    # Configure conversion options
+    conversion_options = {}
+    for key in converter.data_interface_objects.keys():
+        conversion_options[key] = {
+            "stub_test": stub_test,
+            "iterator_options": {
+                "display_progress": True,
+                "progress_bar_options": {"desc": f"Writing {key}"},
+            },
+        }
+
+    # Add ephys data
+    logger.info("Adding ephys data to NWBFile...")
+    converter.add_to_nwbfile(
+        nwbfile=nwbfile,
+        metadata=metadata,
+        conversion_options=conversion_options,
+    )
+
+    # Write NWB file
+    conversion_type = "stub" if stub_test else "full"
+    output_dir = paths["output_folder"] / conversion_type / "sub-KM-038"
     output_dir.mkdir(parents=True, exist_ok=True)
-    nwbfile_path = output_dir / f"sub-KM-038_ses-{target_eid}_desc-raw_np2_ecephys.nwb"
+    nwbfile_path = output_dir / f"sub-KM-038_ses-{target_eid}_desc-raw_ecephys.nwb"
 
-    # Get backend configuration
+    logger.info(f"Writing RAW NWB file to {nwbfile_path}...")
+    write_start = time.time()
     backend_configuration = get_default_backend_configuration(nwbfile=nwbfile, backend="hdf5")
-
-    # Write file
     configure_and_write_nwbfile(
         nwbfile=nwbfile,
         nwbfile_path=nwbfile_path,
         backend_configuration=backend_configuration,
     )
-
     write_time = time.time() - write_start
+
     nwb_size_bytes = nwbfile_path.stat().st_size
     nwb_size_gb = nwb_size_bytes / (1024**3)
 
-    logger.info(f"NWB file written in {write_time:.2f}s")
-    logger.info(f"NWB file size: {nwb_size_gb:.4f} GB ({nwb_size_bytes:,} bytes)")
-    logger.info(f"NWB file path: {nwbfile_path}")
+    total_time = time.time() - conversion_start
+    logger.info(f"RAW conversion completed in {total_time:.2f}s")
+    logger.info(f"  File: {nwbfile_path}")
+    logger.info(f"  Size: {nwb_size_gb:.4f} GB ({nwb_size_bytes:,} bytes)")
 
-    # ========================================================================
-    # STEP 8: Validate NWB file
-    # ========================================================================
-    logger.info("Validating NWB file...")
+    return {
+        "nwbfile_path": nwbfile_path,
+        "nwb_size_bytes": nwb_size_bytes,
+        "nwb_size_gb": nwb_size_gb,
+        "write_time": write_time,
+    }
+
+
+def convert_processed_np2_session(
+    paths: dict,
+    target_eid: str,
+    local_data: dict,
+    stub_test: bool,
+    logger: logging.Logger,
+) -> dict:
+    """Convert processed/behavioral data to NWB file."""
+    logger.info("Starting PROCESSED NP2.0 conversion...")
+    conversion_start = time.time()
+
+    # Get metadata
+    metadata = get_base_metadata(target_eid)
+    metadata["NWBFile"]["session_description"] = "IBL Neuropixels 2.0 processed behavior data"
+
+    # Create subject and NWBFile
+    subject_metadata = metadata.pop("Subject")
+    ibl_subject = IblSubject(**subject_metadata)
+    nwbfile = NWBFile(**metadata["NWBFile"])
+    nwbfile.subject = ibl_subject
+    nwbfile.add_lab_meta_data(lab_meta_data=IblMetadata(revision=IblNeuropixels2Converter.REVISION))
+
+    # Add behavioral data
+    logger.info("Adding behavioral data...")
+    add_behavioral_data_to_nwbfile(nwbfile, local_data, logger)
+
+    # Add pose estimation data
+    logger.info("Adding pose estimation data...")
+    add_pose_data_to_nwbfile(nwbfile, local_data, logger)
+
+    # Add motion energy data
+    logger.info("Adding motion energy data...")
+    add_motion_energy_to_nwbfile(nwbfile, local_data, logger)
+
+    # Write NWB file
+    conversion_type = "stub" if stub_test else "full"
+    output_dir = paths["output_folder"] / conversion_type / "sub-KM-038"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    nwbfile_path = output_dir / f"sub-KM-038_ses-{target_eid}_desc-processed_behavior.nwb"
+
+    logger.info(f"Writing PROCESSED NWB file to {nwbfile_path}...")
+    write_start = time.time()
+    backend_configuration = get_default_backend_configuration(nwbfile=nwbfile, backend="hdf5")
+    configure_and_write_nwbfile(
+        nwbfile=nwbfile,
+        nwbfile_path=nwbfile_path,
+        backend_configuration=backend_configuration,
+    )
+    write_time = time.time() - write_start
+
+    nwb_size_bytes = nwbfile_path.stat().st_size
+    nwb_size_gb = nwb_size_bytes / (1024**3)
+
+    total_time = time.time() - conversion_start
+    logger.info(f"PROCESSED conversion completed in {total_time:.2f}s")
+    logger.info(f"  File: {nwbfile_path}")
+    logger.info(f"  Size: {nwb_size_gb:.4f} GB ({nwb_size_bytes:,} bytes)")
+
+    return {
+        "nwbfile_path": nwbfile_path,
+        "nwb_size_bytes": nwb_size_bytes,
+        "nwb_size_gb": nwb_size_gb,
+        "write_time": write_time,
+    }
+
+
+def validate_nwb_file(nwbfile_path: Path, logger: logging.Logger) -> bool:
+    """Validate an NWB file by reading it back."""
     try:
         with NWBHDF5IO(str(nwbfile_path), mode="r") as io:
             nwbfile_read = io.read()
@@ -755,8 +653,6 @@ if __name__ == "__main__":
             if nwbfile_read.electrode_groups:
                 n_groups = len(nwbfile_read.electrode_groups)
                 logger.info(f"  Electrode groups: {n_groups}")
-                for name, group in nwbfile_read.electrode_groups.items():
-                    logger.info(f"    {name}: {group.description}")
             else:
                 logger.info("  Electrode groups: 0 (no ephys data)")
 
@@ -764,50 +660,240 @@ if __name__ == "__main__":
             if nwbfile_read.electrodes is not None:
                 n_electrodes = len(nwbfile_read.electrodes)
                 logger.info(f"  Electrodes: {n_electrodes}")
-            else:
-                logger.info("  Electrodes: None (no ephys data)")
 
-            # Check acquisition (ElectricalSeries, NIDQ)
+            # Check acquisition
             n_acquisition = len(nwbfile_read.acquisition)
             logger.info(f"  Acquisition objects: {n_acquisition}")
-            for name in sorted(nwbfile_read.acquisition.keys()):
-                obj = nwbfile_read.acquisition[name]
-                if hasattr(obj, 'data'):
-                    logger.info(f"    {name}: shape={obj.data.shape}")
 
             # Check processing modules
             logger.info(f"  Processing modules: {list(nwbfile_read.processing.keys())}")
-            for module_name, module in nwbfile_read.processing.items():
-                logger.info(f"    {module_name}: {list(module.data_interfaces.keys())}")
-
-            # Check behavior module specifically
-            if "behavior" in nwbfile_read.processing:
-                behavior = nwbfile_read.processing["behavior"]
-                logger.info(f"  Behavior data interfaces: {len(behavior.data_interfaces)}")
-
-            # Check pose estimation module
-            if "pose_estimation" in nwbfile_read.processing:
-                pose = nwbfile_read.processing["pose_estimation"]
-                logger.info(f"  Pose estimation data interfaces: {len(pose.data_interfaces)}")
 
             # Check trials
             if nwbfile_read.trials is not None:
                 logger.info(f"  Trials: {len(nwbfile_read.trials)} trials")
 
-        logger.info("NWB validation PASSED")
+        return True
     except Exception as e:
-        logger.error(f"NWB validation FAILED: {e}")
+        logger.error(f"Validation FAILED: {e}")
         import traceback
         logger.error(traceback.format_exc())
+        return False
+
+
+if __name__ == "__main__":
+    # ========================================================================
+    # MAIN CONFIGURATION
+    # ========================================================================
+
+    CONVERT_RAW = True              # Write raw-ephys NWBs
+    CONVERT_PROCESSED = True        # Write processed/behavior NWBs
+    STUB_TEST = True                # Work on lightweight subsets of data
+    REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
+    OVERWRITE = True                # Regenerate NWBs even if existing files validate
+    INCLUDE_LF_BAND = True          # Include LF band data (2.5 kHz) in addition to AP (30 kHz)
+
+    # --------------------------------------------------------------------------
+    # NOTE: Data download is DISABLED for NP2.0 sessions
+    # --------------------------------------------------------------------------
+    # NP2.0 data is not yet available on openalyx. The session data must be
+    # pre-downloaded to the local cache folder before running this script.
+    #
+    # To download NP2.0 data, use the internal alyx server:
+    #   ONE.setup(base_url="https://alyx.internationalbrainlab.org", ...)
+    #
+    # The following features from convert_bwm_to_nwb.py are disabled:
+    #   - REDOWNLOAD_DATA: Data must be pre-downloaded
+    #   - download_session_data(): Not called
+    #   - RUN_CONSISTENCY_CHECKS: Requires ONE API access to source data
+    # --------------------------------------------------------------------------
+
+    # Paths configuration
+    base_folder = Path("/media/heberto/Expansion")
+    cache_dir = base_folder / "ibl_cache"
+    base_path = base_folder / "ibl_conversion"
+
+    # NP2.0 test session (KM_038)
+    # This session has 3 physical probes x 4 shanks = 12 shank folders
+    TARGET_EID = "0fc48eb3-0a80-4287-95f6-892a00c3cac1"
+    target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
+
+    # Session folder in the cache (must be pre-downloaded)
+    session_folder = cache_dir / "steinmetzlab" / "Subjects" / "KM_038" / "2025-05-19" / "001"
+
+    if not session_folder.exists():
+        raise FileNotFoundError(
+            f"Session folder not found: {session_folder}\n"
+            "NP2.0 data must be pre-downloaded from the internal alyx server."
+        )
+
+    # Probe insertion IDs for this session
+    probe_name_to_probe_id_dict = {
+        "probe00": "placeholder_pid_probe00",
+        "probe01": "placeholder_pid_probe01",
+        "probe02": "placeholder_pid_probe02",
+    }
+
+    # Setup ONE for metadata access (using openalyx for subject info)
+    one = ONE(
+        base_url="https://openalyx.internationalbrainlab.org",
+        cache_dir=cache_dir,
+        password='international',
+        silent=True,
+    )
+
+    # Setup logging
+    logs_path = base_path / "conversion_logs"
+    logs_path.mkdir(exist_ok=True, parents=True)
+    log_file_path = logs_path / f"np2_conversion_{target_eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    logger = setup_logger(log_file_path)
+
+    logger.info("=" * 80)
+    logger.info("IBL NEUROPIXELS 2.0 CONVERSION SCRIPT STARTED")
+    logger.info("=" * 80)
+    logger.info(f"EID: {target_eid}")
+    logger.info(f"Session folder: {session_folder}")
+    logger.info(f"Convert RAW: {CONVERT_RAW}")
+    logger.info(f"Convert PROCESSED: {CONVERT_PROCESSED}")
+    logger.info(f"Stub test mode: {STUB_TEST}")
+    logger.info(f"Include LF band: {INCLUDE_LF_BAND}")
+    logger.info(f"Re-decompress ephys: {REDECOMPRESS_EPHYS}")
+    logger.info(f"Overwrite existing NWB: {OVERWRITE}")
+    logger.info(f"Log file: {log_file_path}")
+    logger.info("=" * 80)
+
+    script_start_time = time.time()
+
+    # ========================================================================
+    # STEP 1: Setup paths
+    # ========================================================================
+    logger.info("Setting up paths...")
+    paths = setup_np2_paths(session_folder, base_path, target_eid)
+    logger.info(f"  Session folder: {paths['session_folder']}")
+    logger.info(f"  Decompressed ephys: {paths['session_decompressed_ephys_folder']}")
+    logger.info(f"  Output folder: {paths['output_folder']}")
+
+    # ========================================================================
+    # STEP 2: Decompress raw ephys data (if needed for RAW conversion)
+    # ========================================================================
+    if CONVERT_RAW:
+        scratch_ephys_folder = paths["spikeglx_source_folder"]
+
+        # Check for existing decompressed shank data
+        existing_shank_folders = []
+        if scratch_ephys_folder.exists():
+            existing_shank_folders = [
+                f for f in scratch_ephys_folder.iterdir()
+                if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
+                and list(f.glob("*.ap.bin"))
+            ]
+        existing_ephys_bins = len(existing_shank_folders) > 0
+        existing_nidq = any(scratch_ephys_folder.glob("*.nidq.bin")) if scratch_ephys_folder.exists() else False
+
+        logger.info("Preparing raw ephys data...")
+        decompress_start = time.time()
+
+        if scratch_ephys_folder.exists() and REDECOMPRESS_EPHYS:
+            logger.info(f"REDECOMPRESS_EPHYS is True - removing existing data at {scratch_ephys_folder}")
+            shutil.rmtree(scratch_ephys_folder)
+            scratch_ephys_folder.mkdir(parents=True, exist_ok=True)
+            existing_ephys_bins = False
+            existing_nidq = False
+
+        need_decompress = not existing_ephys_bins or not existing_nidq
+        if need_decompress:
+            if not existing_ephys_bins:
+                logger.info("  Need to decompress ephys data (no shank folders found)")
+            if not existing_nidq:
+                logger.info("  Need to decompress NIDQ data")
+            logger.info("Decompressing .cbin files (using multithreading)...")
+            decompress_ephys_cbins(paths["session_folder"], paths["session_decompressed_ephys_folder"])
+        else:
+            logger.info(f"Reusing existing decompressed data from {scratch_ephys_folder}")
+
+        decompress_time = time.time() - decompress_start
+        logger.info(f"Decompression completed in {decompress_time:.2f}s")
+
+        # Count shank folders
+        shank_folders = sorted([
+            f for f in scratch_ephys_folder.iterdir()
+            if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
+        ])
+        logger.info(f"Found {len(shank_folders)} shank folders: {[f.name for f in shank_folders]}")
+
+    # ========================================================================
+    # STEP 3: Load local behavioral data (for PROCESSED conversion)
+    # ========================================================================
+    local_data = {}
+    if CONVERT_PROCESSED:
+        logger.info("\n" + "=" * 80)
+        logger.info("LOADING LOCAL BEHAVIORAL DATA")
+        logger.info("=" * 80)
+        local_data = load_local_behavioral_data(session_folder, logger)
+
+    # ========================================================================
+    # STEP 4: Run conversions
+    # ========================================================================
+    raw_info = None
+    processed_info = None
+
+    if CONVERT_RAW:
+        logger.info("\n" + "=" * 80)
+        logger.info("STARTING RAW CONVERSION")
+        logger.info("=" * 80)
+        raw_info = convert_raw_np2_session(
+            paths=paths,
+            target_eid=target_eid,
+            one=one,
+            probe_name_to_probe_id_dict=probe_name_to_probe_id_dict,
+            stub_test=STUB_TEST,
+            include_lf_band=INCLUDE_LF_BAND,
+            logger=logger,
+        )
+
+        logger.info("Validating RAW NWB file...")
+        if validate_nwb_file(raw_info["nwbfile_path"], logger):
+            logger.info("RAW NWB validation PASSED")
+        else:
+            logger.error("RAW NWB validation FAILED")
+
+    if CONVERT_PROCESSED:
+        logger.info("\n" + "=" * 80)
+        logger.info("STARTING PROCESSED CONVERSION")
+        logger.info("=" * 80)
+        processed_info = convert_processed_np2_session(
+            paths=paths,
+            target_eid=target_eid,
+            local_data=local_data,
+            stub_test=STUB_TEST,
+            logger=logger,
+        )
+
+        logger.info("Validating PROCESSED NWB file...")
+        if validate_nwb_file(processed_info["nwbfile_path"], logger):
+            logger.info("PROCESSED NWB validation PASSED")
+        else:
+            logger.error("PROCESSED NWB validation FAILED")
 
     # ========================================================================
     # SUMMARY
     # ========================================================================
     script_total_time = time.time() - script_start_time
     logger.info("\n" + "=" * 80)
-    logger.info("CONVERSION COMPLETED")
+    logger.info("CONVERSION SUMMARY")
     logger.info("=" * 80)
+
+    if raw_info:
+        logger.info(f"RAW NWB: {raw_info['nwbfile_path']}")
+        logger.info(f"  Size: {raw_info['nwb_size_gb']:.4f} GB ({raw_info['nwb_size_bytes']:,} bytes)")
+
+    if processed_info:
+        logger.info(f"PROCESSED NWB: {processed_info['nwbfile_path']}")
+        logger.info(f"  Size: {processed_info['nwb_size_gb']:.4f} GB ({processed_info['nwb_size_bytes']:,} bytes)")
+
+    if raw_info and processed_info:
+        total_size_gb = raw_info['nwb_size_gb'] + processed_info['nwb_size_gb']
+        total_size_bytes = raw_info['nwb_size_bytes'] + processed_info['nwb_size_bytes']
+        logger.info(f"Total NWB output: {total_size_gb:.4f} GB ({total_size_bytes:,} bytes)")
+
     logger.info(f"Total time: {script_total_time:.2f}s ({script_total_time/60:.2f} minutes)")
-    logger.info(f"NWB file: {nwbfile_path}")
-    logger.info(f"NWB size: {nwb_size_gb:.4f} GB")
     logger.info("=" * 80)
