@@ -26,7 +26,7 @@ class IblNeuropixels2ShankInterface(BaseRecordingExtractorInterface):
     splits the data during preprocessing for parallel processing.
 
     Each shank is written as a separate ElectricalSeries in the NWB file, with
-    unique naming based on the physical probe and shank letter (A-D).
+    unique naming based on the physical probe and shank number (0-3).
 
     Parameters
     ----------
@@ -72,7 +72,7 @@ class IblNeuropixels2ShankInterface(BaseRecordingExtractorInterface):
         self.band = band
 
         # Set es_key for unique ElectricalSeries naming
-        # e.g., "ElectricalSeriesProbe00ShankAAP" or "ElectricalSeriesProbe00ShankALF"
+        # e.g., "ElectricalSeriesProbe00Shank0AP" or "ElectricalSeriesProbe00Shank0LF"
         es_key = f"ElectricalSeries{self._format_shank_name()}{band.upper()}"
 
         super().__init__(
@@ -101,12 +101,15 @@ class IblNeuropixels2ShankInterface(BaseRecordingExtractorInterface):
         """
         Convert IBL shank folder name to NWB-friendly name.
 
-        'probe00a' -> 'Probe00ShankA'
-        'probe01b' -> 'Probe01ShankB'
+        'probe00a' -> 'Probe00Shank0'
+        'probe01b' -> 'Probe01Shank1'
+        'probe02c' -> 'Probe02Shank2'
+        'probe00d' -> 'Probe00Shank3'
         """
         probe_num = self.shank_name[5:7]  # "00", "01", "02"
-        shank_letter = self.shank_name[7].upper()  # "A", "B", "C", "D"
-        return f"Probe{probe_num}Shank{shank_letter}"
+        shank_letter = self.shank_name[7].lower()  # "a", "b", "c", "d"
+        shank_num = ord(shank_letter) - ord("a")  # a=0, b=1, c=2, d=3
+        return f"Probe{probe_num}Shank{shank_num}"
 
     def _get_physical_probe_name(self) -> str:
         """
@@ -118,9 +121,10 @@ class IblNeuropixels2ShankInterface(BaseRecordingExtractorInterface):
         probe_num = self.shank_name[5:7]
         return f"Probe{probe_num}"
 
-    def _get_shank_letter(self) -> str:
-        """Get shank letter (A, B, C, D) from shank name."""
-        return self.shank_name[7].upper()
+    def _get_shank_number(self) -> int:
+        """Get shank number (0, 1, 2, 3) from shank name."""
+        shank_letter = self.shank_name[7].lower()
+        return ord(shank_letter) - ord("a")
 
     def get_metadata(self) -> DeepDict:
         """Get metadata for this shank interface."""
@@ -163,7 +167,7 @@ class IblNeuropixels2ShankInterface(BaseRecordingExtractorInterface):
             {
                 "name": group_name,
                 "description": (
-                    f"Shank {self._get_shank_letter()} (index {shank_idx}) of "
+                    f"Shank {self._get_shank_number()} (index {shank_idx}) of "
                     f"Neuropixels 2.0 probe {self.shank_name[5:7]}"
                 ),
                 "location": "unknown",

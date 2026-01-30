@@ -217,7 +217,7 @@ class IblNeuropixels2Converter(ConverterPipe):
         self,
         nwbfile: NWBFile,
         metadata: dict,
-        **conversion_options,
+        conversion_options: dict | None = None,
     ) -> None:
         """
         Write all shank data to NWB file.
@@ -228,9 +228,12 @@ class IblNeuropixels2Converter(ConverterPipe):
             The NWB file to write to
         metadata : dict
             Metadata dictionary
-        **conversion_options : dict
-            Per-interface conversion options, keyed by interface name
+        conversion_options : dict, optional
+            Per-interface conversion options, keyed by interface name.
+            Each interface can have options like stub_test, iterator_options, etc.
         """
+        conversion_options = conversion_options or {}
+
         # Temporal alignment (currently a no-op)
         self.temporally_align_data_interfaces()
 
