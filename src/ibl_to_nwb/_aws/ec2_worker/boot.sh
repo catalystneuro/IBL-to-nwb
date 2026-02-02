@@ -188,16 +188,16 @@ fi
 set -x  # Re-enable command echoing for debugging
 
 
-# Note: Session assignment is read from SessionEID tag via IMDSv2 by convert_assigned_sessions.py
+# Note: Session assignment is read from SessionEID tag via IMDSv2 by convert_and_upload.py
 echo "Instance will process single session: ${SESSION_EID} (index ${SESSION_INDEX})"
 
 # Run conversion (upload happens after in bash)
 echo "Starting conversion process..."
-cd "${REPO_DIR}/src/ibl_to_nwb/_aws"
+cd "${REPO_DIR}/src/ibl_to_nwb/_aws/ec2_worker"
 
 # Virtual environment is already activated, just run python directly
 # Build command with optional flags
-CONVERSION_CMD="python convert_assigned_sessions.py"
+CONVERSION_CMD="python convert_and_upload.py"
 
 # Add --stub-test flag if StubTest tag is "true"
 if [[ "${STUB_TEST}" == "true" ]]; then

@@ -326,9 +326,9 @@ def main() -> None:
     config = load_profile_config(profile_path)
 
     # Hardcoded configuration
-    USER_DATA_SCRIPT = Path(__file__).parent / "ec2_userdata_production.sh"
+    USER_DATA_SCRIPT = Path(__file__).parent / "ec2_worker" / "boot.sh"
     EBS_VOLUME_SIZE = 100 if args.stub_test else 700  # 100GB for testing, 700GB for production
-    EIDS_JSON_PATH = Path(__file__).parent / "bwm_session_eids.json"
+    EIDS_JSON_PATH = Path(__file__).parent / "tracking_bwm_conversion" / "bwm_session_eids.json"
 
     logger.info("=" * 80)
     logger.info("EC2 INSTANCE LAUNCHER FOR IBL CONVERSION (ONE SESSION PER INSTANCE)")

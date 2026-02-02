@@ -1,24 +1,24 @@
 """Convert assigned IBL session to NWB format.
 
-This script is designed for distributed execution on EC2 instances. Each instance:
+This script runs ON EC2 INSTANCES (called by boot.sh). Each instance:
   1. Reads its SessionEID tag from IMDSv2
   2. Downloads source data from ONE API
   3. Converts to NWB (both raw and processed)
   4. Writes NWB files to /ebs/nwbfiles/full/sub-*/
 
-Upload is handled separately by ec2_userdata_production.sh after conversion completes.
+Upload to DANDI is handled by boot.sh after this script completes.
 
 ONE SESSION PER INSTANCE - This script processes a single session only.
 
 Example usage (on EC2):
 
-    python convert_assigned_sessions.py
+    python convert_and_upload.py
 
     # Or with stub test:
-    python convert_assigned_sessions.py --stub-test
+    python convert_and_upload.py --stub-test
 
     # Or locally with explicit EID (for testing):
-    python convert_assigned_sessions.py --session-eid abc123... --stub-test
+    python convert_and_upload.py --session-eid abc123... --stub-test
 """
 
 from __future__ import annotations
@@ -241,7 +241,7 @@ def main() -> None:
         CONVERT_RAW = True
         CONVERT_PROCESSED = True
 
-    # DANDI_API_KEY is set by ec2_userdata_production.sh via 'export DANDI_API_KEY=...'
+    # DANDI_API_KEY is set by boot.sh via 'export DANDI_API_KEY=...'
     # No need to load from .env file
 
     # Hardcoded log level: INFO for main script

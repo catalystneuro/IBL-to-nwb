@@ -156,3 +156,5 @@ src/ibl_to_nwb/_scripts/anatomical_coordinates_validation
 documentation/landmark_coordinate_comparison.md
 src/ibl_to_nwb/_scripts/download_np2_data.py
 src/ibl_to_nwb/_scripts/notebook_scripts/output_images
+src/ibl_to_nwb/_aws/tracking_bwm_conversion/bwm_session_eids.json
+src/ibl_to_nwb/_aws/tracking_bwm_conversion/tracking.json

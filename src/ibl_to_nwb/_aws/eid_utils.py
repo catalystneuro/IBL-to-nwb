@@ -12,7 +12,7 @@ def load_session_eids() -> list[str]:
     list[str]
         List of session EIDs in order.
     """
-    json_path = Path(__file__).parent / "bwm_session_eids.json"
+    json_path = Path(__file__).parent / "tracking_bwm_conversion" / "bwm_session_eids.json"
     if not json_path.exists():
         raise FileNotFoundError(f"Session EIDs file not found: {json_path}")
 

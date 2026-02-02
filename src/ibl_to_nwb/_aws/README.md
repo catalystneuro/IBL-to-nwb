@@ -17,19 +17,48 @@ This system uses a **simplified one-session-per-instance** architecture:
 
 ```
 _aws/
-├── profiles/              # Profile-based configuration
-│   ├── catalyst_neuro.env # CatalystNeuro account settings
-│   └── ibl.env            # IBL account settings
-├── setup_infrastructure.py      # Creates VPC/subnet/security group (run once)
-├── launch_ec2_instances.py      # Launches instances (main CLI)
-├── convert_assigned_sessions.py # Worker: converts single session
-├── ec2_userdata_production.sh   # EC2 boot script
-├── monitor.py                   # Real-time instance monitoring
-├── verify_dandi_uploads.py      # Post-conversion verification
-├── bwm_session_eids.json        # 459 unique session EIDs
-├── generate_unique_eids.py      # Creates session EID list
-├── generate_tracking_json.py    # Creates verification tracking
+├── profiles/                    # Profile-based configuration
+│   ├── catalyst_neuro.env       # CatalystNeuro account settings
+│   └── ibl.env                  # IBL account settings
+├── tracking_bwm_conversion/     # Tracking infrastructure
+│   ├── README.md                # Tracking workflow documentation
+│   ├── verify_tracking.py       # Verifies uploads, creates tracking.json if needed
+│   ├── tracking.json            # Single source of truth (auto-created)
+│   └── bwm_session_eids.json    # 459 unique session EIDs (auto-created)
+├── ec2_worker/                  # Scripts that run ON the EC2 instance
+│   ├── boot.sh                  # EC2 boot script (userdata)
+│   └── convert_and_upload.py    # Converts session + uploads to DANDI
+├── launch_ec2_instances.py      # LOCAL: Launches EC2 instances
+├── monitor.py                   # LOCAL: Real-time instance monitoring
+├── setup_infrastructure.py      # LOCAL: Creates VPC/subnet/security group
+├── eid_utils.py                 # EID/index conversion utilities
 └── README.md                    # This file
+```
+
+### Execution Flow
+
+```
+Your machine                              EC2 instance
+────────────                              ────────────
+launch_ec2_instances.py
+    │
+    ├──► Creates EC2 with tags
+    │    (SessionEID, SessionIndex)
+    │
+    └──► Injects ec2_worker/boot.sh
+         as user-data
+                                          ec2_worker/boot.sh
+                                              │
+                                              ├──► Mounts EBS volume
+                                              ├──► Installs dependencies
+                                              ├──► Clones repo
+                                              ├──► Runs convert_and_upload.py
+                                              │        │
+                                              │        ├──► Reads EID from instance tags
+                                              │        ├──► Downloads data from ONE API
+                                              │        └──► Converts to NWB
+                                              ├──► Uploads NWB to DANDI
+                                              └──► Shuts down instance
 ```
 
 ## Setup (One-Time)
@@ -151,20 +180,19 @@ Shows last 200 lines of console output for debugging.
 After all conversions complete, verify uploads to DANDI:
 
 ```bash
-python verify_dandi_uploads.py \
-    --dandiset-id 217706 \
-    --dandi-instance dandi-sandbox
+python tracking_bwm_conversion/verify_tracking.py
 ```
 
-Output:
-- Complete sessions (RAW + PROCESSED uploaded)
-- Incomplete sessions (missing files)
-- Generates `failed_eids.json` for re-runs
+This updates `tracking.json` in place and prints a summary.
 
 To re-run failed sessions:
 
 ```bash
-# Manual re-launch (example for sessions 10-15)
+# Get failed ranges
+python tracking_bwm_conversion/verify_tracking.py --failed-ranges
+# Output: 10-15 42-43
+
+# Re-launch specific range
 python launch_ec2_instances.py --profile catalyst_neuro --range 10-15
 ```
 
@@ -180,7 +208,7 @@ SessionIndex: "42"                  # Index in bwm_session_eids.json
 StubTest: "true"                    # Stub test mode flag
 ```
 
-The worker script (`convert_assigned_sessions.py`) reads these tags and processes the single assigned session.
+The worker script (`ec2_worker/convert_and_upload.py`) reads these tags and processes the single assigned session.
 
 ### Auto-Termination Protection
 
@@ -199,14 +227,14 @@ Two layers prevent runaway instances:
 Each instance executes this workflow:
 
 ```
-1. Boot → ec2_userdata_production.sh runs
+1. Boot → ec2_worker/boot.sh runs
 2. Mount EBS volume (700GB for production, 100GB for stub test)
 3. Install system dependencies (git, curl)
 4. Install uv (fast Python package manager)
 5. Clone IBL-to-nwb repository
 6. Create Python virtual environment
 7. Read SessionEID tag from instance metadata (IMDSv2)
-8. Run convert_assigned_sessions.py:
+8. Run ec2_worker/convert_and_upload.py:
    a. Download session data from ONE API
    b. Convert to RAW NWB (SpikeGLX ephys + videos)
    c. Convert to PROCESSED NWB (spike sorting, behavior, tracking)
@@ -243,6 +271,8 @@ Each instance executes this workflow:
 
 ### bwm_session_eids.json
 
+Located at `tracking_bwm_conversion/bwm_session_eids.json`.
+
 Contains **459 unique session EIDs** deduplicated from the Brain-Wide Map dataset.
 
 **Source**: `fixtures/bwm_df.pqt` (699 rows = probe insertions)
@@ -255,10 +285,10 @@ Contains **459 unique session EIDs** deduplicated from the Brain-Wide Map datase
 **Generation**:
 
 ```bash
-python generate_unique_eids.py
+python tracking_bwm_conversion/verify_tracking.py
 ```
 
-Reads `fixtures/bwm_df.pqt` → writes `bwm_session_eids.json`.
+Creates `tracking.json` and `bwm_session_eids.json` automatically from `fixtures/bwm_df.pqt` if they don't exist.
 
 ### Session Indexing
 
@@ -292,30 +322,36 @@ python launch_ec2_instances.py --profile catalyst_neuro --range 458-459
 
 ## Tracking & Verification
 
-### Pre-Conversion Tracking
+All tracking infrastructure is in the `tracking_bwm_conversion/` subfolder.
+See `tracking_bwm_conversion/README.md` for detailed documentation.
 
-Generate expected DANDI paths for verification:
-
-```bash
-python generate_tracking_json.py
-```
-
-Creates `tracking.json` with expected upload paths for all 459 sessions.
-
-### Post-Conversion Verification
-
-Check which files successfully uploaded to DANDI:
+### Quick Start
 
 ```bash
-python verify_dandi_uploads.py \
-    --dandiset-id 217706 \
-    --dandi-instance dandi-sandbox
+cd tracking_bwm_conversion
+
+# Verify uploads (creates tracking.json automatically if needed)
+python verify_tracking.py
+
+# Check summary
+python verify_tracking.py --summary
+
+# Get incomplete session ranges for re-launch
+python verify_tracking.py --incomplete-ranges
+# Output: 3-4 28-30 45-47
 ```
 
-Output files:
-- `tracking_verified.json` - Full tracking with verification status
-- `failed_sessions.json` - Sessions with missing files
-- `failed_eids.json` - Just the EIDs (ready for re-launch)
+### Re-launching Incomplete Sessions
+
+```bash
+# Get incomplete ranges
+RANGES=$(python tracking_bwm_conversion/verify_tracking.py --incomplete-ranges)
+
+# Launch each range
+for range in $RANGES; do
+    python launch_ec2_instances.py --profile ibl --range $range
+done
+```
 
 ### Console Logs
 
@@ -424,99 +460,3 @@ DANDISET_ID=217706
 ### ibl.env
 
 Same structure, different network IDs (from IBL AWS account).
-
-## Advanced Usage
-
-### SSH Access for Debugging
-
-Launch with key pair:
-
-```bash
-python launch_ec2_instances.py \
-    --profile catalyst_neuro \
-    --range 0-0 \
-    --stub-test \
-    --key-name my-ec2-keypair
-```
-
-SSH to instance:
-
-```bash
-# Get public IP from AWS console or:
-INSTANCE_IP=$(aws ec2 describe-instances \
-    --instance-ids i-0123456789abcdef0 \
-    --query 'Reservations[0].Instances[0].PublicIpAddress' \
-    --output text)
-
-ssh -i ~/.ssh/my-ec2-keypair.pem ubuntu@${INSTANCE_IP}
-```
-
-**Note**: Security group allows SSH from 0.0.0.0/0. Restrict to your IP in production!
-
-### Local Testing
-
-Test conversion script locally (without EC2):
-
-```bash
-cd /home/heberto/development/ibl_conversion/IBL-to-nwb/src/ibl_to_nwb/_aws
-
-python convert_assigned_sessions.py \
-    --session-eid abc123-def456-789... \
-    --stub-test
-```
-
-**Note**: Requires local ONE API setup and write access to `/ebs/` (or modify paths in script).
-
-### Custom Repository
-
-Test with your own fork:
-
-```bash
-# Edit profile config
-vim profiles/catalyst_neuro.env
-
-# Change:
-# REPO_URL=https://github.com/your-username/IBL-to-nwb.git
-# REPO_BRANCH=your-feature-branch
-
-# Launch
-python launch_ec2_instances.py --profile catalyst_neuro --range 0-0 --stub-test
-```
-
-## Migration from Old System
-
-This unified `_aws/` directory replaces:
-- `_aws_run/` (CatalystNeuro account, shard-based)
-- `_aws_ibl/` (IBL account, shard-based)
-
-### Key Differences
-
-| Feature | Old (Shard-Based) | New (One-Session-Per-Instance) |
-|---------|-------------------|--------------------------------|
-| **Sessions per instance** | 9-13 (variable) | 1 (fixed) |
-| **Tags** | ShardId, ShardRange | SessionEID, SessionIndex |
-| **Launch arguments** | `--num-instances`, `--total-sessions` | `--all`, `--range` |
-| **Worker script** | Loops over sessions | Processes single session |
-| **Debugging** | Which session failed? | Direct EID → instance mapping |
-| **Cost transparency** | Mental math required | 1 session = 1 instance |
-
-### Why Change?
-
-1. **Simpler**: No shard calculation, no range parsing
-2. **Safer**: Failed session doesn't lose 8 other sessions
-3. **Clearer**: Instance name shows session (e.g., `ibl-conversion-NYU-11-2020-08-01-001`)
-4. **Debuggable**: Console logs show single session (not 9 interleaved logs)
-
-## License
-
-See repository root LICENSE file.
-
-## Support
-
-For issues or questions:
-1. Check this README first
-2. Search repository issues: https://github.com/h-mayorquin/IBL-to-nwb/issues
-3. Create new issue with:
-   - Full command you ran
-   - Error message / console logs
-   - Instance ID (if applicable)
