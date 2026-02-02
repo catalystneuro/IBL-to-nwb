@@ -29,12 +29,31 @@ SESSIONS_TO_REUPLOAD = [
     "6f36868f-5cc1-450c-82fa-6b9829ce0cfe",  # UCLA035, 2022-02-18, 2 probes (churchlandlab_ucla)
 ]
 
+luis_request_2026_01_30 = [
+     # Mainen lab
+    "4aa1d525-5c7d-4c50-a147-ec53a9014812",
+#     # Mrsicflogel lab
+#     "03063955-2523-47bd-ae57-f7489dd40f15",
+#     # Steinmetz lab
+#     "ae8787b1-4229-4d56-b0c2-566b61a25b77",
+#     # Zador lab
+#     "81a78eac-9d36-4f90-a73a-7eb3ad7f770b",
+#     "626126d5-eecf-4e9b-900e-ec29a17ece07",
+#     "b69b86be-af7d-4ecf-8cbf-0cd356afa1bd",
+#     "e56541a5-a6d5-4750-b1fe-f6b5257bfe7c",
+#     # Luis request 2026-01-30
+#     "7bee9f09-a238-42cf-b499-f51f765c6ded",
+#     "bd456d8f-d36e-434a-8051-ff3997253802",
+]
+
+SESSIONS_TO_REUPLOAD = luis_request_2026_01_30
+
 PROFILE = "catalyst_neuro"
-PROFILE = "ibl"
+# PROFILE = "ibl"
 DANDI_INSTANCE = "dandi"
 DANDISET_ID = "000409"
 STUB_TEST = False
-PROCESSED_ONLY = True
+PROCESSED_ONLY = False
 RAW_ONLY = False
 
 # =============================================================================

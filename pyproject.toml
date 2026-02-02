@@ -12,9 +12,10 @@ description = "Tools to convert IBL data to NWB format.."
 readme = "README.md"
 keywords = ["nwb", "dandi", "ibl"]
 license = {file = "license.txt"}
-requires-python = ">=3.10"
+# Upper bound needed because compiled dependencies (e.g., h5py) don't have Python 3.14 wheels yet
+requires-python = ">=3.10,<3.14"
 dependencies = [
-    "dandi>=0.73.2", # Required for DANDI_SANDBOX_API_KEY env var support
+    "dandi>=0.73.2", 
     "neuroconv>=0.9.0",
     "pynwb",
     "hdmf-zarr",
@@ -36,6 +37,7 @@ dependencies = [
     "pynapple>=0.10.2",
     "remfile>=0.1.13",
     "scikit-learn>=1.7.2",
+    "nwb-video-widgets[dandi]>=0.1.2",
 ]
 
 classifiers = [
@@ -61,6 +63,7 @@ ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branc
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
 ndx-anatomical-localization = {git = "https://github.com/catalystneuro/ndx-anatomical-localization", branch = "main"}
 ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
+# nwb-video-widgets = {path = "/home/heberto/development/nwb-video-widgets", editable = true}
 
 
 [tool.black]
@@ -115,6 +118,5 @@ known-first-party = ["ibl_to_nwb"]
 
 [dependency-groups]
 dev = [
-    "allensdk>=0.16.3",
     "ipykernel>=7.1.0",
 ]
