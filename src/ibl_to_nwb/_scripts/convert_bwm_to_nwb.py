@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import platform
 import random
 import sys
 import time
@@ -67,8 +68,10 @@ if __name__ == "__main__":
     OVERWRITE = True              # Regenerate NWBs even if existing files validate
     RUN_CONSISTENCY_CHECKS = False  # Validate NWB files against ONE data (slow but thorough)
 
-    base_folder = Path("/media/heberto/Expansion")
-    # base_folder = Path("/Volumes/Expansion")
+    if platform.system() == "Darwin":  # macOS
+        base_folder = Path("/Volumes/Expansion")
+    else:  # Linux
+        base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
     logs_path = base_path / "conversion_logs"  # Derived from base_path for log files

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import platform
 import sys
 import time
 from pathlib import Path
@@ -70,9 +71,10 @@ if __name__ == "__main__":
     if REDOWNLOAD_DATA:
         REDECOMPRESS_EPHYS = True
 
-    base_folder = Path("/media/heberto/Expansion")
-    # base_folder = Path("/Volumes/Expansion")
-    # base_folder = Path("~/ibl_data_local_mac/").expanduser()
+    if platform.system() == "Darwin":  # macOS
+        base_folder = Path("/Volumes/Expansion")
+    else:  # Linux
+        base_folder = Path("/media/heberto/Expansion")
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 
