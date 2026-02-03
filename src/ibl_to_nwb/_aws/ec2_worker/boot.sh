@@ -16,9 +16,32 @@
 
 set -euxo pipefail
 
+# Timing helper functions for machine-parseable logs
+SCRIPT_START_TIME=$(date +%s)
+
+log_phase_start() {
+    local phase="$1"
+    echo "=== PHASE: ${phase} | START | $(date -Iseconds) ==="
+}
+
+log_phase_end() {
+    local phase="$1"
+    local start_time="$2"
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    echo "=== PHASE: ${phase} | END | $(date -Iseconds) | duration_seconds=${duration} ==="
+}
+
+log_disk_usage() {
+    local label="$1"
+    echo "=== DISK: ${label} ==="
+    df -h /ebs 2>/dev/null || df -h /
+    echo "=== END DISK ==="
+}
+
 # Force shutdown on error to prevent runaway instances
 # Note: Only trap ERR, not EXIT - EXIT would trigger on successful completion too
-trap 'echo "ERROR: Script failed. Shutting down in 60 seconds..."; sleep 60; shutdown -h now' ERR
+trap 'FAIL_TIME=$(date +%s); FAIL_DURATION=$((FAIL_TIME - SCRIPT_START_TIME)); echo "=== RESULT: FAILED | eid=${SESSION_EID:-unknown} | duration_seconds=${FAIL_DURATION} | line=${LINENO} ==="; echo "ERROR: Script failed at line ${LINENO}. Shutting down in 60 seconds..."; sleep 60; shutdown -h now' ERR
 
 # Configuration variables (substituted by launch script)
 MOUNT_POINT="/ebs"
@@ -53,7 +76,30 @@ fi
 echo "Instance ${INSTANCE_ID} processing session ${SESSION_EID} (index ${SESSION_INDEX})"
 echo "Stub test mode: ${STUB_TEST}"
 
+# Log instance metadata for debugging
+INSTANCE_TYPE="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+    http://169.254.169.254/latest/meta-data/instance-type)" || INSTANCE_TYPE="unknown"
+
+echo ""
+echo "=== INSTANCE_METADATA: START ==="
+echo "instance_id=${INSTANCE_ID}"
+echo "instance_type=${INSTANCE_TYPE}"
+echo "region=${REGION}"
+echo "session_eid=${SESSION_EID}"
+echo "session_index=${SESSION_INDEX}"
+echo "stub_test=${STUB_TEST}"
+echo "repo_url=${REPO_URL}"
+echo "repo_branch=${REPO_BRANCH}"
+echo "dandi_instance=${DANDI_INSTANCE}"
+echo "dandiset_id=${DANDISET_ID}"
+echo "conversion_mode=${CONVERSION_MODE:-both}"
+echo "start_time=$(date -Iseconds)"
+echo "=== INSTANCE_METADATA: END ==="
+echo ""
+
 # Setup EBS volume with bulletproof device detection
+log_phase_start "ebs_setup"
+EBS_SETUP_START=$(date +%s)
 echo "Setting up EBS volume at ${MOUNT_POINT}..."
 
 # Strategy: Find the EBS volume by size (100GB for stub test, 700GB for production)
@@ -138,8 +184,12 @@ if ! grep -q "${MOUNT_POINT}" /etc/fstab; then
 fi
 
 chmod 777 "${MOUNT_POINT}"
+log_phase_end "ebs_setup" "${EBS_SETUP_START}"
+log_disk_usage "after_ebs_mount"
 
 # Install minimal system dependencies
+log_phase_start "dependencies"
+DEPS_START=$(date +%s)
 # Note: uv handles all Python packages and downloads pre-built wheels
 # No build tools needed since nothing is compiled!
 echo "Installing system dependencies..."
@@ -151,8 +201,11 @@ echo "Installing uv..."
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="/root/.local/bin:${PATH}"  # uv installs to .local/bin
 echo 'export PATH="/root/.local/bin:${PATH}"' >> /root/.bashrc
+log_phase_end "dependencies" "${DEPS_START}"
 
 # Clone repository
+log_phase_start "clone_and_setup"
+CLONE_START=$(date +%s)
 echo "Cloning IBL-to-nwb repository..."
 REPO_DIR="${MOUNT_POINT}/IBL-to-nwb"
 git clone --branch "${REPO_BRANCH}" "${REPO_URL}" "${REPO_DIR}"
@@ -166,6 +219,7 @@ uv sync         # Install project dependencies from pyproject.toml
 
 # Activate virtual environment
 source .venv/bin/activate
+log_phase_end "clone_and_setup" "${CLONE_START}"
 
 # Setup DANDI API key from template substitution
 # Disable command echoing to prevent key from appearing in cloud-init logs
@@ -192,6 +246,8 @@ set -x  # Re-enable command echoing for debugging
 echo "Instance will process single session: ${SESSION_EID} (index ${SESSION_INDEX})"
 
 # Run conversion (upload happens after in bash)
+log_phase_start "conversion"
+CONVERSION_START=$(date +%s)
 echo "Starting conversion process..."
 cd "${REPO_DIR}/src/ibl_to_nwb/_aws/ec2_worker"
 
@@ -217,6 +273,8 @@ fi
 
 echo "Running: ${CONVERSION_CMD}"
 ${CONVERSION_CMD}
+log_phase_end "conversion" "${CONVERSION_START}"
+log_disk_usage "after_conversion"
 
 # Download dandiset.yaml - this creates the ${DANDISET_ID}/ folder automatically
 echo "Downloading dandiset.yaml for dandiset ${DANDISET_ID} from ${DANDI_INSTANCE}..."
@@ -247,8 +305,20 @@ echo "Files moved to dandiset folder"
 
 
 # Upload to DANDI
+log_phase_start "dandi_upload"
+UPLOAD_START=$(date +%s)
 echo "Uploading to DANDI..."
 cd "${DANDISET_FOLDER}"
+
+# File inventory before upload (machine-parseable)
+echo "=== FILE_INVENTORY: START ==="
+NWB_COUNT=$(find "${DANDISET_FOLDER}" -name "*.nwb" -type f | wc -l)
+NWB_TOTAL_BYTES=$(find "${DANDISET_FOLDER}" -name "*.nwb" -type f -exec stat --format="%s" {} + 2>/dev/null | awk '{sum+=$1} END {print sum}')
+NWB_TOTAL_GB=$(echo "scale=2; ${NWB_TOTAL_BYTES:-0} / 1073741824" | bc)
+echo "nwb_file_count=${NWB_COUNT}"
+echo "nwb_total_bytes=${NWB_TOTAL_BYTES:-0}"
+echo "nwb_total_gb=${NWB_TOTAL_GB}"
+echo "=== FILE_INVENTORY: END ==="
 
 # Debug: Show directory structure before upload
 echo "=== Contents of dandiset folder ==="
@@ -257,8 +327,8 @@ echo ""
 echo "=== Subject directories ==="
 ls -d "${DANDISET_FOLDER}"/sub-*/ 2>/dev/null || echo "No subject directories found"
 echo ""
-echo "=== NWB files ==="
-find "${DANDISET_FOLDER}" -name "*.nwb" -type f
+echo "=== NWB files with sizes ==="
+find "${DANDISET_FOLDER}" -name "*.nwb" -type f -exec ls -lh {} \;
 echo ""
 
 # Debug: Check if DANDI API keys are still set
@@ -291,9 +361,35 @@ echo ""
 
 # Check if upload succeeded
 if [ ${DANDI_EXIT_CODE} -ne 0 ]; then
-    echo "ERROR: DANDI upload failed with exit code ${DANDI_EXIT_CODE}"
+    echo "=== RESULT: FAILED | eid=${SESSION_EID} | phase=dandi_upload | error=exit_code_${DANDI_EXIT_CODE} ==="
     exit ${DANDI_EXIT_CODE}
 fi
+
+log_phase_end "dandi_upload" "${UPLOAD_START}"
+
+# Final summary with all timings
+SCRIPT_END_TIME=$(date +%s)
+TOTAL_DURATION=$((SCRIPT_END_TIME - SCRIPT_START_TIME))
+TOTAL_MINUTES=$((TOTAL_DURATION / 60))
+TOTAL_HOURS=$(echo "scale=2; ${TOTAL_DURATION} / 3600" | bc)
+
+echo ""
+echo "=== FINAL_SUMMARY: START ==="
+echo "eid=${SESSION_EID}"
+echo "session_index=${SESSION_INDEX}"
+echo "instance_id=${INSTANCE_ID}"
+echo "stub_test=${STUB_TEST}"
+echo "conversion_mode=${CONVERSION_MODE:-both}"
+echo "dandi_instance=${DANDI_INSTANCE}"
+echo "dandiset_id=${DANDISET_ID}"
+echo "nwb_file_count=${NWB_COUNT}"
+echo "nwb_total_gb=${NWB_TOTAL_GB}"
+echo "total_duration_seconds=${TOTAL_DURATION}"
+echo "total_duration_minutes=${TOTAL_MINUTES}"
+echo "total_duration_hours=${TOTAL_HOURS}"
+echo "=== FINAL_SUMMARY: END ==="
+echo ""
+echo "=== RESULT: SUCCESS | eid=${SESSION_EID} | total_minutes=${TOTAL_MINUTES} ==="
 
 # Cleanup and shutdown
 echo "Upload complete. Shutting down in 60 seconds..."

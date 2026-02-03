@@ -139,6 +139,7 @@ def convert_session(
     logger.info("\n" + "=" * 80)
     logger.info("DOWNLOADING SESSION DATA")
     logger.info("=" * 80)
+    download_start = time.time()
     download_info = download_session_data(
         eid=eid,
         one=one,
@@ -149,10 +150,13 @@ def convert_session(
         base_path=base_folder,
         logger=logger,
     )
+    download_duration = time.time() - download_start
+    logger.info(f"=== PHASE: download | duration_seconds={download_duration:.0f} | size_gb={download_info['total_size_gb']:.2f} ===")
 
     results = {
         "eid": eid,
         "download_size_gb": download_info["total_size_gb"],
+        "download_duration_seconds": download_duration,
         "raw_converted": False,
         "processed_converted": False,
         "success": False,
@@ -164,6 +168,7 @@ def convert_session(
         logger.info("CONVERTING RAW EPHYS")
         logger.info("=" * 80)
 
+        raw_start = time.time()
         raw_info = convert_raw_session(
             eid=eid,
             one=one,
@@ -173,13 +178,16 @@ def convert_session(
             overwrite=False,
             redecompress_ephys=False,
         )
+        raw_duration = time.time() - raw_start
 
         if raw_info and not raw_info.get("skipped"):
             raw_nwb_path = raw_info["nwbfile_path"]
             results["raw_nwb_path"] = str(raw_nwb_path)
             results["raw_size_gb"] = raw_info["nwb_size_gb"]
+            results["raw_duration_seconds"] = raw_duration
             results["raw_converted"] = True
             logger.info(f"RAW file written to: {raw_nwb_path}")
+            logger.info(f"=== PHASE: raw_conversion | duration_seconds={raw_duration:.0f} | size_gb={raw_info['nwb_size_gb']:.2f} ===")
 
     # Convert PROCESSED
     if convert_processed:
@@ -187,6 +195,7 @@ def convert_session(
         logger.info("CONVERTING PROCESSED/BEHAVIOR")
         logger.info("=" * 80)
 
+        processed_start = time.time()
         processed_info = convert_processed_session(
             eid=eid,
             one=one,
@@ -195,13 +204,16 @@ def convert_session(
             logger=logger,
             overwrite=False,
         )
+        processed_duration = time.time() - processed_start
 
         if processed_info and not processed_info.get("skipped"):
             processed_nwb_path = processed_info["nwbfile_path"]
             results["processed_nwb_path"] = str(processed_nwb_path)
             results["processed_size_gb"] = processed_info["nwb_size_gb"]
+            results["processed_duration_seconds"] = processed_duration
             results["processed_converted"] = True
             logger.info(f"PROCESSED file written to: {processed_nwb_path}")
+            logger.info(f"=== PHASE: processed_conversion | duration_seconds={processed_duration:.0f} | size_gb={processed_info['nwb_size_gb']:.2f} ===")
 
     session_time = time.time() - session_start
     results["total_time_seconds"] = session_time

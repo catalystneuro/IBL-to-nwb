@@ -314,6 +314,12 @@ def parse_args() -> argparse.Namespace:
         help="Convert only processed behavior+ecephys data (skip raw). Saves ~100 GB download per session.",
     )
 
+    parser.add_argument(
+        "--skip-verified",
+        action="store_true",
+        help="Skip sessions already verified in tracking.json (both raw and processed complete).",
+    )
+
     return parser.parse_args()
 
 
@@ -380,6 +386,30 @@ def main() -> None:
         logger.info(f"Launching sessions [{start_idx}:{end_idx}): {len(selected_indices)} sessions (indices {start_idx}-{end_idx-1})")
 
     selected_eids = [(i, all_eids[i]) for i in selected_indices]
+
+    # Filter out verified sessions if --skip-verified is set
+    if args.skip_verified:
+        tracking_path = Path(__file__).parent / "tracking_bwm_conversion" / "tracking.json"
+        if tracking_path.exists():
+            import json
+            with open(tracking_path) as f:
+                tracking_data = json.load(f)
+
+            # Build set of verified session indices
+            verified_indices = set()
+            for session in tracking_data.get("sessions", []):
+                if session.get("raw_verified") and session.get("processed_verified"):
+                    verified_indices.add(session["index"])
+
+            original_count = len(selected_eids)
+            selected_eids = [(i, eid) for i, eid in selected_eids if i not in verified_indices]
+            skipped_count = original_count - len(selected_eids)
+
+            if skipped_count > 0:
+                logger.info(f"Skipping {skipped_count} already-verified sessions (--skip-verified)")
+                logger.info(f"Remaining sessions to launch: {len(selected_eids)}")
+        else:
+            logger.warning(f"tracking.json not found at {tracking_path}, cannot skip verified sessions")
 
     logger.info("=" * 80)
 
@@ -493,6 +523,7 @@ def main() -> None:
     logger.info("\nVerification (after completion):")
     logger.info(f"  python verify_dandi_uploads.py --dandiset-id {args.dandiset_id} --dandi-instance {args.dandi_instance}")
     logger.info("=" * 80)
+    print("  uv run python src/ibl_to_nwb/_aws/monitor.py --interval 30 --show-logs 10")
 
 
 if __name__ == "__main__":

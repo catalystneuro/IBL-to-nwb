@@ -262,6 +262,19 @@ Each instance executes this workflow:
 - Estimated time per session: 2-4 hours (varies by session size)
 - Total cost: 459 sessions × 3 hours × $0.42/hour = **~$580**
 
+**Time breakdown by conversion type:**
+| Step | Time | % of Total |
+|------|------|------------|
+| Raw ephys download | ~5-7 min | ~5% |
+| Raw ephys decompress | ~18 min | ~15% |
+| Raw NWB write | ~30-40 min | ~30% |
+| **Raw subtotal** | **~55-65 min** | **~85%** |
+| Processed data download | ~2-3 min | ~2% |
+| Processed NWB write | ~5-10 min | ~8% |
+| **Processed subtotal** | **~10-15 min** | **~15%** |
+
+*Note: Times shown for 1-probe session. 2-probe sessions take ~2x longer for ephys steps.*
+
 **Cost savings vs stopped instances:**
 - Stopped instance: $36/month (50GB root EBS)
 - Running for 19 days: $152 wasted (actual incident from logs)
