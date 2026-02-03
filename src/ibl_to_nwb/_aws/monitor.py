@@ -2,6 +2,7 @@
 """Monitor IBL conversion instances in real-time."""
 
 import json
+import platform
 import subprocess
 import sys
 import time
@@ -184,15 +185,21 @@ def clear_screen():
     print("\033[2J\033[H", end="")
 
 
+# Track lines already saved per instance (for incremental logging)
+_instance_line_counts: dict[str, int] = {}
+
+
 def save_console_logs(instances: list, logs_dir: Path) -> None:
-    """Save console output for each instance to local log files.
+    """Save console output incrementally for each instance.
+
+    Uses line-count tracking to append only new content, avoiding duplicates.
+    Creates a single log file per instance (no timestamp in filename).
 
     Args:
         instances: List of instance dicts with 'id', 'session_eid', etc.
         logs_dir: Directory to save log files to.
     """
     logs_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for inst in instances:
         instance_id = inst["id"]
@@ -202,30 +209,50 @@ def save_console_logs(instances: list, logs_dir: Path) -> None:
         # Get full console output
         console = get_console_output(instance_id, lines=10000)
 
-        if console and console != "[No console output available yet]":
-            # Create filename with session info for easy identification
-            filename = f"ec2_console_{session_eid}_{session_index}_{instance_id}_{timestamp}.log"
-            log_file = logs_dir / filename
+        if not console or console == "[No console output available yet]":
+            continue
 
-            # Write console output with header
-            with open(log_file, "w") as f:
-                f.write(f"# EC2 Console Output\n")
-                f.write(f"# Instance ID: {instance_id}\n")
-                f.write(f"# Session EID: {session_eid}\n")
-                f.write(f"# Session Index: {session_index}\n")
-                f.write(f"# Captured at: {datetime.now().isoformat()}\n")
-                f.write(f"# Instance Name: {inst.get('name', 'N/A')}\n")
-                f.write(f"# Stub Test: {inst.get('stub_test', 'N/A')}\n")
-                f.write("#" + "=" * 79 + "\n\n")
-                f.write(console)
+        # Single file per instance (no timestamp - append mode)
+        filename = f"ec2_console_{session_eid}_{session_index}_{instance_id}.log"
+        log_file = logs_dir / filename
 
-            print(f"  Saved logs to: {log_file.name}")
+        # Split into lines and check what's new
+        lines = console.splitlines(keepends=True)
+        last_count = _instance_line_counts.get(instance_id, 0)
+
+        if len(lines) > last_count:
+            # New content available - append only new lines
+            new_lines = lines[last_count:]
+
+            # Write header on first write, append otherwise
+            if not log_file.exists():
+                with open(log_file, "w") as f:
+                    f.write(f"# EC2 Console Output\n")
+                    f.write(f"# Instance ID: {instance_id}\n")
+                    f.write(f"# Session EID: {session_eid}\n")
+                    f.write(f"# Session Index: {session_index}\n")
+                    f.write(f"# Instance Name: {inst.get('name', 'N/A')}\n")
+                    f.write(f"# Stub Test: {inst.get('stub_test', 'N/A')}\n")
+                    f.write(f"# Started: {datetime.now().isoformat()}\n")
+                    f.write("#" + "=" * 79 + "\n\n")
+
+            # Append new lines
+            with open(log_file, "a") as f:
+                f.writelines(new_lines)
+
+            _instance_line_counts[instance_id] = len(lines)
+            print(f"  Appended {len(new_lines)} lines to: {filename}")
+        else:
+            print(f"  No new output for: {filename}")
 
 
-DEFAULT_LOGS_DIR = Path.home() / "ibl_scratch" / "conversion_logs"
+if platform.system() == "Darwin":  # macOS
+    DEFAULT_LOGS_DIR = Path("/Volumes/Expansion/conversion_logs/ec2_runs")
+else:  # Linux
+    DEFAULT_LOGS_DIR = Path("/media/heberto/Expansion/conversion_logs/ec2_runs")
 
 
-def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=True, logs_dir=None):
+def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=True, logs_dir=None, auto_exit=True):
     """Monitor instances and display status.
 
     Parameters
@@ -240,11 +267,18 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=True,
         If True, save console logs to disk on each refresh. Default is True.
     logs_dir : Path or str, optional
         Directory to save log files. Default is '~/ibl_scratch/conversion_logs'.
+    auto_exit : bool, optional
+        If True, exit after 3 consecutive polls with no instances. Default is True.
     """
     if save_logs:
         logs_dir = Path(logs_dir) if logs_dir else DEFAULT_LOGS_DIR
     else:
         logs_dir = None
+
+    # Track consecutive empty polls for auto-exit
+    empty_poll_count = 0
+    MAX_EMPTY_POLLS = 3
+
     try:
         while True:
             clear_screen()
@@ -257,13 +291,24 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=True,
             instances = get_instances()
 
             if not instances:
+                empty_poll_count += 1
                 print("No running instances found.")
                 print()
-                print("Press Ctrl+C to exit")
+
+                if auto_exit and empty_poll_count >= MAX_EMPTY_POLLS:
+                    print(f"No instances for {MAX_EMPTY_POLLS} consecutive polls. Auto-exiting.")
+                    break
+
+                print(f"Empty polls: {empty_poll_count}/{MAX_EMPTY_POLLS} (will auto-exit at {MAX_EMPTY_POLLS})")
+                print("Press Ctrl+C to exit earlier")
+
                 if not continuous:
                     break
                 time.sleep(interval)
                 continue
+
+            # Reset empty poll counter when instances are found
+            empty_poll_count = 0
 
             print(f"Found {len(instances)} instances:")
             print()
@@ -385,6 +430,11 @@ if __name__ == "__main__":
         metavar="DIR",
         help=f"Directory to save console logs (default: {DEFAULT_LOGS_DIR})",
     )
+    parser.add_argument(
+        "--no-auto-exit",
+        action="store_true",
+        help="Disable auto-exit when no instances are found (keep running indefinitely)",
+    )
 
     args = parser.parse_args()
 
@@ -405,4 +455,5 @@ if __name__ == "__main__":
         show_logs=args.show_logs,
         save_logs=not args.no_save_logs,
         logs_dir=args.logs_dir,
+        auto_exit=not args.no_auto_exit,
     )

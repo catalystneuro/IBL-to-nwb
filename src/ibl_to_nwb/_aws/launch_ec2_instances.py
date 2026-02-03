@@ -22,11 +22,45 @@ Usage:
 import argparse
 import json
 import logging
+import platform
+import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
+
+
+def start_background_monitor(interval: int, logs_dir: Path) -> Optional[int]:
+    """Spawn monitor.py as a background process.
+
+    Returns the PID of the spawned process, or None if failed.
+    """
+    monitor_script = Path(__file__).parent / "monitor.py"
+
+    if not monitor_script.exists():
+        return None
+
+    # Build command using the same Python interpreter
+    cmd = [
+        sys.executable,
+        str(monitor_script),
+        "--interval", str(interval),
+        "--logs-dir", str(logs_dir),
+    ]
+
+    try:
+        # Spawn detached process that survives parent exit
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,  # Detach from parent process group
+        )
+        return process.pid
+    except Exception:
+        return None
 
 
 def setup_logging(level: str = "INFO") -> logging.Logger:
@@ -320,6 +354,19 @@ def parse_args() -> argparse.Namespace:
         help="Skip sessions already verified in tracking.json (both raw and processed complete).",
     )
 
+    # Monitoring options
+    parser.add_argument(
+        "--no-monitor",
+        action="store_true",
+        help="Disable automatic background monitoring after launch",
+    )
+    parser.add_argument(
+        "--monitor-interval",
+        type=int,
+        default=60,
+        help="Monitoring refresh interval in seconds (default: 60)",
+    )
+
     return parser.parse_args()
 
 
@@ -517,13 +564,33 @@ def main() -> None:
         for index, eid in failed_launches:
             logger.info(f"  Index {index}: {eid}")
 
-    logger.info("\nMonitoring:")
-    logger.info("  Real-time monitoring:  python monitor.py")
-    logger.info("  Instance logs:         python monitor.py --logs INSTANCE_ID")
+    # Start background monitor automatically (unless disabled)
+    if instance_ids and not args.no_monitor:
+        if platform.system() == "Darwin":  # macOS
+            logs_dir = Path("/Volumes/Expansion/conversion_logs/ec2_runs")
+        else:  # Linux
+            logs_dir = Path("/media/heberto/Expansion/conversion_logs/ec2_runs")
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        pid = start_background_monitor(args.monitor_interval, logs_dir)
+        if pid:
+            logger.info("\nBackground Monitor Started:")
+            logger.info(f"  PID: {pid}")
+            logger.info(f"  Logs: {logs_dir}")
+            logger.info(f"  Interval: {args.monitor_interval}s")
+            logger.info(f"  Stop: kill {pid}")
+            logger.info(f"  Check: ps -p {pid}")
+            logger.info("  (Monitor auto-exits when all instances terminate)")
+        else:
+            logger.warning("\nFailed to start background monitor")
+            logger.info("  Run manually: uv run python monitor.py")
+    elif args.no_monitor:
+        logger.info("\nMonitoring disabled (--no-monitor)")
+        logger.info("  Manual monitoring: uv run python monitor.py")
+
     logger.info("\nVerification (after completion):")
-    logger.info(f"  python verify_dandi_uploads.py --dandiset-id {args.dandiset_id} --dandi-instance {args.dandi_instance}")
+    logger.info(f"  uv run python verify_tracking.py")
     logger.info("=" * 80)
-    print("  uv run python src/ibl_to_nwb/_aws/monitor.py --interval 30 --show-logs 10")
 
 
 if __name__ == "__main__":
