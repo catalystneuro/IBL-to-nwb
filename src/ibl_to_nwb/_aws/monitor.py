@@ -1,13 +1,33 @@
 #!/usr/bin/env python3
 """Monitor IBL conversion instances in real-time."""
 
+import atexit
 import json
+import os
 import platform
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+
+# PID file location (shared with launch_ec2_instances.py)
+MONITOR_PID_FILE = Path("/tmp/ibl_conversion_monitor.pid")
+
+
+def cleanup_pid_file():
+    """Remove PID file on exit if it belongs to this process."""
+    if MONITOR_PID_FILE.exists():
+        try:
+            stored_pid = int(MONITOR_PID_FILE.read_text().strip())
+            if stored_pid == os.getpid():
+                MONITOR_PID_FILE.unlink()
+        except (ValueError, OSError):
+            pass
+
+
+# Register cleanup to run on normal exit
+atexit.register(cleanup_pid_file)
 
 
 def run_aws_command(cmd):
@@ -252,7 +272,7 @@ else:  # Linux
     DEFAULT_LOGS_DIR = Path("/media/heberto/Expansion/conversion_logs/ec2_runs")
 
 
-def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=True, logs_dir=None, auto_exit=True):
+def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False, logs_dir=None, auto_exit=True):
     """Monitor instances and display status.
 
     Parameters
@@ -264,7 +284,8 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=True,
     show_logs : int, optional
         Number of recent log lines to show per instance. Default is 0 (none).
     save_logs : bool, optional
-        If True, save console logs to disk on each refresh. Default is True.
+        If True, save console logs to disk on each refresh. Default is False.
+        Use --save-logs flag to enable when running manually.
     logs_dir : Path or str, optional
         Directory to save log files. Default is '~/ibl_scratch/conversion_logs'.
     auto_exit : bool, optional
@@ -420,9 +441,9 @@ if __name__ == "__main__":
         help="Show last N log lines for each instance in overview (default: 0, meaning off)",
     )
     parser.add_argument(
-        "--no-save-logs",
+        "--save-logs",
         action="store_true",
-        help="Disable saving console logs to disk (logs are saved by default)",
+        help="Save console logs to disk (default: display only, no saving)",
     )
     parser.add_argument(
         "--logs-dir",
@@ -453,7 +474,7 @@ if __name__ == "__main__":
         interval=args.interval,
         continuous=not args.once,
         show_logs=args.show_logs,
-        save_logs=not args.no_save_logs,
+        save_logs=args.save_logs,
         logs_dir=args.logs_dir,
         auto_exit=not args.no_auto_exit,
     )

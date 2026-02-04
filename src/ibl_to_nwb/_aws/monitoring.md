@@ -4,6 +4,38 @@
 
 This document describes how EC2 instance logs are captured and stored during IBL NWB conversion jobs.
 
+## Single Monitor Design
+
+The monitoring system uses a **single monitor process** to prevent duplicate log entries and reduce resource usage.
+
+### Behavior Summary
+
+| Scenario | Behavior |
+|----------|----------|
+| First launch | Spawns monitor, saves PID to `/tmp/ibl_conversion_monitor.pid` |
+| Subsequent launches | Checks if monitor running, skips spawn if yes |
+| Run manually (`python monitor.py`) | Display only, no log saving |
+| Manual with `--save-logs` | Display + save logs |
+
+### PID File Management
+
+- **Location**: `/tmp/ibl_conversion_monitor.pid`
+- **Created by**: `launch_ec2_instances.py` when spawning background monitor
+- **Cleaned up by**: `monitor.py` on exit (via `atexit`)
+- **Recovery**: Stale PID files are automatically cleaned up on next launch attempt
+
+### How It Works
+
+1. Before spawning a monitor, `launch_ec2_instances.py` checks `is_monitor_running()`
+2. If PID file exists, it verifies the process is alive using `os.kill(pid, 0)`
+3. If process is dead, the stale PID file is removed and a new monitor starts
+4. On exit, `monitor.py` removes the PID file if it matches its own PID
+
+### Memory Usage
+
+- Single monitor process: ~18 MB total (regardless of instance count)
+- No per-instance or per-launch overhead
+
 ## How EC2 Console Output Works
 
 ```
@@ -86,27 +118,49 @@ def save_logs(instance_id, console_output):
 ### Automatic Start (Recommended)
 
 ```bash
-# Launch instances - monitor starts automatically
+# Launch instances - monitor starts automatically (only if not already running)
 uv run python launch_ec2_instances.py --profile ibl --range 0-10
 
-# Monitor runs in background, saves logs to ~/ibl_scratch/conversion_logs/
+# Monitor runs in background with --save-logs enabled
 # Auto-exits when all instances terminate
+
+# Subsequent launches skip spawning if monitor is already running
+uv run python launch_ec2_instances.py --profile ibl --range 10-20
+# Output: "Monitor already running (PID 12345), skipping spawn"
 ```
 
-### Manual Start
+### Manual Start (Display Only)
 
 ```bash
-# Start monitor manually
+# Check status without saving logs (safe for manual inspection)
 uv run python monitor.py --interval 60
 
 # Or run once (no continuous monitoring)
 uv run python monitor.py --once
 ```
 
+### Manual Start with Log Saving
+
+```bash
+# Explicitly save logs when running manually
+uv run python monitor.py --interval 60 --save-logs
+```
+
 ### Disable Automatic Monitoring
 
 ```bash
 uv run python launch_ec2_instances.py --profile ibl --range 0-10 --no-monitor
+```
+
+### Check/Stop Background Monitor
+
+```bash
+# Check if monitor is running
+cat /tmp/ibl_conversion_monitor.pid
+ps -p $(cat /tmp/ibl_conversion_monitor.pid)
+
+# Stop background monitor
+kill $(cat /tmp/ibl_conversion_monitor.pid)
 ```
 
 ## Log File Format

@@ -272,7 +272,20 @@ else
 fi
 
 echo "Running: ${CONVERSION_CMD}"
-${CONVERSION_CMD}
+
+# Run conversion with 6-hour timeout
+TIMEOUT_SECONDS=21600  # 6 hours
+if ! timeout ${TIMEOUT_SECONDS} ${CONVERSION_CMD}; then
+    EXIT_CODE=$?
+    if [ "$EXIT_CODE" -eq 124 ]; then
+        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | timeout_seconds=${TIMEOUT_SECONDS} ==="
+        echo "ERROR: Conversion exceeded ${TIMEOUT_SECONDS} seconds (6 hours). Shutting down..."
+        sleep 10
+        shutdown -h now
+    fi
+    exit $EXIT_CODE
+fi
+
 log_phase_end "conversion" "${CONVERSION_START}"
 log_disk_usage "after_conversion"
 
@@ -336,8 +349,24 @@ echo "DEBUG: DANDI_API_KEY is set: ${DANDI_API_KEY:+YES}"
 echo "DEBUG: DANDI_SANDBOX_API_KEY is set: ${DANDI_SANDBOX_API_KEY:+YES}"
 echo "DEBUG: Uploading to DANDI instance: ${DANDI_INSTANCE}"
 
+# Track upload timing
+UPLOAD_CMD_START=$(date +%s)
+echo "=== DANDI_UPLOAD: START | $(date -u +%Y-%m-%dT%H:%M:%S%z) ==="
+
 dandi upload -i "${DANDI_INSTANCE}" .
 DANDI_EXIT_CODE=$?
+
+UPLOAD_CMD_END=$(date +%s)
+UPLOAD_DURATION=$((UPLOAD_CMD_END - UPLOAD_CMD_START))
+
+# Calculate upload speed
+if [ -n "${NWB_TOTAL_GB}" ] && [ "${UPLOAD_DURATION}" -gt 0 ]; then
+    UPLOAD_SPEED_MBPS=$(echo "scale=1; ${NWB_TOTAL_GB} * 1024 / ${UPLOAD_DURATION}" | bc)
+else
+    UPLOAD_SPEED_MBPS="unknown"
+fi
+
+echo "=== DANDI_UPLOAD: END | duration_seconds=${UPLOAD_DURATION} | size_gb=${NWB_TOTAL_GB:-unknown} | speed_mbps=${UPLOAD_SPEED_MBPS} ==="
 
 # Always print the DANDI log for debugging (especially useful when validation fails)
 echo ""

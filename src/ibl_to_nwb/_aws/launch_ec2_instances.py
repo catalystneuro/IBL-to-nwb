@@ -22,6 +22,7 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import platform
 import subprocess
 import sys
@@ -31,12 +32,46 @@ from typing import Optional
 import boto3
 from botocore.exceptions import ClientError
 
+# PID file for tracking the background monitor process
+MONITOR_PID_FILE = Path("/tmp/ibl_conversion_monitor.pid")
+
+
+def is_monitor_running() -> bool:
+    """Check if a monitor process is already running.
+
+    Returns True if a monitor is running (PID file exists and process is alive).
+    Cleans up stale PID files automatically.
+    """
+    if not MONITOR_PID_FILE.exists():
+        return False
+
+    try:
+        pid = int(MONITOR_PID_FILE.read_text().strip())
+        # Signal 0 checks if process exists without killing it
+        os.kill(pid, 0)
+        return True
+    except (ValueError, ProcessLookupError, PermissionError):
+        # PID file invalid or process is dead - clean up stale file
+        MONITOR_PID_FILE.unlink(missing_ok=True)
+        return False
+
 
 def start_background_monitor(interval: int, logs_dir: Path) -> Optional[int]:
-    """Spawn monitor.py as a background process.
+    """Spawn monitor.py as a background process if not already running.
 
-    Returns the PID of the spawned process, or None if failed.
+    Returns the PID of the spawned process, or None if:
+    - A monitor is already running (skipped spawn)
+    - The monitor script doesn't exist
+    - Failed to spawn the process
     """
+    logger = logging.getLogger(__name__)
+
+    # Check if monitor is already running
+    if is_monitor_running():
+        pid = int(MONITOR_PID_FILE.read_text().strip())
+        logger.info(f"Monitor already running (PID {pid}), skipping spawn")
+        return None
+
     monitor_script = Path(__file__).parent / "monitor.py"
 
     if not monitor_script.exists():
@@ -48,6 +83,7 @@ def start_background_monitor(interval: int, logs_dir: Path) -> Optional[int]:
         str(monitor_script),
         "--interval", str(interval),
         "--logs-dir", str(logs_dir),
+        "--save-logs",  # Explicitly enable log saving for background monitor
     ]
 
     try:
@@ -58,6 +94,9 @@ def start_background_monitor(interval: int, logs_dir: Path) -> Optional[int]:
             stderr=subprocess.DEVNULL,
             start_new_session=True,  # Detach from parent process group
         )
+
+        # Save PID for future checks
+        MONITOR_PID_FILE.write_text(str(process.pid))
         return process.pid
     except Exception:
         return None
@@ -326,8 +365,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dandi-instance",
         choices=["dandi", "dandi-sandbox"],
-        default="dandi-sandbox",
-        help="DANDI instance to upload to: 'dandi' for production (dandiarchive.org) or 'dandi-sandbox' for testing. Default: dandi-sandbox",
+        required=True,
+        help="DANDI instance to upload to: 'dandi' for production (dandiarchive.org) or 'dandi-sandbox' for testing",
     )
     parser.add_argument(
         "--dandiset-id",
@@ -589,8 +628,9 @@ def main() -> None:
         logger.info("  Manual monitoring: uv run python monitor.py")
 
     logger.info("\nVerification (after completion):")
-    logger.info(f"  uv run python verify_tracking.py")
+    logger.info(f"  uv run python src/ibl_to_nwb/_aws/tracking_bwm_conversion/verify_tracking.py")
     logger.info("=" * 80)
+    logger.info("  uv run python src/ibl_to_nwb/_aws/monitor.py --interval 30 --show-logs 10")
 
 
 if __name__ == "__main__":
