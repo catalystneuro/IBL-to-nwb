@@ -363,8 +363,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--monitor-interval",
         type=int,
-        default=60,
-        help="Monitoring refresh interval in seconds (default: 60)",
+        default=30,
+        help="Monitoring refresh interval in seconds (default: 30)",
     )
 
     return parser.parse_args()
@@ -380,7 +380,7 @@ def main() -> None:
 
     # Hardcoded configuration
     USER_DATA_SCRIPT = Path(__file__).parent / "ec2_worker" / "boot.sh"
-    EBS_VOLUME_SIZE = 100 if args.stub_test else 700  # 100GB for testing, 700GB for production
+    EBS_VOLUME_SIZE = 100 if args.stub_test else 800  # 100GB for testing, 800GB for production
     EIDS_JSON_PATH = Path(__file__).parent / "tracking_bwm_conversion" / "bwm_session_eids.json"
 
     logger.info("=" * 80)

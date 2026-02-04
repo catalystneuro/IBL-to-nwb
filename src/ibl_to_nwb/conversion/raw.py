@@ -60,6 +60,7 @@ def convert_raw_session(
     logger: logging.Logger | None = None,
     overwrite: bool = False,
     redecompress_ephys: bool = False,
+    delete_cbin_after_decompress: bool = False,
 ) -> dict:
     """Convert IBL raw session to NWB.
 
@@ -84,6 +85,10 @@ def convert_raw_session(
         If True, overwrite existing NWB files
     redecompress_ephys : bool, optional
         If True, force re-decompression of ephys data even if already decompressed
+    delete_cbin_after_decompress : bool, optional
+        If True, delete compressed .cbin files after decompression to free disk space.
+        This saves ~100 GB for large sessions, reducing peak disk usage during NWB write.
+        Default is False to preserve source files for potential re-runs.
 
     Returns
     -------
@@ -217,6 +222,17 @@ def convert_raw_session(
                 logger.info("Decompressing .cbin files...")
             decompress_ephys_cbins(paths["session_folder"], paths["session_decompressed_ephys_folder"])
             bins_available = True
+
+            # Optionally delete compressed .cbin files after decompression to free disk space
+            if delete_cbin_after_decompress:
+                cbin_files = list(paths["session_folder"].rglob("*.cbin"))
+                if cbin_files:
+                    cbin_size_bytes = sum(f.stat().st_size for f in cbin_files)
+                    cbin_size_gb = cbin_size_bytes / (1024**3)
+                    for cbin_file in cbin_files:
+                        cbin_file.unlink()
+                    if logger:
+                        logger.info(f"Deleted {len(cbin_files)} .cbin files ({cbin_size_gb:.1f} GB) to free disk space")
 
         # Note: Metadata files (.meta, .ch) are automatically copied alongside .bin files
         # by spikeglx.Reader.decompress_to_scratch() during decompression above

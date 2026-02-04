@@ -177,6 +177,7 @@ def convert_session(
             logger=logger,
             overwrite=False,
             redecompress_ephys=False,
+            delete_cbin_after_decompress=True,  # Free ~100 GB disk space after decompression
         )
         raw_duration = time.time() - raw_start
 
