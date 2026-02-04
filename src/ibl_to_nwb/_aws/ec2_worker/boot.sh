@@ -273,13 +273,12 @@ fi
 
 echo "Running: ${CONVERSION_CMD}"
 
-# Run conversion with 6-hour timeout
-TIMEOUT_SECONDS=21600  # 6 hours
-if ! timeout ${TIMEOUT_SECONDS} ${CONVERSION_CMD}; then
+# Run conversion (Python handles per-phase timeouts internally)
+# Exit code 124 indicates a phase timeout
+if ! ${CONVERSION_CMD}; then
     EXIT_CODE=$?
     if [ "$EXIT_CODE" -eq 124 ]; then
-        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | timeout_seconds=${TIMEOUT_SECONDS} ==="
-        echo "ERROR: Conversion exceeded ${TIMEOUT_SECONDS} seconds (6 hours). Shutting down..."
+        echo "ERROR: Conversion phase timed out (see Python logs for details). Shutting down..."
         sleep 10
         shutdown -h now
     fi
@@ -353,8 +352,19 @@ echo "DEBUG: Uploading to DANDI instance: ${DANDI_INSTANCE}"
 UPLOAD_CMD_START=$(date +%s)
 echo "=== DANDI_UPLOAD: START | $(date -u +%Y-%m-%dT%H:%M:%S%z) ==="
 
-dandi upload -i "${DANDI_INSTANCE}" .
-DANDI_EXIT_CODE=$?
+# DANDI upload with 3-hour timeout
+UPLOAD_TIMEOUT=10800  # 3 hours
+if ! timeout ${UPLOAD_TIMEOUT} dandi upload -i "${DANDI_INSTANCE}" .; then
+    DANDI_EXIT_CODE=$?
+    if [ "$DANDI_EXIT_CODE" -eq 124 ]; then
+        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=dandi_upload | timeout_seconds=${UPLOAD_TIMEOUT} ==="
+        echo "ERROR: DANDI upload exceeded ${UPLOAD_TIMEOUT} seconds (3 hours). Shutting down..."
+        sleep 10
+        shutdown -h now
+    fi
+else
+    DANDI_EXIT_CODE=0
+fi
 
 UPLOAD_CMD_END=$(date +%s)
 UPLOAD_DURATION=$((UPLOAD_CMD_END - UPLOAD_CMD_START))

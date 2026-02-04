@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import shutil
 import time
 import warnings
 from datetime import datetime
@@ -24,7 +23,6 @@ from ..fixtures import load_fixtures
 from ..utils import (
     add_probe_electrodes_with_localization,
     check_camera_health_by_qc,
-    decompress_ephys_cbins,
     get_ibl_subject_metadata,
     sanitize_subject_id_for_dandi,
     setup_paths,
@@ -59,10 +57,12 @@ def convert_raw_session(
     base_path: Path | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
-    redecompress_ephys: bool = False,
-    delete_cbin_after_decompress: bool = False,
 ) -> dict:
     """Convert IBL raw session to NWB.
+
+    This function assumes that decompression has already been performed externally
+    (e.g., by calling `decompress_ephys_cbins()` with its own timeout). It checks
+    for decompressed .bin files and raises an error if they're missing in full mode.
 
     In stub mode, ephys data is automatically included if decompressed binaries
     are already available (similar to how videos are auto-included if cached).
@@ -83,17 +83,17 @@ def convert_raw_session(
         Logger instance for conversion progress
     overwrite : bool, optional
         If True, overwrite existing NWB files
-    redecompress_ephys : bool, optional
-        If True, force re-decompression of ephys data even if already decompressed
-    delete_cbin_after_decompress : bool, optional
-        If True, delete compressed .cbin files after decompression to free disk space.
-        This saves ~100 GB for large sessions, reducing peak disk usage during NWB write.
-        Default is False to preserve source files for potential re-runs.
 
     Returns
     -------
     dict
         Conversion result information including NWB file path and timing
+
+    Raises
+    ------
+    FileNotFoundError
+        If decompressed .bin files are not found and stub_test=False.
+        Decompression must be performed externally before calling this function.
     """
 
     # ========================================================================
@@ -178,71 +178,40 @@ def convert_raw_session(
     )
 
     # In stub mode: auto-include ephys if decompressed binaries are available
-    # In full mode: always include ephys (will decompress if needed)
+    # In full mode: always include ephys (decompression must be done externally)
     if stub_test:
-        include_ecephys = existing_bins and not redecompress_ephys
+        include_ecephys = existing_bins
         if not include_ecephys and logger:
             logger.info(
                 "Stub mode: No decompressed Neuropixels binaries found in %s; "
-                "skipping SpikeGLX interfaces. Run a full conversion first to decompress data, "
-                "or set REDECOMPRESS_EPHYS=True to force decompression in stub mode.",
+                "skipping SpikeGLX interfaces. Run a full conversion first to decompress data.",
                 scratch_ephys_folder,
             )
     else:
         include_ecephys = True
 
     # ========================================================================
-    # STEP 1: Decompress raw ephys data
+    # STEP 1: Verify decompressed ephys data exists
     # ========================================================================
+    # Decompression must be performed externally before calling this function.
+    # This separation allows for independent timeout control of decompression.
     if include_ecephys:
-        if logger:
-            logger.info("Preparing raw ephys data on scratch...")
-        decompress_start = time.time()
-
-        bins_available = existing_bins
-
-        if scratch_ephys_folder.exists() and redecompress_ephys:
+        if existing_bins:
             if logger:
                 logger.info(
-                    "REDECOMPRESS_EPHYS is True - removing existing decompressed data at %s",
-                    scratch_ephys_folder,
-                )
-            shutil.rmtree(scratch_ephys_folder)
-            scratch_ephys_folder.mkdir(parents=True, exist_ok=True)
-            bins_available = False
-
-        if bins_available:
-            if logger:
-                logger.info(
-                    "Reusing existing decompressed Neuropixels data from %s (set REDECOMPRESS_EPHYS=True to refresh).",
+                    "Found decompressed Neuropixels data at %s",
                     scratch_ephys_folder,
                 )
         else:
-            if logger:
-                logger.info("Decompressing .cbin files...")
-            decompress_ephys_cbins(paths["session_folder"], paths["session_decompressed_ephys_folder"])
-            bins_available = True
-
-            # Optionally delete compressed .cbin files after decompression to free disk space
-            if delete_cbin_after_decompress:
-                cbin_files = list(paths["session_folder"].rglob("*.cbin"))
-                if cbin_files:
-                    cbin_size_bytes = sum(f.stat().st_size for f in cbin_files)
-                    cbin_size_gb = cbin_size_bytes / (1024**3)
-                    for cbin_file in cbin_files:
-                        cbin_file.unlink()
-                    if logger:
-                        logger.info(f"Deleted {len(cbin_files)} .cbin files ({cbin_size_gb:.1f} GB) to free disk space")
-
-        # Note: Metadata files (.meta, .ch) are automatically copied alongside .bin files
-        # by spikeglx.Reader.decompress_to_scratch() during decompression above
-
-        decompress_time = time.time() - decompress_start
-        if logger:
-            logger.info(f"Scratch data preparation completed in {decompress_time:.2f}s")
+            # In full mode, decompressed bins are required
+            raise FileNotFoundError(
+                f"Decompressed .bin files not found at {scratch_ephys_folder}. "
+                f"Decompression must be performed externally before calling convert_raw_session(). "
+                f"Use decompress_ephys_cbins() to decompress the data first."
+            )
     else:
         if logger:
-            logger.info("Stub test mode active: skipping raw ephys decompression")
+            logger.info("Stub test mode: no decompressed ephys data available, skipping SpikeGLX interfaces")
 
     # ========================================================================
     # STEP 2: Define data interfaces

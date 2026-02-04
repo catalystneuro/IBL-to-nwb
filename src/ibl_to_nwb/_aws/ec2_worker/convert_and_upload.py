@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import signal
 import subprocess
 import sys
 import time
@@ -40,6 +41,43 @@ from ibl_to_nwb.conversion import (
     download_session_data,
 )
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
+from ibl_to_nwb.utils.ephys_decompression import decompress_ephys_cbins
+from ibl_to_nwb.utils.paths import setup_paths
+
+
+# Phase timeouts in seconds
+PHASE_TIMEOUTS = {
+    "download": 3600,           # 1 hour
+    "decompress": 5400,         # 1.5 hours
+    "raw_conversion": 10800,    # 3 hours
+    "processed_conversion": 1800,  # 30 min
+}
+
+
+class PhaseTimeout:
+    """Context manager for phase timeouts with SIGALRM.
+
+    Raises TimeoutError if the phase exceeds the specified timeout.
+    Only works on Unix systems (Linux/macOS) that support SIGALRM.
+    """
+
+    def __init__(self, seconds: int, phase_name: str):
+        self.seconds = seconds
+        self.phase_name = phase_name
+        self._old_handler = None
+
+    def __enter__(self):
+        self._old_handler = signal.signal(signal.SIGALRM, self._handler)
+        signal.alarm(self.seconds)
+        return self
+
+    def __exit__(self, *args):
+        signal.alarm(0)  # Cancel alarm
+        if self._old_handler is not None:
+            signal.signal(signal.SIGALRM, self._old_handler)
+
+    def _handler(self, signum, frame):
+        raise TimeoutError(f"Phase '{self.phase_name}' exceeded {self.seconds}s timeout")
 
 
 def get_imdsv2_tag(tag_name: str) -> str:
@@ -119,7 +157,18 @@ def convert_session(
     Downloads data from ONE API, converts to raw and processed NWB files,
     and writes them to disk. Upload is handled separately.
 
+    Each phase has its own timeout to catch stuck phases early:
+    - download: 1 hour
+    - decompress: 1.5 hours
+    - raw_conversion: 3 hours
+    - processed_conversion: 30 minutes
+
     Returns a dict with conversion statistics.
+
+    Raises
+    ------
+    TimeoutError
+        If any phase exceeds its timeout limit.
     """
 
     log_file = logs_folder / f"conversion_log_{eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
@@ -130,26 +179,31 @@ def convert_session(
     logger.info(f"Stub test mode: {stub_test}")
     logger.info(f"Convert RAW: {convert_raw}")
     logger.info(f"Convert PROCESSED: {convert_processed}")
+    logger.info("Phase timeouts (seconds): %s", PHASE_TIMEOUTS)
     logger.info("=" * 80)
 
     session_start = time.time()
 
-    # Download session data
+    # Download session data with timeout
     # Skip raw ephys download if not converting raw (saves ~100 GB per session)
     logger.info("\n" + "=" * 80)
     logger.info("DOWNLOADING SESSION DATA")
+    logger.info(f"Timeout: {PHASE_TIMEOUTS['download']}s ({PHASE_TIMEOUTS['download']/3600:.1f} hours)")
     logger.info("=" * 80)
     download_start = time.time()
-    download_info = download_session_data(
-        eid=eid,
-        one=one,
-        redownload_data=False,
-        stub_test=stub_test,
-        download_raw=convert_raw,
-        download_processed=convert_processed,
-        base_path=base_folder,
-        logger=logger,
-    )
+
+    with PhaseTimeout(PHASE_TIMEOUTS["download"], "download"):
+        download_info = download_session_data(
+            eid=eid,
+            one=one,
+            redownload_data=False,
+            stub_test=stub_test,
+            download_raw=convert_raw,
+            download_processed=convert_processed,
+            base_path=base_folder,
+            logger=logger,
+        )
+
     download_duration = time.time() - download_start
     logger.info(f"=== PHASE: download | duration_seconds={download_duration:.0f} | size_gb={download_info['total_size_gb']:.2f} ===")
 
@@ -162,23 +216,63 @@ def convert_session(
         "success": False,
     }
 
-    # Convert RAW
+    # Convert RAW (with separate decompress and conversion timeouts)
     if convert_raw:
+        # Setup paths for decompression
+        paths = setup_paths(one, eid, base_path=base_folder)
+        scratch_ephys_folder = paths["session_decompressed_ephys_folder"] / "raw_ephys_data"
+        existing_bins = (
+            scratch_ephys_folder.exists() and next(scratch_ephys_folder.rglob("*.bin"), None) is not None
+        )
+
+        # In stub mode: skip decompression if no existing bins (they won't be downloaded)
+        # In full mode: always decompress if not already done
+        should_decompress = convert_raw and not stub_test and not existing_bins
+
+        if should_decompress:
+            logger.info("\n" + "=" * 80)
+            logger.info("DECOMPRESSING RAW EPHYS")
+            logger.info(f"Timeout: {PHASE_TIMEOUTS['decompress']}s ({PHASE_TIMEOUTS['decompress']/3600:.1f} hours)")
+            logger.info("=" * 80)
+
+            decompress_start = time.time()
+
+            with PhaseTimeout(PHASE_TIMEOUTS["decompress"], "decompress"):
+                decompress_ephys_cbins(
+                    source_folder=paths["session_folder"],
+                    target_folder=paths["session_decompressed_ephys_folder"],
+                )
+
+            decompress_duration = time.time() - decompress_start
+            logger.info(f"=== PHASE: decompress | duration_seconds={decompress_duration:.0f} ===")
+            results["decompress_duration_seconds"] = decompress_duration
+
+            # Delete compressed .cbin files after decompression to free disk space
+            cbin_files = list(paths["session_folder"].rglob("*.cbin"))
+            if cbin_files:
+                cbin_size_bytes = sum(f.stat().st_size for f in cbin_files)
+                cbin_size_gb = cbin_size_bytes / (1024**3)
+                for cbin_file in cbin_files:
+                    cbin_file.unlink()
+                logger.info(f"Deleted {len(cbin_files)} .cbin files ({cbin_size_gb:.1f} GB) to free disk space")
+
         logger.info("\n" + "=" * 80)
         logger.info("CONVERTING RAW EPHYS")
+        logger.info(f"Timeout: {PHASE_TIMEOUTS['raw_conversion']}s ({PHASE_TIMEOUTS['raw_conversion']/3600:.1f} hours)")
         logger.info("=" * 80)
 
         raw_start = time.time()
-        raw_info = convert_raw_session(
-            eid=eid,
-            one=one,
-            stub_test=stub_test,
-            base_path=base_folder,
-            logger=logger,
-            overwrite=False,
-            redecompress_ephys=False,
-            delete_cbin_after_decompress=True,  # Free ~100 GB disk space after decompression
-        )
+
+        with PhaseTimeout(PHASE_TIMEOUTS["raw_conversion"], "raw_conversion"):
+            raw_info = convert_raw_session(
+                eid=eid,
+                one=one,
+                stub_test=stub_test,
+                base_path=base_folder,
+                logger=logger,
+                overwrite=False,
+            )
+
         raw_duration = time.time() - raw_start
 
         if raw_info and not raw_info.get("skipped"):
@@ -190,21 +284,25 @@ def convert_session(
             logger.info(f"RAW file written to: {raw_nwb_path}")
             logger.info(f"=== PHASE: raw_conversion | duration_seconds={raw_duration:.0f} | size_gb={raw_info['nwb_size_gb']:.2f} ===")
 
-    # Convert PROCESSED
+    # Convert PROCESSED with timeout
     if convert_processed:
         logger.info("\n" + "=" * 80)
         logger.info("CONVERTING PROCESSED/BEHAVIOR")
+        logger.info(f"Timeout: {PHASE_TIMEOUTS['processed_conversion']}s ({PHASE_TIMEOUTS['processed_conversion']/60:.0f} minutes)")
         logger.info("=" * 80)
 
         processed_start = time.time()
-        processed_info = convert_processed_session(
-            eid=eid,
-            one=one,
-            stub_test=stub_test,
-            base_path=base_folder,
-            logger=logger,
-            overwrite=False,
-        )
+
+        with PhaseTimeout(PHASE_TIMEOUTS["processed_conversion"], "processed_conversion"):
+            processed_info = convert_processed_session(
+                eid=eid,
+                one=one,
+                stub_test=stub_test,
+                base_path=base_folder,
+                logger=logger,
+                overwrite=False,
+            )
+
         processed_duration = time.time() - processed_start
 
         if processed_info and not processed_info.get("skipped"):
@@ -318,6 +416,14 @@ def main() -> None:
         )
         logging.info(f"Session {eid} completed successfully")
         success = True
+    except TimeoutError as e:
+        # Phase-specific timeout - log and exit with code 124 (same as bash timeout)
+        logging.error(f"=== RESULT: TIMEOUT | eid={eid} | {e} ===")
+        logging.exception(f"Session {eid} FAILED due to timeout")
+        result = None
+        success = False
+        # Exit immediately with timeout exit code (124 matches bash timeout)
+        sys.exit(124)
     except Exception:
         logging.exception(f"Session {eid} FAILED")
         result = None
