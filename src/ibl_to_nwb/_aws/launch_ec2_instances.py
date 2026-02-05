@@ -370,8 +370,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--dandiset-id",
-        default="217706",
-        help="Dandiset ID to upload to (default: 217706 for sandbox, use 000409 for production)",
+        help="Dandiset ID to upload to (required for production, e.g., 000409)",
     )
 
     # Conversion mode selection (mutually exclusive)
@@ -411,6 +410,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+
+    # Validate dandiset-id based on dandi-instance
+    if args.dandi_instance == "dandi" and not args.dandiset_id:
+        raise SystemExit("ERROR: --dandiset-id is required for production (--dandi-instance dandi). Use --dandiset-id 000409")
+    if args.dandi_instance == "dandi-sandbox" and not args.dandiset_id:
+        args.dandiset_id = "217706"  # Default for sandbox
+
     logger = setup_logging("INFO")
 
     # Load profile configuration
