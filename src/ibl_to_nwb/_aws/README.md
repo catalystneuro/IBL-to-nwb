@@ -27,7 +27,7 @@ _aws/
 │   └── bwm_session_eids.json    # 459 unique session EIDs (auto-created)
 ├── ec2_worker/                  # Scripts that run ON the EC2 instance
 │   ├── boot.sh                  # EC2 boot script (userdata)
-│   └── convert_and_upload.py    # Converts session + uploads to DANDI
+│   └── orchestrate.py    # Converts session + uploads to DANDI
 ├── launch_ec2_instances.py      # LOCAL: Launches EC2 instances
 ├── monitor.py                   # LOCAL: Real-time instance monitoring
 ├── setup_infrastructure.py      # LOCAL: Creates VPC/subnet/security group
@@ -52,7 +52,7 @@ launch_ec2_instances.py
                                               ├──► Mounts EBS volume
                                               ├──► Installs dependencies
                                               ├──► Clones repo
-                                              ├──► Runs convert_and_upload.py
+                                              ├──► Runs orchestrate.py
                                               │        │
                                               │        ├──► Reads EID from instance tags
                                               │        ├──► Downloads data from ONE API
@@ -208,7 +208,7 @@ SessionIndex: "42"                  # Index in bwm_session_eids.json
 StubTest: "true"                    # Stub test mode flag
 ```
 
-The worker script (`ec2_worker/convert_and_upload.py`) reads these tags and processes the single assigned session.
+The worker script (`ec2_worker/orchestrate.py`) reads these tags and processes the single assigned session.
 
 ### Auto-Termination Protection
 
@@ -234,7 +234,7 @@ Each instance executes this workflow:
 5. Clone IBL-to-nwb repository
 6. Create Python virtual environment
 7. Read SessionEID tag from instance metadata (IMDSv2)
-8. Run ec2_worker/convert_and_upload.py:
+8. Run ec2_worker/orchestrate.py:
    a. Download session data from ONE API
    b. Convert to RAW NWB (SpikeGLX ephys + videos)
    c. Convert to PROCESSED NWB (spike sorting, behavior, tracking)

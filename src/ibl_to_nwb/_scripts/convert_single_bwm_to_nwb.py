@@ -10,11 +10,7 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ibl_to_nwb.conversion import (
-    download_session_data,
-    convert_raw_session,
-    convert_processed_session,
-)
+from ibl_to_nwb.conversion.session import convert_session
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 from ibl_to_nwb.utils import fix_nwb_namespace
@@ -59,19 +55,13 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = True            # Write raw-ephys NWBs
+    CONVERT_RAW = False            # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = False            # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
-    REDOWNLOAD_DATA = False           # Force re-download even if cached
-    REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
+    STUB_TEST = True            # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
     RUN_CONSISTENCY_CHECKS = True   # Validate NWB files against ONE data (slow but thorough)
     VERBOSE = False                 # Enable verbose output from neuroconv interfaces
     DISPLAY_PROGRESS_BAR = True     # Show progress bars (local runs)
-
-    # Auto-enable: REDOWNLOAD_DATA requires REDECOMPRESS_EPHYS
-    if REDOWNLOAD_DATA:
-        REDECOMPRESS_EPHYS = True
 
     if platform.system() == "Darwin":  # macOS
         base_folder = Path("/Volumes/Expansion")
@@ -108,11 +98,15 @@ if __name__ == "__main__":
     # Logs are derived from base_path
     logs_path = base_path / "conversion_logs"
     logs_path.mkdir(exist_ok=True, parents=True)
-    log_file_path = logs_path / f"conversion_log_{target_eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
-    logger = setup_logger(log_file_path)
 
     # Apply ONE API patches to fix cache validation issues
-    one = apply_one_patches(one, logger=logger)
+    one = apply_one_patches(one, logger=None)
+
+    logger = logging.getLogger("IBL_Conversion_Single_EID")
+    logger.setLevel(logging.INFO)
+    console = logging.StreamHandler(sys.stdout)
+    console.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(console)
 
     logger.info("=" * 80)
     logger.info("IBL SINGLE-EID CONVERSION SCRIPT STARTED")
@@ -120,165 +114,132 @@ if __name__ == "__main__":
     logger.info(f"Convert RAW: {CONVERT_RAW}")
     logger.info(f"Convert PROCESSED: {CONVERT_PROCESSED}")
     logger.info(f"Stub test mode: {STUB_TEST}")
-    if STUB_TEST:
-        logger.info("  (Stub mode auto-includes cached videos & decompressed ephys)")
-    logger.info(f"Re-download data: {REDOWNLOAD_DATA}")
-    logger.info(f"Re-decompress ephys: {REDECOMPRESS_EPHYS}")
     logger.info(f"Overwrite existing NWB: {OVERWRITE}")
     logger.info(f"Run consistency checks: {RUN_CONSISTENCY_CHECKS}")
     if RUN_CONSISTENCY_CHECKS:
         logger.info("  (Validates NWB data against ONE - adds time but ensures correctness)")
-    logger.info(f"Log file: {log_file_path}")
     logger.info("=" * 80)
 
     script_start_time = time.time()
 
-    logger.info("\n" + "=" * 80)
-    logger.info(f"DOWNLOADING SESSION DATA (EID: {target_eid})")
-    logger.info("=" * 80)
-    download_info = download_session_data(
-        eid=target_eid,
+    # Run conversion through shared pipeline (same code path as AWS)
+    results = convert_session(
+        target_eid,
         one=one,
-        redownload_data=REDOWNLOAD_DATA,
+        base_folder=base_path,
+        logs_folder=logs_path,
         stub_test=STUB_TEST,
-        download_raw=CONVERT_RAW,
-        download_processed=CONVERT_PROCESSED,
-        base_path=base_path,
-        logger=logger,
+        convert_raw=CONVERT_RAW,
+        convert_processed=CONVERT_PROCESSED,
+        overwrite=OVERWRITE,
+        verbose=VERBOSE,
+        display_progress_bar=DISPLAY_PROGRESS_BAR,
     )
 
-    raw_info = None
-    processed_info = None
+    # Post-processing: namespace fix and consistency checks
+    # These are local-only steps not needed in the AWS pipeline
 
-    if CONVERT_RAW:
-        logger.info("\n" + "=" * 80)
-        logger.info(f"STARTING RAW CONVERSION (EID: {target_eid})")
-        logger.info("=" * 80)
-        raw_info = convert_raw_session(
-            eid=target_eid,
-            one=one,
-            stub_test=STUB_TEST,
-            base_path=base_path,
-            logger=logger,
-            overwrite=OVERWRITE,
-            redecompress_ephys=REDECOMPRESS_EPHYS,
-            verbose=VERBOSE,
-            display_progress_bar=DISPLAY_PROGRESS_BAR,
-        )
+    if CONVERT_RAW and results.get("raw_converted"):
+        raw_nwb_path = Path(results["raw_nwb_path"])
 
         # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
-        if raw_info and not raw_info.get("skipped"):
-            fix_start = time.time()
-            fixed_count = fix_nwb_namespace(raw_info["nwbfile_path"], logger=logger)
-            fix_time = time.time() - fix_start
-            if fixed_count > 0:
-                logger.info(f"Namespace fix completed in {fix_time:.2f}s")
+        fix_start = time.time()
+        fixed_count = fix_nwb_namespace(raw_nwb_path, logger=logger)
+        fix_time = time.time() - fix_start
+        if fixed_count > 0:
+            logger.info(f"Namespace fix completed in {fix_time:.2f}s")
 
         # Run consistency checks if enabled
-        if RUN_CONSISTENCY_CHECKS and raw_info and not raw_info.get("skipped"):
+        if RUN_CONSISTENCY_CHECKS:
             logger.info("\n" + "=" * 80)
             logger.info(f"VALIDATING RAW NWB FILE (EID: {target_eid})")
             logger.info("=" * 80)
             try:
                 check_start = time.time()
-                check_nwbfile_for_consistency(one=one, nwbfile_path=raw_info["nwbfile_path"])
+                check_nwbfile_for_consistency(one=one, nwbfile_path=raw_nwb_path)
                 check_time = time.time() - check_start
-                logger.info(f"✓ RAW NWB validation passed in {check_time:.2f}s")
+                logger.info(f"RAW NWB validation passed in {check_time:.2f}s")
                 logger.info("  All data matches ONE API source")
             except AssertionError as e:
-                logger.error(f"✗ RAW NWB validation FAILED: {e}")
+                logger.error(f"RAW NWB validation FAILED: {e}")
                 logger.error("  Data mismatch detected - check conversion logic")
             except Exception as e:
-                logger.error(f"✗ RAW NWB validation error: {e}")
+                logger.error(f"RAW NWB validation error: {e}")
                 logger.error("  Unexpected error during validation")
 
-    if CONVERT_PROCESSED:
-        logger.info("\n" + "=" * 80)
-        logger.info(f"STARTING PROCESSED CONVERSION (EID: {target_eid})")
-        logger.info("=" * 80)
-        processed_info = convert_processed_session(
-            eid=target_eid,
-            one=one,
-            stub_test=STUB_TEST,
-            base_path=base_path,
-            logger=logger,
-            overwrite=OVERWRITE,
-            verbose=VERBOSE,
-            display_progress_bar=DISPLAY_PROGRESS_BAR,
-        )
+    if CONVERT_PROCESSED and results.get("processed_converted"):
+        processed_nwb_path = Path(results["processed_nwb_path"])
 
         # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
-        if processed_info and not processed_info.get("skipped"):
-            fix_start = time.time()
-            fixed_count = fix_nwb_namespace(processed_info["nwbfile_path"], logger=logger)
-            fix_time = time.time() - fix_start
-            if fixed_count > 0:
-                logger.info(f"Namespace fix completed in {fix_time:.2f}s")
+        fix_start = time.time()
+        fixed_count = fix_nwb_namespace(processed_nwb_path, logger=logger)
+        fix_time = time.time() - fix_start
+        if fixed_count > 0:
+            logger.info(f"Namespace fix completed in {fix_time:.2f}s")
 
         # Run consistency checks if enabled
-        if RUN_CONSISTENCY_CHECKS and processed_info and not processed_info.get("skipped"):
+        if RUN_CONSISTENCY_CHECKS:
             logger.info("\n" + "=" * 80)
             logger.info(f"VALIDATING PROCESSED NWB FILE (EID: {target_eid})")
             logger.info("=" * 80)
             try:
                 check_start = time.time()
-                check_nwbfile_for_consistency(one=one, nwbfile_path=processed_info["nwbfile_path"])
+                check_nwbfile_for_consistency(one=one, nwbfile_path=processed_nwb_path)
                 check_time = time.time() - check_start
-                logger.info(f"✓ PROCESSED NWB validation passed in {check_time:.2f}s")
+                logger.info(f"PROCESSED NWB validation passed in {check_time:.2f}s")
                 logger.info("  All data matches ONE API source")
             except AssertionError as e:
-                logger.error(f"✗ PROCESSED NWB validation FAILED: {e}")
+                logger.error(f"PROCESSED NWB validation FAILED: {e}")
                 logger.error("  Data mismatch detected - check conversion logic")
             except Exception as e:
-                logger.error(f"✗ PROCESSED NWB validation error: {e}")
+                logger.error(f"PROCESSED NWB validation error: {e}")
                 logger.error("  Unexpected error during validation")
 
+    # Compression summary
+    download_info = results.get("download_info", {})
     logger.info("\n" + "=" * 80)
     logger.info(f"COMPRESSION SUMMARY (EID: {target_eid})")
     logger.info("=" * 80)
-    logger.info(
-        f"Source data size: {download_info['total_size_gb']:.2f} GB "
-        f"({download_info['total_size_bytes']:,} bytes)"
-    )
+    if download_info:
+        logger.info(
+            f"Source data size: {download_info.get('total_size_gb', 0):.2f} GB "
+            f"({download_info.get('total_size_bytes', 0):,} bytes)"
+        )
 
-    if raw_info:
-        if raw_info.get("skipped"):
-            logger.info("RAW conversion skipped (existing NWB).")
-        else:
-            ratio = (
-                download_info["total_size_gb"] / raw_info["nwb_size_gb"]
-                if raw_info["nwb_size_gb"] > 0
-                else 0
-            )
-            logger.info(
-                f"RAW NWB size: {raw_info['nwb_size_gb']:.2f} GB ({raw_info['nwb_size_bytes']:,} bytes)"
-            )
-            logger.info(f"RAW compression ratio: {ratio:.2f}x (source/output)")
+    if results.get("raw_converted"):
+        raw_size_gb = results.get("raw_size_gb", 0)
+        raw_size_bytes = results.get("raw_size_bytes", 0)
+        ratio = (
+            download_info.get("total_size_gb", 0) / raw_size_gb
+            if raw_size_gb > 0
+            else 0
+        )
+        logger.info(f"RAW NWB size: {raw_size_gb:.2f} GB ({raw_size_bytes:,} bytes)")
+        logger.info(f"RAW compression ratio: {ratio:.2f}x (source/output)")
+    elif results.get("raw_skipped"):
+        logger.info("RAW conversion skipped (existing NWB).")
 
-    if processed_info:
-        if processed_info.get("skipped"):
-            logger.info("Processed conversion skipped (existing NWB).")
-        else:
-            ratio = (
-                download_info["total_size_gb"] / processed_info["nwb_size_gb"]
-                if processed_info["nwb_size_gb"] > 0
-                else 0
-            )
-            logger.info(
-                "PROCESSED NWB size: "
-                f"{processed_info['nwb_size_gb']:.2f} GB ({processed_info['nwb_size_bytes']:,} bytes)"
-            )
-            logger.info(f"PROCESSED compression ratio: {ratio:.2f}x (source/output)")
+    if results.get("processed_converted"):
+        processed_size_gb = results.get("processed_size_gb", 0)
+        processed_size_bytes = results.get("processed_size_bytes", 0)
+        ratio = (
+            download_info.get("total_size_gb", 0) / processed_size_gb
+            if processed_size_gb > 0
+            else 0
+        )
+        logger.info(f"PROCESSED NWB size: {processed_size_gb:.2f} GB ({processed_size_bytes:,} bytes)")
+        logger.info(f"PROCESSED compression ratio: {ratio:.2f}x (source/output)")
+    elif results.get("processed_skipped"):
+        logger.info("Processed conversion skipped (existing NWB).")
 
-    if raw_info and processed_info and not raw_info.get("skipped") and not processed_info.get("skipped"):
-        total_nwb_size_gb = raw_info['nwb_size_gb'] + processed_info['nwb_size_gb']
-        total_nwb_size_bytes = raw_info['nwb_size_bytes'] + processed_info['nwb_size_bytes']
+    if results.get("raw_converted") and results.get("processed_converted"):
+        total_nwb_size_gb = results["raw_size_gb"] + results["processed_size_gb"]
+        total_nwb_size_bytes = results["raw_size_bytes"] + results["processed_size_bytes"]
         overall_compression = (
-            download_info['total_size_gb'] / total_nwb_size_gb if total_nwb_size_gb > 0 else 0
+            download_info.get("total_size_gb", 0) / total_nwb_size_gb if total_nwb_size_gb > 0 else 0
         )
         logger.info(f"Total NWB output: {total_nwb_size_gb:.2f} GB ({total_nwb_size_bytes:,} bytes)")
         logger.info(f"Overall compression ratio: {overall_compression:.2f}x (source/combined output)")
-
 
     script_total_time = time.time() - script_start_time
     logger.info("\n" + "=" * 80)

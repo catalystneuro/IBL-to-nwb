@@ -25,9 +25,26 @@ log_disk_usage() {
     echo "=== END DISK ==="
 }
 
-# Force shutdown on error to prevent runaway instances
-# Note: Only trap ERR, not EXIT - EXIT would trigger on successful completion too
-trap 'FAIL_TIME=$(date +%s); FAIL_DURATION=$((FAIL_TIME - SCRIPT_START_TIME)); echo "=== RESULT: FAILED | eid=${SESSION_EID:-unknown} | duration_seconds=${FAIL_DURATION} | line=${LINENO} ==="; echo "ERROR: Script failed at line ${LINENO}. Shutting down in 60 seconds..."; sleep 60; shutdown -h now' ERR
+# Dead man's switch: EXIT trap ALWAYS shuts down the instance, no matter how the script exits.
+# SCRIPT_RESULT starts as FAILED and is only set to SUCCESS at the very end.
+# This guarantees no zombie instances from: exit calls, set -e aborts, signals, or forgotten code paths.
+SCRIPT_RESULT="FAILED"
+
+cleanup_and_shutdown() {
+    local end_time=$(date +%s)
+    local duration=$((end_time - SCRIPT_START_TIME))
+
+    if [ "$SCRIPT_RESULT" != "SUCCESS" ]; then
+        echo "=== RESULT: FAILED | eid=${SESSION_EID:-unknown} | duration_seconds=${duration} ==="
+        echo "ERROR: Script exiting without success. Shutting down in 60 seconds..."
+    else
+        echo "Shutting down in 60 seconds..."
+    fi
+    sleep 60
+    shutdown -h now
+}
+
+trap cleanup_and_shutdown EXIT
 
 # Configuration variables (substituted by launch script)
 MOUNT_POINT="/ebs"
@@ -230,228 +247,47 @@ fi
 set -x  # Re-enable command echoing for debugging
 
 
-# Note: Session assignment is read from SessionEID tag via IMDSv2 by convert_and_upload.py
+# Pass all configuration to Python orchestrator via environment variables
+# The IBL_ prefix avoids collisions with system environment variables
 echo "Instance will process single session: ${SESSION_EID} (index ${SESSION_INDEX})"
+export IBL_SESSION_EID="${SESSION_EID}"
+export IBL_SESSION_INDEX="${SESSION_INDEX}"
+export IBL_STUB_TEST="${STUB_TEST}"
+export IBL_INSTANCE_ID="${INSTANCE_ID}"
+export IBL_INSTANCE_TYPE="${INSTANCE_TYPE}"
+export IBL_REGION="${REGION}"
+export IBL_DANDISET_ID="${DANDISET_ID}"
+export IBL_DANDI_INSTANCE="${DANDI_INSTANCE}"
+export IBL_CONVERSION_MODE="${CONVERSION_MODE}"
+export IBL_VERBOSE="${VERBOSE}"
+export IBL_DISPLAY_PROGRESS_BAR="${DISPLAY_PROGRESS_BAR}"
+export IBL_MOUNT_POINT="${MOUNT_POINT}"
 
-# Run conversion (upload happens after in bash)
-log_phase_start "conversion"
-CONVERSION_START=$(date +%s)
-echo "Starting conversion process..."
-cd "${REPO_DIR}/src/ibl_to_nwb/_aws/ec2_worker"
-
-# Virtual environment is already activated, just run python directly
-# Build command with optional flags
-CONVERSION_CMD="python convert_and_upload.py"
-
-# Add --stub-test flag if StubTest tag is "true"
-if [[ "${STUB_TEST}" == "true" ]]; then
-    CONVERSION_CMD="${CONVERSION_CMD} --stub-test"
-    echo "Running in STUB TEST mode (only metadata, no raw data)"
-else
-    echo "Running in PRODUCTION mode (full data conversion)"
-fi
-
-# Add conversion mode flag if specified (--raw-only or --processed-only)
-if [[ -n "${CONVERSION_MODE}" ]]; then
-    CONVERSION_CMD="${CONVERSION_CMD} ${CONVERSION_MODE}"
-    echo "Conversion mode: ${CONVERSION_MODE}"
-else
-    echo "Conversion mode: both (raw + processed)"
-fi
-
-# Add verbose flag if enabled
-if [[ "${VERBOSE}" == "true" ]]; then
-    CONVERSION_CMD="${CONVERSION_CMD} --verbose"
-    echo "Verbose output: enabled"
-fi
-
-# Add display-progress-bar flag if enabled
-if [[ "${DISPLAY_PROGRESS_BAR}" == "true" ]]; then
-    CONVERSION_CMD="${CONVERSION_CMD} --display-progress-bar"
-    echo "Progress bars: enabled"
-fi
-
-echo "Running: ${CONVERSION_CMD}"
-
-# Run conversion with bash-level safety net timeout
+# Run Python orchestrator with bash-level safety net timeout
+# The orchestrator handles: conversion, DANDI folder prep, DANDI upload, result reporting.
 # Python handles per-phase timeouts (SIGALRM), but SIGALRM doesn't interrupt C extensions
-# (HDF5, mtscomp). The bash timeout ensures we never run indefinitely.
-# Phase timeouts: download(1h) + decompress(1.5h) + raw(3h) + processed(0.5h) = 6h
-# Safety net: 7 hours = 25200 seconds (allows phases to timeout naturally, catches hangs)
-CONVERSION_TIMEOUT=25200
+# (HDF5, mtscomp). The bash timeout (SIGKILL) is the last-resort safety net.
+# Total budget: conversion(6h) + upload(3h) + buffer(1h) = 10 hours
+ORCHESTRATOR_TIMEOUT=36000
 
-# Run conversion and capture exit code directly (not via `if !` which masks $?)
-# `set -e` would abort on failure, so temporarily disable it to capture the exit code
+cd "${REPO_DIR}"
+echo "Running: python -m ibl_to_nwb._aws.ec2_worker.orchestrate"
+
 set +e
-timeout --signal=KILL ${CONVERSION_TIMEOUT} ${CONVERSION_CMD}
-CONVERSION_EXIT_CODE=$?
+timeout --signal=KILL ${ORCHESTRATOR_TIMEOUT} python -m ibl_to_nwb._aws.ec2_worker.orchestrate
+ORCHESTRATOR_EXIT_CODE=$?
 set -e
 
-if [ "$CONVERSION_EXIT_CODE" -ne 0 ]; then
-    if [ "$CONVERSION_EXIT_CODE" -eq 137 ]; then
-        # SIGKILL (128 + 9 = 137) from bash timeout
-        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=safety_net | timeout_seconds=${CONVERSION_TIMEOUT} ==="
-        echo "ERROR: Conversion exceeded safety net timeout (${CONVERSION_TIMEOUT}s). Process was killed."
-    elif [ "$CONVERSION_EXIT_CODE" -eq 124 ]; then
-        # Python phase timeout
-        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=python_timeout | timeout_seconds=${CONVERSION_TIMEOUT} ==="
-        echo "ERROR: Conversion phase timed out (see Python logs for details)."
-    else
-        # Conversion failed (Python error, NameError, etc.)
-        echo "=== RESULT: FAILED | eid=${SESSION_EID} | exit_code=${CONVERSION_EXIT_CODE} ==="
-        echo "ERROR: Conversion failed with exit code ${CONVERSION_EXIT_CODE}."
+if [ "$ORCHESTRATOR_EXIT_CODE" -ne 0 ]; then
+    if [ "$ORCHESTRATOR_EXIT_CODE" -eq 137 ]; then
+        # SIGKILL from bash timeout - Python was killed and couldn't print its own marker
+        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=safety_net | timeout_seconds=${ORCHESTRATOR_TIMEOUT} ==="
+        echo "ERROR: Orchestrator exceeded safety net timeout (${ORCHESTRATOR_TIMEOUT}s). Process was killed."
     fi
-    echo "Shutting down in 60 seconds..."
-    sleep 60
-    shutdown -h now
+    # For all other exit codes, the Python orchestrator already printed its own RESULT marker
+    exit 1  # EXIT trap handles shutdown
 fi
 
-log_phase_end "conversion" "${CONVERSION_START}"
-log_disk_usage "after_conversion"
-
-# Download dandiset.yaml - this creates the ${DANDISET_ID}/ folder automatically
-echo "Downloading dandiset.yaml for dandiset ${DANDISET_ID} from ${DANDI_INSTANCE}..."
-cd "${MOUNT_POINT}/nwbfiles"
-if [[ "${DANDI_INSTANCE}" == "dandi" ]]; then
-    DANDI_URL="https://dandiarchive.org/dandiset/${DANDISET_ID}"
-else
-    DANDI_URL="https://sandbox.dandiarchive.org/dandiset/${DANDISET_ID}"
-fi
-dandi download --download dandiset.yaml "${DANDI_URL}"
-
-# Now ${DANDISET_ID}/ folder exists with dandiset.yaml inside it
-DANDISET_FOLDER="${MOUNT_POINT}/nwbfiles/${DANDISET_ID}"
-
-# Move converted NWB files and videos into dandiset folder
-# Only stub or full is run at the same time, no danger of collisions
-echo "Moving NWB files and videos into dandiset folder..."
-for conversion_type in full stub; do
-    CONVERSION_OUTPUT="${MOUNT_POINT}/nwbfiles/${conversion_type}"
-    if [ -d "${CONVERSION_OUTPUT}" ] && [ -n "$(ls -A ${CONVERSION_OUTPUT} 2>/dev/null)" ]; then
-        echo "Moving files from ${conversion_type}/ to dandiset folder..."
-        # Move entire subject directories (includes NWB files and video subdirectories)
-        mv "${CONVERSION_OUTPUT}"/sub-* "${DANDISET_FOLDER}/" 2>/dev/null || true
-    fi
-done
-
-echo "Files moved to dandiset folder"
-
-
-# Upload to DANDI
-log_phase_start "dandi_upload"
-UPLOAD_START=$(date +%s)
-echo "Uploading to DANDI..."
-cd "${DANDISET_FOLDER}"
-
-# File inventory before upload (machine-parseable)
-echo "=== FILE_INVENTORY: START ==="
-NWB_COUNT=$(find "${DANDISET_FOLDER}" -name "*.nwb" -type f | wc -l)
-NWB_TOTAL_BYTES=$(find "${DANDISET_FOLDER}" -name "*.nwb" -type f -exec stat --format="%s" {} + 2>/dev/null | awk '{sum+=$1} END {print sum}')
-NWB_TOTAL_GB=$(echo "scale=2; ${NWB_TOTAL_BYTES:-0} / 1073741824" | bc)
-echo "nwb_file_count=${NWB_COUNT}"
-echo "nwb_total_bytes=${NWB_TOTAL_BYTES:-0}"
-echo "nwb_total_gb=${NWB_TOTAL_GB}"
-echo "=== FILE_INVENTORY: END ==="
-
-# Debug: Show directory structure before upload
-echo "=== Contents of dandiset folder ==="
-ls -lah "${DANDISET_FOLDER}"
-echo ""
-echo "=== Subject directories ==="
-ls -d "${DANDISET_FOLDER}"/sub-*/ 2>/dev/null || echo "No subject directories found"
-echo ""
-echo "=== NWB files with sizes ==="
-find "${DANDISET_FOLDER}" -name "*.nwb" -type f -exec ls -lh {} \;
-echo ""
-
-# Debug: Check if DANDI API keys are still set
-echo "DEBUG: DANDI_API_KEY is set: ${DANDI_API_KEY:+YES}"
-echo "DEBUG: DANDI_SANDBOX_API_KEY is set: ${DANDI_SANDBOX_API_KEY:+YES}"
-echo "DEBUG: Uploading to DANDI instance: ${DANDI_INSTANCE}"
-
-# Track upload timing
-UPLOAD_CMD_START=$(date +%s)
-echo "=== DANDI_UPLOAD: START | $(date -u +%Y-%m-%dT%H:%M:%S%z) ==="
-
-# DANDI upload with 3-hour timeout
-UPLOAD_TIMEOUT=10800  # 3 hours
-if ! timeout ${UPLOAD_TIMEOUT} dandi upload -i "${DANDI_INSTANCE}" .; then
-    DANDI_EXIT_CODE=$?
-    if [ "$DANDI_EXIT_CODE" -eq 124 ]; then
-        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=dandi_upload | timeout_seconds=${UPLOAD_TIMEOUT} ==="
-        echo "ERROR: DANDI upload exceeded ${UPLOAD_TIMEOUT} seconds (3 hours). Shutting down..."
-        sleep 10
-        shutdown -h now
-    fi
-else
-    DANDI_EXIT_CODE=0
-fi
-
-UPLOAD_CMD_END=$(date +%s)
-UPLOAD_DURATION=$((UPLOAD_CMD_END - UPLOAD_CMD_START))
-
-# Calculate upload speed
-if [ -n "${NWB_TOTAL_GB}" ] && [ "${UPLOAD_DURATION}" -gt 0 ]; then
-    UPLOAD_SPEED_MBPS=$(echo "scale=1; ${NWB_TOTAL_GB} * 1024 / ${UPLOAD_DURATION}" | bc)
-else
-    UPLOAD_SPEED_MBPS="unknown"
-fi
-
-echo "=== DANDI_UPLOAD: END | duration_seconds=${UPLOAD_DURATION} | size_gb=${NWB_TOTAL_GB:-unknown} | speed_mbps=${UPLOAD_SPEED_MBPS} ==="
-
-# Always print the DANDI log for debugging (especially useful when validation fails)
-echo ""
-echo "=== DANDI CLI Log ==="
-DANDI_LOG_DIR="/root/.local/state/dandi-cli/log"
-if [ -d "${DANDI_LOG_DIR}" ]; then
-    # Find the most recent log file
-    DANDI_LOG=$(ls -t "${DANDI_LOG_DIR}"/*.log 2>/dev/null | head -1)
-    if [ -n "${DANDI_LOG}" ] && [ -f "${DANDI_LOG}" ]; then
-        echo "Log file: ${DANDI_LOG}"
-        echo "--- Log contents ---"
-        cat "${DANDI_LOG}"
-        echo "--- End of log ---"
-    else
-        echo "No DANDI log files found in ${DANDI_LOG_DIR}"
-    fi
-else
-    echo "DANDI log directory not found: ${DANDI_LOG_DIR}"
-fi
-echo ""
-
-# Check if upload succeeded
-if [ ${DANDI_EXIT_CODE} -ne 0 ]; then
-    echo "=== RESULT: FAILED | eid=${SESSION_EID} | phase=dandi_upload | error=exit_code_${DANDI_EXIT_CODE} ==="
-    exit ${DANDI_EXIT_CODE}
-fi
-
-log_phase_end "dandi_upload" "${UPLOAD_START}"
-
-# Final summary with all timings
-SCRIPT_END_TIME=$(date +%s)
-TOTAL_DURATION=$((SCRIPT_END_TIME - SCRIPT_START_TIME))
-TOTAL_MINUTES=$((TOTAL_DURATION / 60))
-TOTAL_HOURS=$(echo "scale=2; ${TOTAL_DURATION} / 3600" | bc)
-
-echo ""
-echo "=== FINAL_SUMMARY: START ==="
-echo "eid=${SESSION_EID}"
-echo "session_index=${SESSION_INDEX}"
-echo "instance_id=${INSTANCE_ID}"
-echo "stub_test=${STUB_TEST}"
-echo "conversion_mode=${CONVERSION_MODE:-both}"
-echo "dandi_instance=${DANDI_INSTANCE}"
-echo "dandiset_id=${DANDISET_ID}"
-echo "nwb_file_count=${NWB_COUNT}"
-echo "nwb_total_gb=${NWB_TOTAL_GB}"
-echo "total_duration_seconds=${TOTAL_DURATION}"
-echo "total_duration_minutes=${TOTAL_MINUTES}"
-echo "total_duration_hours=${TOTAL_HOURS}"
-echo "=== FINAL_SUMMARY: END ==="
-echo ""
-echo "=== RESULT: SUCCESS | eid=${SESSION_EID} | total_minutes=${TOTAL_MINUTES} ==="
-
-# Cleanup and shutdown
-echo "Upload complete. Shutting down in 60 seconds..."
-sleep 60
-shutdown -h now
+# Only reached if orchestrator exited 0 (success)
+SCRIPT_RESULT="SUCCESS"
+# EXIT trap handles shutdown
