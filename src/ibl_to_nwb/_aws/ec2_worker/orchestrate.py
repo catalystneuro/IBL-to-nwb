@@ -145,13 +145,13 @@ def run_conversion(config: Config) -> dict:
     """
     from ibl_to_nwb.conversion.session import convert_session, disable_tqdm_globally, PHASE_TIMEOUTS
 
-    from one.api import ONE
-
-    # Disable tqdm progress bars unless explicitly requested
+    # Disable tqdm BEFORE importing ONE/spikeglx, so the patch is applied
+    # before spikeglx -> mtscomp -> tqdm import chain caches the original class
     if not config.display_progress_bar:
         disable_tqdm_globally()
 
     from ibl_to_nwb.conversion.one_patches import apply_one_patches
+    from one.api import ONE
 
     base_folder = config.mount_point
     logs_folder = base_folder / "conversion_logs"

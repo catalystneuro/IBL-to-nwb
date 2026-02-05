@@ -28,8 +28,6 @@ from one.api import ONE
 from ibl_to_nwb.conversion.download import download_session_data
 from ibl_to_nwb.conversion.processed import convert_processed_session
 from ibl_to_nwb.conversion.raw import convert_raw_session
-from ibl_to_nwb.utils.ephys_decompression import decompress_ephys_cbins
-from ibl_to_nwb.utils.paths import setup_paths
 
 
 def _setup_session_logger(log_file_path: Path) -> logging.Logger:
@@ -246,6 +244,11 @@ def convert_session(
 
     # Convert RAW (with separate decompress and conversion phases)
     if convert_raw:
+        # Lazy imports to avoid triggering spikeglx -> mtscomp -> tqdm chain
+        # before disable_tqdm_globally() has a chance to patch tqdm
+        from ibl_to_nwb.utils.ephys_decompression import decompress_ephys_cbins
+        from ibl_to_nwb.utils.paths import setup_paths
+
         # Setup paths for decompression
         paths = setup_paths(one, eid, base_path=base_folder)
         scratch_ephys_folder = paths["session_decompressed_ephys_folder"] / "raw_ephys_data"
