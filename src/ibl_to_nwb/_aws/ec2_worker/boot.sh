@@ -280,21 +280,30 @@ echo "Running: ${CONVERSION_CMD}"
 # Safety net: 7 hours = 25200 seconds (allows phases to timeout naturally, catches hangs)
 CONVERSION_TIMEOUT=25200
 
-if ! timeout --signal=KILL ${CONVERSION_TIMEOUT} ${CONVERSION_CMD}; then
-    EXIT_CODE=$?
-    if [ "$EXIT_CODE" -eq 137 ]; then
+# Run conversion and capture exit code directly (not via `if !` which masks $?)
+# `set -e` would abort on failure, so temporarily disable it to capture the exit code
+set +e
+timeout --signal=KILL ${CONVERSION_TIMEOUT} ${CONVERSION_CMD}
+CONVERSION_EXIT_CODE=$?
+set -e
+
+if [ "$CONVERSION_EXIT_CODE" -ne 0 ]; then
+    if [ "$CONVERSION_EXIT_CODE" -eq 137 ]; then
         # SIGKILL (128 + 9 = 137) from bash timeout
         echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=safety_net | timeout_seconds=${CONVERSION_TIMEOUT} ==="
         echo "ERROR: Conversion exceeded safety net timeout (${CONVERSION_TIMEOUT}s). Process was killed."
-        sleep 10
-        shutdown -h now
-    elif [ "$EXIT_CODE" -eq 124 ]; then
+    elif [ "$CONVERSION_EXIT_CODE" -eq 124 ]; then
         # Python phase timeout
-        echo "ERROR: Conversion phase timed out (see Python logs for details). Shutting down..."
-        sleep 10
-        shutdown -h now
+        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=python_timeout | timeout_seconds=${CONVERSION_TIMEOUT} ==="
+        echo "ERROR: Conversion phase timed out (see Python logs for details)."
+    else
+        # Conversion failed (Python error, NameError, etc.)
+        echo "=== RESULT: FAILED | eid=${SESSION_EID} | exit_code=${CONVERSION_EXIT_CODE} ==="
+        echo "ERROR: Conversion failed with exit code ${CONVERSION_EXIT_CODE}."
     fi
-    exit $EXIT_CODE
+    echo "Shutting down in 60 seconds..."
+    sleep 60
+    shutdown -h now
 fi
 
 log_phase_end "conversion" "${CONVERSION_START}"
