@@ -144,7 +144,7 @@ def decompress_ephys_cbins(
     max_workers : int, optional
         Maximum number of parallel decompression threads. Default is None,
         which uses min(4, number of .cbin files) to balance parallelism with
-        I/O bandwidth. Set to 1 to disable multithreading.
+        I/O bandwidth. Set to 1 for sequential execution with cleaner logs.
 
     Notes
     -----
@@ -153,6 +153,8 @@ def decompress_ephys_cbins(
     - Suppresses spikeglx geometry warnings during decompression (these are
       harmless and occur because LF meta files lack spatial geometry fields)
     - Uses multithreading for parallel decompression of multiple files
+    - Progress bars from parallel files will interleave but STARTING/FINISHED
+      markers help identify which file completed
     """
     # Clean up macOS hidden files from source folder before processing
     # This prevents spikeglx.Reader from encountering ._* AppleDouble files
@@ -167,9 +169,10 @@ def decompress_ephys_cbins(
         return  # No files to decompress
 
     # Determine number of workers
-    # Default to min(4, n_files) to avoid overwhelming I/O
+    # Default to min(4, n_files) to balance parallelism with I/O bandwidth
     if max_workers is None:
         max_workers = min(4, len(cbin_files))
+    max_workers = max(1, max_workers)
 
     # Helper to get short name for logging (e.g., "probe00a/...ap.cbin")
     def short_name(path: Path) -> str:
@@ -192,7 +195,13 @@ def decompress_ephys_cbins(
             print(f"    {result}")
     else:
         # Multi-threaded execution
+        # Note: Progress bars from spikeglx/mtscomp will interleave but we print
+        # start/end markers to help identify which file each progress bar belongs to
         completed = 0
+        print(f"  Starting parallel decompression of {len(cbin_files)} files...")
+        for cbin_file in cbin_files:
+            print(f"    STARTING: {short_name(cbin_file)}")
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(
@@ -210,6 +219,6 @@ def decompress_ephys_cbins(
                 completed += 1
                 try:
                     result = future.result()
-                    print(f"  [{completed}/{len(cbin_files)}] {short_name(file_cbin)}: {result}")
+                    print(f"  [{completed}/{len(cbin_files)}] FINISHED: {short_name(file_cbin)}: {result}")
                 except Exception as e:
                     raise RuntimeError(f"Failed to decompress {file_cbin}: {e}") from e

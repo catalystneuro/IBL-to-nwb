@@ -1,19 +1,5 @@
 #!/bin/bash
-# EC2 user-data script for distributed IBL NWB conversion and DANDI upload
-#
-# This script executes once during instance boot and performs:
-#   1. Mounts and formats the EBS volume for scratch/cache storage
-#   2. Installs uv and required system dependencies
-#   3. Clones the IBL-to-nwb repository (includes bwm_session_eids.json)
-#   4. Runs the conversion script (reads SessionEID tag from IMDSv2)
-#   5. Uploads NWB files to DANDI
-#   6. Shuts down the instance when complete
-#
-# PREREQUISITES:
-#   - Instance must be tagged with "SessionEID" and "SessionIndex" (e.g., "abc123...", "42")
-#   - Instance must have IMDSv2 metadata access enabled (for reading tags)
-#   - DANDI_API_KEY, REPO_URL, REPO_BRANCH, DANDISET_ID are substituted at launch time
-
+# EC2 user-data script for IBL NWB conversion. See README for details.
 set -euxo pipefail
 
 # Timing helper functions for machine-parseable logs
@@ -273,11 +259,23 @@ fi
 
 echo "Running: ${CONVERSION_CMD}"
 
-# Run conversion (Python handles per-phase timeouts internally)
-# Exit code 124 indicates a phase timeout
-if ! ${CONVERSION_CMD}; then
+# Run conversion with bash-level safety net timeout
+# Python handles per-phase timeouts (SIGALRM), but SIGALRM doesn't interrupt C extensions
+# (HDF5, mtscomp). The bash timeout ensures we never run indefinitely.
+# Phase timeouts: download(1h) + decompress(1.5h) + raw(3h) + processed(0.5h) = 6h
+# Safety net: 7 hours = 25200 seconds (allows phases to timeout naturally, catches hangs)
+CONVERSION_TIMEOUT=25200
+
+if ! timeout --signal=KILL ${CONVERSION_TIMEOUT} ${CONVERSION_CMD}; then
     EXIT_CODE=$?
-    if [ "$EXIT_CODE" -eq 124 ]; then
+    if [ "$EXIT_CODE" -eq 137 ]; then
+        # SIGKILL (128 + 9 = 137) from bash timeout
+        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=safety_net | timeout_seconds=${CONVERSION_TIMEOUT} ==="
+        echo "ERROR: Conversion exceeded safety net timeout (${CONVERSION_TIMEOUT}s). Process was killed."
+        sleep 10
+        shutdown -h now
+    elif [ "$EXIT_CODE" -eq 124 ]; then
+        # Python phase timeout
         echo "ERROR: Conversion phase timed out (see Python logs for details). Shutting down..."
         sleep 10
         shutdown -h now

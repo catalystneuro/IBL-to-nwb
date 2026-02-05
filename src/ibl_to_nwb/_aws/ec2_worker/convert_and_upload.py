@@ -23,6 +23,11 @@ Example usage (on EC2):
 
 from __future__ import annotations
 
+import os
+
+# Disable tqdm progress bars for cleaner EC2 logs
+os.environ["TQDM_DISABLE"] = "1"
+
 import argparse
 import json
 import logging
