@@ -67,6 +67,8 @@ if __name__ == "__main__":
     REDECOMPRESS_EPHYS = False     # Force regeneration of decompressed SpikeGLX binaries
     OVERWRITE = True              # Regenerate NWBs even if existing files validate
     RUN_CONSISTENCY_CHECKS = False  # Validate NWB files against ONE data (slow but thorough)
+    VERBOSE = False                 # Enable verbose output from neuroconv interfaces
+    DISPLAY_PROGRESS_BAR = True     # Show progress bars (local runs)
 
     if platform.system() == "Darwin":  # macOS
         base_folder = Path("/Volumes/Expansion")
@@ -145,6 +147,8 @@ if __name__ == "__main__":
                 logger=logger,
                 overwrite=OVERWRITE,
                 redecompress_ephys=REDECOMPRESS_EPHYS,
+                verbose=VERBOSE,
+                display_progress_bar=DISPLAY_PROGRESS_BAR,
             )
 
             # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
@@ -178,6 +182,8 @@ if __name__ == "__main__":
                 base_path=base_path,
                 logger=logger,
                 overwrite=OVERWRITE,
+                verbose=VERBOSE,
+                display_progress_bar=DISPLAY_PROGRESS_BAR,
             )
 
             # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)

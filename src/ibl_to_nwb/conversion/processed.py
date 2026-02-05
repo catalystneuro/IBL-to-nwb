@@ -64,6 +64,8 @@ def convert_processed_session(
     base_path: Path | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
+    verbose: bool = False,
+    display_progress_bar: bool = True,
 ) -> dict:
     """Convert IBL processed session to NWB.
 
@@ -83,6 +85,10 @@ def convert_processed_session(
         Logger instance for conversion progress
     overwrite : bool, optional
         If True, overwrite existing NWB files
+    verbose : bool, optional
+        If True, enable verbose output from neuroconv interfaces
+    display_progress_bar : bool, optional
+        If True, display progress bars during data conversion (default: True for local runs)
 
     Returns
     -------

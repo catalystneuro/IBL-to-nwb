@@ -404,6 +404,16 @@ def parse_args() -> argparse.Namespace:
         default=30,
         help="Monitoring refresh interval in seconds (default: 30)",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output from neuroconv interfaces",
+    )
+    parser.add_argument(
+        "--display-progress-bar",
+        action="store_true",
+        help="Display progress bars (default: False for cleaner EC2 logs)",
+    )
 
     return parser.parse_args()
 
@@ -530,6 +540,8 @@ def main() -> None:
     else:
         conversion_mode = ""  # Default: convert both
     user_data = user_data.replace("{{CONVERSION_MODE}}", conversion_mode)
+    user_data = user_data.replace("{{VERBOSE}}", "true" if args.verbose else "false")
+    user_data = user_data.replace("{{DISPLAY_PROGRESS_BAR}}", "true" if args.display_progress_bar else "false")
 
     # Initialize AWS client
     ec2_client = boto3.client("ec2", region_name=config["REGION"])

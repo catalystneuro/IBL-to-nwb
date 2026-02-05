@@ -57,6 +57,8 @@ def convert_raw_session(
     base_path: Path | None = None,
     logger: logging.Logger | None = None,
     overwrite: bool = False,
+    verbose: bool = False,
+    display_progress_bar: bool = True,
 ) -> dict:
     """Convert IBL raw session to NWB.
 
@@ -83,6 +85,10 @@ def convert_raw_session(
         Logger instance for conversion progress
     overwrite : bool, optional
         If True, overwrite existing NWB files
+    verbose : bool, optional
+        If True, enable verbose output from neuroconv interfaces
+    display_progress_bar : bool, optional
+        If True, display progress bars during data conversion (default: True for local runs)
 
     Returns
     -------
@@ -226,7 +232,7 @@ def convert_raw_session(
     if include_ecephys:
         # Clean up macOS hidden files before Neo scans directory
         # This prevents Neo's scan_files() from encountering ._* AppleDouble files
-        if bins_available and paths["session_decompressed_ephys_folder"].exists():
+        if existing_bins and paths["session_decompressed_ephys_folder"].exists():
             import platform
             if platform.system() == "Darwin":
                 for hidden_file in paths["session_decompressed_ephys_folder"].rglob("._*"):
@@ -252,7 +258,7 @@ def convert_raw_session(
                 folder_path=str(paths["spikeglx_source_folder"]),
                 one=one,
                 eid=eid,
-                verbose=False,
+                verbose=verbose,
             )
             data_interfaces.append(nidq_interface)
             if logger:
@@ -281,7 +287,7 @@ def convert_raw_session(
     # Raw video interfaces
     # In stub mode, only include videos if already downloaded (avoid triggering large downloads)
     # In full mode, always include videos (they will be downloaded if needed)
-    metadata_retrieval = BrainwideMapConverter(one=one, session=eid, data_interfaces=[], verbose=False)
+    metadata_retrieval = BrainwideMapConverter(one=one, session=eid, data_interfaces=[], verbose=verbose)
     subject_id_from_metadata = metadata_retrieval.get_metadata()["Subject"]["subject_id"]
     # Sanitize subject ID for DANDI-compliant filenames
     subject_id_for_video_paths = sanitize_subject_id_for_dandi(subject_id_from_metadata)
@@ -414,14 +420,14 @@ def convert_raw_session(
     # ========================================================================
     conversion_options = {}
 
-    # Apply stub_test to SpikeGLX interfaces and enable progress bars
+    # Apply stub_test to SpikeGLX interfaces and configure progress bars
     if include_ecephys and spikeglx_converter is not None:
         spikeglx_options = {}
         for interface_name in spikeglx_converter.data_interface_objects.keys():
             spikeglx_options[interface_name] = {
                 "stub_test": stub_test,
                 "iterator_options": {
-                    "display_progress": True,
+                    "display_progress": display_progress_bar,
                     "progress_bar_options": {"desc": f"Writing {interface_name}"},
                 },
             }

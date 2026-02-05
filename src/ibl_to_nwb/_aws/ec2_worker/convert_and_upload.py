@@ -25,8 +25,16 @@ from __future__ import annotations
 
 import os
 
-# Disable tqdm progress bars for cleaner EC2 logs
+# Disable ALL tqdm progress bars (mtscomp ignores TQDM_DISABLE)
 os.environ["TQDM_DISABLE"] = "1"
+import tqdm.std
+_original_tqdm = tqdm.std.tqdm
+class _DisabledTqdm(_original_tqdm):
+    def __init__(self, *args, **kwargs):
+        kwargs["disable"] = True
+        super().__init__(*args, **kwargs)
+tqdm.std.tqdm = _DisabledTqdm
+tqdm.tqdm = _DisabledTqdm
 
 import argparse
 import json
@@ -143,6 +151,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Convert only processed behavior+ecephys data (skip raw). Saves ~100 GB download per session.",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output from neuroconv interfaces",
+    )
+    parser.add_argument(
+        "--display-progress-bar",
+        action="store_true",
+        help="Display progress bars (default: False for cleaner EC2 logs)",
+    )
     return parser.parse_args()
 
 
@@ -156,6 +174,8 @@ def convert_session(
     stub_test: bool,
     convert_raw: bool,
     convert_processed: bool,
+    verbose: bool = False,
+    display_progress_bar: bool = False,
 ) -> dict:
     """Convert one IBL session to NWB format.
 
@@ -184,6 +204,8 @@ def convert_session(
     logger.info(f"Stub test mode: {stub_test}")
     logger.info(f"Convert RAW: {convert_raw}")
     logger.info(f"Convert PROCESSED: {convert_processed}")
+    logger.info(f"Verbose: {verbose}")
+    logger.info(f"Display progress bar: {display_progress_bar}")
     logger.info("Phase timeouts (seconds): %s", PHASE_TIMEOUTS)
     logger.info("=" * 80)
 
@@ -276,6 +298,8 @@ def convert_session(
                 base_path=base_folder,
                 logger=logger,
                 overwrite=False,
+                verbose=verbose,
+                display_progress_bar=display_progress_bar,
             )
 
         raw_duration = time.time() - raw_start
@@ -306,6 +330,8 @@ def convert_session(
                 base_path=base_folder,
                 logger=logger,
                 overwrite=False,
+                verbose=verbose,
+                display_progress_bar=display_progress_bar,
             )
 
         processed_duration = time.time() - processed_start
@@ -418,6 +444,8 @@ def main() -> None:
             stub_test=args.stub_test,
             convert_raw=CONVERT_RAW,
             convert_processed=CONVERT_PROCESSED,
+            verbose=args.verbose,
+            display_progress_bar=args.display_progress_bar,
         )
         logging.info(f"Session {eid} completed successfully")
         success = True

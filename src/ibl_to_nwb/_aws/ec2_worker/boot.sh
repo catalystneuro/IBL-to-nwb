@@ -36,6 +36,8 @@ REPO_BRANCH="{{REPO_BRANCH}}"
 DANDISET_ID="{{DANDISET_ID}}"
 DANDI_INSTANCE="{{DANDI_INSTANCE}}"
 CONVERSION_MODE="{{CONVERSION_MODE}}"  # Empty string, "--raw-only", or "--processed-only"
+VERBOSE="{{VERBOSE}}"
+DISPLAY_PROGRESS_BAR="{{DISPLAY_PROGRESS_BAR}}"
 
 # Fetch instance metadata (IMDSv2 - requires token)
 IMDS_TOKEN="$(curl -X PUT -fsS "http://169.254.169.254/latest/api/token" \
@@ -255,6 +257,18 @@ if [[ -n "${CONVERSION_MODE}" ]]; then
     echo "Conversion mode: ${CONVERSION_MODE}"
 else
     echo "Conversion mode: both (raw + processed)"
+fi
+
+# Add verbose flag if enabled
+if [[ "${VERBOSE}" == "true" ]]; then
+    CONVERSION_CMD="${CONVERSION_CMD} --verbose"
+    echo "Verbose output: enabled"
+fi
+
+# Add display-progress-bar flag if enabled
+if [[ "${DISPLAY_PROGRESS_BAR}" == "true" ]]; then
+    CONVERSION_CMD="${CONVERSION_CMD} --display-progress-bar"
+    echo "Progress bars: enabled"
 fi
 
 echo "Running: ${CONVERSION_CMD}"
