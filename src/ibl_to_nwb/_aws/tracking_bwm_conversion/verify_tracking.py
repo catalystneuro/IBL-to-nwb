@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""Verify DANDI upload status and update tracking.json in place.
+"""Verify DANDI upload status for BWM sessions.
 
 This script:
-  1. Creates tracking.json from bwm_df.pqt if it doesn't exist
-  2. Queries DANDI API to get list of uploaded files
-  3. Updates tracking.json in place with verification status
-  4. Provides query modes for different use cases
+  1. Builds a blank tracking dict from bwm_df.pqt (expected sessions + DANDI paths)
+  2. Queries the DANDI API for currently uploaded NWB files
+  3. Fills in verification status and saves tracking.json
+  4. Outputs results based on the requested mode
+
+Every invocation queries DANDI for the current state.
 
 Terminology:
   "Incomplete" = a session where at least one file (raw or processed) is missing from DANDI
 
 Usage:
-    # Verify and update tracking.json (creates it if needed)
+    # Full verification with summary (default)
     python verify_tracking.py
 
-    # Show summary only (no DANDI query, reads tracking.json)
+    # Summary output only
     python verify_tracking.py --summary
 
     # Get incomplete session ranges for re-launch (e.g., "3-4 28-30")
@@ -30,6 +32,7 @@ import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 import pandas as pd
 from dandi.dandiapi import DandiAPIClient
@@ -37,37 +40,77 @@ from dandi.dandiapi import DandiAPIClient
 from ibl_to_nwb.utils.subject_handling import sanitize_subject_id_for_dandi
 
 # =============================================================================
-# CONFIGURATION - Edit these values to change the target dandiset
-# =============================================================================
-DANDISET_ID = "000409"
-DANDI_INSTANCE = "dandi"  # "dandi" for production, "dandi-sandbox" for testing
+# CONFIGURATION
 # =============================================================================
 
 
-def init_tracking(output_dir: Path) -> dict:
-    """Initialize tracking.json from bwm_df.pqt fixture.
+class DandiTarget(NamedTuple):
+    dandiset_id: str
+    api_url: str
 
-    Called automatically if tracking.json doesn't exist.
 
-    Returns
-    -------
-    dict
-        The created tracking data.
+DANDI_PRODUCTION = DandiTarget("000409", "https://api.dandiarchive.org/api")
+DANDI_SANDBOX = DandiTarget("000409", "https://api-staging.dandiarchive.org/api")
+
+TARGET = DANDI_PRODUCTION
+
+SCRIPT_DIR = Path(__file__).parent
+TRACKING_PATH = SCRIPT_DIR / "tracking.json"
+BWM_FIXTURE_PATH = SCRIPT_DIR.parent.parent / "fixtures" / "bwm_df.pqt"
+
+# =============================================================================
+
+
+def build_tracking_dict() -> dict:
+    """Build a blank tracking dictionary from the bwm_df.pqt fixture.
+
+    Reads the parquet fixture, deduplicates by EID, and produces a tracking dict
+    with the expected DANDI file paths for each session. All verification fields
+    are initialized to False.
+
+    The returned dict has the following structure::
+
+        {
+            "metadata": {
+                "created": <ISO timestamp>,
+                "last_verified": None,
+                "dandiset_id": <str>,
+                "source_fixture": <str>,
+            },
+            "summary": {
+                "total_sessions": <int>,
+                "complete": 0,
+                "incomplete": <int>,
+                "raw_verified": 0,
+                "processed_verified": 0,
+            },
+            "sessions": [
+                {
+                    "index": <int>,
+                    "eid": <str>,
+                    "subject": <str>,
+                    "subject_sanitized": <str>,
+                    "raw_path": <str>,
+                    "raw_verified": False,
+                    "processed_path": <str>,
+                    "processed_verified": False,
+                },
+                ...
+            ],
+        }
+
+    Also writes bwm_session_eids.json alongside the script for use by the launch script.
     """
-    bwm_df_path = output_dir.parent.parent / "fixtures" / "bwm_df.pqt"
+    if not BWM_FIXTURE_PATH.exists():
+        raise FileNotFoundError(f"BWM fixture not found: {BWM_FIXTURE_PATH}")
 
-    if not bwm_df_path.exists():
-        raise FileNotFoundError(f"BWM fixture not found: {bwm_df_path}")
-
-    print(f"Initializing tracking from: {bwm_df_path}")
-    df = pd.read_parquet(bwm_df_path)
+    print(f"Building tracking from: {BWM_FIXTURE_PATH}")
+    df = pd.read_parquet(BWM_FIXTURE_PATH)
     print(f"  Total rows: {len(df)}, Unique EIDs: {df['eid'].nunique()}")
 
-    # Deduplicate by EID
     df_dedup = df.drop_duplicates(subset=["eid"], keep="first")
     eid_to_subject = df_dedup.set_index("eid")["subject"].to_dict()
 
-    # Generate session entries
     sessions = []
     unique_eids = []
 
@@ -90,14 +133,12 @@ def init_tracking(output_dir: Path) -> dict:
         })
         unique_eids.append(eid)
 
-    # Create tracking data
-    tracking_data = {
+    dandi_upload_state = {
         "metadata": {
             "created": datetime.now(timezone.utc).isoformat(),
             "last_verified": None,
-            "dandiset_id": DANDISET_ID,
-            "dandi_instance": DANDI_INSTANCE,
-            "source_fixture": bwm_df_path.name,
+            "dandiset_id": TARGET.dandiset_id,
+            "source_fixture": BWM_FIXTURE_PATH.name,
         },
         "summary": {
             "total_sessions": len(sessions),
@@ -109,55 +150,23 @@ def init_tracking(output_dir: Path) -> dict:
         "sessions": sessions,
     }
 
-    # Write tracking.json
-    output_dir.mkdir(parents=True, exist_ok=True)
-    tracking_path = output_dir / "tracking.json"
-    with open(tracking_path, "w") as f:
-        json.dump(tracking_data, f, indent=2)
-
     # Write bwm_session_eids.json (for launch script)
-    eids_path = output_dir / "bwm_session_eids.json"
+    SCRIPT_DIR.mkdir(parents=True, exist_ok=True)
+    eids_path = SCRIPT_DIR / "bwm_session_eids.json"
     with open(eids_path, "w") as f:
         json.dump({"total": len(unique_eids), "eids": unique_eids}, f, indent=2)
 
-    print(f"  Created tracking.json with {len(sessions)} sessions")
-    return tracking_data
+    print(f"  Built tracking for {len(sessions)} sessions")
+    return dandi_upload_state
 
 
-def query_dandi_files() -> list[str]:
-    """Query DANDI API for list of uploaded NWB files."""
-    print(f"Querying DANDI {DANDI_INSTANCE} for dandiset {DANDISET_ID}...")
+def fill_upload_status(dandi_upload_state: dict, dandi_files: list[str]) -> dict:
+    """Fill in the verification status of each session by comparing against DANDI.
 
-    if DANDI_INSTANCE == "dandi-sandbox":
-        api_url = "https://api-staging.dandiarchive.org/api"
-    else:
-        api_url = "https://api.dandiarchive.org/api"
-
-    client = DandiAPIClient(api_url=api_url)
-    dandiset = client.get_dandiset(DANDISET_ID, "draft")
-
-    file_paths = [asset.path for asset in dandiset.get_assets() if asset.path.endswith(".nwb")]
-    print(f"Found {len(file_paths)} NWB files on DANDI")
-    return file_paths
-
-
-def load_tracking(tracking_path: Path) -> dict:
-    """Load tracking.json, always re-creating it from bwm_df.pqt."""
-    return init_tracking(tracking_path.parent)
-
-
-def save_tracking(tracking_path: Path, tracking_data: dict) -> None:
-    """Save tracking.json."""
-    with open(tracking_path, "w") as f:
-        json.dump(tracking_data, f, indent=2)
-
-
-def verify_and_update(tracking_path: Path, dandi_files: list[str]) -> dict:
-    """Verify uploads and update tracking.json in place."""
-    tracking_data = load_tracking(tracking_path)
-    sessions = tracking_data["sessions"]
-
-    # Verify each session
+    Mutates and returns the tracking dict with updated ``raw_verified``,
+    ``processed_verified``, and summary counts.
+    """
+    sessions = dandi_upload_state["sessions"]
     dandi_files_set = set(dandi_files)
     raw_verified_count = 0
     processed_verified_count = 0
@@ -177,33 +186,28 @@ def verify_and_update(tracking_path: Path, dandi_files: list[str]) -> dict:
         if raw_exists and processed_exists:
             complete_count += 1
 
-    # Update summary and metadata
     total = len(sessions)
-    tracking_data["summary"] = {
+    dandi_upload_state["summary"] = {
         "total_sessions": total,
         "complete": complete_count,
         "incomplete": total - complete_count,
         "raw_verified": raw_verified_count,
         "processed_verified": processed_verified_count,
     }
-    tracking_data["metadata"]["last_verified"] = datetime.now(timezone.utc).isoformat()
-    tracking_data["metadata"]["dandiset_id"] = DANDISET_ID
-    tracking_data["metadata"]["dandi_instance"] = DANDI_INSTANCE
+    dandi_upload_state["metadata"]["last_verified"] = datetime.now(timezone.utc).isoformat()
 
-    save_tracking(tracking_path, tracking_data)
-    print(f"Updated tracking.json")
-    return tracking_data
+    return dandi_upload_state
 
 
-def print_summary(tracking_data: dict) -> None:
+def print_summary(dandi_upload_state: dict) -> None:
     """Print verification summary."""
-    summary = tracking_data["summary"]
-    metadata = tracking_data["metadata"]
+    summary = dandi_upload_state["summary"]
+    metadata = dandi_upload_state["metadata"]
 
     print("\n" + "=" * 70)
     print("VERIFICATION SUMMARY")
     print("=" * 70)
-    print(f"Dandiset: {metadata.get('dandiset_id', 'N/A')} ({metadata.get('dandi_instance', 'N/A')})")
+    print(f"Dandiset: {metadata.get('dandiset_id', 'N/A')}")
     print(f"Last verified: {metadata.get('last_verified', 'Never')}")
     print("-" * 70)
     print(f"Total sessions:    {summary['total_sessions']}")
@@ -215,7 +219,7 @@ def print_summary(tracking_data: dict) -> None:
     print("=" * 70)
 
 
-def get_incomplete_ranges(tracking_data: dict) -> list[str]:
+def get_incomplete_ranges(dandi_upload_state: dict) -> list[str]:
     """Get incomplete session indices as ranges for launch script.
 
     "Incomplete" means at least one file (raw or processed) is missing from DANDI.
@@ -224,14 +228,13 @@ def get_incomplete_ranges(tracking_data: dict) -> list[str]:
     Consecutive indices are grouped into single ranges.
     """
     incomplete_indices = [
-        s["index"] for s in tracking_data["sessions"]
+        s["index"] for s in dandi_upload_state["sessions"]
         if not (s["raw_verified"] and s["processed_verified"])
     ]
 
     if not incomplete_indices:
         return []
 
-    # Group consecutive indices into ranges
     ranges = []
     start = incomplete_indices[0]
     end = start + 1
@@ -248,13 +251,13 @@ def get_incomplete_ranges(tracking_data: dict) -> list[str]:
     return ranges
 
 
-def get_incomplete_eids(tracking_data: dict) -> list[str]:
+def get_incomplete_eids(dandi_upload_state: dict) -> list[str]:
     """Get EIDs of incomplete sessions.
 
     "Incomplete" means at least one file (raw or processed) is missing from DANDI.
     """
     return [
-        s["eid"] for s in tracking_data["sessions"]
+        s["eid"] for s in dandi_upload_state["sessions"]
         if not (s["raw_verified"] and s["processed_verified"])
     ]
 
@@ -283,27 +286,36 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Paths
-    script_dir = Path(__file__).parent
-    tracking_path = script_dir / "tracking.json"
+    # Build blank tracking from fixture
+    dandi_upload_state = build_tracking_dict()
 
-    # Always regenerate from fixture and verify against DANDI
-    dandi_files = query_dandi_files()
-    tracking_data = verify_and_update(tracking_path, dandi_files)
+    # Query DANDI and fill verification status
+    print(f"Querying DANDI for dandiset {TARGET.dandiset_id}...")
+    client = DandiAPIClient(api_url=TARGET.api_url)
+    dandiset = client.get_dandiset(TARGET.dandiset_id, "draft")
+    dandi_files = [asset.path for asset in dandiset.get_assets() if asset.path.endswith(".nwb")]
+    print(f"Found {len(dandi_files)} NWB files on DANDI")
+
+    dandi_upload_state = fill_upload_status(dandi_upload_state, dandi_files)
+
+    # Save tracking.json
+    with open(TRACKING_PATH, "w") as f:
+        json.dump(dandi_upload_state, f, indent=2)
+    print(f"Updated {TRACKING_PATH.name}")
 
     # Output based on requested mode
     if args.summary:
-        print_summary(tracking_data)
+        print_summary(dandi_upload_state)
     elif args.incomplete_ranges:
-        ranges = get_incomplete_ranges(tracking_data)
+        ranges = get_incomplete_ranges(dandi_upload_state)
         if ranges:
             print(" ".join(ranges))
     elif args.incomplete_eids:
-        for eid in get_incomplete_eids(tracking_data):
+        for eid in get_incomplete_eids(dandi_upload_state):
             print(eid)
     else:
-        print_summary(tracking_data)
-        if tracking_data["summary"]["incomplete"] > 0:
+        print_summary(dandi_upload_state)
+        if dandi_upload_state["summary"]["incomplete"] > 0:
             print(f"\nTo re-launch incomplete sessions:")
             print(f"  python verify_tracking.py --incomplete-ranges")
             print(f"  python ../launch_ec2_instances.py --profile ibl --range <RANGE>")
