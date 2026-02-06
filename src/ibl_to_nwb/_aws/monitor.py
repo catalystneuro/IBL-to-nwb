@@ -208,6 +208,8 @@ def clear_screen():
 # Track last few lines saved per instance (for overlap detection with ring buffer)
 _ANCHOR_LINE_COUNT = 10
 _instance_anchor_lines: dict[str, list[str]] = {}
+# Track timestamp assigned to each instance's log file (set once on first poll)
+_instance_log_timestamps: dict[str, str] = {}
 
 
 def save_console_logs(instances: list, logs_dir: Path) -> None:
@@ -238,8 +240,11 @@ def save_console_logs(instances: list, logs_dir: Path) -> None:
         if not console or console == "[No console output available yet]":
             continue
 
-        # Single file per instance (no timestamp - append mode)
-        filename = f"ec2_console_{session_eid}_{session_index}_{instance_id}.log"
+        # Filename starts with datetime for easy sorting (timestamp set once per instance)
+        if instance_id not in _instance_log_timestamps:
+            _instance_log_timestamps[instance_id] = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = _instance_log_timestamps[instance_id]
+        filename = f"{ts}_ec2_console_{session_eid}_{session_index}_{instance_id}.log"
         log_file = logs_dir / filename
 
         # Split into lines

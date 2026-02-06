@@ -151,13 +151,16 @@ def run_conversion(config: Config) -> dict:
     Exception
         If conversion fails for any other reason.
     """
-    from ibl_to_nwb.conversion.session import convert_session, disable_tqdm_globally
-
-    # Disable tqdm BEFORE importing ONE/spikeglx, so the patch is applied
-    # before spikeglx -> mtscomp -> tqdm import chain caches the original class
+    # Disable tqdm BEFORE importing conversion.session, because that import
+    # triggers conversion/__init__.py -> raw.py -> spikeglx -> mtscomp -> tqdm
+    # and ONE -> tqdm. Any module that does `from tqdm import tqdm` will cache
+    # a reference to whatever class is on tqdm.tqdm at import time.
+    # tqdm_utils has no heavy imports, so it's safe to import first.
     if not config.display_progress_bar:
+        from ibl_to_nwb.tqdm_utils import disable_tqdm_globally
         disable_tqdm_globally()
 
+    from ibl_to_nwb.conversion.session import convert_session
     from ibl_to_nwb.conversion.one_patches import apply_one_patches
     from one.api import ONE
 

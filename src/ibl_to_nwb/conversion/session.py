@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import os
 import signal
 import sys
 import time
@@ -62,34 +61,8 @@ def _setup_session_logger(log_file_path: Path) -> logging.Logger:
     return logger
 
 
-def disable_tqdm_globally() -> None:
-    """Disable all tqdm progress bars by monkey-patching tqdm.std.tqdm.
-
-    The env var TQDM_DISABLE=1 works for well-behaved consumers, but mtscomp
-    creates tqdm instances directly and ignores it. This patches the tqdm class
-    itself so that *all* progress bars are force-disabled.
-
-    Safe to call multiple times (idempotent).
-    """
-    os.environ["TQDM_DISABLE"] = "1"
-
-    import tqdm.std
-
-    # Guard against double-patching
-    if getattr(tqdm.std.tqdm, "_ibl_disabled", False):
-        return
-
-    _original_tqdm = tqdm.std.tqdm
-
-    class _DisabledTqdm(_original_tqdm):
-        _ibl_disabled = True
-
-        def __init__(self, *args, **kwargs):
-            kwargs["disable"] = True
-            super().__init__(*args, **kwargs)
-
-    tqdm.std.tqdm = _DisabledTqdm
-    tqdm.tqdm = _DisabledTqdm
+# Re-export for backwards compatibility (callers may import from here)
+from ibl_to_nwb.tqdm_utils import disable_tqdm_globally
 
 
 
@@ -182,7 +155,7 @@ def convert_session(
         If any phase exceeds its timeout limit (only when phase_timeouts is set).
     """
 
-    log_file = logs_folder / f"conversion_log_{eid}_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    log_file = logs_folder / f"{time.strftime('%Y%m%d_%H%M%S')}_conversion_log_{eid}.log"
     logger = _setup_session_logger(log_file)
 
     logger.info("=" * 80)
