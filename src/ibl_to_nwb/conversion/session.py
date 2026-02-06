@@ -96,7 +96,7 @@ def disable_tqdm_globally() -> None:
 PHASE_TIMEOUTS = {
     "download": 3600,              # 1 hour
     "decompress": 5400,            # 1.5 hours
-    "raw_conversion": 10800,       # 3 hours
+    "raw_conversion": 21600,       # 6 hours
     "processed_conversion": 1800,  # 30 min
 }
 
