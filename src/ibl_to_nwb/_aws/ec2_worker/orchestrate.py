@@ -33,6 +33,14 @@ from pathlib import Path
 # Configuration
 # ---------------------------------------------------------------------------
 
+# Phase timeouts in seconds (SIGALRM per phase during conversion)
+PHASE_TIMEOUTS = {
+    "download": 3600,              # 1 hour
+    "decompress": 5400,            # 1.5 hours
+    "raw_conversion": 21600,       # 6 hours
+    "processed_conversion": 1800,  # 30 min
+}
+
 
 @dataclass
 class Config:
@@ -143,7 +151,7 @@ def run_conversion(config: Config) -> dict:
     Exception
         If conversion fails for any other reason.
     """
-    from ibl_to_nwb.conversion.session import convert_session, disable_tqdm_globally, PHASE_TIMEOUTS
+    from ibl_to_nwb.conversion.session import convert_session, disable_tqdm_globally
 
     # Disable tqdm BEFORE importing ONE/spikeglx, so the patch is applied
     # before spikeglx -> mtscomp -> tqdm import chain caches the original class

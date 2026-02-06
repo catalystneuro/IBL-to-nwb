@@ -92,14 +92,6 @@ def disable_tqdm_globally() -> None:
     tqdm.tqdm = _DisabledTqdm
 
 
-# Phase timeouts in seconds (used by AWS pipeline)
-PHASE_TIMEOUTS = {
-    "download": 3600,              # 1 hour
-    "decompress": 5400,            # 1.5 hours
-    "raw_conversion": 21600,       # 6 hours
-    "processed_conversion": 1800,  # 30 min
-}
-
 
 class PhaseTimeout:
     """Context manager for phase timeouts with SIGALRM.
