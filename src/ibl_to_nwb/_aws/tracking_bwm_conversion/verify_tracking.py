@@ -142,12 +142,8 @@ def query_dandi_files() -> list[str]:
 
 
 def load_tracking(tracking_path: Path) -> dict:
-    """Load tracking.json, creating it if it doesn't exist."""
-    if not tracking_path.exists():
-        return init_tracking(tracking_path.parent)
-
-    with open(tracking_path, "r") as f:
-        return json.load(f)
+    """Load tracking.json, always re-creating it from bwm_df.pqt."""
+    return init_tracking(tracking_path.parent)
 
 
 def save_tracking(tracking_path: Path, tracking_data: dict) -> None:
@@ -270,7 +266,7 @@ def main() -> None:
     mode_group.add_argument(
         "--summary",
         action="store_true",
-        help="Print verification summary from tracking.json (no DANDI query). Shows total/complete/incomplete counts.",
+        help="Print verification summary. Shows total/complete/incomplete counts.",
     )
     mode_group.add_argument(
         "--incomplete-ranges",
@@ -291,32 +287,26 @@ def main() -> None:
     script_dir = Path(__file__).parent
     tracking_path = script_dir / "tracking.json"
 
-    # Query-only modes (no DANDI query needed, read from tracking.json)
-    if args.summary:
-        print_summary(load_tracking(tracking_path))
-        return
-
-    if args.incomplete_ranges:
-        ranges = get_incomplete_ranges(load_tracking(tracking_path))
-        if ranges:
-            print(" ".join(ranges))
-        return
-
-    if args.incomplete_eids:
-        for eid in get_incomplete_eids(load_tracking(tracking_path)):
-            print(eid)
-        return
-
-    # Full verification - query DANDI and update tracking.json
+    # Always regenerate from fixture and verify against DANDI
     dandi_files = query_dandi_files()
     tracking_data = verify_and_update(tracking_path, dandi_files)
 
-    print_summary(tracking_data)
-
-    if tracking_data["summary"]["incomplete"] > 0:
-        print(f"\nTo re-launch incomplete sessions:")
-        print(f"  python verify_tracking.py --incomplete-ranges")
-        print(f"  python ../launch_ec2_instances.py --profile ibl --range <RANGE>")
+    # Output based on requested mode
+    if args.summary:
+        print_summary(tracking_data)
+    elif args.incomplete_ranges:
+        ranges = get_incomplete_ranges(tracking_data)
+        if ranges:
+            print(" ".join(ranges))
+    elif args.incomplete_eids:
+        for eid in get_incomplete_eids(tracking_data):
+            print(eid)
+    else:
+        print_summary(tracking_data)
+        if tracking_data["summary"]["incomplete"] > 0:
+            print(f"\nTo re-launch incomplete sessions:")
+            print(f"  python verify_tracking.py --incomplete-ranges")
+            print(f"  python ../launch_ec2_instances.py --profile ibl --range <RANGE>")
 
 
 if __name__ == "__main__":
