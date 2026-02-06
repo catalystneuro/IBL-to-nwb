@@ -205,15 +205,21 @@ def clear_screen():
     print("\033[2J\033[H", end="")
 
 
-# Track lines already saved per instance (for incremental logging)
-_instance_line_counts: dict[str, int] = {}
+# Track last few lines saved per instance (for overlap detection with ring buffer)
+_ANCHOR_LINE_COUNT = 10
+_instance_anchor_lines: dict[str, list[str]] = {}
 
 
 def save_console_logs(instances: list, logs_dir: Path) -> None:
     """Save console output incrementally for each instance.
 
-    Uses line-count tracking to append only new content, avoiding duplicates.
-    Creates a single log file per instance (no timestamp in filename).
+    The EC2 console output API returns a ~64KB ring buffer. When output exceeds
+    this, old content is evicted. This function handles the ring buffer by
+    tracking the last few lines written ("anchor lines") and finding where they
+    appear in the new buffer to determine what's truly new.
+
+    If the anchor lines are not found (complete buffer rollover), all new content
+    is appended with a gap marker.
 
     Args:
         instances: List of instance dicts with 'id', 'session_eid', etc.
@@ -236,34 +242,55 @@ def save_console_logs(instances: list, logs_dir: Path) -> None:
         filename = f"ec2_console_{session_eid}_{session_index}_{instance_id}.log"
         log_file = logs_dir / filename
 
-        # Split into lines and check what's new
+        # Split into lines
         lines = console.splitlines(keepends=True)
-        last_count = _instance_line_counts.get(instance_id, 0)
+        if not lines:
+            continue
 
-        if len(lines) > last_count:
-            # New content available - append only new lines
-            new_lines = lines[last_count:]
+        # Write header on first write
+        if not log_file.exists():
+            with open(log_file, "w") as f:
+                f.write(f"# EC2 Console Output\n")
+                f.write(f"# Instance ID: {instance_id}\n")
+                f.write(f"# Session EID: {session_eid}\n")
+                f.write(f"# Session Index: {session_index}\n")
+                f.write(f"# Instance Name: {inst.get('name', 'N/A')}\n")
+                f.write(f"# Stub Test: {inst.get('stub_test', 'N/A')}\n")
+                f.write(f"# Started: {datetime.now().isoformat()}\n")
+                f.write("#" + "=" * 79 + "\n\n")
 
-            # Write header on first write, append otherwise
-            if not log_file.exists():
-                with open(log_file, "w") as f:
-                    f.write(f"# EC2 Console Output\n")
-                    f.write(f"# Instance ID: {instance_id}\n")
-                    f.write(f"# Session EID: {session_eid}\n")
-                    f.write(f"# Session Index: {session_index}\n")
-                    f.write(f"# Instance Name: {inst.get('name', 'N/A')}\n")
-                    f.write(f"# Stub Test: {inst.get('stub_test', 'N/A')}\n")
-                    f.write(f"# Started: {datetime.now().isoformat()}\n")
-                    f.write("#" + "=" * 79 + "\n\n")
+        anchor = _instance_anchor_lines.get(instance_id)
 
-            # Append new lines
+        if anchor is None:
+            # First poll -- write everything
+            new_lines = lines
+        else:
+            # Find where our anchor lines appear in the new buffer
+            anchor_len = len(anchor)
+            found_at = None
+            for line_index in range(len(lines) - anchor_len + 1):
+                if lines[line_index:line_index + anchor_len] == anchor:
+                    found_at = line_index + anchor_len
+                    break
+
+            if found_at is not None:
+                # Overlap found -- append only what comes after
+                new_lines = lines[found_at:]
+            else:
+                # Complete rollover -- anchor lines were evicted from the buffer.
+                # Append all content with a gap marker.
+                new_lines = [f"\n# --- GAP: buffer rolled over, some output lost ({datetime.now().isoformat()}) ---\n\n"]
+                new_lines.extend(lines)
+
+        if new_lines:
             with open(log_file, "a") as f:
                 f.writelines(new_lines)
-
-            _instance_line_counts[instance_id] = len(lines)
             print(f"  Appended {len(new_lines)} lines to: {filename}")
         else:
             print(f"  No new output for: {filename}")
+
+        # Update anchor to last N lines of current buffer
+        _instance_anchor_lines[instance_id] = lines[-_ANCHOR_LINE_COUNT:]
 
 
 if platform.system() == "Darwin":  # macOS
