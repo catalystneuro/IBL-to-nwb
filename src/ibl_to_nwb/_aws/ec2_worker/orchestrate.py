@@ -38,7 +38,7 @@ PHASE_TIMEOUTS = {
     "download": 3600,              # 1 hour
     "decompress": 5400,            # 1.5 hours
     "raw_conversion": 21600,       # 6 hours
-    "processed_conversion": 7200,  # 2 hours
+    "processed_conversion": 14400, # 4 hours
 }
 
 
