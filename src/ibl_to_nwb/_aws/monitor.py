@@ -210,6 +210,10 @@ _ANCHOR_LINE_COUNT = 10
 _instance_anchor_lines: dict[str, list[str]] = {}
 # Track timestamp assigned to each instance's log file (set once on first poll)
 _instance_log_timestamps: dict[str, str] = {}
+# Track all instances we've ever seen (for final-poll on disappearance)
+_known_instances: dict[str, dict] = {}
+# Instances that already got their final poll
+_final_polled: set[str] = set()
 
 
 def save_console_logs(instances: list, logs_dir: Path) -> None:
@@ -346,6 +350,18 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
             if not instances:
                 empty_poll_count += 1
                 print("No running instances found.")
+
+                # Final poll for any instances that just disappeared
+                if logs_dir:
+                    disappeared = [
+                        inst for iid, inst in _known_instances.items()
+                        if iid not in _final_polled
+                    ]
+                    if disappeared:
+                        print(f"  Final poll for {len(disappeared)} terminated instance(s)...")
+                        save_console_logs(disappeared, logs_dir)
+                        _final_polled.update(inst["id"] for inst in disappeared)
+
                 print()
 
                 if auto_exit and empty_poll_count >= MAX_EMPTY_POLLS:
@@ -416,6 +432,20 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
                 print()
                 print(f"Saving logs to: {logs_dir}")
                 save_console_logs(instances, logs_dir)
+
+                # Final poll: capture logs for instances that disappeared since last poll.
+                # EC2 keeps console output briefly after termination, so we can still
+                # grab the RESULT line that would otherwise be lost.
+                running_ids = {inst["id"] for inst in instances}
+                _known_instances.update({inst["id"]: inst for inst in instances})
+                disappeared = [
+                    inst for iid, inst in _known_instances.items()
+                    if iid not in running_ids and iid not in _final_polled
+                ]
+                if disappeared:
+                    print(f"  Final poll for {len(disappeared)} terminated instance(s)...")
+                    save_console_logs(disappeared, logs_dir)
+                    _final_polled.update(inst["id"] for inst in disappeared)
 
             print("-" * 80)
             print(f"Refreshing every {interval} seconds... (Press Ctrl+C to exit)")
