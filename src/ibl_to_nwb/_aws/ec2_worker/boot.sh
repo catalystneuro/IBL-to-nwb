@@ -36,11 +36,14 @@ cleanup_and_shutdown() {
 
     if [ "$SCRIPT_RESULT" != "SUCCESS" ]; then
         echo "=== RESULT: FAILED | eid=${SESSION_EID:-unknown} | duration_seconds=${duration} ==="
-        echo "ERROR: Script exiting without success. Shutting down in 60 seconds..."
+        echo "ERROR: Script exiting without success. Shutting down in 180 seconds..."
     else
-        echo "Shutting down in 60 seconds..."
+        echo "Shutting down in 180 seconds..."
     fi
-    sleep 60
+    # Sleep long enough for monitor.py to capture console output (polls every 30s).
+    # EC2 Nitro instances lose console output immediately after termination,
+    # so the RESULT line must be captured while the instance is still running.
+    sleep 180
     shutdown -h now
 }
 
