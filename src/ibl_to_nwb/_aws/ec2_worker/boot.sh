@@ -283,9 +283,18 @@ set -e
 
 if [ "$ORCHESTRATOR_EXIT_CODE" -ne 0 ]; then
     if [ "$ORCHESTRATOR_EXIT_CODE" -eq 137 ]; then
-        # SIGKILL from bash timeout - Python was killed and couldn't print its own marker
-        echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=safety_net | timeout_seconds=${ORCHESTRATOR_TIMEOUT} ==="
-        echo "ERROR: Orchestrator exceeded safety net timeout (${ORCHESTRATOR_TIMEOUT}s). Process was killed."
+        # Exit code 137 = SIGKILL. Two possible causes:
+        #   1. OOM killer (kernel ran out of memory)
+        #   2. Safety-net timeout (bash timeout --signal=KILL)
+        # Check dmesg for recent OOM events to distinguish them.
+        if dmesg | tail -20 | grep -q "Out of memory"; then
+            echo "=== RESULT: OOM_KILLED | eid=${SESSION_EID} | duration_seconds=$(($(date +%s) - SCRIPT_START_TIME)) ==="
+            echo "ERROR: Process killed by Linux OOM killer (not enough RAM)."
+            dmesg | grep "Out of memory" | tail -3
+        else
+            echo "=== RESULT: TIMEOUT | eid=${SESSION_EID} | phase=safety_net | timeout_seconds=${ORCHESTRATOR_TIMEOUT} ==="
+            echo "ERROR: Orchestrator exceeded safety net timeout (${ORCHESTRATOR_TIMEOUT}s). Process was killed."
+        fi
     fi
     # For all other exit codes, the Python orchestrator already printed its own RESULT marker
     exit 1  # EXIT trap handles shutdown
