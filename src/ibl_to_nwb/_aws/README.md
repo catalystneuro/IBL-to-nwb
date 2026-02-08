@@ -259,21 +259,36 @@ Each instance executes this workflow:
 - **Total per instance**: ~$0.36/hour
 
 **Full dataset (459 sessions):**
-- Estimated time per session: 2-4 hours (varies by session size)
-- Total cost: 459 sessions × 3 hours × $0.42/hour = **~$580**
+- 1-probe sessions: ~2h (raw-only), ~2h 15m (raw+processed)
+- 2-probe sessions: ~3-3.5h (raw-only), ~3.5-5h (raw+processed)
+- Total cost estimate: 459 sessions x ~2.5h avg x $0.42/hour = **~$480**
 
-**Time breakdown by conversion type:**
-| Step | Time | % of Total |
-|------|------|------------|
-| Raw ephys download | ~5-7 min | ~5% |
-| Raw ephys decompress | ~18 min | ~15% |
-| Raw NWB write | ~30-40 min | ~30% |
-| **Raw subtotal** | **~55-65 min** | **~85%** |
-| Processed data download | ~2-3 min | ~2% |
-| Processed NWB write | ~5-10 min | ~8% |
-| **Processed subtotal** | **~10-15 min** | **~15%** |
+**Time breakdown: 1-probe session:**
 
-*Note: Times shown for 1-probe session. 2-probe sessions take ~2x longer for ephys steps.*
+| Step | Time | Notes |
+|------|------|-------|
+| Download | 6-10 min | 33-65 GB from ONE API |
+| Decompress | 17-25 min | mtscomp, single-threaded |
+| Raw NWB write | 1h 0m - 1h 35m | HDF5 I/O bound |
+| Processed NWB write | 6-14 min | 0.7-1.2 GB |
+| DANDI upload | 13-24 min | ~50-60 MB/s |
+| **Total (raw-only)** | **1h 50m - 2h 35m** | |
+| **Total (raw+processed)** | **2h 0m - 3h 0m** | |
+
+**Time breakdown: 2-probe session:**
+
+| Step | Time | Notes |
+|------|------|-------|
+| Download | 10-20 min | 60-150 GB from ONE API |
+| Decompress | 25-55 min | mtscomp, single-threaded |
+| Raw NWB write | 1h 20m - 3h 15m | HDF5 I/O bound |
+| Processed NWB write | 9-22 min | 0.8-1.8 GB, needs >32 GB RAM |
+| DANDI upload | 19-44 min | ~50-60 MB/s |
+| **Total (raw-only)** | **2h 15m - 5h 15m** | |
+| **Total (raw+processed)** | **2h 30m - 5h 45m** | |
+
+Upload speed is ~50-60 MB/s per instance regardless of concurrency (tested up to
+50 concurrent uploads with no degradation).
 
 **Cost savings vs stopped instances:**
 - Stopped instance: $36/month (50GB root EBS)

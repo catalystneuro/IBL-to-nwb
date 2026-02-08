@@ -219,27 +219,19 @@ def print_summary(dandi_upload_state: dict) -> None:
     print("=" * 70)
 
 
-def get_incomplete_ranges(dandi_upload_state: dict) -> list[str]:
-    """Get incomplete session indices as ranges for launch script.
-
-    "Incomplete" means at least one file (raw or processed) is missing from DANDI.
+def _indices_to_ranges(indices: list[int]) -> list[str]:
+    """Group a sorted list of indices into consecutive ranges.
 
     Returns ranges in Python-style slicing (end exclusive), e.g., ["3-4", "28-30"].
-    Consecutive indices are grouped into single ranges.
     """
-    incomplete_indices = [
-        s["index"] for s in dandi_upload_state["sessions"]
-        if not (s["raw_verified"] and s["processed_verified"])
-    ]
-
-    if not incomplete_indices:
+    if not indices:
         return []
 
     ranges = []
-    start = incomplete_indices[0]
+    start = indices[0]
     end = start + 1
 
-    for index in incomplete_indices[1:]:
+    for index in indices[1:]:
         if index == end:
             end = index + 1
         else:
@@ -251,15 +243,42 @@ def get_incomplete_ranges(dandi_upload_state: dict) -> list[str]:
     return ranges
 
 
-def get_incomplete_eids(dandi_upload_state: dict) -> list[str]:
-    """Get EIDs of incomplete sessions.
+def get_incomplete_ranges(dandi_upload_state: dict) -> dict[str, list[str]]:
+    """Get incomplete session indices as ranges, grouped by modality.
 
-    "Incomplete" means at least one file (raw or processed) is missing from DANDI.
+    Returns a dict with keys ``"raw"``, ``"processed"``, and ``"both"`` (sessions
+    missing both files). Each value is a list of range strings.
     """
-    return [
-        s["eid"] for s in dandi_upload_state["sessions"]
-        if not (s["raw_verified"] and s["processed_verified"])
+    raw_missing = [
+        s["index"] for s in dandi_upload_state["sessions"]
+        if not s["raw_verified"]
     ]
+    processed_missing = [
+        s["index"] for s in dandi_upload_state["sessions"]
+        if not s["processed_verified"]
+    ]
+
+    return {
+        "raw": _indices_to_ranges(raw_missing),
+        "processed": _indices_to_ranges(processed_missing),
+    }
+
+
+def get_incomplete_eids(dandi_upload_state: dict) -> dict[str, list[str]]:
+    """Get EIDs of incomplete sessions, grouped by modality.
+
+    Returns a dict with keys ``"raw"`` and ``"processed"``.
+    """
+    return {
+        "raw": [
+            s["eid"] for s in dandi_upload_state["sessions"]
+            if not s["raw_verified"]
+        ],
+        "processed": [
+            s["eid"] for s in dandi_upload_state["sessions"]
+            if not s["processed_verified"]
+        ],
+    }
 
 
 def main() -> None:
@@ -307,12 +326,17 @@ def main() -> None:
     if args.summary:
         print_summary(dandi_upload_state)
     elif args.incomplete_ranges:
-        ranges = get_incomplete_ranges(dandi_upload_state)
-        if ranges:
-            print(" ".join(ranges))
+        ranges_by_modality = get_incomplete_ranges(dandi_upload_state)
+        for modality, ranges in ranges_by_modality.items():
+            if ranges:
+                print(f"{modality}: {' '.join(ranges)}")
     elif args.incomplete_eids:
-        for eid in get_incomplete_eids(dandi_upload_state):
-            print(eid)
+        eids_by_modality = get_incomplete_eids(dandi_upload_state)
+        for modality, eids in eids_by_modality.items():
+            if eids:
+                print(f"# {modality} ({len(eids)} sessions)")
+                for eid in eids:
+                    print(eid)
     else:
         print_summary(dandi_upload_state)
         if dandi_upload_state["summary"]["incomplete"] > 0:
