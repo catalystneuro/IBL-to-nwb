@@ -56,7 +56,7 @@ def is_monitor_running() -> bool:
         return False
 
 
-def start_background_monitor(interval: int, logs_dir: Path) -> Optional[int]:
+def start_background_monitor(interval: int, logs_dir: Path, profile: str | None = None) -> Optional[int]:
     """Spawn monitor.py as a background process if not already running.
 
     Returns the PID of the spawned process, or None if:
@@ -85,9 +85,12 @@ def start_background_monitor(interval: int, logs_dir: Path) -> Optional[int]:
         "--logs-dir", str(logs_dir),
         "--save-logs",  # Explicitly enable log saving for background monitor
     ]
+    if profile:
+        cmd.extend(["--profile", profile])
 
     try:
-        # Spawn detached process that survives parent exit
+        # Spawn detached process that survives parent exit.
+        # Inherit current environment so AWS_PROFILE is passed through.
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
@@ -552,8 +555,19 @@ def main() -> None:
     user_data = user_data.replace("{{VERBOSE}}", "true" if args.verbose else "false")
     user_data = user_data.replace("{{DISPLAY_PROGRESS_BAR}}", "true" if args.display_progress_bar else "false")
 
-    # Initialize AWS client
-    ec2_client = boto3.client("ec2", region_name=config["REGION"])
+    # Initialize AWS client using the profile's AWS credentials
+    aws_profile = config.get("AWS_PROFILE")
+    session = boto3.Session(profile_name=aws_profile, region_name=config["REGION"])
+    ec2_client = session.client("ec2")
+
+    # Set AWS_PROFILE in environment so child processes (monitor.py) use the same account
+    if aws_profile:
+        os.environ["AWS_PROFILE"] = aws_profile
+
+    # Verify we're on the expected AWS account
+    sts_client = session.client("sts")
+    identity = sts_client.get_caller_identity()
+    logger.info(f"AWS Account: {identity['Account']} ({identity['Arn']})")
 
     # Get AMI
     logger.info("Finding latest Ubuntu 22.04 AMI...")
@@ -638,7 +652,7 @@ def main() -> None:
             logs_dir = Path("/media/heberto/Expansion/conversion_logs/ec2_runs")
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        pid = start_background_monitor(args.monitor_interval, logs_dir)
+        pid = start_background_monitor(args.monitor_interval, logs_dir, profile=args.profile)
         if pid:
             logger.info("\nBackground Monitor Started:")
             logger.info(f"  PID: {pid}")

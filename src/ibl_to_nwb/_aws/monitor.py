@@ -521,8 +521,18 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable auto-exit when no instances are found (keep running indefinitely)",
     )
+    parser.add_argument(
+        "--profile",
+        choices=["catalyst_neuro", "ibl"],
+        help="AWS profile to use (sets AWS_PROFILE env var for aws CLI calls)",
+    )
 
     args = parser.parse_args()
+
+    # Set AWS_PROFILE so aws CLI commands use the correct account
+    if args.profile:
+        profile_env = {"catalyst_neuro": "default", "ibl": "ibl"}
+        os.environ["AWS_PROFILE"] = profile_env[args.profile]
 
     # If --logs is specified, show logs and exit
     if args.logs:

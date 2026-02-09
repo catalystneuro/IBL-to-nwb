@@ -386,8 +386,15 @@ def main():
     # Get resource names for this profile
     names = get_resource_names(profile)
 
-    # Initialize AWS client
-    ec2_client = boto3.client("ec2", region_name=REGION)
+    # Initialize AWS client using the profile's AWS credentials
+    aws_profile = existing_config.get("AWS_PROFILE")
+    session = boto3.Session(profile_name=aws_profile, region_name=REGION)
+    ec2_client = session.client("ec2")
+
+    # Verify we're on the expected AWS account
+    sts_client = session.client("sts")
+    identity = sts_client.get_caller_identity()
+    print(f"AWS Account: {identity['Account']} ({identity['Arn']})")
 
     try:
         # Step 1: Create VPC

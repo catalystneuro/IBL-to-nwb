@@ -87,9 +87,12 @@ echo "Stub test mode: ${STUB_TEST}"
 # Log instance metadata for debugging
 INSTANCE_TYPE="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
     http://169.254.169.254/latest/meta-data/instance-type)" || INSTANCE_TYPE="unknown"
+ACCOUNT_ID="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+    http://169.254.169.254/latest/dynamic/instance-identity/document | grep -o '"accountId" *: *"[^"]*"' | grep -o '[0-9]*')" || ACCOUNT_ID="unknown"
 
 echo ""
 echo "=== INSTANCE_METADATA: START ==="
+echo "account_id=${ACCOUNT_ID}"
 echo "instance_id=${INSTANCE_ID}"
 echo "instance_type=${INSTANCE_TYPE}"
 echo "region=${REGION}"
