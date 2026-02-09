@@ -325,16 +325,17 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
     logs_dir : Path or str, optional
         Directory to save log files. Default is '~/ibl_scratch/conversion_logs'.
     auto_exit : bool, optional
-        If True, exit after 3 consecutive polls with no instances. Default is True.
+        If True, exit after 10 minutes with no instances. Default is True.
     """
     if save_logs:
         logs_dir = Path(logs_dir) if logs_dir else DEFAULT_LOGS_DIR
     else:
         logs_dir = None
 
-    # Track consecutive empty polls for auto-exit
-    empty_poll_count = 0
-    MAX_EMPTY_POLLS = 3
+    # Wait 10 minutes before auto-exiting, to ensure instances in their
+    # pre-shutdown sleep (180s) have time to be captured.
+    AUTO_EXIT_SECONDS = 600
+    first_empty_poll_time = None
 
     try:
         while True:
@@ -348,7 +349,8 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
             instances = get_instances()
 
             if not instances:
-                empty_poll_count += 1
+                if first_empty_poll_time is None:
+                    first_empty_poll_time = time.time()
                 print("No running instances found.")
 
                 # Final poll for any instances that just disappeared
@@ -364,20 +366,21 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
 
                 print()
 
-                if auto_exit and empty_poll_count >= MAX_EMPTY_POLLS:
-                    print(f"No instances for {MAX_EMPTY_POLLS} consecutive polls. Auto-exiting.")
+                elapsed = time.time() - first_empty_poll_time
+                remaining = AUTO_EXIT_SECONDS - elapsed
+                if auto_exit and remaining <= 0:
+                    print(f"No instances for {AUTO_EXIT_SECONDS // 60} minutes. Auto-exiting.")
                     break
 
-                print(f"Empty polls: {empty_poll_count}/{MAX_EMPTY_POLLS} (will auto-exit at {MAX_EMPTY_POLLS})")
-                print("Press Ctrl+C to exit earlier")
+                print(f"Auto-exit in {int(remaining)}s. Press Ctrl+C to exit earlier.")
 
                 if not continuous:
                     break
                 time.sleep(interval)
                 continue
 
-            # Reset empty poll counter when instances are found
-            empty_poll_count = 0
+            # Reset auto-exit timer when instances are found
+            first_empty_poll_time = None
 
             print(f"Found {len(instances)} instances:")
             print()
