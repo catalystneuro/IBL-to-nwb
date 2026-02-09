@@ -387,9 +387,9 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--skip-verified",
+        "--overwrite",
         action="store_true",
-        help="Skip sessions already verified in tracking.json (both raw and processed complete).",
+        help="Re-run all sessions in range, even if already verified in tracking.json.",
     )
 
     # Monitoring options
@@ -489,26 +489,35 @@ def main() -> None:
 
     selected_eids = [(i, all_eids[i]) for i in selected_indices]
 
-    # Filter out verified sessions if --skip-verified is set
-    if args.skip_verified:
+    # Skip already-verified sessions unless --overwrite is set.
+    # Matches conversion mode: --raw-only checks raw_verified,
+    # --processed-only checks processed_verified, both checks both.
+    if not args.overwrite:
         tracking_path = Path(__file__).parent / "tracking_bwm_conversion" / "tracking.json"
         if tracking_path.exists():
             import json
             with open(tracking_path) as f:
                 tracking_data = json.load(f)
 
-            # Build set of verified session indices
+            # Build set of verified session indices based on conversion mode
             verified_indices = set()
             for session in tracking_data.get("sessions", []):
-                if session.get("raw_verified") and session.get("processed_verified"):
-                    verified_indices.add(session["index"])
+                if args.raw_only:
+                    if session.get("raw_verified"):
+                        verified_indices.add(session["index"])
+                elif args.processed_only:
+                    if session.get("processed_verified"):
+                        verified_indices.add(session["index"])
+                else:
+                    if session.get("raw_verified") and session.get("processed_verified"):
+                        verified_indices.add(session["index"])
 
             original_count = len(selected_eids)
             selected_eids = [(i, eid) for i, eid in selected_eids if i not in verified_indices]
             skipped_count = original_count - len(selected_eids)
 
             if skipped_count > 0:
-                logger.info(f"Skipping {skipped_count} already-verified sessions (--skip-verified)")
+                logger.info(f"Skipping {skipped_count} already-verified sessions")
                 logger.info(f"Remaining sessions to launch: {len(selected_eids)}")
         else:
             logger.warning(f"tracking.json not found at {tracking_path}, cannot skip verified sessions")
