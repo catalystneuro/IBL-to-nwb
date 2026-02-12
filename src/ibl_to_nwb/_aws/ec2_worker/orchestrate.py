@@ -218,6 +218,7 @@ def run_conversion(config: Config) -> dict:
         convert_processed=config.convert_processed,
         verbose=config.verbose,
         display_progress_bar=config.display_progress_bar,
+        delete_cbins_after_decompression=True,
         phase_timeouts=PHASE_TIMEOUTS,
     )
 
@@ -457,7 +458,6 @@ def main() -> int:
         return 1
 
     log_phase_end("conversion", conversion_start)
-    log_disk_usage("after_conversion")
 
     # --- Phase 2: Prepare DANDI folder ---
     nwb_folder = config.mount_point / "nwbfiles"

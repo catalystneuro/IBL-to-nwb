@@ -218,6 +218,31 @@ def print_summary(dandi_upload_state: dict) -> None:
     print(f"PROCESSED verified:{summary['processed_verified']}/{summary['total_sessions']}")
     print("=" * 70)
 
+    print_progress_grid(dandi_upload_state)
+
+
+def print_progress_grid(dandi_upload_state: dict, cols: int = 100) -> None:
+    """Print a visual grid showing completion status for each session.
+
+    Each cell is one session. Filled block = verified, light shade = missing.
+    Two grids are shown: one for raw, one for processed.
+    Each row has 100 columns, except the last which holds the remainder.
+    """
+    sessions = dandi_upload_state["sessions"]
+    total = len(sessions)
+    DONE = "\u2588"
+    TODO = "\u2591"
+
+    for label, key in [("RAW", "raw_verified"), ("PROCESSED", "processed_verified")]:
+        verified_count = sum(1 for s in sessions if s[key])
+        print(f"\n{label} ({verified_count}/{total})")
+
+        for row_start in range(0, total, cols):
+            row_end = min(row_start + cols, total)
+            label_str = f"{row_start:>3} "
+            cells = "".join(DONE if sessions[i][key] else TODO for i in range(row_start, row_end))
+            print(f"{label_str}{cells}")
+
 
 def _indices_to_ranges(indices: list[int]) -> list[str]:
     """Group a sorted list of indices into consecutive ranges.
@@ -330,6 +355,7 @@ def main() -> None:
         for modality, ranges in ranges_by_modality.items():
             if ranges:
                 print(f"{modality}: {' '.join(ranges)}")
+        print_progress_grid(dandi_upload_state)
     elif args.incomplete_eids:
         eids_by_modality = get_incomplete_eids(dandi_upload_state)
         for modality, eids in eids_by_modality.items():

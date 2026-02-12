@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -99,6 +100,13 @@ def _phase_ctx(phase_key: str, phase_timeouts: dict | None):
     return contextlib.nullcontext()
 
 
+def _log_disk_usage(label: str, base_folder: Path) -> None:
+    """Log disk usage of the base folder for tracking space consumption per phase."""
+    print(f"=== DISK: {label} ===", flush=True)
+    subprocess.run(["df", "-h", str(base_folder)], check=False)
+    print("=== END DISK ===", flush=True)
+
+
 def convert_session(
     eid: str,
     *,
@@ -109,6 +117,8 @@ def convert_session(
     convert_raw: bool,
     convert_processed: bool,
     overwrite: bool = False,
+    redownload_data: bool = False,
+    delete_cbins_after_decompression: bool = False,
     verbose: bool = False,
     display_progress_bar: bool = False,
     phase_timeouts: dict | None = None,
@@ -187,7 +197,7 @@ def convert_session(
         download_info = download_session_data(
             eid=eid,
             one=one,
-            redownload_data=False,
+            redownload_data=redownload_data,
             stub_test=stub_test,
             download_raw=convert_raw,
             download_processed=convert_processed,
@@ -197,6 +207,7 @@ def convert_session(
 
     download_duration = time.time() - download_start
     logger.info(f"=== PHASE: download | duration_seconds={download_duration:.0f} | size_gb={download_info['total_size_gb']:.2f} ===")
+    _log_disk_usage("after_download", base_folder)
 
     results = {
         "eid": eid,
@@ -244,14 +255,18 @@ def convert_session(
             logger.info(f"=== PHASE: decompress | duration_seconds={decompress_duration:.0f} ===")
             results["decompress_duration_seconds"] = decompress_duration
 
-            # Delete compressed .cbin files after decompression to free disk space
-            cbin_files = list(paths["session_folder"].rglob("*.cbin"))
-            if cbin_files:
-                cbin_size_bytes = sum(f.stat().st_size for f in cbin_files)
-                cbin_size_gb = cbin_size_bytes / (1024**3)
-                for cbin_file in cbin_files:
-                    cbin_file.unlink()
-                logger.info(f"Deleted {len(cbin_files)} .cbin files ({cbin_size_gb:.1f} GB) to free disk space")
+            # Optionally delete compressed .cbin files after decompression to free disk space.
+            # Enabled on AWS (tight disk); disabled locally (avoids re-downloading).
+            if delete_cbins_after_decompression:
+                cbin_files = list(paths["session_folder"].rglob("*.cbin"))
+                if cbin_files:
+                    cbin_size_bytes = sum(f.stat().st_size for f in cbin_files)
+                    cbin_size_gb = cbin_size_bytes / (1024**3)
+                    for cbin_file in cbin_files:
+                        cbin_file.unlink()
+                    logger.info(f"Deleted {len(cbin_files)} .cbin files ({cbin_size_gb:.1f} GB) to free disk space")
+
+            _log_disk_usage("after_decompress", base_folder)
 
         logger.info("\n" + "=" * 80)
         logger.info("CONVERTING RAW EPHYS")
@@ -284,6 +299,7 @@ def convert_session(
             results["raw_converted"] = True
             logger.info(f"RAW file written to: {raw_nwb_path}")
             logger.info(f"=== PHASE: raw_conversion | duration_seconds={raw_duration:.0f} | size_gb={raw_info['nwb_size_gb']:.2f} ===")
+            _log_disk_usage("after_raw_conversion", base_folder)
         elif raw_info and raw_info.get("skipped"):
             results["raw_skipped"] = True
 
@@ -320,6 +336,7 @@ def convert_session(
             results["processed_converted"] = True
             logger.info(f"PROCESSED file written to: {processed_nwb_path}")
             logger.info(f"=== PHASE: processed_conversion | duration_seconds={processed_duration:.0f} | size_gb={processed_info['nwb_size_gb']:.2f} ===")
+            _log_disk_usage("after_processed_conversion", base_folder)
         elif processed_info and processed_info.get("skipped"):
             results["processed_skipped"] = True
 

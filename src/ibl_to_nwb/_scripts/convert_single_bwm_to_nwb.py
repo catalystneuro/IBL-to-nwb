@@ -55,9 +55,10 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = False            # Write raw-ephys NWBs
+    CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = True            # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    REDOWNLOAD_DATA = False         # Clear cached data and re-download from ONE
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
     RUN_CONSISTENCY_CHECKS = True   # Validate NWB files against ONE data (slow but thorough)
     VERBOSE = False                 # Enable verbose output from neuroconv interfaces
@@ -88,6 +89,7 @@ if __name__ == "__main__":
     TARGET_EID = "35ed605c-1a1a-47b1-86ff-2b56144f55af"  # Another full file
     TARGET_EID = "fa1f26a1-eb49-4b24-917e-19f02a18ac61"  # Yet another full file
     # TARGET_EID = "c025071-c4f3-426c-9aed-f149e8f75b7b"  # Crashes the system with out-of-memory error
+    TARGET_EID = "ebe090af-5922-4fcd-8fc6-17b8ba7bad6d"  # Session 378 (NR_0029) - failed on EC2 during decompression
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":
@@ -132,6 +134,7 @@ if __name__ == "__main__":
         convert_raw=CONVERT_RAW,
         convert_processed=CONVERT_PROCESSED,
         overwrite=OVERWRITE,
+        redownload_data=REDOWNLOAD_DATA,
         verbose=VERBOSE,
         display_progress_bar=DISPLAY_PROGRESS_BAR,
     )
