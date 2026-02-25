@@ -18,7 +18,7 @@ from ._base_ibl_interface import BaseIBLDataInterface
 # Keys are NWB column names (dict order = column order in NWB file)
 # Values contain IBL source column name and description
 # Note: Some IBL columns are transformed before mapping:
-#   - choice: -1/0/+1 -> "left"/"no_go"/"right"
+#   - choice: -1/0/+1 -> "left"/"no_response"/"right"
 #   - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
 #   - contrastLeft/contrastRight -> "gabor_stimulus_contrast" + "gabor_stimulus_side"
 #   - probabilityLeft -> also used to derive "block_index" and "block_type"
@@ -72,7 +72,7 @@ TRIALS_COLUMNS = {
     # Response and outcome columns
     "mouse_wheel_choice": {
         "ibl_name": "choice",  # transformed from -1/0/+1 to strings
-        "description": "Mouse's response: 'left' (CCW wheel turn moving stimulus rightward), 'right' (CW wheel turn moving stimulus leftward), or 'no_go' (no response within 60s timeout).",
+        "description": "Mouse's response: 'left' (CCW wheel turn moving stimulus rightward), 'right' (CW wheel turn moving stimulus leftward), or 'no_response' (no response within 60s timeout).",
     },
     "is_mouse_rewarded": {
         "ibl_name": "is_mouse_rewarded",  # transformed from feedbackType: +1 -> True, -1 -> False
@@ -278,7 +278,7 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         Apply tidy data transformations to trials DataFrame.
 
         Transformations:
-        - choice: -1/0/+1 -> "left"/"no_go"/"right"
+        - choice: -1/0/+1 -> "left"/"no_response"/"right"
         - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
         - contrastLeft/contrastRight -> gabor_stimulus_contrast + gabor_stimulus_side
         - probabilityLeft -> block_index (increments on change) + block_type (categorical)
@@ -295,8 +295,8 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         """
         trials = trials.copy()
 
-        # Transform choice: -1 -> "left", 0 -> "no_go", +1 -> "right"
-        choice_map = {-1.0: "left", 0.0: "no_go", 1.0: "right"}
+        # Transform choice: -1 -> "left", 0 -> "no_response", +1 -> "right"
+        choice_map = {-1.0: "left", 0.0: "no_response", 1.0: "right"}
         trials["choice"] = trials["choice"].map(choice_map)
 
         # Transform feedbackType to boolean: +1 -> True (rewarded), -1 -> False (not rewarded)

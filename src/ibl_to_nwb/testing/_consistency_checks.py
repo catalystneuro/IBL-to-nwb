@@ -191,7 +191,7 @@ def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
     to enable consistency checking between ONE source data and NWB output.
 
     Transformations applied:
-    - choice: -1/0/+1 -> "left"/"no_go"/"right"
+    - choice: -1/0/+1 -> "left"/"no_response"/"right"
     - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
     - contrastLeft/contrastRight -> gabor_stimulus_contrast + gabor_stimulus_side
 
@@ -201,8 +201,8 @@ def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
     """
     trials = trials.copy()
 
-    # Transform choice: -1 -> "left", 0 -> "no_go", +1 -> "right"
-    choice_map = {-1.0: "left", 0.0: "no_go", 1.0: "right"}
+    # Transform choice: -1 -> "left", 0 -> "no_response", +1 -> "right"
+    choice_map = {-1.0: "left", 0.0: "no_response", 1.0: "right"}
     trials["choice"] = trials["choice"].map(choice_map)
 
     # Transform feedbackType to boolean: +1 -> True (rewarded), -1 -> False (not rewarded)

@@ -24,23 +24,32 @@ from pynwb import NWBHDF5IO
 # KS091 sessions (cortexlab)
 KS091_SESSION_EID_1 = "78b4fff5-c5ec-44d9-b5f9-d59493063f00"  # 2022-07-04
 KS091_SESSION_EID_2 = "196a2adf-ff83-49b2-823a-33f990049c2e"  # 2022-07-05
+NY_one_probe = "64e3fb86-928c-4079-865c-b364205b502"
 
+def fetch_asset(session_eid: str, file_type: str = "raw"):
+    """Fetch an NWB asset from DANDI for a given session EID.
 
-def fetch_raw_asset(session_eid: str):
-    """Fetch the raw NWB asset from DANDI for a given session EID."""
+    Parameters
+    ----------
+    session_eid : str
+        The session EID to search for.
+    file_type : str
+        Either "raw" or "processed".
+    """
     dandiset_id = "000409"
     client = DandiAPIClient()
     dandiset = client.get_dandiset(dandiset_id, "draft")
 
+    desc_key = "desc-raw" if file_type == "raw" else "desc-processed"
     session_assets = [asset for asset in dandiset.get_assets() if session_eid in asset.path]
-    raw_asset = next((asset for asset in session_assets if "desc-raw" in asset.path), None)
+    asset = next((a for a in session_assets if desc_key in a.path), None)
 
-    if raw_asset is None:
+    if asset is None:
         available = [a.path for a in session_assets]
-        raise ValueError(f"No raw asset found for EID {session_eid}. Available: {available}")
+        raise ValueError(f"No {file_type} asset found for EID {session_eid}. Available: {available}")
 
-    print(f"Found raw file: {raw_asset.path}")
-    return raw_asset
+    print(f"Found {file_type} file: {asset.path}")
+    return asset
 
 
 def stream_nwb_from_dandi(asset):
@@ -53,12 +62,13 @@ def stream_nwb_from_dandi(asset):
 
 
 def main():
-    # Choose which session to use
-    session_eid = KS091_SESSION_EID_2
+    # Choose which session and file type to use
+    session_eid = NY_one_probe
+    file_type = "raw"  # "raw" or "processed"
 
-    # Fetch and stream the raw NWB file
-    raw_asset = fetch_raw_asset(session_eid)
-    io, h5_file = stream_nwb_from_dandi(raw_asset)
+    # Fetch and stream the NWB file
+    asset = fetch_asset(session_eid, file_type=file_type)
+    io, h5_file = stream_nwb_from_dandi(asset)
 
     try:
         nwbfile = io.read()
