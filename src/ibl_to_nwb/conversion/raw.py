@@ -470,7 +470,7 @@ def convert_raw_session(
                 eid=eid,
                 probe_name=probe_name,
                 pid=pid,
-                meta_path=meta_path,  # Explicit path to ONE cache - no fallback needed
+                meta_path=meta_path,
             )
 
     # Add data from all interfaces

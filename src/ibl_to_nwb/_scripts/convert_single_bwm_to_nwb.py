@@ -57,10 +57,10 @@ if __name__ == "__main__":
 
     CONVERT_RAW = True              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    STUB_TEST = False                # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False         # Clear cached data and re-download from ONE
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
-    RUN_CONSISTENCY_CHECKS = True   # Validate NWB files against ONE data (slow but thorough)
+    RUN_CONSISTENCY_CHECKS = False   # Validate NWB files against ONE data (slow but thorough)
     VERBOSE = False                 # Enable verbose output from neuroconv interfaces
     DISPLAY_PROGRESS_BAR = True     # Show progress bars (local runs)
 
@@ -88,8 +88,12 @@ if __name__ == "__main__":
     TARGET_EID = "6ed57216-498d-48a6-b48b-a243a34710ea"  # Full processed file
     TARGET_EID = "35ed605c-1a1a-47b1-86ff-2b56144f55af"  # Another full file
     TARGET_EID = "fa1f26a1-eb49-4b24-917e-19f02a18ac61"  # Yet another full file
-    # TARGET_EID = "c025071-c4f3-426c-9aed-f149e8f75b7b"  # Crashes the system with out-of-memory error
-    TARGET_EID = "ebe090af-5922-4fcd-8fc6-17b8ba7bad6d"  # Session 378 (NR_0029) - failed on EC2 during decompression
+    # TARGET_EID = "8c025071-c4f3-426c-9aed-f149e8f75b7b"  # Large memory consumption (~36 GB virtual, ~29.5 GB RSS), OOM on 32 GB instances during processed conversion (2 probes)
+    # TARGET_EID = "ebe090af-5922-4fcd-8fc6-17b8ba7bad6d"  # Witten lab - missing firstSample in meta
+    # TARGET_EID = "de905562-31c6-4c31-9ece-3ee87b97eab4"  # steinmetzlab NR_0029 (2023-08-31) - corrupted meta (probe00b)
+    # TARGET_EID = "d85c454e-8737-4cba-b6ad-b2339429d99b"  # steinmetzlab NR_0029 (2023-08-29) - corrupted meta (probe00a)
+    # TARGET_EID = "3a3ea015-b5f4-4e8b-b189-9364d1fc7435"  # steinmetzlab NR_0029 (2023-09-05) - corrupted meta (probe00a)
+    # TARGET_EID = "4e560423-5caf-4cda-8511-d1ab4cd2bf7d"  # steinmetzlab NR_0029 (2023-09-07) - corrupted meta (probe00a)
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
 
     if target_eid == "INSERT_EID_HERE":

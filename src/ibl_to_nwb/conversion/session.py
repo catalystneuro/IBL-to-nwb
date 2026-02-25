@@ -107,6 +107,10 @@ def _log_disk_usage(label: str, base_folder: Path) -> None:
     print("=== END DISK ===", flush=True)
 
 
+from ibl_to_nwb.conversion.spikeglx_patches import fix_corrupted_spikeglx_meta_files
+from ibl_to_nwb.conversion.spikeglx_first_sample_patch import inject_missing_first_sample
+
+
 def convert_session(
     eid: str,
     *,
@@ -267,6 +271,18 @@ def convert_session(
                     logger.info(f"Deleted {len(cbin_files)} .cbin files ({cbin_size_gb:.1f} GB) to free disk space")
 
             _log_disk_usage("after_decompress", base_folder)
+
+        # Patch corrupted meta files in the decompressed ephys folder before neo reads them.
+        # The ONE cache copies are handled separately by add_probe_electrodes_with_localization()
+        # which patches on-the-fly after ONE resolves the file (since ONE re-downloads if we
+        # modify cached files, patching the cache directly doesn't work).
+        spikeglx_source = paths["spikeglx_source_folder"]
+        num_patched = fix_corrupted_spikeglx_meta_files(spikeglx_source, logger)
+        if num_patched:
+            logger.info("Patched %d corrupted SpikeGLX meta file(s)", num_patched)
+        num_first_sample = inject_missing_first_sample(spikeglx_source, logger)
+        if num_first_sample:
+            logger.info("Injected firstSample=0 into %d meta file(s) in decompressed folder", num_first_sample)
 
         logger.info("\n" + "=" * 80)
         logger.info("CONVERTING RAW EPHYS")

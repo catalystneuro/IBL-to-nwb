@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import warnings
 from pathlib import Path
 from typing import List, Literal, Optional
@@ -27,6 +28,43 @@ def _read_spikeglx_meta(meta_path: Path) -> dict:
                 key, value = line.split("=", 1)
                 meta_dict[key.strip()] = value.strip()
     return meta_dict
+
+
+def _get_saved_channel_numbers(meta_path: Path) -> list[int] | None:
+    """Parse snsSaveChanSubset from a SpikeGLX .meta file to get saved neural channel numbers.
+
+    Neuroconv generates ``channel_name`` values (e.g. ``AP48,LF48``) using the actual
+    SpikeGLX channel numbers derived from ``snsSaveChanSubset``.  When we pre-populate
+    the electrode table we must use the same numbering so that neuroconv's virtual-ID
+    deduplication (``{group_name}_{electrode_name}_{channel_name}``) can match existing
+    rows instead of adding duplicates.
+
+    Returns the neural channel numbers (excluding sync) or ``None`` when the subset
+    field is absent or set to ``"all"``.
+    """
+    meta_dict = _read_spikeglx_meta(meta_path)
+    subset_str = meta_dict.get("snsSaveChanSubset")
+    if not subset_str or subset_str == "all":
+        return None
+
+    channels: list[int] = []
+    for part in subset_str.split(","):
+        if ":" in part:
+            start, end = part.split(":")
+            channels.extend(range(int(start), int(end) + 1))
+        else:
+            channels.append(int(part))
+
+    # Remove sync channel(s), which are always the last entries.
+    # snsApLfSy format: "nAP,nLF,nSY" e.g. "96,0,1"
+    ap_lf_sy = meta_dict.get("snsApLfSy", "")
+    if ap_lf_sy:
+        parts = ap_lf_sy.split(",")
+        n_sync = int(parts[2]) if len(parts) > 2 else 0
+        if n_sync > 0:
+            channels = channels[:-n_sync]
+
+    return channels
 
 
 def _get_device_metadata_from_meta_file(meta_path: Path, probe: Probe) -> dict:
@@ -327,6 +365,7 @@ def add_probe_definition_to_nwbfile(
     metadata: Optional[dict] = None,
     source_description: str,
     ibl_probe_name: Optional[str] = None,
+    meta_path: Optional[Path] = None,
 ) -> None:
     """
     Minimal helper to populate the electrodes table using a `probeinterface.Probe` object.
@@ -345,9 +384,18 @@ def add_probe_definition_to_nwbfile(
         Description of the data source
     ibl_probe_name : str, optional
         Original IBL probe name (e.g., 'probe00') for the probe_name column
+    meta_path : Path, optional
+        Path to the SpikeGLX .meta file.  Used to read ``snsSaveChanSubset`` so that
+        ``channel_name`` values match the actual hardware channel numbers that neuroconv
+        will generate, enabling electrode deduplication.
     """
     if group_mode != "by_probe":
         raise ValueError("Only group_mode='by_probe' is supported in this lightweight implementation.")
+
+    # Parse saved channel numbers from meta so channel_name matches neuroconv's numbering.
+    saved_channel_numbers: list[int] | None = None
+    if meta_path is not None:
+        saved_channel_numbers = _get_saved_channel_numbers(meta_path)
 
     contacts = probe.to_numpy(complete=True)
     if contacts.size == 0:
@@ -478,9 +526,13 @@ def add_probe_definition_to_nwbfile(
         if has_adc_sample_order:
             electrode_kwargs["adc_sample_order"] = int(contact["adc_sample_order"])
 
-        # Add channel_name following SpikeGLX convention: "AP{index},LF{index}"
-        # This matches the format used by NeuroConv's SpikeGLXRecordingInterface
-        electrode_kwargs["channel_name"] = f"AP{index},LF{index}"
+        # Add channel_name using the actual SpikeGLX channel numbers so that
+        # neuroconv's virtual-ID deduplication can match these pre-populated rows.
+        if saved_channel_numbers is not None and index < len(saved_channel_numbers):
+            ch_num = saved_channel_numbers[index]
+        else:
+            ch_num = index
+        electrode_kwargs["channel_name"] = f"AP{ch_num},LF{ch_num}"
 
         # Add IBL probe_name if provided (use canonical name format Probe00, Probe01)
         if ibl_probe_name is not None:
@@ -510,6 +562,7 @@ def add_spikeglx_probe_to_nwbfile(
         metadata=metadata,
         source_description=str(meta_path),
         ibl_probe_name=ibl_probe_name,
+        meta_path=meta_path,
     )
 
 
@@ -564,6 +617,16 @@ def add_probe_electrodes_with_localization(
             f"Ensure raw ephys data has been downloaded from ONE API. "
             f"Collection: raw_ephys_data/{probe_name}"
         )
+
+    # Patch corrupted meta files in-place before probeinterface reads them.
+    # Some IBL sessions have tampered .meta files (e.g. corrupted snsSaveChanSubset,
+    # missing ~ prefix) that cause probeinterface to report wrong contact counts.
+    # The patch is idempotent and only modifies files that need fixing.
+    from ibl_to_nwb.conversion.spikeglx_patches import fix_corrupted_spikeglx_meta_files
+    from ibl_to_nwb.conversion.spikeglx_first_sample_patch import inject_missing_first_sample
+    _patch_logger = logging.getLogger(__name__)
+    fix_corrupted_spikeglx_meta_files(meta_path.parent, _patch_logger)
+    inject_missing_first_sample(meta_path.parent, _patch_logger)
 
     # Read probe from .meta file to extract serial_number and other metadata
     # Use same format as neuroconv's _get_device_metadata_from_probe() for consistency

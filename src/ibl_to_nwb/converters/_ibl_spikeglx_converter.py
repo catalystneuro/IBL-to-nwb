@@ -119,13 +119,23 @@ class IblSpikeGlxConverter(ConverterPipe):
             recording_interface.es_key = ibl_es_key
 
             # Update group_name property in recording extractor
-            # This is critical for electrode deduplication in NeuroConv
-            channel_ids = recording_interface.recording_extractor.get_channel_ids()
+            # This is critical for electrode deduplication in NeuroConv.
+            # For multi-shank probes (e.g. NP 2.4), spikeinterface assigns one
+            # numeric group per shank. NeuroConv validates that unique group
+            # names match unique group IDs, so we produce one name per shank
+            # (e.g. "Probe00Shank0") rather than one name for the whole probe.
+            extractor = recording_interface.recording_extractor
+            channel_ids = extractor.get_channel_ids()
             ibl_group_name = get_ibl_probe_name(probe_name)
-            recording_interface.recording_extractor.set_property(
+            channel_groups = extractor.get_channel_groups()
+            if channel_groups is not None and len(set(channel_groups)) > 1:
+                group_names = [f"{ibl_group_name}Shank{g}" for g in channel_groups]
+            else:
+                group_names = [ibl_group_name] * len(channel_ids)
+            extractor.set_property(
                 key="group_name",
                 ids=channel_ids,
-                values=[ibl_group_name] * len(channel_ids)
+                values=group_names,
             )
 
         # Add SYNC channel interface (one per probe, prefer AP band)
