@@ -76,7 +76,7 @@ TRIALS_COLUMNS = {
     },
     "is_mouse_rewarded": {
         "ibl_name": "is_mouse_rewarded",  # transformed from feedbackType: +1 -> True, -1 -> False
-        "description": "Whether the mouse received a water reward (True) or not (False). If not, an additional negative feedback consisting of an auditory white noise stimulus.",
+        "description": "Whether the mouse received a water reward (True) or not (False). If False, an additional negative feedback consisting of an auditory white noise stimulus.",
     },
     "reward_volume_uL": {
         "ibl_name": "rewardVolume",
