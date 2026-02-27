@@ -18,7 +18,7 @@ from ._base_ibl_interface import BaseIBLDataInterface
 # Keys are NWB column names (dict order = column order in NWB file)
 # Values contain IBL source column name and description
 # Note: Some IBL columns are transformed before mapping:
-#   - choice: -1/0/+1 -> "left"/"no_response"/"right"
+#   - choice: -1/0/+1 -> "counter_clockwise"/"none"/"clockwise"
 #   - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
 #   - contrastLeft/contrastRight -> "gabor_stimulus_contrast" + "gabor_stimulus_side"
 #   - probabilityLeft -> also used to derive "block_index" and "block_type"
@@ -34,23 +34,23 @@ TRIALS_COLUMNS = {
     },
     "quiescence_period": {
         "ibl_name": "quiescencePeriod",
-        "description": "Required duration (seconds) the mouse must hold the wheel still before stimulus presentation. Sampled from exponential distribution (400-700ms, mean ~550ms). If wheel moves during this period, the timer resets. Relationship: gabor_stimulus_onset_time ≈ start_time + quiescence_period.",
+        "description": "Required duration (seconds) the mouse must hold the wheel still before stimulus presentation. Sampled from exponential distribution (400-700ms, mean ~550ms).",
     },
     "gabor_stimulus_onset_time": {
         "ibl_name": "stimOn_times",
-        "description": "Time when the visual stimulus (Gabor patch) appears on screen, detected by photodiode. Coincides with auditory go cue.",
+        "description": "Time when the visual stimulus (Gabor patch) appears on the screen, detected by the photodiode. Presented together with the auditory go cue.",
     },
     "auditory_cue_time": {
         "ibl_name": "goCue_times",
-        "description": "Time of the auditory go cue (100ms, 5kHz tone) signaling the mouse may respond. Presented simultaneously with visual stimulus.",
+        "description": "Time of the auditory go cue (100ms, 5kHz tone) signaling the mouse may respond. Presented together with the visual stimulus.",
     },
     "wheel_movement_onset_time": {
         "ibl_name": "firstMovement_times",
-        "description": "Time of first detected wheel movement (>= 0.1 radians threshold) after go cue.",
+        "description": "Time of first detected wheel movement (>= 0.1 radians threshold) after the go cue.",
     },
     "choice_registration_time": {
         "ibl_name": "response_times",
-        "description": "Time when the mouse's choice was registered: either wheel movement reached the +/-35 degree threshold, or 60-second timeout elapsed.",
+        "description": "Time when the mouse's choice was registered: either the wheel movement reached the +/-35 degree threshold, or 60-second timeout elapsed.",
     },
     "feedback_time": {
         "ibl_name": "feedback_times",
@@ -58,7 +58,7 @@ TRIALS_COLUMNS = {
     },
     "gabor_stimulus_offset_time": {
         "ibl_name": "stimOff_times",
-        "description": "Time when the Gabor patch disappears from screen, recorded by external photodiode.",
+        "description": "Time when the Gabor patch disappears from the screen, detected by the photodiode.",
     },
     # Stimulus columns
     "gabor_stimulus_contrast": {
@@ -67,16 +67,16 @@ TRIALS_COLUMNS = {
     },
     "gabor_stimulus_side": {
         "ibl_name": "gabor_stimulus_side",  # computed from contrastLeft/contrastRight
-        "description": "Side where stimulus was assigned: 'left' or 'right'. Even at 0% contrast (invisible), trials are assigned a correct side based on block probability, allowing mice to use prior information.",
+        "description": "Side on the screen where stimulus was presented: 'left' or 'right'. Even at 0% contrast (no visible stimulus), a side is assigned to the stimulus for the trial, enabling the mice to perform a correct response using prior knowledge of the block distribution. ",
     },
     # Response and outcome columns
     "mouse_wheel_choice": {
         "ibl_name": "choice",  # transformed from -1/0/+1 to strings
-        "description": "Mouse's response: 'left' (CCW wheel turn moving stimulus rightward), 'right' (CW wheel turn moving stimulus leftward), or 'no_response' (no response within 60s timeout).",
+        "description": "Mouse's response: 'counter_clockwise' (counter_clockwise wheel turn moving stimulus leftward), 'clockwise' (clockwise wheel turn moving stimulus rightward), or 'none' (no response within 60s timeout). clockwise and counter_clockwise are wheel movements as seen from the perspective of the mouse",
     },
     "is_mouse_rewarded": {
         "ibl_name": "is_mouse_rewarded",  # transformed from feedbackType: +1 -> True, -1 -> False
-        "description": "Whether the mouse received a water reward (True) or negative feedback consisting of white noise pulse and 2-second timeout (False).",
+        "description": "Whether the mouse received a water reward (True) or not (False). If False, an additional negative feedback consisting of an auditory white noise stimulus.",
     },
     "reward_volume_uL": {
         "ibl_name": "rewardVolume",
@@ -85,17 +85,18 @@ TRIALS_COLUMNS = {
     # Block structure columns (derived from probability_left)
     "probability_left": {
         "ibl_name": "probabilityLeft",
-        "description": "Block prior probability for stimulus on left side. After initial 90 unbiased trials (0.5), blocks alternate between 0.2 (right-biased) and 0.8 (left-biased). Block lengths: 20-100 trials from truncated geometric distribution (mean 51). Block changes are not cued.",
+        "description": "Block prior probability for the visual stimulus to be presented on the left side of the screen. After an initial block of 90 unbiased trials (0.5), blocks alternate between a probability of 0.2 (right-biased) and 0.8 (left-biased). Block lengths: 20-100 trials from truncated geometric distribution (mean 51). Block changes are not cued.",
     },
     "block_type": {
         "ibl_name": "block_type",  # computed from probabilityLeft
-        "description": "Block type based on stimulus probability bias: 'unbiased' (probability_left=0.5), 'left_block' (probability_left=0.8, stimulus 80% likely on left), or 'right_block' (probability_left=0.2, stimulus 80% likely on right).",
+        "description": "Block type based on stimulus probability bias: 'unbiased' (probability_left=0.5), 'left_block' (probability_left=0.8, stimulus 80% likely on the left side of the screen), or 'right_block' (probability_left=0.2, stimulus 80% likely on the right side of the screen).",
     },
     "block_index": {
         "ibl_name": "block_index",  # computed from probabilityLeft
-        "description": "Zero-indexed block number. Increments each time probability_left changes. Block 0 is typically the initial unbiased block (~90 trials at 0.5 probability).",
+        "description": "Zero-indexed block number. Increments each time probability_left changes. Block 0 is the initial unbiased block (90 trials at 0.5 probability).",
     },
 }
+
 
 # Derived mappings for convenience (generated from master table)
 IBL_TO_NWB_COLUMNS = {v["ibl_name"]: k for k, v in TRIALS_COLUMNS.items()}
@@ -155,7 +156,7 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         eid: str,
         download_only: bool = True,
         logger: Optional[logging.Logger] = None,
-        **kwargs
+        **kwargs,
     ) -> dict:
         """
         Download trials data using SessionLoader.
@@ -250,11 +251,12 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
             "Trial data from the IBL decision-making task. "
             "On each trial, a visual stimulus (Gabor patch) appears on the left or right of a screen, "
             "and the mouse must move it to the center by turning a wheel with its front paws within 60 seconds. "
-            "Correct responses are rewarded with water; incorrect responses trigger a white noise pulse and 2-second timeout. "
+            "Correct responses are rewarded with water; incorrect responses trigger a white noise auditory cue and 2-second timeout. "
+            "If no response is recorded during 60 seconds, a white noise auditory cue is presented. "
             "Trial timeline: (1) start_time begins a quiescence period where the mouse must hold the wheel still; "
-            "(2) after quiescence_period elapses, the stimulus and auditory go cue appear simultaneously (gabor_stimulus_onset_time); "
-            "(3) the mouse responds by turning the wheel to move the stimulus; "
-            "(4) feedback_time marks reward or punishment delivery; "
+            "(2) after quiescence_period elapses, the stimulus and auditory go cue are presented (gabor_stimulus_onset_time); "
+            "(3) the mouse responds by turning the wheel to move the stimulus; correct choices are defined by moving the visual stimulus into the center; "
+            "(4) feedback_time marks reward punishment or presentation of the white noise auditory cue; "
             "(5) stop_time marks trial end. "
             "Stimulus contrast is uniformly sampled from 5 values (0%, 6.25%, 12.5%, 25%, 100%). "
             "On 0% contrast trials, no stimulus is visible but a correct side is still assigned based on block probability, "
@@ -278,7 +280,7 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         Apply tidy data transformations to trials DataFrame.
 
         Transformations:
-        - choice: -1/0/+1 -> "left"/"no_response"/"right"
+        - choice: -1/0/+1 -> "counter_clockwise"/"none"/"clockwise"
         - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
         - contrastLeft/contrastRight -> gabor_stimulus_contrast + gabor_stimulus_side
         - probabilityLeft -> block_index (increments on change) + block_type (categorical)
@@ -295,8 +297,8 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         """
         trials = trials.copy()
 
-        # Transform choice: -1 -> "left", 0 -> "no_response", +1 -> "right"
-        choice_map = {-1.0: "left", 0.0: "no_response", 1.0: "right"}
+        # Transform choice: -1 -> "counter_clockwise", 0 -> "none", +1 -> "clockwise"
+        choice_map = {-1.0: "counter_clockwise", 0.0: "none", 1.0: "clockwise"}
         trials["choice"] = trials["choice"].map(choice_map)
 
         # Transform feedbackType to boolean: +1 -> True (rewarded), -1 -> False (not rewarded)
@@ -381,6 +383,7 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
                 return "right_block"
             else:
                 return f"p={prob}"  # Unexpected value, preserve it
+
         trials["block_type"] = trials["probabilityLeft"].apply(compute_block_type)
 
         return trials
