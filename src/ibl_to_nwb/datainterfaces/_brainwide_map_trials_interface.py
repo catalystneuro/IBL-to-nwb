@@ -18,7 +18,7 @@ from ._base_ibl_interface import BaseIBLDataInterface
 # Keys are NWB column names (dict order = column order in NWB file)
 # Values contain IBL source column name and description
 # Note: Some IBL columns are transformed before mapping:
-#   - choice: -1/0/+1 -> "CCW"/"none"/"CW"
+#   - choice: -1/0/+1 -> "counter_clockwise"/"none"/"clockwise"
 #   - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
 #   - contrastLeft/contrastRight -> "gabor_stimulus_contrast" + "gabor_stimulus_side"
 #   - probabilityLeft -> also used to derive "block_index" and "block_type"
@@ -34,7 +34,7 @@ TRIALS_COLUMNS = {
     },
     "quiescence_period": {
         "ibl_name": "quiescencePeriod",
-        "description": "Required duration (seconds) the mouse must hold the wheel still before stimulus presentation. Sampled from exponential distribution (400-700ms, mean ~550ms). If the wheel moves during this period, the timer resets.",
+        "description": "Required duration (seconds) the mouse must hold the wheel still before stimulus presentation. Sampled from exponential distribution (400-700ms, mean ~550ms).",
     },
     "gabor_stimulus_onset_time": {
         "ibl_name": "stimOn_times",
@@ -72,7 +72,7 @@ TRIALS_COLUMNS = {
     # Response and outcome columns
     "mouse_wheel_choice": {
         "ibl_name": "choice",  # transformed from -1/0/+1 to strings
-        "description": "Mouse's response: 'CCW' (CCW wheel turn moving stimulus leftward), 'CW' (CW wheel turn moving stimulus rightward), or 'none' (no response within 60s timeout). CW and CCW are wheel movements as seen from the perspective of the mouse",
+        "description": "Mouse's response: 'counter_clockwise' (counter_clockwise wheel turn moving stimulus leftward), 'clockwise' (clockwise wheel turn moving stimulus rightward), or 'none' (no response within 60s timeout). clockwise and counter_clockwise are wheel movements as seen from the perspective of the mouse",
     },
     "is_mouse_rewarded": {
         "ibl_name": "is_mouse_rewarded",  # transformed from feedbackType: +1 -> True, -1 -> False
@@ -280,7 +280,7 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         Apply tidy data transformations to trials DataFrame.
 
         Transformations:
-        - choice: -1/0/+1 -> "CCW"/"none"/"CW"
+        - choice: -1/0/+1 -> "counter_clockwise"/"none"/"clockwise"
         - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
         - contrastLeft/contrastRight -> gabor_stimulus_contrast + gabor_stimulus_side
         - probabilityLeft -> block_index (increments on change) + block_type (categorical)
@@ -297,8 +297,8 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
         """
         trials = trials.copy()
 
-        # Transform choice: -1 -> "CCW", 0 -> "none", +1 -> "CW"
-        choice_map = {-1.0: "CCW", 0.0: "none", 1.0: "CW"}
+        # Transform choice: -1 -> "counter_clockwise", 0 -> "none", +1 -> "clockwise"
+        choice_map = {-1.0: "counter_clockwise", 0.0: "none", 1.0: "clockwise"}
         trials["choice"] = trials["choice"].map(choice_map)
 
         # Transform feedbackType to boolean: +1 -> True (rewarded), -1 -> False (not rewarded)
