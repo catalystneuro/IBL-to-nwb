@@ -49,12 +49,23 @@ There is a separate issue where `Units.waveform_unit` has no effect on the seria
 
 See `build/waveform_unit_issue.md` for details and links to the relevant code in nwb-schema and hdmf.
 
-## Potential Fixes
+## Resolution (March 2026)
+
+Fixed upstream in ndx-events 0.2.2 ([PR #29](https://github.com/rly/ndx-events/pull/29)):
+the `VectorDataMap` now inherits from `pynwb.io.core.VectorDataMap` instead of
+`hdmf.build.ObjectMapper`, so pynwb's Units-specific attribute mapping is preserved.
+
+This was option 1 from the potential fixes list below.
+
+The h5py workaround in `processed.py` was removed in commit `db44e12` (March 3, 2026).
+A corresponding version check fix in neuroconv's `configure_backend` was submitted as
+[neuroconv PR #1682](https://github.com/catalystneuro/neuroconv/pull/1682) to allow
+ndx-events 0.2.2 types through the backend configuration.
+
+## Original Potential Fixes (for reference)
 
 For the ndx-events bug, the fix should be one of:
 
-1. Have ndx-events inherit from `pynwb.io.core.VectorDataMap` instead of `hdmf.build.ObjectMapper`
+1. Have ndx-events inherit from `pynwb.io.core.VectorDataMap` instead of `hdmf.build.ObjectMapper` **(chosen)**
 2. Have ndx-events include the pynwb Units handling in its `get_attr_value` method
 3. Register a more specific mapper instead of overriding all `VectorData` objects
-
-Once ndx-events is integrated into NWB core, this issue should be resolved and the workaround in `processed.py` can be removed.
