@@ -16,17 +16,17 @@ license = {file = "license.txt"}
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "dandi>=0.73.2", 
-    "neuroconv>=0.9.0",
+    "neuroconv>=0.9.3",
     "pynwb",
-    "hdmf",
     "hdmf-zarr",
     "spikeinterface>=0.103.2",
     "probeinterface",
-    "ndx-pose>=0.2.2",
+    "ndx-pose>=0.2.2",  
     "ONE-api",
     "iblatlas",
     "ndx-ibl",
-    "ndx-events==0.2.1",
+    "ndx-events==0.2.2",
+    "hdmf>=5.0",
     "ibl-neuropixel",
     "ibllib",
     "ndx-anatomical-localization",
@@ -55,9 +55,10 @@ classifiers = [
 
 [tool.uv.sources]
 # neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "improve_unit_table_performance"}
+neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "fix_ndx_events_version_check"}
 #neuroconv = {path = "../../work_repos/neuroconv", editable = true}
 # hdmf = {git = "https://github.com/h-mayorquin/hdmf", branch = "ragged_writing_optimization"}
-pynwb = {git = "https://github.com/NeurodataWithoutBorders/pynwb", branch = "dev"}
+# pynwb = {git = "https://github.com/NeurodataWithoutBorders/pynwb", branch = "dev"}
 # pynwb = {path = "../../work_repos/pynwb", editable = true}
 # hdmf-zarr = {git = "https://github.com/hdmf-dev/hdmf-zarr", branch = "dev"}
 # hdmf-zarr = {path = "../../work_repos/hdmf-zarr", editable = true}
@@ -72,6 +73,9 @@ ndx-anatomical-localization = {git = "https://github.com/catalystneuro/ndx-anato
 ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
 # nwb-video-widgets = {path = "/home/heberto/development/nwb-video-widgets", editable = true}
 
+
+[tool.uv]
+override-dependencies = ["hdmf>=5.0"]
 
 [tool.black]
 line-length = 120

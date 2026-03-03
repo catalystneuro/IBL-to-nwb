@@ -13,7 +13,6 @@ from one.api import ONE
 from ibl_to_nwb.conversion.session import convert_session
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
-from ibl_to_nwb.utils import fix_nwb_namespace
 
 
 def setup_logger(log_file_path: Path) -> logging.Logger:
@@ -55,7 +54,7 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = True              # Write raw-ephys NWBs
+    CONVERT_RAW = False              # Write raw-ephys NWBs
     CONVERT_PROCESSED = True        # Write processed/behavior NWBs
     STUB_TEST = False                # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False         # Clear cached data and re-download from ONE
@@ -88,10 +87,11 @@ if __name__ == "__main__":
     TARGET_EID = "6ed57216-498d-48a6-b48b-a243a34710ea"  # Full processed file
     TARGET_EID = "35ed605c-1a1a-47b1-86ff-2b56144f55af"  # Another full file
     TARGET_EID = "fa1f26a1-eb49-4b24-917e-19f02a18ac61"  # Yet another full file
-    # TARGET_EID = "8c025071-c4f3-426c-9aed-f149e8f75b7b"  # Large memory consumption (~36 GB virtual, ~29.5 GB RSS), OOM on 32 GB instances during processed conversion (2 probes)
+    TARGET_EID = "8c025071-c4f3-426c-9aed-f149e8f75b7b"  # Large memory consumption (~36 GB virtual, ~29.5 GB RSS), OOM on 32 GB instances during processed conversion (2 probes)
     # TARGET_EID = "ebe090af-5922-4fcd-8fc6-17b8ba7bad6d"  # Witten lab - missing firstSample in meta
     # TARGET_EID = "de905562-31c6-4c31-9ece-3ee87b97eab4"  # steinmetzlab NR_0029 (2023-08-31) - corrupted meta (probe00b)
     # TARGET_EID = "d85c454e-8737-4cba-b6ad-b2339429d99b"  # steinmetzlab NR_0029 (2023-08-29) - corrupted meta (probe00a)
+    # TARGET_EID = "eacc49a9-f3a1-49f1-b87f-0972f90ee837"  # OOM during processed NWB write (2 probes, 2.19 GB source)
     # TARGET_EID = "3a3ea015-b5f4-4e8b-b189-9364d1fc7435"  # steinmetzlab NR_0029 (2023-09-05) - corrupted meta (probe00a)
     # TARGET_EID = "4e560423-5caf-4cda-8511-d1ab4cd2bf7d"  # steinmetzlab NR_0029 (2023-09-07) - corrupted meta (probe00a)
     target_eid = (sys.argv[1] if len(sys.argv) > 1 else TARGET_EID).strip()
@@ -143,18 +143,10 @@ if __name__ == "__main__":
         display_progress_bar=DISPLAY_PROGRESS_BAR,
     )
 
-    # Post-processing: namespace fix and consistency checks
-    # These are local-only steps not needed in the AWS pipeline
+    # Post-processing: consistency checks (local-only, not needed in the AWS pipeline)
 
     if CONVERT_RAW and results.get("raw_converted"):
         raw_nwb_path = Path(results["raw_nwb_path"])
-
-        # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
-        fix_start = time.time()
-        fixed_count = fix_nwb_namespace(raw_nwb_path, logger=logger)
-        fix_time = time.time() - fix_start
-        if fixed_count > 0:
-            logger.info(f"Namespace fix completed in {fix_time:.2f}s")
 
         # Run consistency checks if enabled
         if RUN_CONSISTENCY_CHECKS:
@@ -176,13 +168,6 @@ if __name__ == "__main__":
 
     if CONVERT_PROCESSED and results.get("processed_converted"):
         processed_nwb_path = Path(results["processed_nwb_path"])
-
-        # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
-        fix_start = time.time()
-        fixed_count = fix_nwb_namespace(processed_nwb_path, logger=logger)
-        fix_time = time.time() - fix_start
-        if fixed_count > 0:
-            logger.info(f"Namespace fix completed in {fix_time:.2f}s")
 
         # Run consistency checks if enabled
         if RUN_CONSISTENCY_CHECKS:

@@ -15,7 +15,6 @@ from ibl_to_nwb.conversion.session import convert_session
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
-from ibl_to_nwb.utils import fix_nwb_namespace
 
 
 def setup_logger(log_file_path: Path) -> logging.Logger:
@@ -107,20 +106,12 @@ if __name__ == "__main__":
             display_progress_bar=DISPLAY_PROGRESS_BAR,
         )
 
-        # Post-processing: namespace fix and consistency checks
-        # These are local-only steps not needed in the AWS pipeline
+        # Post-processing: consistency checks (local-only, not needed in the AWS pipeline)
 
         logger = logging.getLogger("IBL_Conversion")
 
         if CONVERT_RAW and results.get("raw_converted"):
             raw_nwb_path = Path(results["raw_nwb_path"])
-
-            # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
-            fix_start = time.time()
-            fixed_count = fix_nwb_namespace(raw_nwb_path, logger=logger)
-            fix_time = time.time() - fix_start
-            if fixed_count > 0:
-                logger.info(f"Namespace fix completed in {fix_time:.2f}s")
 
             # Run consistency checks if enabled
             if RUN_CONSISTENCY_CHECKS:
@@ -136,13 +127,6 @@ if __name__ == "__main__":
 
         if CONVERT_PROCESSED and results.get("processed_converted"):
             processed_nwb_path = Path(results["processed_nwb_path"])
-
-            # Fix namespace issue for MatNWB compatibility (HDMF issue #1347)
-            fix_start = time.time()
-            fixed_count = fix_nwb_namespace(processed_nwb_path, logger=logger)
-            fix_time = time.time() - fix_start
-            if fixed_count > 0:
-                logger.info(f"Namespace fix completed in {fix_time:.2f}s")
 
             # Run consistency checks if enabled
             if RUN_CONSISTENCY_CHECKS:
