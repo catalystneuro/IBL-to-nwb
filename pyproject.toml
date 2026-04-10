@@ -69,7 +69,12 @@ ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
 # The current PyPI release of pynwb caps hdmf<5 (requires hdmf>=4.1.2,<5).
 # This override forces hdmf>=5.0 past that upper bound.
 # Remove once pynwb releases a version that supports hdmf 5.x.
-override-dependencies = ["hdmf>=5.0"]
+override-dependencies = [
+    "hdmf>=5.0",
+    # PyQt5 has no Windows wheels; ibllib pulls it in but it's only used for GUIs.
+    "pyqt5>=5.15; sys_platform != 'win32'",
+    "pyqt5-qt5>=5.15; sys_platform != 'win32'",
+]
 
 [tool.black]
 line-length = 120
