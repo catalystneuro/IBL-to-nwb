@@ -1,21 +1,21 @@
 """Interface for adding anatomical localization data using ndx-anatomical-localization extension."""
 
-from typing import Optional
 import logging
 import time
+from typing import Optional
 
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
-from ndx_anatomical_localization import AnatomicalCoordinatesTable, Localization, Space, AllenCCFv3Space
+from ndx_anatomical_localization import AllenCCFv3Space, AnatomicalCoordinatesTable, Localization, Space
 from one.api import ONE
 from pynwb import NWBFile
 
-from ..utils.electrodes import convert_ibl_to_ccf3_coordinates, _ensure_ibl_coordinates_um
-from ..utils.probe_naming import get_ibl_probe_name
 from ._base_ibl_interface import BaseIBLDataInterface
-from ..fixtures.load_fixtures import load_bwm_histology_qc, get_probe_name_to_probe_id_dict
+from ..fixtures.load_fixtures import get_probe_name_to_probe_id_dict, load_bwm_histology_qc
+from ..utils.electrodes import _ensure_ibl_coordinates_um, convert_ibl_to_ccf3_coordinates
+from ..utils.probe_naming import get_ibl_probe_name
 
 
 class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
@@ -70,10 +70,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
 
         for pname, pid in probe_name_to_probe_id_dict.items():
             # Check histology quality from pre-computed table
-            probe_qc = histology_qc_df[
-                (histology_qc_df['eid'] == eid) &
-                (histology_qc_df['probe_name'] == pname)
-            ]
+            probe_qc = histology_qc_df[(histology_qc_df["eid"] == eid) & (histology_qc_df["probe_name"] == pname)]
 
             if probe_qc.empty:
                 raise ValueError(
@@ -82,11 +79,11 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 )
 
             probe_qc_row = probe_qc.iloc[0]
-            histology_quality = probe_qc_row['histology_quality']
-            has_files = probe_qc_row['has_histology_files']
+            histology_quality = probe_qc_row["histology_quality"]
+            has_files = probe_qc_row["has_histology_files"]
 
             # Skip if no files or insufficient quality
-            if not has_files or histology_quality != 'alf':
+            if not has_files or histology_quality != "alf":
                 if self.verbose:
                     print(f"Skipping {pname}: quality '{histology_quality}', has_files={has_files}")
                 continue
@@ -103,19 +100,17 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 )
 
             # Get trajectory and insertion information
-            insertion = one.alyx.rest('insertions', 'read', id=pid)
+            insertion = one.alyx.rest("insertions", "read", id=pid)
             trajectories = one.alyx.rest(
-                'trajectories', 'list',
-                probe_insertion=pid,
-                provenance='Ephys aligned histology track'
+                "trajectories", "list", probe_insertion=pid, provenance="Ephys aligned histology track"
             )
 
             self.probe_data[pname] = {
-                'pid': pid,
-                'channels': channels,
-                'histology_quality': histology_quality,
-                'insertion': insertion,
-                'trajectory': trajectories[0] if trajectories else None,
+                "pid": pid,
+                "channels": channels,
+                "histology_quality": histology_quality,
+                "insertion": insertion,
+                "trajectory": trajectories[0] if trajectories else None,
             }
 
             if self.verbose:
@@ -163,13 +158,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         }
 
     @classmethod
-    def check_availability(
-        cls,
-        one: ONE,
-        eid: str,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> dict:
+    def check_availability(cls, one: ONE, eid: str, logger: Optional[logging.Logger] = None, **kwargs) -> dict:
         """
         Check if anatomical localization data is available with quality filtering.
 
@@ -200,10 +189,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
 
         for pname, pid in probe_name_to_probe_id_dict.items():
             # Check histology quality from pre-computed table
-            probe_qc = histology_qc_df[
-                (histology_qc_df['eid'] == eid) &
-                (histology_qc_df['probe_name'] == pname)
-            ]
+            probe_qc = histology_qc_df[(histology_qc_df["eid"] == eid) & (histology_qc_df["probe_name"] == pname)]
 
             if probe_qc.empty:
                 raise ValueError(
@@ -212,8 +198,8 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 )
 
             probe_qc_row = probe_qc.iloc[0]
-            histology_quality = probe_qc_row['histology_quality']
-            has_files = probe_qc_row['has_histology_files']
+            histology_quality = probe_qc_row["histology_quality"]
+            has_files = probe_qc_row["has_histology_files"]
 
             if not has_files:
                 unavailable_probes.append(pname)
@@ -222,7 +208,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     logger.debug(f"  Probe {pname}: no electrodeSites files")
                 continue
 
-            if histology_quality == 'alf':
+            if histology_quality == "alf":
                 available_probes.append(pname)
                 if logger:
                     logger.debug(f"  Probe {pname}: available (quality: {histology_quality})")
@@ -243,12 +229,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
 
     @classmethod
     def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
+        cls, one: ONE, eid: str, download_only: bool = True, logger: Optional[logging.Logger] = None, **kwargs
     ) -> dict:
         """
         Download anatomical localization data with quality filtering.
@@ -292,10 +273,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
 
         for pname, pid in probe_name_to_probe_id_dict.items():
             # Check histology quality from pre-computed table
-            probe_qc = histology_qc_df[
-                (histology_qc_df['eid'] == eid) &
-                (histology_qc_df['probe_name'] == pname)
-            ]
+            probe_qc = histology_qc_df[(histology_qc_df["eid"] == eid) & (histology_qc_df["probe_name"] == pname)]
 
             if probe_qc.empty:
                 raise ValueError(
@@ -304,8 +282,8 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                 )
 
             probe_qc_row = probe_qc.iloc[0]
-            histology_quality = probe_qc_row['histology_quality']
-            has_files = probe_qc_row['has_histology_files']
+            histology_quality = probe_qc_row["histology_quality"]
+            has_files = probe_qc_row["has_histology_files"]
 
             # Skip if no files or insufficient quality
             if not has_files:
@@ -314,7 +292,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
                     logger.info(f"  Skipping {pname}: no electrodeSites files")
                 continue
 
-            if histology_quality != 'alf':
+            if histology_quality != "alf":
                 skipped_probes.append((pname, f"insufficient quality ({histology_quality})"))
                 if logger:
                     logger.info(f"  Skipping {pname}: quality '{histology_quality}' not sufficient")
@@ -332,7 +310,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             # Download SpikeGLX .meta file for electrode geometry
             # This is REQUIRED for creating the electrode table
             meta_collection = f"raw_ephys_data/{pname}"
-            meta_datasets = [d for d in one.list_datasets(eid, collection=meta_collection) if d.endswith('.ap.meta')]
+            meta_datasets = [d for d in one.list_datasets(eid, collection=meta_collection) if d.endswith(".ap.meta")]
             if meta_datasets:
                 # NO try-except - fail loudly if .meta file cannot be downloaded
                 one.load_dataset(id=eid, dataset=meta_datasets[0], download_only=True)
@@ -341,8 +319,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             else:
                 # Fail loudly - .meta file is required
                 raise FileNotFoundError(
-                    f"No .meta file found for probe {pname} in session {eid}. "
-                    f"Collection: {meta_collection}"
+                    f"No .meta file found for probe {pname} in session {eid}. " f"Collection: {meta_collection}"
                 )
 
             downloaded_probes.append(pname)
@@ -358,15 +335,17 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         # Build list of downloaded files (specific probes that were downloaded)
         downloaded_files = []
         for pname in downloaded_probes:
-            downloaded_files.extend([
-                f"alf/{pname}/channels.localCoordinates.npy",
-                f"alf/{pname}/channels.mlapdv.npy",
-                f"alf/{pname}/channels.brainLocationIds_ccf_2017.npy",
-                f"alf/{pname}/electrodeSites.localCoordinates.npy",
-                f"alf/{pname}/electrodeSites.mlapdv.npy",
-                f"alf/{pname}/electrodeSites.brainLocationIds_ccf_2017.npy",
-                f"raw_ephys_data/{pname}/_spikeglx_ephysData_g0_t0.imec.ap.meta",
-            ])
+            downloaded_files.extend(
+                [
+                    f"alf/{pname}/channels.localCoordinates.npy",
+                    f"alf/{pname}/channels.mlapdv.npy",
+                    f"alf/{pname}/channels.brainLocationIds_ccf_2017.npy",
+                    f"alf/{pname}/electrodeSites.localCoordinates.npy",
+                    f"alf/{pname}/electrodeSites.mlapdv.npy",
+                    f"alf/{pname}/electrodeSites.brainLocationIds_ccf_2017.npy",
+                    f"raw_ephys_data/{pname}/_spikeglx_ephysData_g0_t0.imec.ap.meta",
+                ]
+            )
 
         return {
             "success": True,
@@ -409,7 +388,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             )
 
         # Check that required columns exist in electrodes table
-        required_columns = ['x', 'y', 'z', 'location']
+        required_columns = ["x", "y", "z", "location"]
         missing = [col for col in required_columns if col not in nwbfile.electrodes.colnames]
         if missing:
             raise ValueError(
@@ -423,7 +402,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             return
 
         # Create or get the Localization container using dict.get
-        localization = nwbfile.lab_meta_data.get('localization')
+        localization = nwbfile.lab_meta_data.get("localization")
         if localization is None:
             localization = Localization()
             nwbfile.add_lab_meta_data(localization)
@@ -448,42 +427,42 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         # Create single merged IBL-Bregma table for all probes
         ibl_table = AnatomicalCoordinatesTable(
             name="ElectrodesIBLBregma",
-            description='Electrode positions in the IBL-Bregma coordinate system',
+            description="Electrode positions in the IBL-Bregma coordinate system",
             target=nwbfile.electrodes,
             space=self.ibl_space,
-            method='IBL histology alignment pipeline',
+            method="IBL histology alignment pipeline",
         )
         # Add probe_name column to identify which probe each electrode belongs to
         ibl_table.add_column(
-            name='probe_name',
-            description='IBL probe name in canonical format (e.g., Probe00, Probe01).',
+            name="probe_name",
+            description="IBL probe name in canonical format (e.g., Probe00, Probe01).",
         )
         # Add custom columns for hierarchical brain region mappings and atlas ID
         ibl_table.add_column(
-            name='atlas_id',
-            description='Allen Brain Atlas region ID. Negative values indicate left hemisphere, positive values indicate right hemisphere.',
+            name="atlas_id",
+            description="Allen Brain Atlas region ID. Negative values indicate left hemisphere, positive values indicate right hemisphere.",
         )
         ibl_table.add_column(
-            name='beryl_location',
-            description='Brain region in IBL Beryl atlas (coarse grouping).',
+            name="beryl_location",
+            description="Brain region in IBL Beryl atlas (coarse grouping).",
         )
         ibl_table.add_column(
-            name='cosmos_location',
-            description='Brain region in IBL Cosmos atlas (very coarse grouping).',
+            name="cosmos_location",
+            description="Brain region in IBL Cosmos atlas (very coarse grouping).",
         )
 
         # Create single merged CCF table for all probes
         ccf_table = AnatomicalCoordinatesTable(
-            name='ElectrodesCCFv3',
-            description='Electrode positions in the Allen CCF coordinate system',
+            name="ElectrodesCCFv3",
+            description="Electrode positions in the Allen CCF coordinate system",
             target=nwbfile.electrodes,
             space=self.ccf_space,
-            method='IBL histology alignment pipeline',
+            method="IBL histology alignment pipeline",
         )
         # Add probe_name column to identify which probe each electrode belongs to
         ccf_table.add_column(
-            name='probe_name',
-            description='IBL probe name in canonical format (e.g., Probe00, Probe01).',
+            name="probe_name",
+            description="IBL probe name in canonical format (e.g., Probe00, Probe01).",
         )
 
         # Build mapping of electrode_index -> row_index for units linking
@@ -492,7 +471,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         for probe_name, data in self.probe_data.items():
             canonical_name = get_ibl_probe_name(probe_name)
 
-            channels = data['channels']
+            channels = data["channels"]
             channels_x = np.asarray(channels["x"], dtype=np.float64)
             channels_y = np.asarray(channels["y"], dtype=np.float64)
             channels_z = np.asarray(channels["z"], dtype=np.float64)
@@ -512,7 +491,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
 
             # Use NeuroConv's global ID matching system
             for index in range(len(nwbfile.electrodes)):
-                if nwbfile.electrodes['group_name'][index] == ibl_group_name:
+                if nwbfile.electrodes["group_name"][index] == ibl_group_name:
                     electrode_indices.append(index)
 
             ibl_coords_um, _ = _ensure_ibl_coordinates_um(channels_x, channels_y, channels_z)
@@ -528,9 +507,9 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
             ibl_x_um = ibl_coords_um[:, 0]
             ibl_y_um = ibl_coords_um[:, 1]
             ibl_z_um = ibl_coords_um[:, 2]
-            ccf_coords_x_um = ccf_result['coords_um'][:, 0]
-            ccf_coords_y_um = ccf_result['coords_um'][:, 1]
-            ccf_coords_z_um = ccf_result['coords_um'][:, 2]
+            ccf_coords_x_um = ccf_result["coords_um"][:, 0]
+            ccf_coords_y_um = ccf_result["coords_um"][:, 1]
+            ccf_coords_z_um = ccf_result["coords_um"][:, 2]
 
             # Map electrode index to channel index using modulo
             for electrode_index in electrode_indices:
@@ -542,7 +521,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
 
                 # Add rows to merged AnatomicalCoordinatesTables
                 # Use acronym for brain_region in the tables (standard identifier)
-                acronym_value = ccf_result['acronym'][channel_index]
+                acronym_value = ccf_result["acronym"][channel_index]
 
                 ibl_table.add_row(
                     localized_entity=electrode_index,
@@ -568,8 +547,7 @@ class IblAnatomicalLocalizationInterface(BaseIBLDataInterface):
         # Validate that tables were populated
         if len(ibl_table) == 0 or len(ccf_table) == 0:
             raise ValueError(
-                "Failed to create anatomical coordinates tables. "
-                "Ensure probe data contains histology information."
+                "Failed to create anatomical coordinates tables. " "Ensure probe data contains histology information."
             )
 
         # Add both tables to localization

@@ -18,7 +18,6 @@ from one.api import ONE
 from pynwb import NWBFile
 
 from ..datainterfaces._ibl_neuropixels2_shank_interface import IblNeuropixels2ShankInterface
-from ..utils.probe_naming import get_ibl_probe_name
 
 
 class IblNeuropixels2Converter(ConverterPipe):
@@ -86,10 +85,13 @@ class IblNeuropixels2Converter(ConverterPipe):
         if not raw_ephys_folder.exists():
             raise FileNotFoundError(f"raw_ephys_data folder not found at {raw_ephys_folder}")
 
-        shank_folders = sorted([
-            f for f in raw_ephys_folder.iterdir()
-            if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8  # probe00a format
-        ])
+        shank_folders = sorted(
+            [
+                f
+                for f in raw_ephys_folder.iterdir()
+                if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8  # probe00a format
+            ]
+        )
 
         if len(shank_folders) == 0:
             raise FileNotFoundError(
@@ -209,8 +211,7 @@ class IblNeuropixels2Converter(ConverterPipe):
         # This can be implemented later when we understand the alignment requirements
         if self.logger:
             self.logger.warning(
-                "Temporal alignment not yet implemented for NP2.0 per-shank data. "
-                "Using sample-based timestamps."
+                "Temporal alignment not yet implemented for NP2.0 per-shank data. " "Using sample-based timestamps."
             )
 
     def add_to_nwbfile(
@@ -276,10 +277,9 @@ def discover_np2_shank_folders(raw_ephys_folder: Path) -> list[str]:
     if not raw_ephys_folder.exists():
         return []
 
-    return sorted([
-        f.name for f in raw_ephys_folder.iterdir()
-        if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
-    ])
+    return sorted(
+        [f.name for f in raw_ephys_folder.iterdir() if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8]
+    )
 
 
 def get_physical_probe_from_shank(shank_name: str) -> str:

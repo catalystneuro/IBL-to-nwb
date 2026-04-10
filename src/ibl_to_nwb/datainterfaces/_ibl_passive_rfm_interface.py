@@ -6,8 +6,8 @@ to NWB files during passive periods.
 """
 
 import logging
-from typing import Optional
 import time
+from typing import Optional
 
 import numpy as np
 from neuroconv.tools.nwb_helpers import get_module
@@ -84,20 +84,12 @@ class PassiveRFMInterface(BaseIBLDataInterface):
 
         # Load RFM data - will fail loudly if data missing
         self.rfm_times = one.load_dataset(
-            session,
-            "_ibl_passiveRFM.times.npy",
-            collection="alf",
-            revision=self.revision
+            session, "_ibl_passiveRFM.times.npy", collection="alf", revision=self.revision
         )
         rfm_path = one.load_dataset(
-            session,
-            "_iblrig_RFMapStim.raw.bin",
-            collection="raw_passive_data",
-            revision=self.revision
+            session, "_iblrig_RFMapStim.raw.bin", collection="raw_passive_data", revision=self.revision
         )
-        self.rfm_data = np.fromfile(rfm_path, dtype=np.uint8).reshape(
-            (self.rfm_times.shape[0], 15, 15)
-        )
+        self.rfm_data = np.fromfile(rfm_path, dtype=np.uint8).reshape((self.rfm_times.shape[0], 15, 15))
 
     @classmethod
     def get_data_requirements(cls, **kwargs) -> dict:
@@ -116,21 +108,13 @@ class PassiveRFMInterface(BaseIBLDataInterface):
         """
         return {
             "exact_files_options": {
-                "standard": [
-                    "alf/_ibl_passiveRFM.times.npy",
-                    "raw_passive_data/_iblrig_RFMapStim.raw.bin"
-                ],
+                "standard": ["alf/_ibl_passiveRFM.times.npy", "raw_passive_data/_iblrig_RFMapStim.raw.bin"],
             },
         }
 
     @classmethod
     def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
+        cls, one: ONE, eid: str, download_only: bool = True, logger: Optional[logging.Logger] = None, **kwargs
     ) -> dict:
         """
         Download passive RFM stimulus data.
@@ -167,17 +151,11 @@ class PassiveRFMInterface(BaseIBLDataInterface):
         # Note: Must separate collection and filename for ONE API
         for file_path in requirements["exact_files_options"]["standard"]:
             # Extract collection and filename from path
-            parts = file_path.split('/')
+            parts = file_path.split("/")
             collection = parts[0] if len(parts) > 1 else None
             filename = parts[-1]
 
-            one.load_dataset(
-                eid,
-                filename,
-                collection=collection,
-                revision=revision,
-                download_only=download_only
-            )
+            one.load_dataset(eid, filename, collection=collection, revision=revision, download_only=download_only)
             if logger:
                 logger.info(f"  Downloaded: {file_path}")
 
@@ -221,7 +199,7 @@ class PassiveRFMInterface(BaseIBLDataInterface):
                 "(2) receptive field mapping (RFM) using sparse noise visual stimuli, and "
                 "(3) task replay presenting the same Gabor patches and auditory stimuli (valve, tone, noise) "
                 f"used during the active behavioral task.{revision_str}"
-            )
+            ),
         )
 
         # Create the RFM stimulus TimeSeries

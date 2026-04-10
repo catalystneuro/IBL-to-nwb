@@ -2,7 +2,7 @@
 requires = ["uv_build"]
 build-backend = "uv_build"
 
-[project] 
+[project]
 name = "ibl_to_nwb"
 version="0.3.0"
 authors = [
@@ -15,13 +15,13 @@ license = {file = "license.txt"}
 # Upper bound needed because compiled dependencies (e.g., h5py) don't have Python 3.14 wheels yet
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "dandi>=0.73.2", 
+    "dandi>=0.73.2",
     "neuroconv>=0.9.3",
     "pynwb",
     "hdmf-zarr",
     "spikeinterface>=0.103.2",
     "probeinterface",
-    "ndx-pose>=0.2.2",  
+    "ndx-pose>=0.2.2",
     "ONE-api",
     "iblatlas",
     "ndx-ibl",
@@ -76,6 +76,10 @@ override-dependencies = [
     "pyqt5-qt5>=5.15; sys_platform != 'win32'",
 ]
 
+[tool.codespell]
+skip = "*.ipynb"
+ignore-words-list = "trough,re-used"
+
 [tool.black]
 line-length = 120
 target-version = ['py312']
@@ -115,6 +119,8 @@ ignore = [
     "FIX002",
     "TD003",
     "TD002",
+    "F841",
+    "E731",
     "S101",
     "ICN001",
     "INP001",

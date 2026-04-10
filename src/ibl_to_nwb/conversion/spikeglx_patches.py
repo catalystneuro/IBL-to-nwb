@@ -147,7 +147,9 @@ def fix_corrupted_spikeglx_meta_files(
                 key = new_key  # Update key for subsequent checks
                 logger.warning(
                     "Patching missing ~ prefix in %s: %s -> %s",
-                    meta_file.name, key[1:], new_key,
+                    meta_file.name,
+                    key[1:],
+                    new_key,
                 )
 
             # Fix LF meta fileName pointing to AP binary
@@ -158,7 +160,9 @@ def fix_corrupted_spikeglx_meta_files(
                 file_changed = True
                 logger.warning(
                     "Patching fileName in %s: %s -> %s",
-                    meta_file.name, original_value, patched_value,
+                    meta_file.name,
+                    original_value,
+                    patched_value,
                 )
 
             # Restore snsSaveChanSubset from snsSaveChanSubset_orig
@@ -169,7 +173,9 @@ def fix_corrupted_spikeglx_meta_files(
                     file_changed = True
                     logger.warning(
                         "Patching snsSaveChanSubset in %s: %s -> %s",
-                        meta_file.name, current_value, orig_chan_subset,
+                        meta_file.name,
+                        current_value,
+                        orig_chan_subset,
                     )
 
             # Trim oversized snsChanMap / snsShankMap to saved channels only
@@ -182,7 +188,11 @@ def fix_corrupted_spikeglx_meta_files(
                     file_changed = True
                     logger.warning(
                         "Trimming %s in %s: %d entries -> %d entries (matching nSavedChans=%d)",
-                        key, meta_file.name, original_count + 1, new_count + 1, n_saved_chans,
+                        key,
+                        meta_file.name,
+                        original_count + 1,
+                        new_count + 1,
+                        n_saved_chans,
                     )
 
             new_lines.append(line)

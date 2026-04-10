@@ -5,28 +5,30 @@ import time
 import warnings
 from datetime import datetime
 from pathlib import Path
-
 from zoneinfo import ZoneInfo
 
+from ndx_ibl import IblMetadata, IblSubject
 from neuroconv import ConverterPipe
 from neuroconv.tools import configure_and_write_nwbfile
 from neuroconv.tools.hdmf import GenericDataChunkIterator
 from neuroconv.tools.nwb_helpers import get_default_backend_configuration
-from ndx_ibl import IblMetadata, IblSubject
-from one.api import ONE
 from one import alf
+from one.api import ONE
 from pynwb import NWBFile, read_nwb
 
 from ..converters import BrainwideMapConverter, IblSpikeGlxConverter
-from ..datainterfaces import IblAnatomicalLocalizationInterface, IblNIDQInterface, RawVideoInterface, SessionEpochsInterface
+from ..datainterfaces import (
+    IblAnatomicalLocalizationInterface,
+    IblNIDQInterface,
+    RawVideoInterface,
+    SessionEpochsInterface,
+)
 from ..fixtures import load_fixtures
 from ..utils import (
     add_probe_electrodes_with_localization,
-    check_camera_health_by_qc,
     get_ibl_subject_metadata,
     sanitize_subject_id_for_dandi,
     setup_paths,
-    tree_copy,
 )
 
 
@@ -109,21 +111,14 @@ def convert_raw_session(
     # These occur when .meta files lack snsShankMap/snsGeomMap fields (common for LF and NIDQ)
     # The default Neuropixel geometry is correctly used - these warnings are cosmetic
     warnings.filterwarnings(
-        "ignore",
-        message="Meta data doesn't have geometry.*returning defaults",
-        category=UserWarning,
-        module="spikeglx"
+        "ignore", message="Meta data doesn't have geometry.*returning defaults", category=UserWarning, module="spikeglx"
     )
 
     # Suppress ONE API ALFWarning about multiple revisions
     # Camera data often has mixed revisions (empty string "" and dated revisions like "2023-04-20")
     # This happens when some files were re-processed but not all - the ONE API handles this correctly
     # by selecting the appropriate revision, so the warning is informational only
-    warnings.filterwarnings(
-        "ignore",
-        message="Multiple revisions:.*",
-        category=alf.exceptions.ALFWarning
-    )
+    warnings.filterwarnings("ignore", message="Multiple revisions:.*", category=alf.exceptions.ALFWarning)
 
     if logger:
         logger.info(f"Starting RAW conversion for session {eid}")
@@ -179,9 +174,7 @@ def convert_raw_session(
             )
 
     scratch_ephys_folder = paths["session_decompressed_ephys_folder"] / "raw_ephys_data"
-    existing_bins = (
-        scratch_ephys_folder.exists() and next(scratch_ephys_folder.rglob("*.bin"), None) is not None
-    )
+    existing_bins = scratch_ephys_folder.exists() and next(scratch_ephys_folder.rglob("*.bin"), None) is not None
 
     # In stub mode: auto-include ephys if decompressed binaries are available
     # In full mode: always include ephys (decompression must be done externally)
@@ -234,6 +227,7 @@ def convert_raw_session(
         # This prevents Neo's scan_files() from encountering ._* AppleDouble files
         if existing_bins and paths["session_decompressed_ephys_folder"].exists():
             import platform
+
             if platform.system() == "Darwin":
                 for hidden_file in paths["session_decompressed_ephys_folder"].rglob("._*"):
                     hidden_file.unlink()
@@ -268,7 +262,9 @@ def convert_raw_session(
                 logger.warning(f"NIDQ data not available for session {eid} - skipping NIDQ interface")
     elif logger:
         if not stub_test:
-            logger.info("SpikeGLX data not available: skipping SpikeGLX converter setup (see message above for details)")
+            logger.info(
+                "SpikeGLX data not available: skipping SpikeGLX converter setup (see message above for details)"
+            )
 
     # Anatomical localization (loads probe info and histology QC internally)
     anat_interface = IblAnatomicalLocalizationInterface(one=one, eid=eid)
@@ -411,9 +407,7 @@ def convert_raw_session(
         nwbfile_metadata["protocol"] = session_metadata["task_protocol"]
 
     # Get subject metadata using centralized utility function
-    subject_metadata_block.update(
-        get_ibl_subject_metadata(one=one, session_metadata=session_metadata, tzinfo=tzinfo)
-    )
+    subject_metadata_block.update(get_ibl_subject_metadata(one=one, session_metadata=session_metadata, tzinfo=tzinfo))
 
     # ========================================================================
     # STEP 5: Configure conversion options
@@ -450,15 +444,15 @@ def convert_raw_session(
     if probe_name_to_probe_id_dict:
         if logger:
             if include_ecephys:
-                logger.info(
-                    "Pre-populating electrode table from anatomical localization before SpikeGLX data."
-                )
+                logger.info("Pre-populating electrode table from anatomical localization before SpikeGLX data.")
             else:
                 logger.info("Adding Neuropixels electrodes from metadata (stub mode)...")
         for probe_name, pid in probe_name_to_probe_id_dict.items():
             # Resolve .meta file path from ONE cache (already downloaded, no query needed)
             meta_collection = f"raw_ephys_data/{probe_name}"
-            meta_datasets = [d for d in one.list_datasets(eid=eid, collection=meta_collection) if d.endswith(".ap.meta")]
+            meta_datasets = [
+                d for d in one.list_datasets(eid=eid, collection=meta_collection) if d.endswith(".ap.meta")
+            ]
             meta_path = None
             if meta_datasets:
                 # Get path from ONE cache (already cached locally)
@@ -519,10 +513,7 @@ def convert_raw_session(
             # This guarantees buffer_axis % chunk_axis == 0 (required by validation)
             buffer_gb = 1.0  # Default buffer size
             buffer_shape = GenericDataChunkIterator.estimate_default_buffer_shape(
-                buffer_gb=buffer_gb,
-                chunk_shape=chunk_shape,
-                maxshape=full_shape,
-                dtype=dtype
+                buffer_gb=buffer_gb, chunk_shape=chunk_shape, maxshape=full_shape, dtype=dtype
             )
 
             # Update both chunk_shape and buffer_shape atomically using model_copy

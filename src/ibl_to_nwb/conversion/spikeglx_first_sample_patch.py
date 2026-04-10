@@ -40,10 +40,7 @@ def inject_missing_first_sample(
     for meta_file in spikeglx_folder.rglob("*.meta"):
         text = meta_file.read_text()
 
-        has_first_sample = any(
-            line.split("=", 1)[0].rstrip() == "firstSample"
-            for line in text.splitlines()
-        )
+        has_first_sample = any(line.split("=", 1)[0].rstrip() == "firstSample" for line in text.splitlines())
         if has_first_sample:
             continue
 

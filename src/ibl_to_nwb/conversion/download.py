@@ -6,25 +6,25 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ..utils import setup_paths
 from ..converters import IblSpikeGlxConverter
 from ..datainterfaces import (
-    IblSortingInterface,
+    BrainwideMapTrialsInterface,
     IblAnatomicalLocalizationInterface,
     IblNIDQInterface,
-    BrainwideMapTrialsInterface,
-    WheelPositionInterface,
-    WheelMovementsInterface,
-    WheelKinematicsInterface,
+    IblPoseEstimationInterface,
+    IblSortingInterface,
+    LickInterface,
     PassiveIntervalsInterface,
     PassiveReplayStimInterface,
     PassiveRFMInterface,
-    IblPoseEstimationInterface,
     PupilTrackingInterface,
-    RoiMotionEnergyInterface,
-    LickInterface,
     RawVideoInterface,
+    RoiMotionEnergyInterface,
+    WheelKinematicsInterface,
+    WheelMovementsInterface,
+    WheelPositionInterface,
 )
+from ..utils import setup_paths
 
 
 def download_session_data(
@@ -78,6 +78,7 @@ def download_session_data(
         if logger:
             logger.info(f"REDOWNLOAD_DATA is True - clearing cached data for session {eid}")
         import shutil
+
         shutil.rmtree(paths["session_folder"])
         paths["session_folder"].mkdir(parents=True, exist_ok=True)
 
@@ -85,12 +86,14 @@ def download_session_data(
     interfaces_to_download = []
 
     # Core behavioral/processed data interfaces (always available)
-    interfaces_to_download.extend([
-        ("Trials", BrainwideMapTrialsInterface, {}),
-        ("WheelPosition", WheelPositionInterface, {}),
-        ("WheelMovements", WheelMovementsInterface, {}),
-        ("WheelKinematics", WheelKinematicsInterface, {}),
-    ])
+    interfaces_to_download.extend(
+        [
+            ("Trials", BrainwideMapTrialsInterface, {}),
+            ("WheelPosition", WheelPositionInterface, {}),
+            ("WheelMovements", WheelMovementsInterface, {}),
+            ("WheelKinematics", WheelKinematicsInterface, {}),
+        ]
+    )
 
     # Licks are optional - not all sessions have lick detection data
     if LickInterface.check_availability(one, eid)["available"]:
@@ -109,10 +112,12 @@ def download_session_data(
     # Spike sorting and anatomical localization
     # Note: Anatomical localization checks availability internally and may skip if no good histology
     # Note: Anatomical localization downloads .meta files needed for electrode tables
-    interfaces_to_download.extend([
-        ("SpikeSorting", IblSortingInterface, {}),
-        ("AnatomicalLocalization", IblAnatomicalLocalizationInterface, {}),
-    ])
+    interfaces_to_download.extend(
+        [
+            ("SpikeSorting", IblSortingInterface, {}),
+            ("AnatomicalLocalization", IblAnatomicalLocalizationInterface, {}),
+        ]
+    )
 
     # Raw SpikeGLX data (large .cbin files)
     # Skip in stub mode or when download_raw=False to avoid downloading gigabytes of raw ephys data
@@ -135,15 +140,21 @@ def download_session_data(
             interfaces_to_download.append((f"RawVideo_{camera_view}", RawVideoInterface, {"camera_name": camera_view}))
 
         if IblPoseEstimationInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
-            interfaces_to_download.append((f"PoseEstimation_{camera_view}", IblPoseEstimationInterface, {"camera_name": camera_name}))
+            interfaces_to_download.append(
+                (f"PoseEstimation_{camera_view}", IblPoseEstimationInterface, {"camera_name": camera_name})
+            )
 
         # Pupil tracking - only for left/right cameras (body camera doesn't capture eyes)
         if camera_view in ["left", "right"]:
             if PupilTrackingInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
-                interfaces_to_download.append((f"PupilTracking_{camera_view}", PupilTrackingInterface, {"camera_name": camera_name}))
+                interfaces_to_download.append(
+                    (f"PupilTracking_{camera_view}", PupilTrackingInterface, {"camera_name": camera_name})
+                )
 
         if RoiMotionEnergyInterface.check_availability(one, eid, camera_name=camera_name)["available"]:
-            interfaces_to_download.append((f"RoiMotionEnergy_{camera_view}", RoiMotionEnergyInterface, {"camera_name": camera_name}))
+            interfaces_to_download.append(
+                (f"RoiMotionEnergy_{camera_view}", RoiMotionEnergyInterface, {"camera_name": camera_name})
+            )
 
     if logger:
         logger.info(f"Downloading data for {len(interfaces_to_download)} interface(s)...")
@@ -160,12 +171,7 @@ def download_session_data(
                 continue
             # For spike sorting, stub mode is handled within the interface
 
-        interface_class.download_data(
-            one=one,
-            eid=eid,
-            logger=logger,
-            **kwargs
-        )
+        interface_class.download_data(one=one, eid=eid, logger=logger, **kwargs)
 
     download_time = time.time() - download_start
 

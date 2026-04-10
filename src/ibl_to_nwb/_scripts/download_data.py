@@ -18,7 +18,7 @@ revisions = one.list_revisions(eid)
 revision = revisions[-1]  # latest revision
 revision = "2025-05-06"  # the revision used for the BWM conversion
 
-# %% inpsection
+# %% inspection
 datasets = one.list_datasets(eid)
 collections = one.list_collections(eid)
 

@@ -10,8 +10,8 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ibl_to_nwb.conversion.session import convert_session
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
+from ibl_to_nwb.conversion.session import convert_session
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
 
@@ -42,7 +42,7 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     # Capture Python warnings in the logging system
     # This ensures warnings.warn() calls appear in the log file
     logging.captureWarnings(True)
-    warnings_logger = logging.getLogger('py.warnings')
+    warnings_logger = logging.getLogger("py.warnings")
     warnings_logger.addHandler(file_handler)
     warnings_logger.addHandler(console_handler)
 
@@ -54,14 +54,14 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = True              # Write raw-ephys NWBs
-    CONVERT_PROCESSED = False        # Write processed/behavior NWBs
-    STUB_TEST = False                # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
-    REDOWNLOAD_DATA = False         # Clear cached data and re-download from ONE
-    OVERWRITE = True                # Regenerate NWBs even if existing files validate
-    RUN_CONSISTENCY_CHECKS = False   # Validate NWB files against ONE data (slow but thorough)
-    VERBOSE = False                 # Enable verbose output from neuroconv interfaces
-    DISPLAY_PROGRESS_BAR = True     # Show progress bars (local runs)
+    CONVERT_RAW = True  # Write raw-ephys NWBs
+    CONVERT_PROCESSED = False  # Write processed/behavior NWBs
+    STUB_TEST = False  # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    REDOWNLOAD_DATA = False  # Clear cached data and re-download from ONE
+    OVERWRITE = True  # Regenerate NWBs even if existing files validate
+    RUN_CONSISTENCY_CHECKS = False  # Validate NWB files against ONE data (slow but thorough)
+    VERBOSE = False  # Enable verbose output from neuroconv interfaces
+    DISPLAY_PROGRESS_BAR = True  # Show progress bars (local runs)
 
     if platform.system() == "Darwin":  # macOS
         base_folder = Path("/Volumes/Expansion")
@@ -87,7 +87,9 @@ if __name__ == "__main__":
     # TARGET_EID = "35ed605c-1a1a-47b1-86ff-2b56144f55af"  # Another full file
     # TARGET_EID = "fa1f26a1-eb49-4b24-917e-19f02a18ac61"  # Yet another full file
     # TARGET_EID = "8c025071-c4f3-426c-9aed-f149e8f75b7b"  # Large memory consumption (~36 GB virtual, ~29.5 GB RSS), OOM on 32 GB instances during processed conversion (2 probes)
-    TARGET_EID = "6ed57216-498d-48a6-b48b-a243a34710ea"  # 2 probes (NYU-39, 2021-05-10, angelakilab) - Full processed file
+    TARGET_EID = (
+        "6ed57216-498d-48a6-b48b-a243a34710ea"  # 2 probes (NYU-39, 2021-05-10, angelakilab) - Full processed file
+    )
     # TARGET_EID = "ebe090af-5922-4fcd-8fc6-17b8ba7bad6d"  # Witten lab - missing firstSample in meta
     # TARGET_EID = "de905562-31c6-4c31-9ece-3ee87b97eab4"  # steinmetzlab NR_0029 (2023-08-31) - corrupted meta (probe00b)
     # TARGET_EID = "d85c454e-8737-4cba-b6ad-b2339429d99b"  # steinmetzlab NR_0029 (2023-08-29) - corrupted meta (probe00a)
@@ -99,7 +101,12 @@ if __name__ == "__main__":
     if target_eid == "INSERT_EID_HERE":
         raise SystemExit("Please provide an EID either by editing TARGET_EID or passing it as a command-line argument.")
 
-    one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, password='international', silent=True)
+    one = ONE(
+        base_url="https://openalyx.internationalbrainlab.org",
+        cache_dir=cache_dir,
+        password="international",
+        silent=True,
+    )
 
     # Logs are derived from base_path
     logs_path = base_path / "conversion_logs"
@@ -201,11 +208,7 @@ if __name__ == "__main__":
     if results.get("raw_converted"):
         raw_size_gb = results.get("raw_size_gb", 0)
         raw_size_bytes = results.get("raw_size_bytes", 0)
-        ratio = (
-            download_info.get("total_size_gb", 0) / raw_size_gb
-            if raw_size_gb > 0
-            else 0
-        )
+        ratio = download_info.get("total_size_gb", 0) / raw_size_gb if raw_size_gb > 0 else 0
         logger.info(f"RAW NWB size: {raw_size_gb:.2f} GB ({raw_size_bytes:,} bytes)")
         logger.info(f"RAW compression ratio: {ratio:.2f}x (source/output)")
     elif results.get("raw_skipped"):
@@ -214,11 +217,7 @@ if __name__ == "__main__":
     if results.get("processed_converted"):
         processed_size_gb = results.get("processed_size_gb", 0)
         processed_size_bytes = results.get("processed_size_bytes", 0)
-        ratio = (
-            download_info.get("total_size_gb", 0) / processed_size_gb
-            if processed_size_gb > 0
-            else 0
-        )
+        ratio = download_info.get("total_size_gb", 0) / processed_size_gb if processed_size_gb > 0 else 0
         logger.info(f"PROCESSED NWB size: {processed_size_gb:.2f} GB ({processed_size_bytes:,} bytes)")
         logger.info(f"PROCESSED compression ratio: {ratio:.2f}x (source/output)")
     elif results.get("processed_skipped"):
@@ -227,9 +226,7 @@ if __name__ == "__main__":
     if results.get("raw_converted") and results.get("processed_converted"):
         total_nwb_size_gb = results["raw_size_gb"] + results["processed_size_gb"]
         total_nwb_size_bytes = results["raw_size_bytes"] + results["processed_size_bytes"]
-        overall_compression = (
-            download_info.get("total_size_gb", 0) / total_nwb_size_gb if total_nwb_size_gb > 0 else 0
-        )
+        overall_compression = download_info.get("total_size_gb", 0) / total_nwb_size_gb if total_nwb_size_gb > 0 else 0
         logger.info(f"Total NWB output: {total_nwb_size_gb:.2f} GB ({total_nwb_size_bytes:,} bytes)")
         logger.info(f"Overall compression ratio: {overall_compression:.2f}x (source/combined output)")
 

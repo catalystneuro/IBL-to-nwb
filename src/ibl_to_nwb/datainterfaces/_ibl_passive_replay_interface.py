@@ -6,8 +6,8 @@ including valve, tone, noise stimuli and gabor patch presentations.
 """
 
 import logging
-from typing import Optional
 import time
+from typing import Optional
 
 import pandas as pd
 from hdmf.common import VectorData
@@ -90,16 +90,10 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
 
         # Load replay stimulation data - will fail loudly if data missing
         self.taskreplay_events_df = one.load_dataset(
-            session,
-            "_ibl_passiveStims.table.csv",
-            collection="alf",
-            revision=self.revision
+            session, "_ibl_passiveStims.table.csv", collection="alf", revision=self.revision
         )
         self.gabor_events_df = one.load_dataset(
-            session,
-            "_ibl_passiveGabor.table.csv",
-            collection="alf",
-            revision=self.revision
+            session, "_ibl_passiveGabor.table.csv", collection="alf", revision=self.revision
         )
 
     @classmethod
@@ -119,21 +113,13 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
         """
         return {
             "exact_files_options": {
-                "standard": [
-                    "alf/_ibl_passiveStims.table.csv",
-                    "alf/_ibl_passiveGabor.table.csv"
-                ],
+                "standard": ["alf/_ibl_passiveStims.table.csv", "alf/_ibl_passiveGabor.table.csv"],
             },
         }
 
     @classmethod
     def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
+        cls, one: ONE, eid: str, download_only: bool = True, logger: Optional[logging.Logger] = None, **kwargs
     ) -> dict:
         """
         Download passive replay stimulation data.
@@ -170,7 +156,7 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
         # Note: Must separate collection and filename for ONE API
         for file_path in requirements["exact_files_options"]["standard"]:
             # Extract filename from path (e.g., "alf/_ibl_passiveStims.table.csv" -> "_ibl_passiveStims.table.csv")
-            filename = file_path.split('/')[-1]
+            filename = file_path.split("/")[-1]
             one.load_dataset(eid, filename, collection="alf", revision=revision, download_only=download_only)
             if logger:
                 logger.info(f"  Downloaded: {file_path}")
@@ -206,8 +192,8 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
         pd.DataFrame
             Cleaned dataframe with overlapping stimuli excluded (preserves original order)
         """
-        start_times = gabor_df['start'].values
-        stop_times = gabor_df['stop'].values
+        start_times = gabor_df["start"].values
+        stop_times = gabor_df["stop"].values
         n_original = len(gabor_df)
 
         # Detect temporal overlaps
@@ -227,13 +213,13 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
                         # with its surrounding rows (not just the overlapping pair)
 
                         # Check if row i is in correct order with its neighbors
-                        i_before_ok = (i == 0) or (start_times[i-1] < start_times[i])
-                        i_after_ok = (i == n_original-1) or (start_times[i] < start_times[i+1])
+                        i_before_ok = (i == 0) or (start_times[i - 1] < start_times[i])
+                        i_after_ok = (i == n_original - 1) or (start_times[i] < start_times[i + 1])
                         i_sequential = i_before_ok and i_after_ok
 
                         # Check if row j is in correct order with its neighbors
-                        j_before_ok = (j == 0) or (start_times[j-1] < start_times[j])
-                        j_after_ok = (j == n_original-1) or (start_times[j] < start_times[j+1])
+                        j_before_ok = (j == 0) or (start_times[j - 1] < start_times[j])
+                        j_after_ok = (j == n_original - 1) or (start_times[j] < start_times[j + 1])
                         j_sequential = j_before_ok and j_after_ok
 
                         # Exclude the row that's NOT in sequence with its neighbors
@@ -301,7 +287,7 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
                 "(2) receptive field mapping (RFM) using sparse noise visual stimuli, and "
                 "(3) task replay presenting the same Gabor patches and auditory stimuli (valve, tone, noise) "
                 f"used during the active behavioral task.{revision_str}"
-            )
+            ),
         )
 
         # Add passive stimulation intervals as a TimeIntervals table
@@ -311,45 +297,28 @@ class PassiveReplayStimInterface(BaseIBLDataInterface):
         )
 
         # Add custom column for stimulation type
-        passive_stims.add_column(
-            name="stim_type",
-            description="Type of stimulation (valve, tone, or noise)"
-        )
+        passive_stims.add_column(name="stim_type", description="Type of stimulation (valve, tone, or noise)")
 
         # Collect all stimulation events with their start times for sorting
         all_stim_events = []
 
         # Add valve stimulation events
         for _, row in self.taskreplay_events_df.iterrows():
-            all_stim_events.append({
-                "start_time": row["valveOn"],
-                "stop_time": row["valveOff"],
-                "stim_type": "valve"
-            })
+            all_stim_events.append({"start_time": row["valveOn"], "stop_time": row["valveOff"], "stim_type": "valve"})
 
         # Add tone stimulation events
         for _, row in self.taskreplay_events_df.iterrows():
-            all_stim_events.append({
-                "start_time": row["toneOn"],
-                "stop_time": row["toneOff"],
-                "stim_type": "tone"
-            })
+            all_stim_events.append({"start_time": row["toneOn"], "stop_time": row["toneOff"], "stim_type": "tone"})
 
         # Add noise stimulation events
         for _, row in self.taskreplay_events_df.iterrows():
-            all_stim_events.append({
-                "start_time": row["noiseOn"],
-                "stop_time": row["noiseOff"],
-                "stim_type": "noise"
-            })
+            all_stim_events.append({"start_time": row["noiseOn"], "stop_time": row["noiseOff"], "stim_type": "noise"})
 
         # Sort events by start time and add sorted events to the TimeIntervals table
         all_stim_events.sort(key=lambda x: x["start_time"])
         for event in all_stim_events:
             passive_stims.add_row(
-                start_time=event["start_time"],
-                stop_time=event["stop_time"],
-                stim_type=event["stim_type"]
+                start_time=event["start_time"], stop_time=event["stop_time"], stim_type=event["stim_type"]
             )
 
         # Add to the module

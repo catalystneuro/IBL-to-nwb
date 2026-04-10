@@ -6,7 +6,7 @@ import logging
 import math
 from typing import Optional
 
-from ndx_ibl import IblProbeInsertionTrajectoryTable, IblProbeInsertionTrajectories
+from ndx_ibl import IblProbeInsertionTrajectories, IblProbeInsertionTrajectoryTable
 from one.api import ONE
 from pynwb import NWBFile
 
@@ -139,9 +139,7 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
             try:
                 trajectories = one.alyx.rest("trajectories", "list", probe_insertion=pid)
                 if trajectories:
-                    trajectories_found.extend(
-                        [f"{probe_name}:{traj['provenance']}" for traj in trajectories]
-                    )
+                    trajectories_found.extend([f"{probe_name}:{traj['provenance']}" for traj in trajectories])
             except Exception:
                 continue
 
@@ -182,7 +180,7 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
             Status indicating no download needed
         """
         if logger:
-            logger.info(f"ProbeTrajectoryInterface: No download needed (data from Alyx API)")
+            logger.info("ProbeTrajectoryInterface: No download needed (data from Alyx API)")
 
         return {
             "success": True,
@@ -313,7 +311,5 @@ class ProbeTrajectoryInterface(BaseIBLDataInterface):
 
         # Wrap tables in LabMetaData container and add to nwbfile
         # Note: IblProbeInsertionTrajectories has a fixed name in the spec, so we don't pass name=
-        probe_trajectories = IblProbeInsertionTrajectories(
-            ibl_probe_insertion_trajectory_tables=trajectory_tables
-        )
+        probe_trajectories = IblProbeInsertionTrajectories(ibl_probe_insertion_trajectory_tables=trajectory_tables)
         nwbfile.add_lab_meta_data(probe_trajectories)

@@ -14,8 +14,8 @@ from pathlib import PurePosixPath
 
 import numpy as np
 import pandas as pd
-from one.alf.path import ALFPath
 from iblutil.io import hashfile
+from one.alf.path import ALFPath
 
 _logger = logging.getLogger(__name__)
 
@@ -48,10 +48,11 @@ def patched_check_filesystem(self, datasets, offline=None, update_exists=True, c
     if isinstance(datasets, pd.Series):
         datasets = pd.DataFrame([datasets])
         assert datasets.index.nlevels <= 2
-        idx_names = ['eid', 'id'] if datasets.index.nlevels == 2 else ['id']
+        idx_names = ["eid", "id"] if datasets.index.nlevels == 2 else ["id"]
         datasets.index.set_names(idx_names, inplace=True)
     elif not isinstance(datasets, pd.DataFrame):
         from one.converters import datasets2records
+
         datasets = datasets2records(list(datasets))
     elif datasets.empty:
         return []
@@ -62,25 +63,23 @@ def patched_check_filesystem(self, datasets, offline=None, update_exists=True, c
     files = []
 
     # Get session paths if needed
-    if 'session_path' not in datasets.columns:
+    if "session_path" not in datasets.columns:
         from one.converters import session_record2path
-        if 'eid' not in datasets.index.names:
-            _dsets = self._cache['datasets'][
-                self._cache['datasets'].index.get_level_values(1).isin(datasets.index)
-            ]
+
+        if "eid" not in datasets.index.names:
+            _dsets = self._cache["datasets"][self._cache["datasets"].index.get_level_values(1).isin(datasets.index)]
             idx = _dsets.index.get_level_values(1)
         else:
             _dsets = datasets
             idx = pd.IndexSlice[:, _dsets.index.get_level_values(1)]
-        session_path = (self._cache['sessions']
-                        .loc[_dsets.index.get_level_values(0).unique()]
-                        .apply(session_record2path, axis=1))
-        datasets.loc[idx, 'session_path'] = \
-            pd.Series(_dsets.index.get_level_values(0)).map(session_path).values
+        session_path = (
+            self._cache["sessions"].loc[_dsets.index.get_level_values(0).unique()].apply(session_record2path, axis=1)
+        )
+        datasets.loc[idx, "session_path"] = pd.Series(_dsets.index.get_level_values(0)).map(session_path).values
 
     # Check each dataset
     for i, rec in datasets.iterrows():
-        file = ALFPath(self.cache_dir, *rec[['session_path', 'rel_path']])
+        file = ALFPath(self.cache_dir, *rec[["session_path", "rel_path"]])
         if self.uuid_filenames:
             file = file.with_uuid(i[1] if isinstance(i, tuple) else i)
 
@@ -88,34 +87,39 @@ def patched_check_filesystem(self, datasets, offline=None, update_exists=True, c
             needs_download = False
 
             # PATCH: Check size first (fast path), but use hash as fallback
-            if rec['file_size'] and file.stat().st_size != rec['file_size']:
+            if rec["file_size"] and file.stat().st_size != rec["file_size"]:
                 # Size mismatch detected - but don't immediately mark for download
-                _logger.warning('local file size mismatch on dataset: %s (expected: %d, got: %d)',
-                                PurePosixPath(rec.session_path, rec.rel_path),
-                                rec['file_size'], file.stat().st_size)
+                _logger.warning(
+                    "local file size mismatch on dataset: %s (expected: %d, got: %d)",
+                    PurePosixPath(rec.session_path, rec.rel_path),
+                    rec["file_size"],
+                    file.stat().st_size,
+                )
 
                 # CRITICAL FIX: Check hash before deciding to re-download
-                if check_hash and rec['hash'] is not None:
-                    _logger.info('Verifying hash due to size mismatch: %s',
-                                 PurePosixPath(rec.session_path, rec.rel_path))
+                if check_hash and rec["hash"] is not None:
+                    _logger.info(
+                        "Verifying hash due to size mismatch: %s", PurePosixPath(rec.session_path, rec.rel_path)
+                    )
                     actual_hash = hashfile.md5(file)
 
-                    if actual_hash != rec['hash']:
+                    if actual_hash != rec["hash"]:
                         # Both size AND hash mismatch - file is corrupted
-                        _logger.error('Hash also mismatches (expected: %s, got: %s) - re-downloading',
-                                      rec['hash'], actual_hash)
+                        _logger.error(
+                            "Hash also mismatches (expected: %s, got: %s) - re-downloading", rec["hash"], actual_hash
+                        )
                         needs_download = True
                     else:
                         # Size wrong but hash correct - database metadata is stale
-                        _logger.warning('Hash matches despite size mismatch - keeping cached file')
-                        _logger.warning('This indicates stale file_size metadata in Alyx database')
+                        _logger.warning("Hash matches despite size mismatch - keeping cached file")
+                        _logger.warning("This indicates stale file_size metadata in Alyx database")
                         # Do NOT mark for download - file is correct!
                 else:
                     # No hash available to verify - trust size check
-                    _logger.warning('No hash available to verify - marking for re-download')
+                    _logger.warning("No hash available to verify - marking for re-download")
                     needs_download = True
 
-            elif check_hash and rec['hash'] is not None:
+            elif check_hash and rec["hash"] is not None:
                 # OPTIONAL: Size matches, but user explicitly wants hash verification
                 # This can be used for periodic integrity checks
                 # For now, we trust size when it matches (fast path)
@@ -137,28 +141,28 @@ def patched_check_filesystem(self, datasets, offline=None, update_exists=True, c
 
     # Update cache
     exists = list(map(bool, files))
-    if not all(datasets['exists'] == exists):
+    if not all(datasets["exists"] == exists):
         with warnings.catch_warnings():
-            msg = '.*indexing on a MultiIndex with a nested sequence of labels.*'
-            warnings.filterwarnings('ignore', message=msg)
-            datasets['exists'] = exists
+            msg = ".*indexing on a MultiIndex with a nested sequence of labels.*"
+            warnings.filterwarnings("ignore", message=msg)
+            datasets["exists"] = exists
             if update_exists:
-                _logger.debug('Updating exists field')
+                _logger.debug("Updating exists field")
                 i = datasets.index
                 if i.nlevels == 1:
                     i = pd.IndexSlice[:, i]
-                self._cache['datasets'].loc[i, 'exists'] = exists
-                self._cache['_meta']['modified_time'] = datetime.now()
+                self._cache["datasets"].loc[i, "exists"] = exists
+                self._cache["_meta"]["modified_time"] = datetime.now()
 
     # Record loaded datasets
     if self.record_loaded:
         loaded = np.fromiter(map(bool, files), bool)
-        loaded_ids = datasets.index.get_level_values('id')[loaded].to_numpy()
-        if '_loaded_datasets' not in self._cache:
-            self._cache['_loaded_datasets'] = np.unique(loaded_ids)
+        loaded_ids = datasets.index.get_level_values("id")[loaded].to_numpy()
+        if "_loaded_datasets" not in self._cache:
+            self._cache["_loaded_datasets"] = np.unique(loaded_ids)
         else:
-            loaded_set = np.hstack([self._cache['_loaded_datasets'], loaded_ids])
-            self._cache['_loaded_datasets'] = np.unique(loaded_set)
+            loaded_set = np.hstack([self._cache["_loaded_datasets"], loaded_ids])
+            self._cache["_loaded_datasets"] = np.unique(loaded_set)
 
     return files
 
@@ -199,6 +203,7 @@ def apply_one_patches(one_instance, logger=None):
     >>> # instead of immediate re-download
     >>> one.load_dataset(eid, 'trials.intervals.npy')
     """
+
     def log_message(msg):
         """Helper to log via logger or print."""
         if logger:
@@ -211,6 +216,7 @@ def apply_one_patches(one_instance, logger=None):
 
     # Replace the _check_filesystem method
     import types
+
     one_instance._check_filesystem = types.MethodType(patched_check_filesystem, one_instance)
 
     log_message("ONE API patches applied successfully")

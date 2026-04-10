@@ -159,27 +159,27 @@ class IblSortingExtractor(BaseSorting):
 
             # Load additional cluster attributes
             additional_cluster_data = sorting_loader.load_spike_sorting_object(
-                'clusters',
-                dataset_types=['clusters.peakToTrough'],
+                "clusters",
+                dataset_types=["clusters.peakToTrough"],
                 revision=self.revision,
             )
 
             # Peak-to-trough duration in milliseconds
-            peak_to_trough = additional_cluster_data['peakToTrough']
+            peak_to_trough = additional_cluster_data["peakToTrough"]
             if stub_test:
                 peak_to_trough = peak_to_trough[:number_of_units]
             unit_properties["peak_to_trough_duration_ms"].extend(peak_to_trough.tolist())
 
             # Load waveform data (templates from pre-processed raw data)
             waveforms_data = sorting_loader.load_spike_sorting_object(
-                'waveforms',
-                dataset_types=['waveforms.templates'],
+                "waveforms",
+                dataset_types=["waveforms.templates"],
                 revision=self.revision,
             )
 
             # waveforms.templates has shape (n_clusters, n_channels, 128)
             # where n_channels is variable (typically 40-60) and axis order is (units, channels, time)
-            waveform_templates = waveforms_data['templates']
+            waveform_templates = waveforms_data["templates"]
 
             # Transpose from (units, channels, time) to (units, time, channels) for NWB convention
             waveform_templates = np.transpose(waveform_templates, (0, 2, 1))

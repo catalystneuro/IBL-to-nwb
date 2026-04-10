@@ -24,12 +24,12 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from ndx_ibl import IblMetadata, IblSubject
 from neuroconv.tools import configure_and_write_nwbfile
 from neuroconv.tools.nwb_helpers import get_default_backend_configuration
 from neuroconv.utils import dict_deep_update
-from ndx_ibl import IblMetadata, IblSubject
 from one.api import ONE
-from pynwb import NWBFile, NWBHDF5IO
+from pynwb import NWBHDF5IO, NWBFile
 
 from ibl_to_nwb.converters import IblNeuropixels2Converter
 from ibl_to_nwb.datainterfaces import IblNIDQInterface
@@ -62,7 +62,7 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
 
     # Capture Python warnings in the logging system
     logging.captureWarnings(True)
-    warnings_logger = logging.getLogger('py.warnings')
+    warnings_logger = logging.getLogger("py.warnings")
     warnings_logger.addHandler(file_handler)
     warnings_logger.addHandler(console_handler)
 
@@ -280,6 +280,7 @@ def validate_nwb_file(nwbfile_path: Path, logger: logging.Logger) -> bool:
     except Exception as e:
         logger.error(f"Validation FAILED: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
 
@@ -289,9 +290,9 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    STUB_TEST = True                # Work on lightweight subsets of data
-    REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
-    INCLUDE_LF_BAND = True          # Include LF band data (2.5 kHz) in addition to AP (30 kHz)
+    STUB_TEST = True  # Work on lightweight subsets of data
+    REDECOMPRESS_EPHYS = False  # Force regeneration of decompressed SpikeGLX binaries
+    INCLUDE_LF_BAND = True  # Include LF band data (2.5 kHz) in addition to AP (30 kHz)
 
     # Paths configuration
     base_folder = Path("/media/heberto/Expansion")
@@ -323,7 +324,7 @@ if __name__ == "__main__":
     one = ONE(
         base_url="https://openalyx.internationalbrainlab.org",
         cache_dir=cache_dir,
-        password='international',
+        password="international",
         silent=True,
     )
 
@@ -364,9 +365,9 @@ if __name__ == "__main__":
     existing_shank_folders = []
     if scratch_ephys_folder.exists():
         existing_shank_folders = [
-            f for f in scratch_ephys_folder.iterdir()
-            if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
-            and list(f.glob("*.ap.bin"))
+            f
+            for f in scratch_ephys_folder.iterdir()
+            if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8 and list(f.glob("*.ap.bin"))
         ]
     existing_ephys_bins = len(existing_shank_folders) > 0
     existing_nidq = any(scratch_ephys_folder.glob("*.nidq.bin")) if scratch_ephys_folder.exists() else False
@@ -396,10 +397,9 @@ if __name__ == "__main__":
     logger.info(f"Decompression completed in {decompress_time:.2f}s")
 
     # Count shank folders
-    shank_folders = sorted([
-        f for f in scratch_ephys_folder.iterdir()
-        if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
-    ])
+    shank_folders = sorted(
+        [f for f in scratch_ephys_folder.iterdir() if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8]
+    )
     logger.info(f"Found {len(shank_folders)} shank folders: {[f.name for f in shank_folders]}")
 
     # ========================================================================

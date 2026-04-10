@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from ibl_to_nwb._aws.eid_utils import eids_to_ranges
+
 # =============================================================================
 # CONFIGURATION - Edit these values
 # =============================================================================
@@ -30,20 +31,20 @@ SESSIONS_TO_REUPLOAD = [
 ]
 
 luis_request_2026_01_30 = [
-     # Mainen lab
+    # Mainen lab
     "4aa1d525-5c7d-4c50-a147-ec53a9014812",
-#     # Mrsicflogel lab
-#     "03063955-2523-47bd-ae57-f7489dd40f15",
-#     # Steinmetz lab
-#     "ae8787b1-4229-4d56-b0c2-566b61a25b77",
-#     # Zador lab
-#     "81a78eac-9d36-4f90-a73a-7eb3ad7f770b",
-#     "626126d5-eecf-4e9b-900e-ec29a17ece07",
-#     "b69b86be-af7d-4ecf-8cbf-0cd356afa1bd",
-#     "e56541a5-a6d5-4750-b1fe-f6b5257bfe7c",
-#     # Luis request 2026-01-30
-#     "7bee9f09-a238-42cf-b499-f51f765c6ded",
-#     "bd456d8f-d36e-434a-8051-ff3997253802",
+    #     # Mrsicflogel lab
+    #     "03063955-2523-47bd-ae57-f7489dd40f15",
+    #     # Steinmetz lab
+    #     "ae8787b1-4229-4d56-b0c2-566b61a25b77",
+    #     # Zador lab
+    #     "81a78eac-9d36-4f90-a73a-7eb3ad7f770b",
+    #     "626126d5-eecf-4e9b-900e-ec29a17ece07",
+    #     "b69b86be-af7d-4ecf-8cbf-0cd356afa1bd",
+    #     "e56541a5-a6d5-4750-b1fe-f6b5257bfe7c",
+    #     # Luis request 2026-01-30
+    #     "7bee9f09-a238-42cf-b499-f51f765c6ded",
+    #     "bd456d8f-d36e-434a-8051-ff3997253802",
 ]
 
 SESSIONS_TO_REUPLOAD = luis_request_2026_01_30
@@ -65,7 +66,7 @@ print(f"Sessions to reupload: {len(SESSIONS_TO_REUPLOAD)}")
 for eid in SESSIONS_TO_REUPLOAD:
     print(f"  {eid}")
 print(f"\nConverted to ranges: {ranges}")
-print(f"\nConfiguration:")
+print("\nConfiguration:")
 print(f"  Profile: {PROFILE}")
 print(f"  DANDI instance: {DANDI_INSTANCE}")
 print(f"  Dandiset ID: {DANDISET_ID}")
@@ -82,10 +83,14 @@ for range_str in ranges:
     cmd = [
         sys.executable,
         str(launch_script),
-        "--profile", PROFILE,
-        "--range", range_str,
-        "--dandi-instance", DANDI_INSTANCE,
-        "--dandiset-id", DANDISET_ID,
+        "--profile",
+        PROFILE,
+        "--range",
+        range_str,
+        "--dandi-instance",
+        DANDI_INSTANCE,
+        "--dandiset-id",
+        DANDISET_ID,
     ]
 
     if STUB_TEST:

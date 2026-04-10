@@ -1,7 +1,7 @@
-from typing import Optional
 import logging
 import math
 import time
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,6 @@ from pynwb import NWBFile
 from pynwb.epoch import TimeIntervals
 
 from ._base_ibl_interface import BaseIBLDataInterface
-
 
 # Single source of truth for trials column metadata
 # Keys are NWB column names (dict order = column order in NWB file)
@@ -347,10 +346,10 @@ class BrainwideMapTrialsInterface(BaseIBLDataInterface):
                 return np.nan  # Both NaN - unexpected
 
         trials["gabor_stimulus_side"] = [
-            compute_gabor_stimulus_side(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+            compute_gabor_stimulus_side(left, r) for left, r in zip(trials["contrastLeft"], trials["contrastRight"])
         ]
         trials["gabor_stimulus_contrast"] = [
-            compute_gabor_stimulus_contrast(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+            compute_gabor_stimulus_contrast(left, r) for left, r in zip(trials["contrastLeft"], trials["contrastRight"])
         ]
 
         # Compute block_index and block_type from probabilityLeft

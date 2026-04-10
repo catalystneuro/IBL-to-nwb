@@ -7,10 +7,9 @@ The intervals are stored in a custom TimeIntervals table in the processing modul
 """
 
 import logging
-from typing import Optional
 import time
+from typing import Optional
 
-import pandas as pd
 from one.api import ONE
 from pynwb import NWBFile, ProcessingModule
 from pynwb.epoch import TimeIntervals
@@ -86,10 +85,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
 
         # Load the intervals table - will fail loudly if data missing
         self.passive_intervals_df = one.load_dataset(
-            session,
-            "_ibl_passivePeriods.intervalsTable.csv",
-            collection="alf",
-            revision=self.revision
+            session, "_ibl_passivePeriods.intervalsTable.csv", collection="alf", revision=self.revision
         )
 
     @classmethod
@@ -109,20 +105,13 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         """
         return {
             "exact_files_options": {
-                "standard": [
-                    "alf/_ibl_passivePeriods.intervalsTable.csv"
-                ],
+                "standard": ["alf/_ibl_passivePeriods.intervalsTable.csv"],
             },
         }
 
     @classmethod
     def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
+        cls, one: ONE, eid: str, download_only: bool = True, logger: Optional[logging.Logger] = None, **kwargs
     ) -> dict:
         """
         Download passive period intervals data.
@@ -162,7 +151,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
             "_ibl_passivePeriods.intervalsTable.csv",
             collection="alf",
             revision=revision,
-            download_only=download_only
+            download_only=download_only,
         )
 
         download_time = time.time() - start_time
@@ -209,7 +198,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
                     "(2) receptive field mapping (RFM) using sparse noise visual stimuli, and "
                     "(3) task replay presenting the same Gabor patches and auditory stimuli (valve, tone, noise) "
                     f"used during the active behavioral task.{revision_str}"
-                )
+                ),
             )
             nwbfile.add_processing_module(passive_module)
         else:
@@ -219,14 +208,11 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
         revision_str = f" Data revision: {self.revision}." if self.revision else ""
         passive_intervals = TimeIntervals(
             name="passive_intervals",
-            description=f"Detailed timing of passive protocol phases (spontaneous activity, RFM, task replay).{revision_str}"
+            description=f"Detailed timing of passive protocol phases (spontaneous activity, RFM, task replay).{revision_str}",
         )
 
         # Add custom column for protocol name
-        passive_intervals.add_column(
-            name="protocol_name",
-            description="Name of the specific passive protocol phase"
-        )
+        passive_intervals.add_column(name="protocol_name", description="Name of the specific passive protocol phase")
 
         # Add passive protocol intervals for spontaneousActivity, RFM, and taskReplay
         # NOTE: RFM is temporarily disabled due to data quality issues - waiting for upstream fix
@@ -238,11 +224,7 @@ class PassiveIntervalsInterface(BaseIBLDataInterface):
             stop_time = float(df.loc[df["Unnamed: 0"] == "stop", protocol].iloc[0])
 
             # Add interval to the custom table
-            passive_intervals.add_interval(
-                start_time=start_time,
-                stop_time=stop_time,
-                protocol_name=protocol
-            )
+            passive_intervals.add_interval(start_time=start_time, stop_time=stop_time, protocol_name=protocol)
 
         # Add the intervals table to the passive processing module
         passive_module.add(passive_intervals)

@@ -7,15 +7,13 @@ and renders electrode positions in 3D using the Allen Mouse Brain Atlas.
 See visualize_electrodes.py for coordinate system notes.
 """
 
-import numpy as np
-
 import h5py
+import numpy as np
 import remfile
 from brainrender import Scene
 from brainrender.actors import Points
 from dandi.dandiapi import DandiAPIClient
 from pynwb import NWBHDF5IO
-
 
 # =============================================================================
 # Session EIDs for NEW format files (desc-raw / desc-processed)
@@ -25,6 +23,7 @@ from pynwb import NWBHDF5IO
 KS091_SESSION_EID_1 = "78b4fff5-c5ec-44d9-b5f9-d59493063f00"  # 2022-07-04
 KS091_SESSION_EID_2 = "196a2adf-ff83-49b2-823a-33f990049c2e"  # 2022-07-05
 NY_one_probe = "64e3fb86-928c-4079-865c-b364205b502"
+
 
 def fetch_asset(session_eid: str, file_type: str = "raw"):
     """Fetch an NWB asset from DANDI for a given session EID.

@@ -11,9 +11,9 @@ from brainbox.io.one import SpikeSortingLoader
 from iblatlas.atlas import AllenAtlas
 from iblatlas.regions import BrainRegions
 from one.api import ONE
-from pynwb import NWBFile
 from probeinterface import Probe
 from probeinterface.neuropixels_tools import read_spikeglx
+from pynwb import NWBFile
 
 from .probe_naming import get_ibl_probe_name
 
@@ -222,10 +222,10 @@ def acronym_to_name(acronym: str, brain_regions: BrainRegions) -> str:
     try:
         result = brain_regions.acronym2index(acronym)
         idx = result[1]
-        if hasattr(idx, '__len__') and len(idx) > 0:
+        if hasattr(idx, "__len__") and len(idx) > 0:
             idx = idx[0]  # Take first match (non-lateralized)
         name = brain_regions.name[idx]
-        if hasattr(name, '__len__') and not isinstance(name, str):
+        if hasattr(name, "__len__") and not isinstance(name, str):
             name = name[0]  # Take first name (non-lateralized)
         return str(name)
     except (IndexError, KeyError):
@@ -281,9 +281,12 @@ def convert_ibl_to_ccf3_coordinates(
     _, coords_m = _ensure_ibl_coordinates_um(x, y, z)
     lims = np.array([np.sort(atlas.bc.lim(axis)) for axis in range(3)], dtype=np.float64)
     outside_mask = (
-        (coords_m[:, 0] < lims[0][0]) | (coords_m[:, 0] > lims[0][1])
-        | (coords_m[:, 1] < lims[1][0]) | (coords_m[:, 1] > lims[1][1])
-        | (coords_m[:, 2] < lims[2][0]) | (coords_m[:, 2] > lims[2][1])
+        (coords_m[:, 0] < lims[0][0])
+        | (coords_m[:, 0] > lims[0][1])
+        | (coords_m[:, 1] < lims[1][0])
+        | (coords_m[:, 1] > lims[1][1])
+        | (coords_m[:, 2] < lims[2][0])
+        | (coords_m[:, 2] > lims[2][1])
     )
 
     ccf_coords_um = np.full_like(coords_m, fill_value=np.nan, dtype=np.float64)
@@ -292,7 +295,7 @@ def convert_ibl_to_ccf3_coordinates(
     if valid_indices.any():
         try:
             # Convert to Allen CCF native format (AP, DV, ML) aka ASL orientation
-            converted = atlas.xyz2ccf(coords_m[valid_indices], ccf_order='apdvml').astype(np.float64)
+            converted = atlas.xyz2ccf(coords_m[valid_indices], ccf_order="apdvml").astype(np.float64)
             ccf_coords_um[valid_indices] = converted
         except ValueError as exc:
             warnings.warn(
@@ -307,8 +310,7 @@ def convert_ibl_to_ccf3_coordinates(
     if outside_mask.any():
         out_indices = np.where(outside_mask)[0].tolist()
         warnings.warn(
-            "Probe '%s' (session %s) has %d electrode(s) outside the Allen atlas volume: indices %s."
-            % (probe_name, eid, len(out_indices), out_indices),
+            f"Probe '{probe_name}' (session {eid}) has {len(out_indices)} electrode(s) outside the Allen atlas volume: indices {out_indices}.",
             RuntimeWarning,
             stacklevel=2,
         )
@@ -319,17 +321,14 @@ def convert_ibl_to_ccf3_coordinates(
 
     # Convert acronyms to full Allen CCFv3 names
     brain_regions = BrainRegions()
-    ccf_region_names = np.array(
-        [acronym_to_name(acr, brain_regions) for acr in acronyms],
-        dtype=str
-    )
+    ccf_region_names = np.array([acronym_to_name(acr, brain_regions) for acr in acronyms], dtype=str)
     ccf_region_names[outside_mask] = "out-of-atlas"
 
     return {
-        'coords_um': ccf_coords_um,
-        'acronym': ccf_acronyms,
-        'name': ccf_region_names,
-        'outside_mask': outside_mask,
+        "coords_um": ccf_coords_um,
+        "acronym": ccf_acronyms,
+        "name": ccf_region_names,
+        "outside_mask": outside_mask,
     }
 
 
@@ -452,7 +451,10 @@ def add_probe_definition_to_nwbfile(
     required_columns = [
         ("electrode_name", "Unique identifier derived from probe contact ids."),
         ("contact_shapes", "Contact shape per electrode as defined by the probe."),
-        ("channel_name", "The name of this channel, showing all recording streams for the electrode (e.g., 'AP379,LF379')."),
+        (
+            "channel_name",
+            "The name of this channel, showing all recording streams for the electrode (e.g., 'AP379,LF379').",
+        ),
         ("rel_x", "Relative x coordinate on the probe (µm)."),
         ("rel_y", "Relative y coordinate on the probe (µm)."),
         ("probe_name", "IBL probe name in canonical format (e.g., 'Probe00', 'Probe01')."),
@@ -622,8 +624,9 @@ def add_probe_electrodes_with_localization(
     # Some IBL sessions have tampered .meta files (e.g. corrupted snsSaveChanSubset,
     # missing ~ prefix) that cause probeinterface to report wrong contact counts.
     # The patch is idempotent and only modifies files that need fixing.
-    from ibl_to_nwb.conversion.spikeglx_patches import fix_corrupted_spikeglx_meta_files
     from ibl_to_nwb.conversion.spikeglx_first_sample_patch import inject_missing_first_sample
+    from ibl_to_nwb.conversion.spikeglx_patches import fix_corrupted_spikeglx_meta_files
+
     _patch_logger = logging.getLogger(__name__)
     fix_corrupted_spikeglx_meta_files(meta_path.parent, _patch_logger)
     inject_missing_first_sample(meta_path.parent, _patch_logger)
@@ -692,7 +695,7 @@ def add_probe_electrodes_with_localization(
     BWM_REVISION = "2025-05-06"  # Must match IblAnatomicalLocalizationInterface.REVISION
     loader = SpikeSortingLoader(pid=pid, eid=eid, pname=probe_name, one=one, atlas=atlas, revision=BWM_REVISION)
     channels = loader.load_channels()
-    
+
     _has_channel_field = lambda field: field in channels
 
     if not all(_has_channel_field(field) for field in ("x", "y", "z", "atlas_id", "acronym")):
@@ -751,10 +754,10 @@ def add_probe_electrodes_with_localization(
     electrode_indices_sorted = sorted(electrode_indices)
     for channel_index, electrode_index in enumerate(electrode_indices_sorted):
         index = min(channel_index, n_channels - 1)
-        nwbfile.electrodes["x"].data[electrode_index] = float(ccf_result['coords_um'][index, 0])
-        nwbfile.electrodes["y"].data[electrode_index] = float(ccf_result['coords_um'][index, 1])
-        nwbfile.electrodes["z"].data[electrode_index] = float(ccf_result['coords_um'][index, 2])
+        nwbfile.electrodes["x"].data[electrode_index] = float(ccf_result["coords_um"][index, 0])
+        nwbfile.electrodes["y"].data[electrode_index] = float(ccf_result["coords_um"][index, 1])
+        nwbfile.electrodes["z"].data[electrode_index] = float(ccf_result["coords_um"][index, 2])
         # Use full brain region name for the location field
-        nwbfile.electrodes["location"].data[electrode_index] = ccf_result['name'][index]
+        nwbfile.electrodes["location"].data[electrode_index] = ccf_result["name"][index]
 
     return electrode_indices_sorted

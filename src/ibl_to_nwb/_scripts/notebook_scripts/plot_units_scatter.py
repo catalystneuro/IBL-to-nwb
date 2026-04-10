@@ -11,10 +11,8 @@ Usage:
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
-
-from pynwb import read_nwb
-
 from _common import create_argument_parser, save_figure
+from pynwb import read_nwb
 
 
 def plot_units_scatter(nwbfile, probe_name: str | None = None) -> plt.Figure:
@@ -96,4 +94,3 @@ if __name__ == "__main__":
 
     output_path = save_figure(fig, "plot_units_scatter")
     print(f"Figure saved to: {output_path}")
-

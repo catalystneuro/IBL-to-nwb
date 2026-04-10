@@ -11,8 +11,8 @@ from pathlib import Path
 
 from one.api import ONE
 
-from ibl_to_nwb.conversion.session import convert_session
 from ibl_to_nwb.conversion.one_patches import apply_one_patches
+from ibl_to_nwb.conversion.session import convert_session
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
@@ -43,7 +43,7 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
     # Capture Python warnings in the logging system
     # This ensures warnings.warn() calls appear in the log file
     logging.captureWarnings(True)
-    warnings_logger = logging.getLogger('py.warnings')
+    warnings_logger = logging.getLogger("py.warnings")
     warnings_logger.addHandler(file_handler)
     warnings_logger.addHandler(console_handler)
 
@@ -55,13 +55,13 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = False             # Write raw-ephys NWBs
-    CONVERT_PROCESSED = True       # Write processed/behavior NWBs
-    STUB_TEST = False               # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
-    OVERWRITE = True              # Regenerate NWBs even if existing files validate
+    CONVERT_RAW = False  # Write raw-ephys NWBs
+    CONVERT_PROCESSED = True  # Write processed/behavior NWBs
+    STUB_TEST = False  # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
+    OVERWRITE = True  # Regenerate NWBs even if existing files validate
     RUN_CONSISTENCY_CHECKS = False  # Validate NWB files against ONE data (slow but thorough)
-    VERBOSE = False                 # Enable verbose output from neuroconv interfaces
-    DISPLAY_PROGRESS_BAR = True     # Show progress bars (local runs)
+    VERBOSE = False  # Enable verbose output from neuroconv interfaces
+    DISPLAY_PROGRESS_BAR = True  # Show progress bars (local runs)
 
     if platform.system() == "Darwin":  # macOS
         base_folder = Path("/Volumes/Expansion")
@@ -73,7 +73,12 @@ if __name__ == "__main__":
 
     session_identifier = "all"
 
-    one = ONE(base_url="https://openalyx.internationalbrainlab.org", cache_dir=cache_dir, password='international', silent=True)
+    one = ONE(
+        base_url="https://openalyx.internationalbrainlab.org",
+        cache_dir=cache_dir,
+        password="international",
+        silent=True,
+    )
 
     # Apply ONE API patches to fix cache validation issues
     print("Applying ONE API patches for cache validation...")
@@ -154,11 +159,7 @@ if __name__ == "__main__":
         if results.get("raw_converted"):
             raw_size_gb = results.get("raw_size_gb", 0)
             raw_size_bytes = results.get("raw_size_bytes", 0)
-            ratio = (
-                download_info.get("total_size_gb", 0) / raw_size_gb
-                if raw_size_gb > 0
-                else 0
-            )
+            ratio = download_info.get("total_size_gb", 0) / raw_size_gb if raw_size_gb > 0 else 0
             logger.info(f"RAW NWB size: {raw_size_gb:.2f} GB ({raw_size_bytes:,} bytes)")
             logger.info(f"RAW compression ratio: {ratio:.2f}x (source/output)")
         elif results.get("raw_skipped"):
@@ -167,11 +168,7 @@ if __name__ == "__main__":
         if results.get("processed_converted"):
             processed_size_gb = results.get("processed_size_gb", 0)
             processed_size_bytes = results.get("processed_size_bytes", 0)
-            ratio = (
-                download_info.get("total_size_gb", 0) / processed_size_gb
-                if processed_size_gb > 0
-                else 0
-            )
+            ratio = download_info.get("total_size_gb", 0) / processed_size_gb if processed_size_gb > 0 else 0
             logger.info(f"PROCESSED NWB size: {processed_size_gb:.2f} GB ({processed_size_bytes:,} bytes)")
             logger.info(f"PROCESSED compression ratio: {ratio:.2f}x (source/output)")
         elif results.get("processed_skipped"):

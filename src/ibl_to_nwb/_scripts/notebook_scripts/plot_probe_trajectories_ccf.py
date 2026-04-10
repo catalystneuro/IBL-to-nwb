@@ -11,11 +11,9 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
-from brainglobe_atlasapi import BrainGlobeAtlas
-
-from pynwb import read_nwb
-
 from _common import create_argument_parser, save_figure
+from brainglobe_atlasapi import BrainGlobeAtlas
+from pynwb import read_nwb
 
 
 def plot_probe_trajectories_ccf(nwbfile) -> plt.Figure:
@@ -126,4 +124,3 @@ if __name__ == "__main__":
 
     output_path = save_figure(fig, "plot_probe_trajectories_ccf")
     print(f"Figure saved to: {output_path}")
-

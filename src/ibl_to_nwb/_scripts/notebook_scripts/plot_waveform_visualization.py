@@ -18,11 +18,10 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
+from _common import create_argument_parser, save_figure
 from matplotlib.patches import Patch
-
 from pynwb import read_nwb
 
-from _common import create_argument_parser, save_figure
 from ibl_to_nwb.utils import COSMOS_FULL_NAMES, get_cosmos_color
 
 
@@ -82,7 +81,16 @@ def plot_probe_regions(probe_table, ax, unit_depths=None, unit_ids=None):
     if unit_depths is not None and unit_ids is not None:
         for i, depth in enumerate(unit_depths):
             if i < len(unit_ids):
-                ax.text(x_max + 25, depth, str(unit_ids[i]), va="center", ha="left", fontsize=7, color="black", fontweight="bold")
+                ax.text(
+                    x_max + 25,
+                    depth,
+                    str(unit_ids[i]),
+                    va="center",
+                    ha="left",
+                    fontsize=7,
+                    color="black",
+                    fontweight="bold",
+                )
 
     ax.set_xlim(x_min - 50, x_max + 50)
     ax.set_ylim(y_min - 100, y_max + 100)
@@ -93,7 +101,13 @@ def plot_probe_regions(probe_table, ax, unit_depths=None, unit_ids=None):
         spine.set_visible(False)
 
     legend_handles = [
-        Patch(facecolor=get_cosmos_color(r), edgecolor="black", linewidth=0.5, label=COSMOS_FULL_NAMES.get(r, r), alpha=0.5)
+        Patch(
+            facecolor=get_cosmos_color(r),
+            edgecolor="black",
+            linewidth=0.5,
+            label=COSMOS_FULL_NAMES.get(r, r),
+            alpha=0.5,
+        )
         for r in unique_regions
     ]
     return ax, legend_handles
@@ -436,6 +450,7 @@ if __name__ == "__main__":
 
     # Check sampling_rate attribute via HDF5
     import h5py
+
     with h5py.File(args.nwbfile_path, "r") as hf:
         if "units/waveform_mean" in hf:
             attrs = dict(hf["units/waveform_mean"].attrs)
@@ -453,4 +468,3 @@ if __name__ == "__main__":
 
     output_path = save_figure(fig, "plot_waveform_visualization")
     print(f"Figure saved to: {output_path}")
-

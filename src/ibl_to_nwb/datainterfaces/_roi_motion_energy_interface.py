@@ -51,13 +51,7 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
         }
 
     @classmethod
-    def check_quality(
-        cls,
-        one: ONE,
-        eid: str,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> Optional[dict]:
+    def check_quality(cls, one: ONE, eid: str, logger: Optional[logging.Logger] = None, **kwargs) -> Optional[dict]:
         """
         Check video QC status from bwm_qc.json.
 
@@ -76,13 +70,13 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
         video_qc_key = f"video{camera_view.capitalize()}"
         video_qc_status = bwm_qc[eid].get(video_qc_key, None)
 
-        if video_qc_status in ['CRITICAL', 'FAIL']:
+        if video_qc_status in ["CRITICAL", "FAIL"]:
             if logger:
                 logger.info(f"ROI motion energy for {camera_name} excluded: video QC is {video_qc_status}")
             return {
                 "available": False,
                 "reason": f"Video quality control failed: {video_qc_status}",
-                "qc_status": video_qc_status
+                "qc_status": video_qc_status,
             }
 
         return {"qc_status": video_qc_status}
@@ -118,7 +112,9 @@ class RoiMotionEnergyInterface(BaseIBLDataInterface):
                 f"ROI motion energy timestamps for camera '{self.camera_name}' in session '{self.session}' are empty"
             )
 
-        motion_energy_video_region = self.one.load_object(id=self.session, revision=self.revision, **load_kwargs_list[1])
+        motion_energy_video_region = self.one.load_object(
+            id=self.session, revision=self.revision, **load_kwargs_list[1]
+        )
 
         # extra dirty hack to be removed
         # if self.session == "dc21e80d-97d7-44ca-a729-a8e3f9b14305" and camera_view == 'right': # the broken session

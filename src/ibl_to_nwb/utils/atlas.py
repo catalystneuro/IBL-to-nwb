@@ -133,9 +133,7 @@ def get_beryl_full_name(beryl_acronym: str, brain_regions: BrainRegions | None =
         return beryl_acronym
 
 
-def get_ccf_acronym_at_level(
-    acronym: str, target_level: int, brain_regions: BrainRegions | None = None
-) -> str:
+def get_ccf_acronym_at_level(acronym: str, target_level: int, brain_regions: BrainRegions | None = None) -> str:
     """
     Get the ancestor acronym at a specific CCFv3 hierarchy level.
 

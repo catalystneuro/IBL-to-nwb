@@ -16,7 +16,6 @@ from pathlib import Path
 
 from _common import get_default_processed_path, get_default_raw_path, get_output_dir
 
-
 # Scripts that use processed NWB files
 PROCESSED_SCRIPTS = [
     "plot_spike_raster_by_depth.py",
@@ -73,9 +72,7 @@ def run_script(script_name: str, nwbfile_path: str) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate all plots from notebook scripts"
-    )
+    parser = argparse.ArgumentParser(description="Generate all plots from notebook scripts")
     parser.add_argument(
         "--processed",
         type=str,
@@ -109,9 +106,9 @@ def main():
 
     # Run processed scripts
     if not args.skip_processed:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("PROCESSED NWB SCRIPTS")
-        print("="*60)
+        print("=" * 60)
         for script in PROCESSED_SCRIPTS:
             if run_script(script, args.processed):
                 results["success"].append(script)
@@ -120,9 +117,9 @@ def main():
 
     # Run raw scripts
     if not args.skip_raw:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("RAW NWB SCRIPTS")
-        print("="*60)
+        print("=" * 60)
         for script in RAW_SCRIPTS:
             if run_script(script, args.raw):
                 results["success"].append(script)
@@ -130,9 +127,9 @@ def main():
                 results["failed"].append(script)
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SUMMARY")
-    print("="*60)
+    print("=" * 60)
     print(f"Successful: {len(results['success'])}")
     print(f"Failed: {len(results['failed'])}")
 

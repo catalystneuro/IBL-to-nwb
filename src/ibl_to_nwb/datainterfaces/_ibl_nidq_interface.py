@@ -156,9 +156,7 @@ class IblNIDQInterface(SpikeGLXNIDQInterface, BaseIBLDataInterface):
 
                 if device_name in DIGITAL_DEVICE_LABELS:
                     digital_channel_groups[device_name] = {
-                        "channels": {
-                            channel_id: {"labels_map": DIGITAL_DEVICE_LABELS[device_name]}
-                        }
+                        "channels": {channel_id: {"labels_map": DIGITAL_DEVICE_LABELS[device_name]}}
                     }
                 else:
                     warnings.warn(
@@ -238,8 +236,7 @@ class IblNIDQInterface(SpikeGLXNIDQInterface, BaseIBLDataInterface):
                 events_metadata[device] = static_metadata["Events"][device].copy()
             else:
                 warnings.warn(
-                    f"No metadata configured for digital device '{device}'. "
-                    f"Add an entry to _metadata/nidq.yml.",
+                    f"No metadata configured for digital device '{device}'. " f"Add an entry to _metadata/nidq.yml.",
                     UserWarning,
                     stacklevel=2,
                 )
@@ -254,8 +251,7 @@ class IblNIDQInterface(SpikeGLXNIDQInterface, BaseIBLDataInterface):
                 timeseries_metadata[device] = static_metadata["TimeSeries"][device].copy()
             else:
                 warnings.warn(
-                    f"No metadata configured for analog device '{device}'. "
-                    f"Add an entry to _metadata/nidq.yml.",
+                    f"No metadata configured for analog device '{device}'. " f"Add an entry to _metadata/nidq.yml.",
                     UserWarning,
                     stacklevel=2,
                 )

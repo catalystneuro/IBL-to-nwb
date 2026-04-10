@@ -92,11 +92,11 @@ class PassivePeriodDataInterface(BaseDataInterface):
         if self.present_datasets["has_passive"]:
             PassiveEpochsInterface(self.passive_intervals_df).add_to_nwbfile(nwbfile, metadata=metadata)
         if self.present_datasets["has_replay"]:
-            TaskReplayInterface(self.taskreplay_events_df, self.gabor_events_df).add_to_nwbfile(nwbfile, metadata=metadata)
-        if self.present_datasets["has_rfm"]:
-            ReceptiveFieldMappingInterface(self.rfm_times, self.rfm_data).add_to_nwbfile(
+            TaskReplayInterface(self.taskreplay_events_df, self.gabor_events_df).add_to_nwbfile(
                 nwbfile, metadata=metadata
             )
+        if self.present_datasets["has_rfm"]:
+            ReceptiveFieldMappingInterface(self.rfm_times, self.rfm_data).add_to_nwbfile(nwbfile, metadata=metadata)
 
 
 class PassiveEpochsInterface(BaseDataInterface):

@@ -437,14 +437,14 @@ Points to address:
 
 * There is also an angle (NOT the angle of the phase)
 
-* There are experiments with two stimuli at the same time. IBL Bandid Choice. 
+* There are experiments with two stimuli at the same time. IBL Bandid Choice.
 
 The team is leaning to not try to predict what might come after. They will emphasize to people doing future tables that names should not be re-used. That is, column names in the current BWM task should not be re-purposed.
 
 Another debate is whether there should be some duplication of data for the sake of convenience.
 
 Proposals:
-1) rename: gabor_stimulus_side -> gabor_stimulus_azimuth 
+1) rename: gabor_stimulus_side -> gabor_stimulus_azimuth
 2) have both gabor_stimulus_side and the specific angle within the screen.
 
 mouse_wheel_choice:
@@ -454,8 +454,8 @@ clockwise is the correct movement when the stimulus is on the left.
 
 There is a confusion about the inter-trial-interval
 
-interval_0: quiesence period starts [open loop period the mouse affects the stimulus, 
-interval_1: this is completley arbitrary. 
+interval_0: quiesence period starts [open loop period the mouse affects the stimulus,
+interval_1: this is completely arbitrary.
 
 The important thing is when the stimulus goes off which is close loop.the mouse can move the wheel
 
@@ -467,17 +467,9 @@ The phase can also be different
 
 s there an equivalent to property_getters, so stimulus_side could be available without duplicating the data?
 
-two seconds after 
+two seconds after
 
 
 TI loading function: https://github.com/int-brain-lab/ibllib/blob/265f7dda7a40be554eedcccde7f686e1299019dd/brainbox/io/one.py#L533-L552
 
 https://docs.google.com/document/d/1OqIqqakPakHXRAwceYLwFY9gOrm8_P62XIfCTnHwstg/edit?tab=t.0  we call the no-response  nogo in this doc
-
-
-
-
-
-
-
-

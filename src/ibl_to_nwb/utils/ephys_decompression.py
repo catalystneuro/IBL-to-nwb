@@ -79,13 +79,11 @@ def _decompress_single_cbin(
     # Verify files exist
     if not file_meta.exists():
         raise RuntimeError(
-            f"Required .meta file not found: {file_meta}\n"
-            f"Expected to find metadata file alongside {file_cbin}"
+            f"Required .meta file not found: {file_meta}\n" f"Expected to find metadata file alongside {file_cbin}"
         )
     if not file_ch.exists():
         raise RuntimeError(
-            f"Required .ch file not found: {file_ch}\n"
-            f"Expected to find channel file alongside {file_cbin}"
+            f"Required .ch file not found: {file_ch}\n" f"Expected to find channel file alongside {file_cbin}"
         )
 
     # Suppress geometry warning for LF files
@@ -95,7 +93,7 @@ def _decompress_single_cbin(
             "ignore",
             message="Meta data doesn't have geometry.*returning defaults",
             category=UserWarning,
-            module="spikeglx"
+            module="spikeglx",
         )
         # Decompress and copy metadata
         spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(
@@ -159,6 +157,7 @@ def decompress_ephys_cbins(
     # Clean up macOS hidden files from source folder before processing
     # This prevents spikeglx.Reader from encountering ._* AppleDouble files
     import platform
+
     if platform.system() == "Darwin" and source_folder.exists():
         for hidden_file in source_folder.rglob("._*"):
             hidden_file.unlink()

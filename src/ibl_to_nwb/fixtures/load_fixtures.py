@@ -72,9 +72,9 @@ def get_probe_name_to_probe_id_dict(eid: str, histology_qc_df: pd.DataFrame = No
         histology_qc_df = load_bwm_histology_qc()
 
     # Filter to this session's probes
-    session_probes = histology_qc_df[histology_qc_df['eid'] == eid]
+    session_probes = histology_qc_df[histology_qc_df["eid"] == eid]
 
     # Build dict: {probe_name: pid}
-    probe_name_to_probe_id_dict = dict(zip(session_probes['probe_name'], session_probes['pid']))
+    probe_name_to_probe_id_dict = dict(zip(session_probes["probe_name"], session_probes["pid"]))
 
     return probe_name_to_probe_id_dict

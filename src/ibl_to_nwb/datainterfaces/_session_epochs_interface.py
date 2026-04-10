@@ -6,8 +6,8 @@ defining the two main phases: task/experiment phase and passive phase.
 """
 
 import logging
-from typing import Optional
 import time
+from typing import Optional
 
 from one.api import ONE
 from pynwb import NWBFile
@@ -83,10 +83,7 @@ class SessionEpochsInterface(BaseIBLDataInterface):
 
         # Load the intervals table - will fail loudly if data missing
         self.passive_intervals_df = one.load_dataset(
-            session,
-            "_ibl_passivePeriods.intervalsTable.csv",
-            collection="alf",
-            revision=self.revision
+            session, "_ibl_passivePeriods.intervalsTable.csv", collection="alf", revision=self.revision
         )
 
     @classmethod
@@ -106,20 +103,13 @@ class SessionEpochsInterface(BaseIBLDataInterface):
         """
         return {
             "exact_files_options": {
-                "standard": [
-                    "alf/_ibl_passivePeriods.intervalsTable.csv"
-                ],
+                "standard": ["alf/_ibl_passivePeriods.intervalsTable.csv"],
             },
         }
 
     @classmethod
     def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
+        cls, one: ONE, eid: str, download_only: bool = True, logger: Optional[logging.Logger] = None, **kwargs
     ) -> dict:
         """
         Download session epochs data.
@@ -159,7 +149,7 @@ class SessionEpochsInterface(BaseIBLDataInterface):
             "_ibl_passivePeriods.intervalsTable.csv",
             collection="alf",
             revision=revision,
-            download_only=download_only
+            download_only=download_only,
         )
 
         download_time = time.time() - start_time
@@ -209,15 +199,11 @@ class SessionEpochsInterface(BaseIBLDataInterface):
 
         # Add custom columns to the epochs table
         if "protocol_type" not in nwbfile.epochs.colnames:
-            nwbfile.epochs.add_column(
-                name="protocol_type",
-                description="Type of protocol phase (task or passive)"
-            )
+            nwbfile.epochs.add_column(name="protocol_type", description="Type of protocol phase (task or passive)")
 
         if "epoch_description" not in nwbfile.epochs.colnames:
             nwbfile.epochs.add_column(
-                name="epoch_description",
-                description="Detailed description of what occurs during this epoch"
+                name="epoch_description", description="Detailed description of what occurs during this epoch"
             )
 
         # Get the start and end of the passive protocol
@@ -242,10 +228,7 @@ class SessionEpochsInterface(BaseIBLDataInterface):
 
         # Add task/experiment epoch (0 to start of passive protocol)
         nwbfile.add_epoch(
-            start_time=0.0,
-            stop_time=passive_start,
-            protocol_type="task",
-            epoch_description=task_description
+            start_time=0.0, stop_time=passive_start, protocol_type="task", epoch_description=task_description
         )
 
         # Add passive protocol epoch
@@ -253,5 +236,5 @@ class SessionEpochsInterface(BaseIBLDataInterface):
             start_time=passive_start,
             stop_time=passive_end,
             protocol_type="passive",
-            epoch_description=passive_description
+            epoch_description=passive_description,
         )

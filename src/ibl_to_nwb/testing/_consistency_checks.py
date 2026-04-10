@@ -4,15 +4,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from brainbox.io.one import SessionLoader, SpikeSortingLoader
-from iblatlas.atlas import AllenAtlas
 from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
 
+from ibl_to_nwb.datainterfaces._brainwide_map_trials_interface import IBL_TO_NWB_COLUMNS
+
 # from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
-from ibl_to_nwb.datainterfaces._brainwide_map_trials_interface import IBL_TO_NWB_COLUMNS
 
 
 def get_logger(eid: str):
@@ -249,10 +249,10 @@ def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
             return np.nan  # Both NaN - unexpected
 
     trials["gabor_stimulus_side"] = [
-        compute_gabor_stimulus_side(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+        compute_gabor_stimulus_side(left, r) for left, r in zip(trials["contrastLeft"], trials["contrastRight"])
     ]
     trials["gabor_stimulus_contrast"] = [
-        compute_gabor_stimulus_contrast(l, r) for l, r in zip(trials["contrastLeft"], trials["contrastRight"])
+        compute_gabor_stimulus_contrast(left, r) for left, r in zip(trials["contrastLeft"], trials["contrastRight"])
     ]
 
     return trials
@@ -304,17 +304,23 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
             # raw
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_raw"].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
+                "pupilDiameter_raw"
+            ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             # timestamps
-            timestamps_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].timestamps[:]
+            timestamps_from_NWB = pupil_tracking_container.time_series[
+                f"{view.capitalize()}RawPupilDiameter"
+            ].timestamps[:]
             timestamps_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times.npy", **load_kwargs)
             assert_array_equal(x=timestamps_from_NWB, y=timestamps_from_ONE)
 
             # smooth
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}SmoothedPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_smooth"].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
+                "pupilDiameter_smooth"
+            ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
             _logger.debug(f"pupil data for {view} passed")
@@ -395,7 +401,9 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
 
         cluster_id = np.where(clusters[probe_name]["uuids"] == uuid)[0][0]
         # spikes[probe_name]["clusters"]
-        spike_times_from_ONE = get_spikes_for_cluster(spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id)
+        spike_times_from_ONE = get_spikes_for_cluster(
+            spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id
+        )
 
         # more verbose but slower for more than ~20 checks
         # spike_times_from_ONE = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
@@ -494,7 +502,9 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()[:]
 
             # from brainbox.io
-            brainbox_timestamps = spike_sorting_loader.samples2times(np.arange(0, n_samples_one), direction="forward", band=band)
+            brainbox_timestamps = spike_sorting_loader.samples2times(
+                np.arange(0, n_samples_one), direction="forward", band=band
+            )
 
             np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
             _logger.debug(f"ephys data timestamps for {pname}/{band} passed")
@@ -570,25 +580,25 @@ def _check_passive_data(*, one: ONE, nwbfile: NWBFile):
             df.loc[:, "stim_type"] = col_name
             df.columns = ["start_time", "stop_time", "stim_type"]
             one_passive_df.append(df)
-        one_passive_df = pd.concat(one_passive_df,axis=0).sort_values('start_time').reset_index(drop=True)
-        one_passive_df.index.name = 'id'
-        nwb_passive_df = nwbfile.processing['passive_protocol'].data_interfaces['passive_task_replay'][:]
+        one_passive_df = pd.concat(one_passive_df, axis=0).sort_values("start_time").reset_index(drop=True)
+        one_passive_df.index.name = "id"
+        nwb_passive_df = nwbfile.processing["passive_protocol"].data_interfaces["passive_task_replay"][:]
         assert_frame_equal(one_passive_df, nwb_passive_df)
 
         one_gabor_events_df = one.load_dataset(eid, "_ibl_passiveGabor.table.csv", **load_kwargs)
         drop_cols = [col for col in one_gabor_events_df.columns if col.startswith("Unnamed")]
         one_gabor_events_df = one_gabor_events_df.drop(drop_cols, axis=1)
-        one_gabor_events_df.index.name = 'id'
-        one_gabor_events_df = one_gabor_events_df.rename(columns={'start':'start_time', 'stop':'stop_time'})
-        nwb_gabor_events_df = nwbfile.processing['passive_protocol'].data_interfaces['gabor_table'][:]
+        one_gabor_events_df.index.name = "id"
+        one_gabor_events_df = one_gabor_events_df.rename(columns={"start": "start_time", "stop": "stop_time"})
+        nwb_gabor_events_df = nwbfile.processing["passive_protocol"].data_interfaces["gabor_table"][:]
         assert_frame_equal(one_gabor_events_df, nwb_gabor_events_df)
 
     # receptrive field mapping
     if "alf/_ibl_passiveRFM.times.npy" in datasets:
-        nwb_timestamps = nwbfile.processing['passive_protocol'].data_interfaces['rfm_stim'].timestamps[:]
+        nwb_timestamps = nwbfile.processing["passive_protocol"].data_interfaces["rfm_stim"].timestamps[:]
         one_timestamps = one.load_dataset(eid, "alf/_ibl_passiveRFM.times.npy")
         assert_array_equal(nwb_timestamps, one_timestamps)
-        nwb_data = nwbfile.processing['passive_protocol'].data_interfaces['rfm_stim'].data[:]
+        nwb_data = nwbfile.processing["passive_protocol"].data_interfaces["rfm_stim"].data[:]
         path = one.load_dataset(eid, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
         one_data = np.fromfile(path, dtype=np.uint8).reshape((one_timestamps.shape[0], 15, 15))
         assert_array_equal(nwb_data, one_data)

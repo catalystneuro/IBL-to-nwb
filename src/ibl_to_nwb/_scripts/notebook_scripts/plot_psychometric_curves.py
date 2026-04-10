@@ -12,10 +12,8 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 import psychofit as psy
-
-from pynwb import read_nwb
-
 from _common import create_argument_parser, save_figure
+from pynwb import read_nwb
 
 
 def plot_psychometric_curves(nwbfile) -> plt.Figure:
@@ -143,4 +141,3 @@ if __name__ == "__main__":
 
     output_path = save_figure(fig, "plot_psychometric_curves")
     print(f"Figure saved to: {output_path}")
-

@@ -1,7 +1,7 @@
-from shutil import copyfile
-from typing import Literal, Optional
 import logging
 import time
+from shutil import copyfile
+from typing import Literal, Optional
 
 from one.api import ONE
 from pydantic import DirectoryPath
@@ -79,13 +79,7 @@ class RawVideoInterface(BaseIBLDataInterface):
         }
 
     @classmethod
-    def check_quality(
-        cls,
-        one: ONE,
-        eid: str,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> Optional[dict]:
+    def check_quality(cls, one: ONE, eid: str, logger: Optional[logging.Logger] = None, **kwargs) -> Optional[dict]:
         """
         Check video QC status from bwm_qc.json.
 
@@ -103,13 +97,13 @@ class RawVideoInterface(BaseIBLDataInterface):
         video_qc_key = f"video{camera_name.capitalize()}"
         video_qc_status = bwm_qc[eid].get(video_qc_key, None)
 
-        if video_qc_status in ['CRITICAL', 'FAIL']:
+        if video_qc_status in ["CRITICAL", "FAIL"]:
             if logger:
                 logger.info(f"Raw video for {camera_name} camera excluded: video QC is {video_qc_status}")
             return {
                 "available": False,
                 "reason": f"Video quality control failed: {video_qc_status}",
-                "qc_status": video_qc_status
+                "qc_status": video_qc_status,
             }
 
         return {"qc_status": video_qc_status}
@@ -122,7 +116,7 @@ class RawVideoInterface(BaseIBLDataInterface):
         camera_name: Literal["left", "right", "body"],
         download_only: bool = True,
         logger: Optional[logging.Logger] = None,
-        **kwargs
+        **kwargs,
     ) -> dict:
         """
         Download raw video data for a specific camera.

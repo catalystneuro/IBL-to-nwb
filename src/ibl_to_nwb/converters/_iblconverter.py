@@ -47,9 +47,7 @@ class IblConverter(ConverterPipe):
 
         # Get subject metadata using centralized utility function
         subject_metadata_block = get_ibl_subject_metadata(
-            one=self.one,
-            session_metadata=session_metadata,
-            tzinfo=tzinfo
+            one=self.one, session_metadata=session_metadata, tzinfo=tzinfo
         )
         metadata["Subject"].update(subject_metadata_block)
 

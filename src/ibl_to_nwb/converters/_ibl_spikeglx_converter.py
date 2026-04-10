@@ -1,7 +1,7 @@
-from pathlib import Path
-from typing import Optional
 import logging
 import time
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from brainbox.io.one import SpikeSortingLoader
@@ -44,15 +44,12 @@ class IblSpikeGlxConverter(ConverterPipe):
             available_streams = SpikeGLXRecordingExtractor.get_streams(folder_path=str(probe_folder))[0]
 
             # Filter to AP/LF bands only (exclude SYNC streams)
-            ap_lf_streams = [s for s in available_streams if s.endswith('.ap') or s.endswith('.lf')]
+            ap_lf_streams = [s for s in available_streams if s.endswith(".ap") or s.endswith(".lf")]
 
             for stream_id in ap_lf_streams:
                 # Create interface pointing to probe subfolder
                 # Neo will only see one probe's files, avoiding duplicate stream names
-                interface = SpikeGLXRecordingInterface(
-                    folder_path=str(probe_folder),
-                    stream_id=stream_id
-                )
+                interface = SpikeGLXRecordingInterface(folder_path=str(probe_folder), stream_id=stream_id)
 
                 # Build device name mapping from original stream_id before normalization
                 # NeuroConv generates device names like "NeuropixelsImec0" from stream_id "imec0.ap"
@@ -65,7 +62,7 @@ class IblSpikeGlxConverter(ConverterPipe):
                 # Normalize stream naming: imec0/imec1 → imec for consistent internal keys
                 # Key format: "probe00.imec.ap", "probe00.imec.lf", etc.
                 # This preserves probe identity throughout the pipeline
-                normalized_stream = stream_id.replace('imec0', 'imec').replace('imec1', 'imec')
+                normalized_stream = stream_id.replace("imec0", "imec").replace("imec1", "imec")
                 key = f"{probe_name}.{normalized_stream}"
                 data_interfaces[key] = interface
 
@@ -92,7 +89,7 @@ class IblSpikeGlxConverter(ConverterPipe):
             # Parse key: "probe00.imec.ap" -> probe_name="probe00", imec_name="imec", band="ap"
             parts = key.split(".")
             probe_name = parts[0]  # "probe00"
-            imec_name = parts[1]   # "imec"
+            imec_name = parts[1]  # "imec"
 
             # Map imec -> probe for alignment
             self.stream_to_probe_map[imec_name] = probe_name
@@ -105,12 +102,12 @@ class IblSpikeGlxConverter(ConverterPipe):
                 continue
 
             # Skip sync channel interfaces (they create TimeSeries, not ElectricalSeries)
-            if '.sync' in key:
+            if ".sync" in key:
                 continue
 
             parts = key.split(".")
             probe_name = parts[0]  # "probe00"
-            band = parts[2]        # "ap" or "lf"
+            band = parts[2]  # "ap" or "lf"
 
             # Update electrical series key to use IBL probe naming
             # e.g., "ElectricalSeriesAPImec" -> "ElectricalSeriesProbe00AP"
@@ -139,17 +136,13 @@ class IblSpikeGlxConverter(ConverterPipe):
             )
 
         # Add SYNC channel interface (one per probe, prefer AP band)
-        sync_streams = [s for s in available_streams if '-SYNC' in s and '.ap-SYNC' in s]
+        sync_streams = [s for s in available_streams if "-SYNC" in s and ".ap-SYNC" in s]
 
         for stream_id in sync_streams:
-            interface = SpikeGLXSyncChannelInterface(
-                folder_path=str(probe_folder),
-                stream_id=stream_id,
-                verbose=False
-            )
+            interface = SpikeGLXSyncChannelInterface(folder_path=str(probe_folder), stream_id=stream_id, verbose=False)
 
             # Normalize: "imec0.ap-SYNC" -> "imec.sync"
-            normalized_stream = stream_id.replace('imec0', 'imec').replace('imec1', 'imec').replace('.ap-SYNC', '.sync')
+            normalized_stream = stream_id.replace("imec0", "imec").replace("imec1", "imec").replace(".ap-SYNC", ".sync")
             key = f"{probe_name}.{normalized_stream}"  # e.g., "probe00.imec.sync"
             data_interfaces[key] = interface
 
@@ -181,12 +174,7 @@ class IblSpikeGlxConverter(ConverterPipe):
 
     @classmethod
     def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
+        cls, one: ONE, eid: str, download_only: bool = True, logger: Optional[logging.Logger] = None, **kwargs
     ) -> dict:
         """
         Download raw SpikeGLX data (.cbin, .meta, .ch files) for all probes.
@@ -233,17 +221,19 @@ class IblSpikeGlxConverter(ConverterPipe):
             # Download both AP and LF bands
             # stream=False triggers download if not cached
             # NO try-except - fail loudly if download fails
-            for band in ['ap', 'lf']:
+            for band in ["ap", "lf"]:
                 ssl.raw_electrophysiology(band=band, stream=False, revision=cls.REVISION)
                 if logger:
                     logger.info(f"    Downloaded {band.upper()} band data")
 
                 # Track downloaded files
-                downloaded_files.extend([
-                    f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.cbin",
-                    f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.meta",
-                    f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.ch",
-                ])
+                downloaded_files.extend(
+                    [
+                        f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.cbin",
+                        f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.meta",
+                        f"raw_ephys_data/{probe_name}/_spikeglx_ephysData_g0_t0.imec.{band}.ch",
+                    ]
+                )
 
         download_time = time.time() - start_time
 
@@ -340,12 +330,10 @@ class IblSpikeGlxConverter(ConverterPipe):
             fs = recording_extractor.get_sampling_frequency()
 
             spike_sorting_loader = SpikeSortingLoader(pid=pid, eid=self.eid, pname=probe_name, one=self.one)
-            aligned_timestamps = spike_sorting_loader.samples2times(
-                np.arange(0, ns), direction="forward", fs=fs
-            )
+            aligned_timestamps = spike_sorting_loader.samples2times(np.arange(0, ns), direction="forward", fs=fs)
 
             # Handle different interface types
-            if hasattr(interface, 'set_aligned_timestamps'):
+            if hasattr(interface, "set_aligned_timestamps"):
                 # Recording interfaces (AP/LF) have this method
                 interface.set_aligned_timestamps(aligned_timestamps=aligned_timestamps)
             else:

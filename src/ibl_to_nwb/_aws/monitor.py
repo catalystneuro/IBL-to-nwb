@@ -185,15 +185,18 @@ def extract_progress_info(console_output):
             # Look back up to 10 lines to find the real error
             for j in range(max(0, i - 10), i):
                 prev_line = lines[j]
-                if any(err in prev_line for err in [
-                    "apparently in use",
-                    "Could not read from remote",
-                    "fatal:",
-                    "Unable to locate package",
-                    "No such file",
-                    "Permission denied",
-                    "Connection refused",
-                ]):
+                if any(
+                    err in prev_line
+                    for err in [
+                        "apparently in use",
+                        "Could not read from remote",
+                        "fatal:",
+                        "Unable to locate package",
+                        "No such file",
+                        "Permission denied",
+                        "Connection refused",
+                    ]
+                ):
                     info["real_errors"].append(prev_line.strip())
                     break
 
@@ -259,7 +262,7 @@ def save_console_logs(instances: list, logs_dir: Path) -> None:
         # Write header on first write
         if not log_file.exists():
             with open(log_file, "w") as f:
-                f.write(f"# EC2 Console Output\n")
+                f.write("# EC2 Console Output\n")
                 f.write(f"# Instance ID: {instance_id}\n")
                 f.write(f"# Session EID: {session_eid}\n")
                 f.write(f"# Session Index: {session_index}\n")
@@ -278,7 +281,7 @@ def save_console_logs(instances: list, logs_dir: Path) -> None:
             anchor_len = len(anchor)
             found_at = None
             for line_index in range(len(lines) - anchor_len + 1):
-                if lines[line_index:line_index + anchor_len] == anchor:
+                if lines[line_index : line_index + anchor_len] == anchor:
                     found_at = line_index + anchor_len
                     break
 
@@ -288,7 +291,9 @@ def save_console_logs(instances: list, logs_dir: Path) -> None:
             else:
                 # Complete rollover -- anchor lines were evicted from the buffer.
                 # Append all content with a gap marker.
-                new_lines = [f"\n# --- GAP: buffer rolled over, some output lost ({datetime.now().isoformat()}) ---\n\n"]
+                new_lines = [
+                    f"\n# --- GAP: buffer rolled over, some output lost ({datetime.now().isoformat()}) ---\n\n"
+                ]
                 new_lines.extend(lines)
 
         if new_lines:
@@ -355,10 +360,7 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
 
                 # Final poll for any instances that just disappeared
                 if logs_dir:
-                    disappeared = [
-                        inst for iid, inst in _known_instances.items()
-                        if iid not in _final_polled
-                    ]
+                    disappeared = [inst for iid, inst in _known_instances.items() if iid not in _final_polled]
                     if disappeared:
                         print(f"  Final poll for {len(disappeared)} terminated instance(s)...")
                         save_console_logs(disappeared, logs_dir)
@@ -387,8 +389,8 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
 
             for inst in instances:
                 # Show instance name (e.g., "ibl-conversion-NYU-11_2020-02-18_001") or fallback to ID
-                name = inst.get('name') or inst['id']
-                session_info = f"Session #{inst.get('session_index', '?')}" if inst.get('session_index') else ""
+                name = inst.get("name") or inst["id"]
+                session_info = f"Session #{inst.get('session_index', '?')}" if inst.get("session_index") else ""
                 print(f"{name} ({session_info}) - {inst['id']}")
                 print(f"  State: {inst['state']}")
                 print(f"  Stub Test: {inst['stub_test']}")
@@ -405,7 +407,7 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
 
                 # Show real errors first (these are the actual issues)
                 if progress.get("real_errors"):
-                    print(f"  [ERROR]:")
+                    print("  [ERROR]:")
                     for error in progress["real_errors"]:
                         # Clean up cloud-init prefix and show more characters
                         clean_error = error.split("cloud-init[")[-1] if "cloud-init[" in error else error
@@ -442,7 +444,8 @@ def monitor_instances(interval=30, continuous=True, show_logs=0, save_logs=False
                 running_ids = {inst["id"] for inst in instances}
                 _known_instances.update({inst["id"]: inst for inst in instances})
                 disappeared = [
-                    inst for iid, inst in _known_instances.items()
+                    inst
+                    for iid, inst in _known_instances.items()
                     if iid not in running_ids and iid not in _final_polled
                 ]
                 if disappeared:
@@ -480,9 +483,7 @@ if __name__ == "__main__":
         default=30,
         help="Refresh interval in seconds (default: 30)",
     )
-    parser.add_argument(
-        "--once", action="store_true", help="Run once and exit (don't refresh continuously)"
-    )
+    parser.add_argument("--once", action="store_true", help="Run once and exit (don't refresh continuously)")
     parser.add_argument(
         "--logs",
         "-l",

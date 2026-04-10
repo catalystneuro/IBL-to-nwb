@@ -123,18 +123,10 @@ class BaseIBLDataInterface(BaseDataInterface):
             Note: If there's only one format, still use a dict with a descriptive name:
             {"standard": ["file1.npy", "file2.npy"]}
         """
-        raise NotImplementedError(
-            f"{cls.__name__} must implement get_data_requirements() class method"
-        )
+        raise NotImplementedError(f"{cls.__name__} must implement get_data_requirements() class method")
 
     @classmethod
-    def check_quality(
-        cls,
-        one: ONE,
-        eid: str,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> Optional[dict]:
+    def check_quality(cls, one: ONE, eid: str, logger: Optional[logging.Logger] = None, **kwargs) -> Optional[dict]:
         """
         Check data quality (QC) before checking file availability.
 
@@ -163,13 +155,7 @@ class BaseIBLDataInterface(BaseDataInterface):
         return None
 
     @classmethod
-    def check_availability(
-        cls,
-        one: ONE,
-        eid: str,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> dict:
+    def check_availability(cls, one: ONE, eid: str, logger: Optional[logging.Logger] = None, **kwargs) -> dict:
         """
         Check if required data is available for a specific session.
 
@@ -254,9 +240,10 @@ class BaseIBLDataInterface(BaseDataInterface):
 
             for exact_file in option_files:
                 # Handle wildcards
-                if '*' in exact_file:
+                if "*" in exact_file:
                     import re
-                    pattern = re.escape(exact_file).replace(r'\*', '.*')
+
+                    pattern = re.escape(exact_file).replace(r"\*", ".*")
                     found = any(re.search(pattern, avail) for avail in available_files)
                 else:
                     # Check both with and without _ibl_ namespace prefix
@@ -265,7 +252,7 @@ class BaseIBLDataInterface(BaseDataInterface):
 
                     # Build pattern that matches with or without revision tags
                     # e.g., "alf/leftCamera.features.pqt" should match "alf/#2025-06-18#/leftCamera.features.pqt"
-                    parts = exact_file.split('/')
+                    parts = exact_file.split("/")
                     if len(parts) >= 2:
                         collection = parts[0]
                         filename = parts[-1]
@@ -277,8 +264,7 @@ class BaseIBLDataInterface(BaseDataInterface):
                         pattern2 = re.escape(f"{collection}/") + r"(#[^#]+#/)?" + re.escape(f"_ibl_{filename}")
 
                         found = any(
-                            re.search(pattern1, avail) or re.search(pattern2, avail)
-                            for avail in available_files
+                            re.search(pattern1, avail) or re.search(pattern2, avail) for avail in available_files
                         )
                     else:
                         # Fallback for single-part paths
@@ -313,12 +299,7 @@ class BaseIBLDataInterface(BaseDataInterface):
 
     @classmethod
     def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
+        cls, one: ONE, eid: str, download_only: bool = True, logger: Optional[logging.Logger] = None, **kwargs
     ) -> dict:
         """
         Download required data for this interface.
@@ -376,8 +357,7 @@ class BaseIBLDataInterface(BaseDataInterface):
 
         if logger:
             logger.info(
-                f"Downloading {cls.__name__} data for session {eid}"
-                + (f" (revision {revision})" if revision else "")
+                f"Downloading {cls.__name__} data for session {eid}" + (f" (revision {revision})" if revision else "")
             )
 
         downloaded_files = []
@@ -396,9 +376,9 @@ class BaseIBLDataInterface(BaseDataInterface):
                         logger.info(f"  Loading file: {file_path}")
                     # Parse file path into collection and dataset name for proper revision handling
                     # ONE API requires collection/revision as kwargs, not embedded in path
-                    parts = file_path.split('/')
+                    parts = file_path.split("/")
                     if len(parts) >= 2:
-                        collection = '/'.join(parts[:-1])
+                        collection = "/".join(parts[:-1])
                         filename = parts[-1]
                     else:
                         collection = None

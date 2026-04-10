@@ -5,36 +5,38 @@ import time
 import warnings
 from datetime import datetime
 from pathlib import Path
-
 from zoneinfo import ZoneInfo
 
+from ndx_ibl import IblMetadata, IblSubject
 from neuroconv import ConverterPipe
 from neuroconv.tools import configure_and_write_nwbfile
-from ndx_ibl import IblMetadata, IblSubject
-from one.api import ONE
 from one import alf
+from one.api import ONE
 from pynwb import NWBFile, read_nwb
 
-from ..utils import setup_paths
 from ..datainterfaces import (
-    IblSortingInterface,
-    IblAnatomicalLocalizationInterface,
     BrainwideMapTrialsInterface,
-    WheelPositionInterface,
-    WheelMovementsInterface,
-    WheelKinematicsInterface,
-    SessionEpochsInterface,
-    PassiveIntervalsInterface,
-    PassiveReplayStimInterface,
+    IblAnatomicalLocalizationInterface,
+    IblPoseEstimationInterface,
+    IblSortingInterface,
     # PassiveRFMInterface,  # Temporarily disabled due to data quality issues
     LickInterface,
-    IblPoseEstimationInterface,
+    PassiveIntervalsInterface,
+    PassiveReplayStimInterface,
+    ProbeTrajectoryInterface,
     PupilTrackingInterface,
     RoiMotionEnergyInterface,
-    ProbeTrajectoryInterface,
+    SessionEpochsInterface,
+    WheelKinematicsInterface,
+    WheelMovementsInterface,
+    WheelPositionInterface,
 )
-from ..fixtures import load_fixtures
-from ..utils import add_probe_electrodes_with_localization, get_ibl_subject_metadata, sanitize_subject_id_for_dandi
+from ..utils import (
+    add_probe_electrodes_with_localization,
+    get_ibl_subject_metadata,
+    sanitize_subject_id_for_dandi,
+    setup_paths,
+)
 
 
 def _valid_existing_nwb(nwb_path: Path, overwrite: bool, logger: logging.Logger | None = None) -> bool:
@@ -103,11 +105,7 @@ def convert_processed_session(
     # Camera data often has mixed revisions (empty string "" and dated revisions like "2023-04-20")
     # This happens when some files were re-processed but not all - the ONE API handles this correctly
     # by selecting the appropriate revision, so the warning is informational only
-    warnings.filterwarnings(
-        "ignore",
-        message="Multiple revisions:.*",
-        category=alf.exceptions.ALFWarning
-    )
+    warnings.filterwarnings("ignore", message="Multiple revisions:.*", category=alf.exceptions.ALFWarning)
 
     if logger:
         logger.info(f"Starting PROCESSED conversion for session {eid}")
@@ -131,7 +129,9 @@ def convert_processed_session(
     subject_id_for_filenames = sanitize_subject_id_for_dandi(subject_nickname)
     output_dir = Path(paths["output_folder"]) / conversion_type / f"sub-{subject_id_for_filenames}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    provisional_nwbfile_path = output_dir / f"sub-{subject_id_for_filenames}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+    provisional_nwbfile_path = (
+        output_dir / f"sub-{subject_id_for_filenames}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+    )
 
     if _valid_existing_nwb(provisional_nwbfile_path, overwrite=overwrite, logger=logger):
         size_bytes = provisional_nwbfile_path.stat().st_size
@@ -245,9 +245,7 @@ def convert_processed_session(
         nwbfile_metadata["protocol"] = session_metadata["task_protocol"]
 
     # Get subject metadata using centralized utility function
-    subject_metadata_block.update(
-        get_ibl_subject_metadata(one=one, session_metadata=session_metadata, tzinfo=tzinfo)
-    )
+    subject_metadata_block.update(get_ibl_subject_metadata(one=one, session_metadata=session_metadata, tzinfo=tzinfo))
 
     # ========================================================================
     # STEP 4: Configure conversion options

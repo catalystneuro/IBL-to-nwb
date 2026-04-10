@@ -55,7 +55,7 @@ def _setup_session_logger(log_file_path: Path) -> logging.Logger:
     file_handler.stream.reconfigure(line_buffering=True)
 
     logging.captureWarnings(True)
-    warnings_logger = logging.getLogger('py.warnings')
+    warnings_logger = logging.getLogger("py.warnings")
     warnings_logger.addHandler(file_handler)
     warnings_logger.addHandler(console_handler)
 
@@ -63,8 +63,6 @@ def _setup_session_logger(log_file_path: Path) -> logging.Logger:
 
 
 # Re-export for backwards compatibility (callers may import from here)
-from ibl_to_nwb.tqdm_utils import disable_tqdm_globally
-
 
 
 class PhaseTimeout:
@@ -107,8 +105,8 @@ def _log_disk_usage(label: str, base_folder: Path) -> None:
     print("=== END DISK ===", flush=True)
 
 
-from ibl_to_nwb.conversion.spikeglx_patches import fix_corrupted_spikeglx_meta_files
-from ibl_to_nwb.conversion.spikeglx_first_sample_patch import inject_missing_first_sample
+from ibl_to_nwb.conversion.spikeglx_first_sample_patch import inject_missing_first_sample  # noqa: E402
+from ibl_to_nwb.conversion.spikeglx_patches import fix_corrupted_spikeglx_meta_files  # noqa: E402
 
 
 def convert_session(
@@ -210,7 +208,9 @@ def convert_session(
         )
 
     download_duration = time.time() - download_start
-    logger.info(f"=== PHASE: download | duration_seconds={download_duration:.0f} | size_gb={download_info['total_size_gb']:.2f} ===")
+    logger.info(
+        f"=== PHASE: download | duration_seconds={download_duration:.0f} | size_gb={download_info['total_size_gb']:.2f} ==="
+    )
     _log_disk_usage("after_download", base_folder)
 
     results = {
@@ -232,9 +232,7 @@ def convert_session(
         # Setup paths for decompression
         paths = setup_paths(one, eid, base_path=base_folder)
         scratch_ephys_folder = paths["session_decompressed_ephys_folder"] / "raw_ephys_data"
-        existing_bins = (
-            scratch_ephys_folder.exists() and next(scratch_ephys_folder.rglob("*.bin"), None) is not None
-        )
+        existing_bins = scratch_ephys_folder.exists() and next(scratch_ephys_folder.rglob("*.bin"), None) is not None
 
         # In stub mode: skip decompression if no existing bins (they won't be downloaded)
         # In full mode: always decompress if not already done
@@ -287,7 +285,9 @@ def convert_session(
         logger.info("\n" + "=" * 80)
         logger.info("CONVERTING RAW EPHYS")
         if phase_timeouts and "raw_conversion" in phase_timeouts:
-            logger.info(f"Timeout: {phase_timeouts['raw_conversion']}s ({phase_timeouts['raw_conversion']/3600:.1f} hours)")
+            logger.info(
+                f"Timeout: {phase_timeouts['raw_conversion']}s ({phase_timeouts['raw_conversion']/3600:.1f} hours)"
+            )
         logger.info("=" * 80)
 
         raw_start = time.time()
@@ -314,7 +314,9 @@ def convert_session(
             results["raw_duration_seconds"] = raw_duration
             results["raw_converted"] = True
             logger.info(f"RAW file written to: {raw_nwb_path}")
-            logger.info(f"=== PHASE: raw_conversion | duration_seconds={raw_duration:.0f} | size_gb={raw_info['nwb_size_gb']:.2f} ===")
+            logger.info(
+                f"=== PHASE: raw_conversion | duration_seconds={raw_duration:.0f} | size_gb={raw_info['nwb_size_gb']:.2f} ==="
+            )
             _log_disk_usage("after_raw_conversion", base_folder)
         elif raw_info and raw_info.get("skipped"):
             results["raw_skipped"] = True
@@ -324,7 +326,9 @@ def convert_session(
         logger.info("\n" + "=" * 80)
         logger.info("CONVERTING PROCESSED/BEHAVIOR")
         if phase_timeouts and "processed_conversion" in phase_timeouts:
-            logger.info(f"Timeout: {phase_timeouts['processed_conversion']}s ({phase_timeouts['processed_conversion']/60:.0f} minutes)")
+            logger.info(
+                f"Timeout: {phase_timeouts['processed_conversion']}s ({phase_timeouts['processed_conversion']/60:.0f} minutes)"
+            )
         logger.info("=" * 80)
 
         processed_start = time.time()
@@ -351,7 +355,9 @@ def convert_session(
             results["processed_duration_seconds"] = processed_duration
             results["processed_converted"] = True
             logger.info(f"PROCESSED file written to: {processed_nwb_path}")
-            logger.info(f"=== PHASE: processed_conversion | duration_seconds={processed_duration:.0f} | size_gb={processed_info['nwb_size_gb']:.2f} ===")
+            logger.info(
+                f"=== PHASE: processed_conversion | duration_seconds={processed_duration:.0f} | size_gb={processed_info['nwb_size_gb']:.2f} ==="
+            )
             _log_disk_usage("after_processed_conversion", base_folder)
         elif processed_info and processed_info.get("skipped"):
             results["processed_skipped"] = True

@@ -31,17 +31,17 @@ base_path.mkdir(exist_ok=True, parents=True)
 
 MODE = "raw"
 # N_JOBS = 64 # 64 good value for processed
-N_JOBS = 4 # for raw
+N_JOBS = 4  # for raw
 DEBUG = False
 USE_JOBLIB = True
 RESET_CACHE = True
 OVERWRITE = True
-VERIFY=True
-ALYX = 'openalyx'
+VERIFY = True
+ALYX = "openalyx"
 REVISION = "2025-05-06"
 
 if DEBUG:
-    eid = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # the broken session
+    eid = "dc21e80d-97d7-44ca-a729-a8e3f9b14305"  # the broken session
     N_JOBS = 1
     # crashes locally
 else:
@@ -72,10 +72,10 @@ else:
     eids_ = eids[:N_JOBS]
 
 # instantiating one
-if ALYX == 'openalyx':
+if ALYX == "openalyx":
     one_url = "https://openalyx.internationalbrainlab.org"
     tables_dir = Path.home() / "Downloads" / "ONE" / "openalyx.internationalbrainlab.org"
-if ALYX == 'alyx':
+if ALYX == "alyx":
     one_url = "https://alyx.internationalbrainlab.org"
     tables_dir = Path.home() / "Downloads" / "ONE" / "alyx.internationalbrainlab.org"
 
@@ -83,7 +83,7 @@ if "USE_SDSC_ONE" in os.environ:
     one_kwargs = dict(
         mode="local",  # required for SDSC use
         cache_rest=None,  # at SDSC, no write permissions at the location of the rest cache
-        tables_dir=tables_dir
+        tables_dir=tables_dir,
     )
 else:
     one_kwargs = dict(

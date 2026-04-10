@@ -50,13 +50,7 @@ class PupilTrackingInterface(BaseIBLDataInterface):
         }
 
     @classmethod
-    def check_quality(
-        cls,
-        one: ONE,
-        eid: str,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> Optional[dict]:
+    def check_quality(cls, one: ONE, eid: str, logger: Optional[logging.Logger] = None, **kwargs) -> Optional[dict]:
         """
         Check video QC status from bwm_qc.json.
 
@@ -75,13 +69,13 @@ class PupilTrackingInterface(BaseIBLDataInterface):
         video_qc_key = f"video{camera_view.capitalize()}"
         video_qc_status = bwm_qc[eid].get(video_qc_key, None)
 
-        if video_qc_status in ['CRITICAL', 'FAIL']:
+        if video_qc_status in ["CRITICAL", "FAIL"]:
             if logger:
                 logger.info(f"Pupil tracking for {camera_name} excluded: video QC is {video_qc_status}")
             return {
                 "available": False,
                 "reason": f"Video quality control failed: {video_qc_status}",
-                "qc_status": video_qc_status
+                "qc_status": video_qc_status,
             }
 
         return {"qc_status": video_qc_status}
@@ -133,7 +127,7 @@ class PupilTrackingInterface(BaseIBLDataInterface):
                     f"timestamps length ({times_len}) exceeds features length ({features_len}) by {missing_samples} samples. "
                     f"Using first {features_len} timestamps.",
                     RuntimeWarning,
-                    stacklevel=2
+                    stacklevel=2,
                 )
                 camera_data["times"] = camera_data["times"][:features_len]
 

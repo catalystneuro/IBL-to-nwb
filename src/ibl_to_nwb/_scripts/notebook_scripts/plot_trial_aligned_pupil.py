@@ -12,10 +12,8 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 import pynapple as nap
-
-from pynwb import read_nwb
-
 from _common import create_argument_parser, save_figure
+from pynwb import read_nwb
 
 
 def plot_trial_aligned_pupil(nwbfile) -> plt.Figure:
@@ -113,7 +111,15 @@ def plot_trial_aligned_pupil(nwbfile) -> plt.Figure:
     ax_bar.set_ylim(0, 1)
     ax_bar.axis("off")
     ax_bar.text(
-        1.5, (n_incorrect / n_trials) / 2, "incorrect", rotation=90, va="center", ha="left", fontsize=9, color="red", fontweight="bold"
+        1.5,
+        (n_incorrect / n_trials) / 2,
+        "incorrect",
+        rotation=90,
+        va="center",
+        ha="left",
+        fontsize=9,
+        color="red",
+        fontweight="bold",
     )
     ax_bar.text(
         1.5,
@@ -151,4 +157,3 @@ if __name__ == "__main__":
 
     output_path = save_figure(fig, "plot_trial_aligned_pupil")
     print(f"Figure saved to: {output_path}")
-

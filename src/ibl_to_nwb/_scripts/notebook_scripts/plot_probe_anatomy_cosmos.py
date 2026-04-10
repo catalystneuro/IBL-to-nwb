@@ -10,10 +10,9 @@ Usage:
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
-
+from _common import create_argument_parser, save_figure
 from pynwb import read_nwb
 
-from _common import create_argument_parser, save_figure
 from ibl_to_nwb.utils import COSMOS_FULL_NAMES, get_cosmos_color
 
 
@@ -124,7 +123,9 @@ def plot_probe_anatomy_cosmos(nwbfile) -> plt.Figure:
 
             y_center = (y_start + y_end) / 2
             display_name = COSMOS_FULL_NAMES.get(region, region)
-            ax_regions.text(block_width + 0.1, y_center, display_name, va="center", ha="left", fontsize=9, fontweight="bold")
+            ax_regions.text(
+                block_width + 0.1, y_center, display_name, va="center", ha="left", fontsize=9, fontweight="bold"
+            )
 
         ax_regions.set_xlim(-0.2, 2.0)
         ax_regions.set_ylim(y_min - y_margin, y_max + y_margin)
@@ -153,4 +154,3 @@ if __name__ == "__main__":
 
     output_path = save_figure(fig, "plot_probe_anatomy_cosmos")
     print(f"Figure saved to: {output_path}")
-

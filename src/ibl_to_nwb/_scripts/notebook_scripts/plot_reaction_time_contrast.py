@@ -11,10 +11,8 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-from pynwb import read_nwb
-
 from _common import create_argument_parser, save_figure
+from pynwb import read_nwb
 
 
 def plot_reaction_time_contrast(nwbfile) -> plt.Figure:
@@ -109,4 +107,3 @@ if __name__ == "__main__":
 
     output_path = save_figure(fig, "plot_reaction_time_contrast")
     print(f"Figure saved to: {output_path}")
-

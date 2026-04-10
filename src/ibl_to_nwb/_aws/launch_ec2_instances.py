@@ -81,8 +81,10 @@ def start_background_monitor(interval: int, logs_dir: Path, profile: str | None 
     cmd = [
         sys.executable,
         str(monitor_script),
-        "--interval", str(interval),
-        "--logs-dir", str(logs_dir),
+        "--interval",
+        str(interval),
+        "--logs-dir",
+        str(logs_dir),
         "--save-logs",  # Explicitly enable log saving for background monitor
     ]
     if profile:
@@ -426,7 +428,9 @@ def main() -> None:
 
     # Validate dandiset-id based on dandi-instance
     if args.dandi_instance == "dandi" and not args.dandiset_id:
-        raise SystemExit("ERROR: --dandiset-id is required for production (--dandi-instance dandi). Use --dandiset-id 000409")
+        raise SystemExit(
+            "ERROR: --dandiset-id is required for production (--dandi-instance dandi). Use --dandiset-id 000409"
+        )
     if args.dandi_instance == "dandi-sandbox" and not args.dandiset_id:
         args.dandiset_id = "217706"  # Default for sandbox
 
@@ -488,7 +492,9 @@ def main() -> None:
             )
 
         selected_indices = list(range(start_idx, end_idx))  # Python slice: end is exclusive
-        logger.info(f"Launching sessions [{start_idx}:{end_idx}): {len(selected_indices)} sessions (indices {start_idx}-{end_idx-1})")
+        logger.info(
+            f"Launching sessions [{start_idx}:{end_idx}): {len(selected_indices)} sessions (indices {start_idx}-{end_idx-1})"
+        )
 
     selected_eids = [(i, all_eids[i]) for i in selected_indices]
 
@@ -499,6 +505,7 @@ def main() -> None:
         tracking_path = Path(__file__).parent / "tracking_bwm_conversion" / "tracking.json"
         if tracking_path.exists():
             import json
+
             with open(tracking_path) as f:
                 tracking_data = json.load(f)
 
@@ -539,7 +546,9 @@ def main() -> None:
     else:
         dandi_api_key = config.get("DANDI_SANDBOX_API_KEY", config["DANDI_API_KEY"])
     user_data = template.replace("{{DANDI_API_KEY}}", dandi_api_key)
-    user_data = user_data.replace("{{REPO_URL}}", config.get("REPO_URL", "https://github.com/h-mayorquin/IBL-to-nwb.git"))
+    user_data = user_data.replace(
+        "{{REPO_URL}}", config.get("REPO_URL", "https://github.com/h-mayorquin/IBL-to-nwb.git")
+    )
     user_data = user_data.replace("{{REPO_BRANCH}}", config.get("REPO_BRANCH", "heberto_conversion"))
     user_data = user_data.replace("{{DANDISET_ID}}", args.dandiset_id)
     user_data = user_data.replace("{{DANDI_INSTANCE}}", args.dandi_instance)
@@ -669,7 +678,7 @@ def main() -> None:
         logger.info("  Manual monitoring: uv run python monitor.py")
 
     logger.info("\nVerification (after completion):")
-    logger.info(f"  uv run python src/ibl_to_nwb/_aws/tracking_bwm_conversion/verify_tracking.py")
+    logger.info("  uv run python src/ibl_to_nwb/_aws/tracking_bwm_conversion/verify_tracking.py")
     logger.info("=" * 80)
     logger.info("  uv run python src/ibl_to_nwb/_aws/monitor.py --interval 30 --show-logs 10")
 

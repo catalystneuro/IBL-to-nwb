@@ -119,18 +119,22 @@ def build_tracking_dict() -> dict:
         subject_sanitized = sanitize_subject_id_for_dandi(subject)
 
         raw_path = f"sub-{subject_sanitized}/sub-{subject_sanitized}_ses-{eid}_desc-raw_ecephys.nwb"
-        processed_path = f"sub-{subject_sanitized}/sub-{subject_sanitized}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+        processed_path = (
+            f"sub-{subject_sanitized}/sub-{subject_sanitized}_ses-{eid}_desc-processed_behavior+ecephys.nwb"
+        )
 
-        sessions.append({
-            "index": index,
-            "eid": eid,
-            "subject": subject,
-            "subject_sanitized": subject_sanitized,
-            "raw_path": raw_path,
-            "raw_verified": False,
-            "processed_path": processed_path,
-            "processed_verified": False,
-        })
+        sessions.append(
+            {
+                "index": index,
+                "eid": eid,
+                "subject": subject,
+                "subject_sanitized": subject_sanitized,
+                "raw_path": raw_path,
+                "raw_verified": False,
+                "processed_path": processed_path,
+                "processed_verified": False,
+            }
+        )
         unique_eids.append(eid)
 
     dandi_upload_state = {
@@ -274,14 +278,8 @@ def get_incomplete_ranges(dandi_upload_state: dict) -> dict[str, list[str]]:
     Returns a dict with keys ``"raw"``, ``"processed"``, and ``"both"`` (sessions
     missing both files). Each value is a list of range strings.
     """
-    raw_missing = [
-        s["index"] for s in dandi_upload_state["sessions"]
-        if not s["raw_verified"]
-    ]
-    processed_missing = [
-        s["index"] for s in dandi_upload_state["sessions"]
-        if not s["processed_verified"]
-    ]
+    raw_missing = [s["index"] for s in dandi_upload_state["sessions"] if not s["raw_verified"]]
+    processed_missing = [s["index"] for s in dandi_upload_state["sessions"] if not s["processed_verified"]]
 
     return {
         "raw": _indices_to_ranges(raw_missing),
@@ -295,14 +293,8 @@ def get_incomplete_eids(dandi_upload_state: dict) -> dict[str, list[str]]:
     Returns a dict with keys ``"raw"`` and ``"processed"``.
     """
     return {
-        "raw": [
-            s["eid"] for s in dandi_upload_state["sessions"]
-            if not s["raw_verified"]
-        ],
-        "processed": [
-            s["eid"] for s in dandi_upload_state["sessions"]
-            if not s["processed_verified"]
-        ],
+        "raw": [s["eid"] for s in dandi_upload_state["sessions"] if not s["raw_verified"]],
+        "processed": [s["eid"] for s in dandi_upload_state["sessions"] if not s["processed_verified"]],
     }
 
 
@@ -319,8 +311,8 @@ def main() -> None:
         "--incomplete-ranges",
         action="store_true",
         help="Print indices of incomplete sessions (missing raw OR processed file on DANDI) as ranges, "
-             "space-separated (e.g., '3-4 28-30 45-47'). "
-             "Use with launch script: --range $(python verify_tracking.py --incomplete-ranges)",
+        "space-separated (e.g., '3-4 28-30 45-47'). "
+        "Use with launch script: --range $(python verify_tracking.py --incomplete-ranges)",
     )
     mode_group.add_argument(
         "--incomplete-eids",
@@ -366,9 +358,9 @@ def main() -> None:
     else:
         print_summary(dandi_upload_state)
         if dandi_upload_state["summary"]["incomplete"] > 0:
-            print(f"\nTo re-launch incomplete sessions:")
-            print(f"  python verify_tracking.py --incomplete-ranges")
-            print(f"  python ../launch_ec2_instances.py --profile ibl --range <RANGE>")
+            print("\nTo re-launch incomplete sessions:")
+            print("  python verify_tracking.py --incomplete-ranges")
+            print("  python ../launch_ec2_instances.py --profile ibl --range <RANGE>")
 
 
 if __name__ == "__main__":

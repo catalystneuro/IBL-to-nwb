@@ -164,6 +164,7 @@ class IblNeuropixels2ShankExtractor(BaseRecording):
         except Exception as e:
             # If probeinterface fails, continue without probe geometry
             import warnings
+
             warnings.warn(f"Could not load probe geometry from {meta_file_path}: {e}")
 
         # Store additional metadata

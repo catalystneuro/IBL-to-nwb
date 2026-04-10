@@ -28,17 +28,16 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 # Phase timeouts in seconds (SIGALRM per phase during conversion)
 PHASE_TIMEOUTS = {
-    "download": 3600,              # 1 hour
-    "decompress": 5400,            # 1.5 hours
-    "raw_conversion": 21600,       # 6 hours
-    "processed_conversion": 14400, # 4 hours
+    "download": 3600,  # 1 hour
+    "decompress": 5400,  # 1.5 hours
+    "raw_conversion": 21600,  # 6 hours
+    "processed_conversion": 14400,  # 4 hours
 }
 
 
@@ -158,11 +157,13 @@ def run_conversion(config: Config) -> dict:
     # tqdm_utils has no heavy imports, so it's safe to import first.
     if not config.display_progress_bar:
         from ibl_to_nwb.tqdm_utils import disable_tqdm_globally
+
         disable_tqdm_globally()
 
-    from ibl_to_nwb.conversion.session import convert_session
-    from ibl_to_nwb.conversion.one_patches import apply_one_patches
     from one.api import ONE
+
+    from ibl_to_nwb.conversion.one_patches import apply_one_patches
+    from ibl_to_nwb.conversion.session import convert_session
 
     base_folder = config.mount_point
     logs_folder = base_folder / "conversion_logs"

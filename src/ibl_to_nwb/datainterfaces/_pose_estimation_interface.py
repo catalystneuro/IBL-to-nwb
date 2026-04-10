@@ -48,7 +48,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         one: ONE,
         session: str,
         camera_name: str,
-        tracker: str = 'lightningPose',
+        tracker: str = "lightningPose",
     ) -> None:
         """
         Interface for Lightning Pose estimation data from the IBL Brainwide Map release.
@@ -116,13 +116,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         return {"tracker": tracker, "views": [camera_view]}
 
     @classmethod
-    def check_quality(
-        cls,
-        one: ONE,
-        eid: str,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
-    ) -> Optional[dict]:
+    def check_quality(cls, one: ONE, eid: str, logger: Optional[logging.Logger] = None, **kwargs) -> Optional[dict]:
         """
         Check video QC status from bwm_qc.json.
 
@@ -141,13 +135,13 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         video_qc_key = f"video{camera_view.capitalize()}"
         video_qc_status = bwm_qc[eid].get(video_qc_key, None)
 
-        if video_qc_status in ['CRITICAL', 'FAIL']:
+        if video_qc_status in ["CRITICAL", "FAIL"]:
             if logger:
                 logger.info(f"Pose estimation for {camera_name} excluded: video QC is {video_qc_status}")
             return {
                 "available": False,
                 "reason": f"Video quality control failed: {video_qc_status}",
-                "qc_status": video_qc_status
+                "qc_status": video_qc_status,
             }
 
         return {"qc_status": video_qc_status}
@@ -160,7 +154,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         camera_name: str,
         download_only: bool = True,
         logger: Optional[logging.Logger] = None,
-        **kwargs
+        **kwargs,
     ) -> dict:
         """
         Download Lightning Pose estimation data.
@@ -257,9 +251,7 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
         session_loader.load_pose(**session_loader_kwargs)
 
         if self.camera_name not in session_loader.pose:
-            raise RuntimeError(
-                f"Pose data for camera '{self.camera_name}' not found in session '{self.session}'"
-            )
+            raise RuntimeError(f"Pose data for camera '{self.camera_name}' not found in session '{self.session}'")
 
         pose_data = session_loader.pose[self.camera_name]
 
@@ -277,13 +269,12 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
                 f"Pose data for camera '{self.camera_name}' in session '{self.session}' contains no frames"
             )
 
-
         body_parts = []
         for column in pose_data.columns:
-            if not column.endswith('_x'):
+            if not column.endswith("_x"):
                 continue
             base_name = column[:-2]
-            if (f'{base_name}_y' in pose_data.columns) and (f'{base_name}_likelihood' in pose_data.columns):
+            if (f"{base_name}_y" in pose_data.columns) and (f"{base_name}_likelihood" in pose_data.columns):
                 body_parts.append(base_name)
         body_parts = sorted(set(body_parts))
 
@@ -340,7 +331,6 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
                 reference_frame="(0,0) corresponds to the upper left corner when using width by height convention.",
                 timestamps=reused_timestamps or timestamps,
                 confidence=np.array(pose_data[f"{body_part}_likelihood"]),
-
             )
             all_pose_estimation_series.append(pose_estimation_series)
 
@@ -357,7 +347,11 @@ class IblPoseEstimationInterface(BaseIBLDataInterface):
 
         # Map tracker parameter to display names
         tracker_display_name = "Lightning Pose" if self.tracker == "lightningPose" else "DeepLabCut"
-        camera_module = get_module(nwbfile=nwbfile, name="pose_estimation", description=f"Pose estimation from video using {tracker_display_name}.")
+        camera_module = get_module(
+            nwbfile=nwbfile,
+            name="pose_estimation",
+            description=f"Pose estimation from video using {tracker_display_name}.",
+        )
         if skeletons_container_name in camera_module.data_interfaces:
             skeletons_container = camera_module.data_interfaces[skeletons_container_name]
             if skeleton_name in skeletons_container.skeletons:

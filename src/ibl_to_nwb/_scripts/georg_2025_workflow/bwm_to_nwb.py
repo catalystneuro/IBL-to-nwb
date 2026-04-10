@@ -10,6 +10,8 @@ from one.alf.exceptions import ALFObjectNotFound
 from one.alf.spec import is_uuid_string
 from one.api import ONE
 
+from ibl_to_nwb._scripts.georg_2025_workflow._ibl_passive_interface import PassivePeriodDataInterface
+from ibl_to_nwb._scripts.georg_2025_workflow._wheel_interface import WheelInterface
 from ibl_to_nwb.converters import BrainwideMapConverter, IblSpikeGlxConverter
 from ibl_to_nwb.datainterfaces import (
     BrainwideMapTrialsInterface,
@@ -20,8 +22,6 @@ from ibl_to_nwb.datainterfaces import (
     RawVideoInterface,
     RoiMotionEnergyInterface,
 )
-from ibl_to_nwb._scripts.georg_2025_workflow._ibl_passive_interface import PassivePeriodDataInterface
-from ibl_to_nwb._scripts.georg_2025_workflow._wheel_interface import WheelInterface
 from ibl_to_nwb.fixtures import load_fixtures
 from ibl_to_nwb.testing._consistency_checks import check_nwbfile_for_consistency
 
@@ -75,9 +75,9 @@ def setup_paths(one: ONE, eid: str, base_path: Path = None, scratch_path: Path =
     paths = dict(
         output_folder=base_path / "nwbfiles" / f"sub-{subject}",
         session_folder=one.eid2path(eid),  # <- this is the folder on the main storage: /mnt/sdcepth/users/ibl/data
-        scratch_folder=Path("/scratch")
-        if scratch_path is None
-        else scratch_path,  # <- this is to be changed to /scratch on the node
+        scratch_folder=(
+            Path("/scratch") if scratch_path is None else scratch_path
+        ),  # <- this is to be changed to /scratch on the node
     )
 
     # inferred from above
@@ -313,7 +313,9 @@ def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = Non
             (file_ch,) = list(file_cbin.parent.glob(f"{name}*.ch"))
 
             # copies over the meta file which will still have an uuid
-            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(scratch_dir=target_bin.parent)
+            spikeglx.Reader(file_cbin, meta_file=file_meta, ch_file=file_ch).decompress_to_scratch(
+                scratch_dir=target_bin.parent
+            )
 
             if remove_uuid:
                 shutil.move(target_bin, target_bin_no_uuid)
@@ -338,7 +340,7 @@ def decompress_ephys_cbins(source_folder: Path, target_folder: Path | None = Non
 
 
 def convert_session_(**kwargs):
-    # a poor mans logger diverting errors into a seperate file
+    # a poor mans logger diverting errors into a separate file
     try:
         convert_session(**kwargs)
     except Exception as e:
@@ -403,7 +405,7 @@ def convert_session(
     # path setup
     paths = setup_paths(one, eid, base_path=base_path, scratch_path=scratch_path)
 
-    # create sublogger with a seperate file handle to log each conversion into a seperate file
+    # create sublogger with a separate file handle to log each conversion into a separate file
     _logger = logging.getLogger(f"bwm_to_nwb.{eid}")
     _logger.setLevel(logging.DEBUG)
     _logger.debug(f"logger set up for {eid}")

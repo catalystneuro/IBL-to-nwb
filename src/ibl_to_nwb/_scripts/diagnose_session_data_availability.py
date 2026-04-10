@@ -1,5 +1,5 @@
-import logging
 import csv
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
@@ -7,22 +7,21 @@ from typing import Dict, List
 import pandas as pd
 from one.api import ONE
 
-from ibl_to_nwb.fixtures.load_fixtures import load_bwm_df, get_probe_name_to_probe_id_dict
 from ibl_to_nwb.datainterfaces import (
-    IblSortingInterface,
-    IblAnatomicalLocalizationInterface,
     BrainwideMapTrialsInterface,
-    WheelPositionInterface,
+    IblAnatomicalLocalizationInterface,
+    IblPoseEstimationInterface,
+    IblSortingInterface,
+    LickInterface,
     PassiveIntervalsInterface,
     PassiveReplayStimInterface,
     PassiveRFMInterface,
-    IblPoseEstimationInterface,
     PupilTrackingInterface,
-    RoiMotionEnergyInterface,
-    LickInterface,
     RawVideoInterface,
+    RoiMotionEnergyInterface,
+    WheelPositionInterface,
 )
-
+from ibl_to_nwb.fixtures.load_fixtures import get_probe_name_to_probe_id_dict, load_bwm_df
 
 # Target revision for spike sorting data (used in PROCESSED conversions)
 TARGET_REVISION = "2025-05-06"
@@ -38,19 +37,16 @@ DATA_SOURCE_DESCRIPTIONS = {
     "trials": "Trials data (BrainwideMapTrialsInterface)",
     "wheel": "Wheel movement data (WheelPositionInterface)",
     "licks": "Lick times (LickInterface)",
-
     # Passive period data (now separated into three interfaces)
     "passive_intervals": "Passive period timing intervals (PassiveIntervalsInterface)",
     "passive_replay": "Passive replay stimuli (PassiveReplayStimInterface)",
     "passive_rfm": "Passive receptive field mapping (PassiveRFMInterface)",
-
     # Probe-based data
     "spike_sorting": f"Spike sorting from revision {TARGET_REVISION} (IblSortingInterface)",
     "probe_localization": "Probe anatomical localization (IblAnatomicalLocalizationInterface)",
     "nidq": "NIDQ behavioral sync signals (.cbin file) - OPTIONAL",
     "meta_probe00": "SpikeGLX .meta file for probe00 (electrode geometry)",
     "meta_probe01": "SpikeGLX .meta file for probe01 (electrode geometry)",
-
     # Camera-based data (per camera)
     "video_left": "Left camera video (RawVideoInterface)",
     "video_right": "Right camera video (RawVideoInterface)",
@@ -156,11 +152,21 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
         # Note: RawVideoInterface expects just "left", others expect "leftCamera"
 
         # All cameras have video, pose, and motion energy
-        interfaces_to_check.extend([
-            (f"video_{camera_view}", RawVideoInterface, {"camera_name": camera_view}),  # Just "left"
-            (f"pose_estimation_{camera_view}", IblPoseEstimationInterface, {"camera_name": camera_name}),  # "leftCamera"
-            (f"roi_motion_energy_{camera_view}", RoiMotionEnergyInterface, {"camera_name": camera_name}),  # "leftCamera"
-        ])
+        interfaces_to_check.extend(
+            [
+                (f"video_{camera_view}", RawVideoInterface, {"camera_name": camera_view}),  # Just "left"
+                (
+                    f"pose_estimation_{camera_view}",
+                    IblPoseEstimationInterface,
+                    {"camera_name": camera_name},
+                ),  # "leftCamera"
+                (
+                    f"roi_motion_energy_{camera_view}",
+                    RoiMotionEnergyInterface,
+                    {"camera_name": camera_name},
+                ),  # "leftCamera"
+            ]
+        )
 
         # Pupil tracking - only for left/right cameras (body camera doesn't capture eyes)
         if camera_view in ["left", "right"]:
@@ -177,7 +183,7 @@ def check_session_data_availability(eid: str, one: ONE) -> Dict:
             eid=eid,
             # Don't pass revision - let interface use its own REVISION class attribute
             # This prevents slow one.list_revisions() calls
-            **kwargs
+            **kwargs,
         )
         is_available = availability.get("available", False)
         result["data_sources"][source_name] = is_available
@@ -279,7 +285,7 @@ def diagnose_sessions(eids: List[str], one: ONE, output_path: Path = None) -> pd
         fieldnames = list(first_row.keys())
 
         # Open CSV file and keep it open for streaming
-        csvfile = open(output_path, 'w', newline='')
+        csvfile = open(output_path, "w", newline="")
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -449,7 +455,7 @@ def main():
     # Load BWM fixtures to get EID list
     print("Loading Brain-Wide Map session fixtures...")
     bwm_df = load_bwm_df()
-    eids = bwm_df['eid'].unique().tolist()
+    eids = bwm_df["eid"].unique().tolist()
 
     print(f"Found {len(eids)} unique BWM sessions to check")
     print()

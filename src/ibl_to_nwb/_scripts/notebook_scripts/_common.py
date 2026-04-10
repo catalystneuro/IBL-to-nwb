@@ -6,9 +6,9 @@ import argparse
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")  # Non-interactive backend for saving figures
 import matplotlib.pyplot as plt
-
 
 # Default paths for local NWB files
 DEFAULT_BASE_PATH = Path("/media/heberto/Expansion/nwbfiles/full")

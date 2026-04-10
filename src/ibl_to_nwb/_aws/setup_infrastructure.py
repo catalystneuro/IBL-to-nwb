@@ -453,7 +453,9 @@ def main():
             print()
 
         print("Next Steps:")
-        print(f"  1. Test with first session:  python launch_ec2_instances.py --profile {profile} --range 0-0 --stub-test")
+        print(
+            f"  1. Test with first session:  python launch_ec2_instances.py --profile {profile} --range 0-0 --stub-test"
+        )
         print(f"  2. Launch all sessions:      python launch_ec2_instances.py --profile {profile} --all")
         print()
         print("Monitoring:")

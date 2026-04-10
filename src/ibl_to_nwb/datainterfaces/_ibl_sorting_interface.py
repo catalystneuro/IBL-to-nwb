@@ -1,20 +1,20 @@
 """The interface for loading spike sorted data via ONE access."""
 
-from typing import Literal, Optional
 import logging
 import time
+from typing import Literal, Optional
 
 import numpy as np
+from brainbox.io.one import SpikeSortingLoader
 from ibldsp.utils import make_channel_index
 from neuroconv.datainterfaces.ecephys.basesortingextractorinterface import BaseSortingExtractorInterface
 from neuroconv.tools.spikeinterface import add_sorting_to_nwbfile
 from neuroconv.utils import DeepDict
 from one.api import ONE
 from pynwb import NWBFile
-from brainbox.io.one import SpikeSortingLoader
 
-from ._ibl_sorting_extractor import IblSortingExtractor
 from ._base_ibl_interface import BaseIBLDataInterface
+from ._ibl_sorting_extractor import IblSortingExtractor
 from ..fixtures import get_probe_name_to_probe_id_dict
 from ..utils.probe_naming import get_ibl_probe_name
 
@@ -198,12 +198,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
 
     @classmethod
     def download_data(
-        cls,
-        one: ONE,
-        eid: str,
-        download_only: bool = True,
-        logger: Optional[logging.Logger] = None,
-        **kwargs
+        cls, one: ONE, eid: str, download_only: bool = True, logger: Optional[logging.Logger] = None, **kwargs
     ) -> dict:
         """
         Download spike sorting data using SpikeSortingLoader.
@@ -255,7 +250,9 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         download_time = time.time() - start_time
 
         if logger:
-            logger.info(f"  Downloaded spike sorting data for {len(probe_name_to_probe_id_dict)} probe(s) in {download_time:.2f}s")
+            logger.info(
+                f"  Downloaded spike sorting data for {len(probe_name_to_probe_id_dict)} probe(s) in {download_time:.2f}s"
+            )
 
         return {
             "success": True,
@@ -290,15 +287,15 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
         for probe_name in self.sorting_extractor.probe_names:
             group_name = get_ibl_probe_name(probe_name)
             electrode_indices = [
-                index for index in range(len(nwbfile.electrodes))
-                if nwbfile.electrodes['group_name'][index] == group_name
+                index
+                for index in range(len(nwbfile.electrodes))
+                if nwbfile.electrodes["group_name"][index] == group_name
             ]
             if not electrode_indices:
                 raise RuntimeError(f"No electrodes found for probe '{probe_name}'.")
 
             channel_to_electrode_map[probe_name] = {
-                channel_idx: electrode_index
-                for channel_idx, electrode_index in enumerate(sorted(electrode_indices))
+                channel_idx: electrode_index for channel_idx, electrode_index in enumerate(sorted(electrode_indices))
             }
 
         return channel_to_electrode_map
@@ -333,9 +330,9 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             - waveform_channels: List of channel arrays for each unit (reordered)
         """
         # Access electrode columns directly (no dataframe conversion)
-        all_rel_x = np.asarray(nwbfile.electrodes['rel_x'][:])
-        all_rel_y = np.asarray(nwbfile.electrodes['rel_y'][:])
-        all_group_names = np.asarray(nwbfile.electrodes['group_name'][:])
+        all_rel_x = np.asarray(nwbfile.electrodes["rel_x"][:])
+        all_rel_y = np.asarray(nwbfile.electrodes["rel_y"][:])
+        all_group_names = np.asarray(nwbfile.electrodes["group_name"][:])
 
         unit_probe_names = self._unit_probe_names
         unit_max_channels = self._max_amplitude_channels
@@ -421,7 +418,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
 
                 electrode_idx = 0
                 for index in range(len(nwbfile.electrodes)):
-                    if nwbfile.electrodes['group_name'][index] == group_name:
+                    if nwbfile.electrodes["group_name"][index] == group_name:
                         # Channel index is position within this probe's electrodes
                         channel_idx = electrode_idx % 384  # Neuropixels has 384 channels
                         channel_to_electrode_map[probe_name][channel_idx] = index
@@ -662,9 +659,7 @@ class IblSortingInterface(BaseSortingExtractorInterface, BaseIBLDataInterface):
             )
 
         # Build property descriptions from UNITS_COLUMNS
-        property_descriptions = {
-            name: spec["description"] for name, spec in UNITS_COLUMNS.items()
-        }
+        property_descriptions = {name: spec["description"] for name, spec in UNITS_COLUMNS.items()}
 
         # Call add_sorting_to_nwbfile with waveform_data_dict
         # This uses NWB's predefined waveform_mean column correctly (non-ragged 3D array)

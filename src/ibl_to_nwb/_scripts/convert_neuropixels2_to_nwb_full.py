@@ -39,23 +39,23 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
+from ndx_ibl import IblMetadata, IblSubject
+from ndx_pose import PoseEstimation, PoseEstimationSeries, Skeleton, Skeletons
 from neuroconv.tools import configure_and_write_nwbfile
 from neuroconv.tools.nwb_helpers import get_default_backend_configuration, get_module
 from neuroconv.utils import dict_deep_update
-from ndx_ibl import IblMetadata, IblSubject
-from ndx_pose import PoseEstimation, PoseEstimationSeries, Skeleton, Skeletons
 from one.api import ONE
-from pynwb import NWBFile, NWBHDF5IO
-from pynwb.behavior import Position, SpatialSeries, BehavioralTimeSeries
+from pynwb import NWBHDF5IO, NWBFile
+from pynwb.behavior import BehavioralTimeSeries, Position, SpatialSeries
 from pynwb.epoch import TimeIntervals
 
-from ibl_to_nwb.converters import IblNeuropixels2Converter
-from ibl_to_nwb.datainterfaces import IblNIDQInterface
-from ibl_to_nwb.utils import decompress_ephys_cbins
 from ibl_to_nwb._scripts.georg_2025_workflow._ibl_passive_interface import (
     PassiveEpochsInterface,
     TaskReplayInterface,
 )
+from ibl_to_nwb.converters import IblNeuropixels2Converter
+from ibl_to_nwb.datainterfaces import IblNIDQInterface
+from ibl_to_nwb.utils import decompress_ephys_cbins
 
 
 def setup_logger(log_file_path: Path) -> logging.Logger:
@@ -84,7 +84,7 @@ def setup_logger(log_file_path: Path) -> logging.Logger:
 
     # Capture Python warnings in the logging system
     logging.captureWarnings(True)
-    warnings_logger = logging.getLogger('py.warnings')
+    warnings_logger = logging.getLogger("py.warnings")
     warnings_logger.addHandler(file_handler)
     warnings_logger.addHandler(console_handler)
 
@@ -229,8 +229,7 @@ def load_local_behavioral_data(session_folder: Path, logger: logging.Logger) -> 
                     logger.info(f"  Loaded supplementary trial column: {col_name}")
                 else:
                     logger.warning(
-                        f"  Skipping {col_name}: length mismatch "
-                        f"({len(col_data)} vs {len(trials_df)} trials)"
+                        f"  Skipping {col_name}: length mismatch " f"({len(col_data)} vs {len(trials_df)} trials)"
                     )
 
         local_data["trials"] = trials_df
@@ -245,7 +244,9 @@ def load_local_behavioral_data(session_folder: Path, logger: logging.Logger) -> 
         if pose_file.exists() and times_file.exists():
             local_data[f"pose_{camera_name}"] = pd.read_parquet(pose_file)
             local_data[f"pose_{camera_name}_times"] = np.load(times_file)
-            logger.info(f"  Loaded pose estimation ({camera_name}Camera): {len(local_data[f'pose_{camera_name}'])} frames")
+            logger.info(
+                f"  Loaded pose estimation ({camera_name}Camera): {len(local_data[f'pose_{camera_name}'])} frames"
+            )
         else:
             logger.warning(f"  Pose estimation files not found for {camera_name}Camera")
 
@@ -258,7 +259,9 @@ def load_local_behavioral_data(session_folder: Path, logger: logging.Logger) -> 
             # Reuse pose timestamps or load separately
             if f"pose_{camera_name}_times" not in local_data:
                 local_data[f"motion_energy_{camera_name}_times"] = np.load(times_file)
-            logger.info(f"  Loaded ROI motion energy ({camera_name}Camera): {len(local_data[f'motion_energy_{camera_name}'])} samples")
+            logger.info(
+                f"  Loaded ROI motion energy ({camera_name}Camera): {len(local_data[f'motion_energy_{camera_name}'])} samples"
+            )
         else:
             logger.warning(f"  ROI motion energy files not found for {camera_name}Camera")
 
@@ -381,8 +384,8 @@ def add_behavioral_data_to_nwbfile(nwbfile: NWBFile, local_data: dict, logger: l
                     val = row[col]
                     # Convert numpy types to Python types for NWB
                     if pd.isna(val):
-                        trial_kwargs[col] = float('nan')
-                    elif hasattr(val, 'item'):
+                        trial_kwargs[col] = float("nan")
+                    elif hasattr(val, "item"):
                         trial_kwargs[col] = val.item()
                     else:
                         trial_kwargs[col] = val
@@ -394,7 +397,9 @@ def add_behavioral_data_to_nwbfile(nwbfile: NWBFile, local_data: dict, logger: l
 
 def add_pose_data_to_nwbfile(nwbfile: NWBFile, local_data: dict, logger: logging.Logger) -> None:
     """Add pose estimation data to NWB file."""
-    pose_module = get_module(nwbfile=nwbfile, name="pose_estimation", description="Pose estimation from video using Lightning Pose")
+    pose_module = get_module(
+        nwbfile=nwbfile, name="pose_estimation", description="Pose estimation from video using Lightning Pose"
+    )
     skeletons_container = None
 
     for camera_name in ["left", "right", "body"]:
@@ -421,10 +426,12 @@ def add_pose_data_to_nwbfile(nwbfile: NWBFile, local_data: dict, logger: logging
                 pose_series_list = []
                 reused_timestamps = None
                 for body_part in body_parts:
-                    data = np.column_stack([
-                        pose_df[f"{body_part}_x"].values,
-                        pose_df[f"{body_part}_y"].values,
-                    ])
+                    data = np.column_stack(
+                        [
+                            pose_df[f"{body_part}_x"].values,
+                            pose_df[f"{body_part}_y"].values,
+                        ]
+                    )
                     confidence = pose_df[f"{body_part}_likelihood"].values
 
                     series = PoseEstimationSeries(
@@ -543,10 +550,9 @@ def add_passive_data_to_nwbfile(nwbfile: NWBFile, local_data: dict, logger: logg
             from ibl_to_nwb._scripts.georg_2025_workflow._ibl_passive_interface import (
                 ReceptiveFieldMappingInterface,
             )
+
             try:
-                ReceptiveFieldMappingInterface(
-                    local_data["passive_rfm_times"], rfm_bin
-                ).add_to_nwbfile(nwbfile)
+                ReceptiveFieldMappingInterface(local_data["passive_rfm_times"], rfm_bin).add_to_nwbfile(nwbfile)
                 logger.info("  Added RFM stimulus data")
             except Exception as e:
                 logger.warning(f"  Failed to add RFM stimulus: {e}")
@@ -775,6 +781,7 @@ def validate_nwb_file(nwbfile_path: Path, logger: logging.Logger) -> bool:
     except Exception as e:
         logger.error(f"Validation FAILED: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
 
@@ -784,12 +791,12 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = True              # Write raw-ephys NWBs
-    CONVERT_PROCESSED = True        # Write processed/behavior NWBs
-    STUB_TEST = True                # Work on lightweight subsets of data
-    REDECOMPRESS_EPHYS = False      # Force regeneration of decompressed SpikeGLX binaries
-    OVERWRITE = True                # Regenerate NWBs even if existing files validate
-    INCLUDE_LF_BAND = True          # Include LF band data (2.5 kHz) in addition to AP (30 kHz)
+    CONVERT_RAW = True  # Write raw-ephys NWBs
+    CONVERT_PROCESSED = True  # Write processed/behavior NWBs
+    STUB_TEST = True  # Work on lightweight subsets of data
+    REDECOMPRESS_EPHYS = False  # Force regeneration of decompressed SpikeGLX binaries
+    OVERWRITE = True  # Regenerate NWBs even if existing files validate
+    INCLUDE_LF_BAND = True  # Include LF band data (2.5 kHz) in addition to AP (30 kHz)
 
     # --------------------------------------------------------------------------
     # NOTE: Data download is DISABLED for NP2.0 sessions
@@ -836,7 +843,7 @@ if __name__ == "__main__":
     one = ONE(
         base_url="https://openalyx.internationalbrainlab.org",
         cache_dir=cache_dir,
-        password='international',
+        password="international",
         silent=True,
     )
 
@@ -881,9 +888,9 @@ if __name__ == "__main__":
         existing_shank_folders = []
         if scratch_ephys_folder.exists():
             existing_shank_folders = [
-                f for f in scratch_ephys_folder.iterdir()
-                if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
-                and list(f.glob("*.ap.bin"))
+                f
+                for f in scratch_ephys_folder.iterdir()
+                if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8 and list(f.glob("*.ap.bin"))
             ]
         existing_ephys_bins = len(existing_shank_folders) > 0
         existing_nidq = any(scratch_ephys_folder.glob("*.nidq.bin")) if scratch_ephys_folder.exists() else False
@@ -913,10 +920,13 @@ if __name__ == "__main__":
         logger.info(f"Decompression completed in {decompress_time:.2f}s")
 
         # Count shank folders
-        shank_folders = sorted([
-            f for f in scratch_ephys_folder.iterdir()
-            if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
-        ])
+        shank_folders = sorted(
+            [
+                f
+                for f in scratch_ephys_folder.iterdir()
+                if f.is_dir() and f.name.startswith("probe") and len(f.name) == 8
+            ]
+        )
         logger.info(f"Found {len(shank_folders)} shank folders: {[f.name for f in shank_folders]}")
 
     # ========================================================================
@@ -990,8 +1000,8 @@ if __name__ == "__main__":
         logger.info(f"  Size: {processed_info['nwb_size_gb']:.4f} GB ({processed_info['nwb_size_bytes']:,} bytes)")
 
     if raw_info and processed_info:
-        total_size_gb = raw_info['nwb_size_gb'] + processed_info['nwb_size_gb']
-        total_size_bytes = raw_info['nwb_size_bytes'] + processed_info['nwb_size_bytes']
+        total_size_gb = raw_info["nwb_size_gb"] + processed_info["nwb_size_gb"]
+        total_size_bytes = raw_info["nwb_size_bytes"] + processed_info["nwb_size_bytes"]
         logger.info(f"Total NWB output: {total_size_gb:.4f} GB ({total_size_bytes:,} bytes)")
 
     logger.info(f"Total time: {script_total_time:.2f}s ({script_total_time/60:.2f} minutes)")

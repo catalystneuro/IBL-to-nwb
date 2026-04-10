@@ -19,8 +19,8 @@ Examples:
 import argparse
 import os
 import sys
-from dandi.dandiapi import DandiAPIClient
 
+from dandi.dandiapi import DandiAPIClient
 
 DANDISET_ID = "000409"
 
@@ -38,7 +38,7 @@ def get_assets_for_eid(dandiset, eid: str) -> list:
     matching_assets = []
 
     for asset in dandiset.get_assets():
-        if not asset.path.endswith('.nwb'):
+        if not asset.path.endswith(".nwb"):
             continue
         # Check if the eid appears in the file path
         if eid in asset.path:
@@ -71,12 +71,11 @@ def delete_assets_for_eid(
     """
     # Get token from parameter or environment
     if token is None:
-        token = os.environ.get('DANDI_API_KEY')
+        token = os.environ.get("DANDI_API_KEY")
 
     if token is None and not dry_run:
         raise ValueError(
-            "DANDI API token is required for deletion. "
-            "Provide --token or set DANDI_API_KEY environment variable."
+            "DANDI API token is required for deletion. " "Provide --token or set DANDI_API_KEY environment variable."
         )
 
     # Connect to DANDI
@@ -91,12 +90,12 @@ def delete_assets_for_eid(
     matching_assets = get_assets_for_eid(dandiset, eid)
 
     result = {
-        'eid': eid,
-        'dandiset': DANDISET_ID,
-        'found': len(matching_assets),
-        'deleted': 0,
-        'files': [],
-        'dry_run': dry_run,
+        "eid": eid,
+        "dandiset": DANDISET_ID,
+        "found": len(matching_assets),
+        "deleted": 0,
+        "files": [],
+        "dry_run": dry_run,
     }
 
     if not matching_assets:
@@ -106,7 +105,7 @@ def delete_assets_for_eid(
     print(f"Found {len(matching_assets)} file(s) for eid '{eid}':")
     for asset in matching_assets:
         print(f"  - {asset.path}")
-        result['files'].append(asset.path)
+        result["files"].append(asset.path)
 
     if dry_run:
         print("\n[DRY RUN] No files were deleted. Use without --dry-run to delete.")
@@ -118,7 +117,7 @@ def delete_assets_for_eid(
     for asset in matching_assets:
         try:
             asset.delete()
-            result['deleted'] += 1
+            result["deleted"] += 1
             print(f"  Deleted: {asset.path}")
         except Exception as e:
             print(f"  ERROR deleting {asset.path}: {e}")
@@ -151,7 +150,7 @@ def main():
 
     # Validate eid format (basic UUID check)
     eid = args.eid.strip()
-    if len(eid) != 36 or eid.count('-') != 4:
+    if len(eid) != 36 or eid.count("-") != 4:
         print(f"Warning: '{eid}' doesn't look like a valid UUID format", file=sys.stderr)
 
     result = delete_assets_for_eid(
@@ -161,11 +160,11 @@ def main():
     )
 
     # Exit with appropriate code
-    if result['found'] == 0:
+    if result["found"] == 0:
         sys.exit(0)  # No files found - not an error
-    elif result['dry_run']:
+    elif result["dry_run"]:
         sys.exit(0)  # Dry run successful
-    elif result['deleted'] == result['found']:
+    elif result["deleted"] == result["found"]:
         sys.exit(0)  # All files deleted
     else:
         sys.exit(1)  # Some files failed to delete
