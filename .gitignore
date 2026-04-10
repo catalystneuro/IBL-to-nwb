@@ -126,7 +126,6 @@ venv.bak/
 dmypy.json
 
 # uv
-uv.lock
 .uv-cache/
 
 # Pyre type checker

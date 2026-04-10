@@ -54,8 +54,8 @@ if __name__ == "__main__":
     # MAIN CONFIGURATION
     # ========================================================================
 
-    CONVERT_RAW = False              # Write raw-ephys NWBs
-    CONVERT_PROCESSED = True        # Write processed/behavior NWBs
+    CONVERT_RAW = True              # Write raw-ephys NWBs
+    CONVERT_PROCESSED = False        # Write processed/behavior NWBs
     STUB_TEST = False                # Work on lightweight subsets of data (auto-includes cached videos & decompressed ephys)
     REDOWNLOAD_DATA = False         # Clear cached data and re-download from ONE
     OVERWRITE = True                # Regenerate NWBs even if existing files validate
@@ -70,24 +70,24 @@ if __name__ == "__main__":
     cache_dir = base_folder / "ibl_cache"
     base_path = base_folder
 
-    TARGET_EID = "bd456d8f-d36e-434a-8051-ff3997253802"  # This one has full raw data
-    TARGET_EID = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # has mismatch in timestamps between pupil and data
-    TARGET_EID = "1f095590-6669-46c9-986b-ccaf0620c5e9"  # UCLA012 - Testing: previously missing videos in raw NWB
-    TARGET_EID = "28741f91-c837-4147-939e-918d38d849f2"  # Signal already in info dict
-    TARGET_EID = "d2918f52-8280-43c0-924b-029b2317e62c"  # Testing if meta is downloaded
-    TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # Testing: stream matching
-    TARGET_EID = "d839491f-55d8-4cbe-a298-7839208ba12b" # No nidq file
-    TARGET_EID = "29a6def1-fc5c-4eea-ac48-47e9b053dcb5" # Time alignment issue
-    TARGET_EID = "032452e9-1886-449d-9c13-0f192572e19f" # Corrupted meta file issue
-    TARGET_EID = "283ecb4c-e529-409c-9f0a-8ea5191dcf50"  # Mac os hidden files issue
-    TARGET_EID = "6668c4a0-70a4-4012-a7da-709660971d7a"  # Testing: mac os hidden files
-    TARGET_EID = "f99ac31f-171b-4208-a55d-5644c0ad51c3"  # ADC null property issue (two probes)
-    TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # nidq missing in stream error
-    TARGET_EID = "90e74228-fd1a-482f-bd56-05dbad132861"  # Memory error
-    TARGET_EID = "6ed57216-498d-48a6-b48b-a243a34710ea"  # Full processed file
-    TARGET_EID = "35ed605c-1a1a-47b1-86ff-2b56144f55af"  # Another full file
-    TARGET_EID = "fa1f26a1-eb49-4b24-917e-19f02a18ac61"  # Yet another full file
-    TARGET_EID = "8c025071-c4f3-426c-9aed-f149e8f75b7b"  # Large memory consumption (~36 GB virtual, ~29.5 GB RSS), OOM on 32 GB instances during processed conversion (2 probes)
+    # TARGET_EID = "bd456d8f-d36e-434a-8051-ff3997253802"  # This one has full raw data
+    # TARGET_EID = "dc21e80d-97d7-44ca-a729-a8e3f9b14305" # has mismatch in timestamps between pupil and data
+    # TARGET_EID = "1f095590-6669-46c9-986b-ccaf0620c5e9"  # UCLA012 - Testing: previously missing videos in raw NWB
+    # TARGET_EID = "28741f91-c837-4147-939e-918d38d849f2"  # Signal already in info dict
+    # TARGET_EID = "d2918f52-8280-43c0-924b-029b2317e62c"  # Testing if meta is downloaded
+    # TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # Testing: stream matching
+    # TARGET_EID = "d839491f-55d8-4cbe-a298-7839208ba12b" # No nidq file
+    # TARGET_EID = "29a6def1-fc5c-4eea-ac48-47e9b053dcb5" # Time alignment issue
+    # TARGET_EID = "032452e9-1886-449d-9c13-0f192572e19f" # Corrupted meta file issue
+    # TARGET_EID = "283ecb4c-e529-409c-9f0a-8ea5191dcf50"  # Mac os hidden files issue
+    # TARGET_EID = "6668c4a0-70a4-4012-a7da-709660971d7a"  # Testing: mac os hidden files
+    # TARGET_EID = "f99ac31f-171b-4208-a55d-5644c0ad51c3"  # ADC null property issue (two probes)
+    # TARGET_EID = "72cb5550-43b4-4ef0-add5-e4adfdfb5e02"  # nidq missing in stream error
+    # TARGET_EID = "90e74228-fd1a-482f-bd56-05dbad132861"  # Memory error
+    # TARGET_EID = "35ed605c-1a1a-47b1-86ff-2b56144f55af"  # Another full file
+    # TARGET_EID = "fa1f26a1-eb49-4b24-917e-19f02a18ac61"  # Yet another full file
+    # TARGET_EID = "8c025071-c4f3-426c-9aed-f149e8f75b7b"  # Large memory consumption (~36 GB virtual, ~29.5 GB RSS), OOM on 32 GB instances during processed conversion (2 probes)
+    TARGET_EID = "6ed57216-498d-48a6-b48b-a243a34710ea"  # 2 probes (NYU-39, 2021-05-10, angelakilab) - Full processed file
     # TARGET_EID = "ebe090af-5922-4fcd-8fc6-17b8ba7bad6d"  # Witten lab - missing firstSample in meta
     # TARGET_EID = "de905562-31c6-4c31-9ece-3ee87b97eab4"  # steinmetzlab NR_0029 (2023-08-31) - corrupted meta (probe00b)
     # TARGET_EID = "d85c454e-8737-4cba-b6ad-b2339429d99b"  # steinmetzlab NR_0029 (2023-08-29) - corrupted meta (probe00a)
