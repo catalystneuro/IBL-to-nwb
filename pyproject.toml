@@ -38,6 +38,7 @@ dependencies = [
     "pynapple>=0.10.2",
     "remfile>=0.1.13",
     "scikit-learn>=1.7.2",
+    "natsort",
     "nwb-video-widgets[dandi]>=0.1.2",
 ]
 
@@ -54,27 +55,20 @@ classifiers = [
 ]
 
 [tool.uv.sources]
-# neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "improve_unit_table_performance"}
-neuroconv = {git = "https://github.com/catalystneuro/neuroconv", branch = "fix_ndx_events_version_check"}
-#neuroconv = {path = "../../work_repos/neuroconv", editable = true}
-# hdmf = {git = "https://github.com/h-mayorquin/hdmf", branch = "ragged_writing_optimization"}
-# pynwb = {git = "https://github.com/NeurodataWithoutBorders/pynwb", branch = "dev"}
-# pynwb = {path = "../../work_repos/pynwb", editable = true}
-# hdmf-zarr = {git = "https://github.com/hdmf-dev/hdmf-zarr", branch = "dev"}
-# hdmf-zarr = {path = "../../work_repos/hdmf-zarr", editable = true}
-# spikeinterface from main: includes fix for inter_sample_shift IndexError with
-# non-contiguous snsSaveChanSubset on NP 2.4 probes (PR #4317, not yet released).
-# Can switch back to PyPI once a release > 0.103.2 is published.
-spikeinterface = {git = "https://github.com/SpikeInterface/spikeinterface", branch = "main"}
-# spikeinterface = {path = "../../work_repos/spikeinterface", editable = true}
-ibl-neuropixel = {git = "https://github.com/int-brain-lab/ibl-neuropixel", branch = "main"}
+# neuroconv fix_ndx_events_version_check merged 2026-03-09 (catalystneuro/neuroconv#1682)
+# but no PyPI release after 0.9.3 (2026-02-20). Remove once a new release is out.
+neuroconv = {git = "https://github.com/catalystneuro/neuroconv", rev = "4b6454edec1ccce41d5fdb24e61555f27802430c"}
+# ibllib NWB_conversion branch (int-brain-lab/ibllib#1057) still open.
 ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
-ndx-anatomical-localization = {git = "https://github.com/catalystneuro/ndx-anatomical-localization", branch = "main"}
+# ndx-ibl 0.3.0 on git main, PyPI only has 0.1.0. Must stay on git.
 ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
-# nwb-video-widgets = {path = "/home/heberto/development/nwb-video-widgets", editable = true}
 
 
 [tool.uv]
+# hdmf 5.0 includes performance improvements needed for large ephys writes.
+# The current PyPI release of pynwb caps hdmf<5 (requires hdmf>=4.1.2,<5).
+# This override forces hdmf>=5.0 past that upper bound.
+# Remove once pynwb releases a version that supports hdmf 5.x.
 override-dependencies = ["hdmf>=5.0"]
 
 [tool.black]
