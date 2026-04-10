@@ -1,0 +1,47 @@
+# Conda environment for reproducing the IBL-to-NWB conversion.
+#
+# Many IBL and NWB extension packages are not on conda-forge, so this
+# environment installs the core scientific stack from conda-forge (which
+# includes compiled C libraries like HDF5) and the rest via pip.
+#
+# To create:  conda env create -f environment.yml
+# To update:  conda env update -f environment.yml --prune
+# To activate: conda activate ibl-to-nwb
+
+name: ibl-to-nwb
+channels:
+  - conda-forge
+
+dependencies:
+  - python >=3.10,<3.14
+
+  # Core scientific stack (conda-forge provides compiled binaries + C libraries)
+  - dandi >=0.73.2
+  - pynwb
+  - hdmf >=5.0
+  - spikeinterface >=0.103.2
+  - probeinterface
+  - ndx-pose >=0.2.2
+  - anywidget >=0.9.21
+  - brainglobe-atlasapi >=2.1.0
+  - matplotlib >=3.10.7
+  - scikit-learn >=1.7.2
+  - natsort
+
+  # Packages only available on PyPI
+  - pip
+  - pip:
+      - neuroconv >=0.9.3
+      - hdmf-zarr
+      - ONE-api
+      - iblatlas
+      - ndx-ibl
+      - ndx-events ==0.2.2
+      - ibl-neuropixel
+      - ibllib
+      - ndx-anatomical-localization
+      - brainglobe-heatmap >=0.5.5
+      - brainrender >=2.1.16
+      - pynapple >=0.10.2
+      - remfile >=0.1.13
+      - nwb-video-widgets[dandi] >=0.1.2
