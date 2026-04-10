@@ -4,8 +4,8 @@ from .processed import convert_processed_session
 from .session import (
     PhaseTimeout,
     convert_session,
-    disable_tqdm_globally,
 )
+from ..tqdm_utils import disable_tqdm_globally
 
 __all__ = [
     "download_session_data",
