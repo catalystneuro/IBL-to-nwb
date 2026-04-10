@@ -125,6 +125,9 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# uv
+.uv-cache/
+
 # Pyre type checker
 .pyre/
 
@@ -136,3 +139,21 @@ endpoint_schemas/
 tests/
 src/ibl_to_nwb/local/
 .vscode
+
+# IBL AWS conversion secrets
+src/ibl_to_nwb/_aws_run/network_config.env
+src/ibl_to_nwb/_aws_ibl/network_config.env
+src/ibl_to_nwb/_aws_ibl/
+src/ibl_to_nwb/_aws/profiles/ibl.env
+src/ibl_to_nwb/_aws/profiles/catalyst_neuro.env
+
+.claude/settings.local.json
+CLAUDE.md
+allen_sdk_manifest
+
+src/ibl_to_nwb/_scripts/anatomical_coordinates_validation
+documentation/landmark_coordinate_comparison.md
+src/ibl_to_nwb/_scripts/download_np2_data.py
+src/ibl_to_nwb/_scripts/notebook_scripts/output_images
+src/ibl_to_nwb/_aws/tracking_bwm_conversion/bwm_session_eids.json
+src/ibl_to_nwb/_aws/tracking_bwm_conversion/tracking.json

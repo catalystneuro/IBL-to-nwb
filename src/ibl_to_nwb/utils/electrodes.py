@@ -1,0 +1,763 @@
+from __future__ import annotations
+
+import json
+import logging
+import warnings
+from pathlib import Path
+from typing import List, Literal, Optional
+
+import numpy as np
+from brainbox.io.one import SpikeSortingLoader
+from iblatlas.atlas import AllenAtlas
+from iblatlas.regions import BrainRegions
+from one.api import ONE
+from probeinterface import Probe
+from probeinterface.neuropixels_tools import read_spikeglx
+from pynwb import NWBFile
+
+from .probe_naming import get_ibl_probe_name
+
+
+def _read_spikeglx_meta(meta_path: Path) -> dict:
+    """Read SpikeGLX .meta file and return the parsed metadata dict."""
+    meta_dict = {}
+    with open(meta_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if "=" in line:
+                key, value = line.split("=", 1)
+                meta_dict[key.strip()] = value.strip()
+    return meta_dict
+
+
+def _get_saved_channel_numbers(meta_path: Path) -> list[int] | None:
+    """Parse snsSaveChanSubset from a SpikeGLX .meta file to get saved neural channel numbers.
+
+    Neuroconv generates ``channel_name`` values (e.g. ``AP48,LF48``) using the actual
+    SpikeGLX channel numbers derived from ``snsSaveChanSubset``.  When we pre-populate
+    the electrode table we must use the same numbering so that neuroconv's virtual-ID
+    deduplication (``{group_name}_{electrode_name}_{channel_name}``) can match existing
+    rows instead of adding duplicates.
+
+    Returns the neural channel numbers (excluding sync) or ``None`` when the subset
+    field is absent or set to ``"all"``.
+    """
+    meta_dict = _read_spikeglx_meta(meta_path)
+    subset_str = meta_dict.get("snsSaveChanSubset")
+    if not subset_str or subset_str == "all":
+        return None
+
+    channels: list[int] = []
+    for part in subset_str.split(","):
+        if ":" in part:
+            start, end = part.split(":")
+            channels.extend(range(int(start), int(end) + 1))
+        else:
+            channels.append(int(part))
+
+    # Remove sync channel(s), which are always the last entries.
+    # snsApLfSy format: "nAP,nLF,nSY" e.g. "96,0,1"
+    ap_lf_sy = meta_dict.get("snsApLfSy", "")
+    if ap_lf_sy:
+        parts = ap_lf_sy.split(",")
+        n_sync = int(parts[2]) if len(parts) > 2 else 0
+        if n_sync > 0:
+            channels = channels[:-n_sync]
+
+    return channels
+
+
+def _get_device_metadata_from_meta_file(meta_path: Path, probe: Probe) -> dict:
+    """
+    Build device metadata matching neuroconv's _get_device_metadata_from_probe() format.
+
+    This reads the SpikeGLX .meta file directly to extract the same metadata fields
+    that neuroconv extracts, ensuring consistency between raw and processed conversions.
+
+    Parameters
+    ----------
+    meta_path : Path
+        Path to the SpikeGLX .meta file
+    probe : Probe
+        Probeinterface Probe object (for serial_number, model_name, manufacturer)
+
+    Returns
+    -------
+    dict
+        Device metadata with description containing JSON of additional metadata
+    """
+    meta_dict = _read_spikeglx_meta(meta_path)
+
+    # Build metadata dict matching neuroconv's format
+    metadata_dict = {}
+
+    # Model name from probe
+    if probe.model_name:
+        metadata_dict["model_name"] = probe.model_name
+
+    # Manufacturer (default to Imec like neuroconv)
+    manufacturer = probe.manufacturer or "Imec"
+    metadata_dict["manufacturer"] = manufacturer
+
+    # Port and slot from SpikeGLX metadata
+    # neuroconv gets these from probe_info which comes from spikeinterface annotations
+    if "imDatPrb_port" in meta_dict:
+        metadata_dict["port"] = meta_dict["imDatPrb_port"]
+    if "imDatPrb_slot" in meta_dict:
+        metadata_dict["slot"] = meta_dict["imDatPrb_slot"]
+
+    # Part number (probe type identifier)
+    if "imDatPrb_pn" in meta_dict:
+        metadata_dict["part_number"] = meta_dict["imDatPrb_pn"]
+
+    # Build description matching neuroconv format
+    # neuroconv uses: probe_info.get("description", "A Neuropixel probe of unknown subtype.")
+    if probe.model_name:
+        description = f"A {probe.model_name} probe."
+    else:
+        description = "A Neuropixel probe of unknown subtype."
+
+    # Append additional metadata as JSON (like neuroconv does)
+    if metadata_dict:
+        description = f"{description} Additional metadata: {json.dumps(metadata_dict)}"
+
+    return {
+        "description": description,
+        "manufacturer": manufacturer,
+        "serial_number": probe.serial_number,
+    }
+
+
+DEFAULT_FALLBACK_PROBE_MANUFACTURER = "imec"
+DEFAULT_FALLBACK_PROBE_MODEL = "PRB_1_4_0480_1"
+
+
+def _load_fallback_probe(model_name: str = DEFAULT_FALLBACK_PROBE_MODEL) -> Probe:
+    """
+    Generate the Neuropixels 1.0 probe geometry programmatically to avoid external files.
+    """
+    if model_name != DEFAULT_FALLBACK_PROBE_MODEL:
+        raise ValueError(f"Unsupported fallback probe model: {model_name}")
+
+    probe = Probe(
+        ndim=2,
+        si_units="um",
+        model_name=DEFAULT_FALLBACK_PROBE_MODEL,
+        manufacturer=DEFAULT_FALLBACK_PROBE_MANUFACTURER.upper(),
+    )
+
+    probe.annotations.update(
+        {
+            "model_name": DEFAULT_FALLBACK_PROBE_MODEL,
+            "manufacturer": DEFAULT_FALLBACK_PROBE_MANUFACTURER,
+            "description": "Neuropixels 1.0 probe",
+            "shank_tips": [(24.0, -220.0)],
+        }
+    )
+
+    num_rows = 240
+    positions: list[tuple[float, float]] = []
+    for row in range(num_rows):
+        base_y = float(row * 40)
+        positions.extend(
+            [
+                (16.0, base_y),
+                (48.0, base_y),
+                (0.0, base_y + 20.0),
+                (32.0, base_y + 20.0),
+            ]
+        )
+
+    contact_positions = np.asarray(positions, dtype=np.float64)
+    plane_axes = np.broadcast_to(np.eye(2, dtype=np.float64), (contact_positions.shape[0], 2, 2)).copy()
+    contact_ids = [f"e{index}" for index in range(contact_positions.shape[0])]
+    shank_ids = ["0"] * contact_positions.shape[0]
+
+    probe.set_contacts(
+        positions=contact_positions,
+        shapes="square",
+        shape_params={"width": 12.0},
+        plane_axes=plane_axes,
+        contact_ids=contact_ids,
+        shank_ids=shank_ids,
+    )
+    probe.set_device_channel_indices(np.arange(contact_positions.shape[0], dtype=np.int64))
+    probe.set_planar_contour([[-11.0, 9989.0], [-11.0, -11.0], [24.0, -220.0], [59.0, -11.0], [59.0, 9989.0]])
+
+    return probe
+
+
+def _ensure_ibl_coordinates_um(
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return IBL coordinates in micrometres along with their metre representation."""
+    coords_m = np.column_stack([x, y, z]).astype(np.float64)
+    if np.nanmax(np.abs(coords_m)) > 0.1:  # heuristically treat values as micrometres
+        coords_m *= 1e-6
+    coords_um = coords_m * 1e6
+    return coords_um, coords_m
+
+
+def acronym_to_name(acronym: str, brain_regions: BrainRegions) -> str:
+    """Convert a brain region acronym to its full name.
+
+    Parameters
+    ----------
+    acronym : str
+        Brain region acronym (e.g., "VISp", "CA1", "TH").
+    brain_regions : BrainRegions
+        BrainRegions instance for lookups.
+
+    Returns
+    -------
+    str
+        Full name of the brain region (e.g., "Primary visual area").
+        Returns the acronym unchanged if not found in the atlas.
+    """
+    if acronym in ("out-of-atlas", "void", "root"):
+        return acronym
+
+    try:
+        result = brain_regions.acronym2index(acronym)
+        idx = result[1]
+        if hasattr(idx, "__len__") and len(idx) > 0:
+            idx = idx[0]  # Take first match (non-lateralized)
+        name = brain_regions.name[idx]
+        if hasattr(name, "__len__") and not isinstance(name, str):
+            name = name[0]  # Take first name (non-lateralized)
+        return str(name)
+    except (IndexError, KeyError):
+        return acronym
+
+
+def convert_ibl_to_ccf3_coordinates(
+    *,
+    atlas: AllenAtlas,
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    acronyms: np.ndarray,
+    probe_name: str | None = None,
+    eid: str | None = None,
+) -> dict:
+    """Convert IBL (bregma-centered) coordinates into the Allen CCFv3 frame.
+
+    The spike-sorting loaders often provide histology coordinates in micrometers. This helper
+    normalizes inputs to meters when necessary, performs the atlas transformation, and labels
+    out-of-volume points as ``"out-of-atlas"`` while returning CCF coordinates in micrometers.
+
+    The returned CCF coordinates are in the native Allen CCF format with PIR+ orientation:
+    - First coordinate (x): Anterior-Posterior (AP)
+    - Second coordinate (y): Dorsal-Ventral (DV)
+    - Third coordinate (z): Medio-Lateral (ML)
+
+    Parameters
+    ----------
+    atlas : AllenAtlas
+        Atlas instance used for the coordinate transformation.
+    x, y, z : np.ndarray
+        Coordinates in meters in the IBL frame (RAS: x=ML, y=AP, z=DV). If the magnitudes
+        indicate micrometers, the values are rescaled automatically.
+    acronyms : np.ndarray
+        Brain region acronyms associated with each coordinate.
+    probe_name : str, optional
+        Probe identifier included in warning messages.
+    eid : str, optional
+        Session identifier included in warning messages.
+
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - 'coords_um': Allen CCF coordinates in micrometers (AP, DV, ML). Shape (n, 3).
+        - 'acronym': Brain region acronyms (e.g., "VISp", "CA1").
+        - 'name': Full brain region names (e.g., "Primary visual area").
+        - 'outside_mask': Boolean mask for electrodes outside the atlas volume.
+        Out-of-bounds points have "out-of-atlas" for both acronym and name.
+    """
+
+    _, coords_m = _ensure_ibl_coordinates_um(x, y, z)
+    lims = np.array([np.sort(atlas.bc.lim(axis)) for axis in range(3)], dtype=np.float64)
+    outside_mask = (
+        (coords_m[:, 0] < lims[0][0])
+        | (coords_m[:, 0] > lims[0][1])
+        | (coords_m[:, 1] < lims[1][0])
+        | (coords_m[:, 1] > lims[1][1])
+        | (coords_m[:, 2] < lims[2][0])
+        | (coords_m[:, 2] > lims[2][1])
+    )
+
+    ccf_coords_um = np.full_like(coords_m, fill_value=np.nan, dtype=np.float64)
+    valid_indices = ~outside_mask
+
+    if valid_indices.any():
+        try:
+            # Convert to Allen CCF native format (AP, DV, ML) aka ASL orientation
+            converted = atlas.xyz2ccf(coords_m[valid_indices], ccf_order="apdvml").astype(np.float64)
+            ccf_coords_um[valid_indices] = converted
+        except ValueError as exc:
+            warnings.warn(
+                (
+                    "Unable to convert some IBL coordinates to CCF for probe "
+                    f"'{probe_name}' (session {eid}): {exc}. Filling invalid entries with NaN."
+                ),
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    if outside_mask.any():
+        out_indices = np.where(outside_mask)[0].tolist()
+        warnings.warn(
+            f"Probe '{probe_name}' (session {eid}) has {len(out_indices)} electrode(s) outside the Allen atlas volume: indices {out_indices}.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    # Acronyms array with out-of-atlas markers
+    ccf_acronyms = np.array(acronyms, dtype=str)
+    ccf_acronyms[outside_mask] = "out-of-atlas"
+
+    # Convert acronyms to full Allen CCFv3 names
+    brain_regions = BrainRegions()
+    ccf_region_names = np.array([acronym_to_name(acr, brain_regions) for acr in acronyms], dtype=str)
+    ccf_region_names[outside_mask] = "out-of-atlas"
+
+    return {
+        "coords_um": ccf_coords_um,
+        "acronym": ccf_acronyms,
+        "name": ccf_region_names,
+        "outside_mask": outside_mask,
+    }
+
+
+def _resolve_meta_path(
+    one: ONE,
+    eid: str,
+    probe_name: str,
+    meta_path: Optional[Path],
+) -> Optional[Path]:
+    """
+    Resolve the local path to the SpikeGLX `.meta` file for a given probe.
+
+    Note: Raw ephys data is NOT revision-dependent (raw recordings never change).
+    """
+    if meta_path is not None:
+        return Path(meta_path)
+
+    collection = f"raw_ephys_data/{probe_name}"
+    datasets = one.list_datasets(eid=eid, collection=collection)
+    meta_datasets = [dataset for dataset in datasets if dataset.endswith(".ap.meta")]
+    if not meta_datasets:
+        return None
+
+    local_path = one.load_dataset(eid, dataset=meta_datasets[0])
+    return Path(local_path)
+
+
+def add_probe_definition_to_nwbfile(
+    probe: Probe,
+    nwbfile: NWBFile,
+    *,
+    group_mode: Literal["by_probe", "by_shank"] = "by_probe",
+    metadata: Optional[dict] = None,
+    source_description: str,
+    ibl_probe_name: Optional[str] = None,
+    meta_path: Optional[Path] = None,
+) -> None:
+    """
+    Minimal helper to populate the electrodes table using a `probeinterface.Probe` object.
+
+    Parameters
+    ----------
+    probe : Probe
+        Probeinterface Probe object
+    nwbfile : NWBFile
+        NWB file to add electrodes to
+    group_mode : {"by_probe", "by_shank"}
+        How to group electrodes
+    metadata : dict, optional
+        Ecephys metadata
+    source_description : str
+        Description of the data source
+    ibl_probe_name : str, optional
+        Original IBL probe name (e.g., 'probe00') for the probe_name column
+    meta_path : Path, optional
+        Path to the SpikeGLX .meta file.  Used to read ``snsSaveChanSubset`` so that
+        ``channel_name`` values match the actual hardware channel numbers that neuroconv
+        will generate, enabling electrode deduplication.
+    """
+    if group_mode != "by_probe":
+        raise ValueError("Only group_mode='by_probe' is supported in this lightweight implementation.")
+
+    # Parse saved channel numbers from meta so channel_name matches neuroconv's numbering.
+    saved_channel_numbers: list[int] | None = None
+    if meta_path is not None:
+        saved_channel_numbers = _get_saved_channel_numbers(meta_path)
+
+    contacts = probe.to_numpy(complete=True)
+    if contacts.size == 0:
+        raise ValueError(f"No contacts found in probe definition: {source_description}")
+
+    # Get contact positions for rel_x, rel_y (probe-relative coordinates)
+    contact_positions = probe.contact_positions
+
+    metadata_copy = metadata.copy() if metadata is not None else {}
+    ecephys_metadata = metadata_copy.setdefault("Ecephys", {})
+
+    device_entry = ecephys_metadata.setdefault(
+        "Device",
+        [dict(name="Probe00", description="Neuropixels probe", manufacturer="IMEC")],
+    )[0]
+    device_name = device_entry["name"]
+    if device_name in nwbfile.devices:
+        device = nwbfile.devices[device_name]
+    else:
+        device_kwargs = dict(
+            name=device_name,
+            description=device_entry.get("description", ""),
+            manufacturer=device_entry.get("manufacturer", ""),
+        )
+        if "serial_number" in device_entry:
+            device_kwargs["serial_number"] = device_entry["serial_number"]
+        device = nwbfile.create_device(**device_kwargs)
+
+    group_entry = ecephys_metadata.setdefault(
+        "ElectrodeGroup",
+        [
+            dict(
+                name=device_name,
+                description="Electrode group for Neuropixels probe",
+                location="Unknown",
+                device=device_name,
+            )
+        ],
+    )[0]
+    group_name = group_entry["name"]
+    if group_name in nwbfile.electrode_groups:
+        electrode_group = nwbfile.electrode_groups[group_name]
+    else:
+        electrode_group = nwbfile.create_electrode_group(
+            name=group_name,
+            description=group_entry.get("description", ""),
+            location=group_entry.get("location", "Unknown"),
+            device=device,
+        )
+
+    default_columns = {"x", "y", "z", "imp", "location", "filtering", "group", "group_name"}
+    existing_columns = set(nwbfile.electrodes.colnames) if nwbfile.electrodes is not None else set()
+
+    required_columns = [
+        ("electrode_name", "Unique identifier derived from probe contact ids."),
+        ("contact_shapes", "Contact shape per electrode as defined by the probe."),
+        (
+            "channel_name",
+            "The name of this channel, showing all recording streams for the electrode (e.g., 'AP379,LF379').",
+        ),
+        ("rel_x", "Relative x coordinate on the probe (µm)."),
+        ("rel_y", "Relative y coordinate on the probe (µm)."),
+        ("probe_name", "IBL probe name in canonical format (e.g., 'Probe00', 'Probe01')."),
+        ("contact_ids", "Channel IDs as specified by the probe manufacturer."),
+        ("shank_ids", "Shank ID for each electrode (for multi-shank probes)."),
+        ("adc_group", "ADC group index from SpikeGLX metadata."),
+        ("adc_sample_order", "ADC sample order from SpikeGLX metadata."),
+    ]
+    required_columns.extend(
+        (column["name"], column.get("description", ""))
+        for column in ecephys_metadata.get("Electrodes", [])
+        if column["name"] not in {name for name, _ in required_columns}
+    )
+
+    for name, description in required_columns:
+        if name in default_columns or name in existing_columns:
+            continue
+        nwbfile.add_electrode_column(name=name, description=description)
+        existing_columns.add(name)
+
+    dtype_names = contacts.dtype.names
+    has_z = "z" in dtype_names
+    has_contact_shapes = "contact_shapes" in dtype_names
+    has_contact_ids = "contact_ids" in dtype_names
+    has_shank_ids = "shank_ids" in dtype_names
+    has_adc_group = "adc_group" in dtype_names
+    has_adc_sample_order = "adc_sample_order" in dtype_names
+
+    def _contact_id(index: int) -> str:
+        # Use contact_ids from probe if available
+        if has_contact_ids:
+            raw_value = contacts["contact_ids"][index]
+            if isinstance(raw_value, bytes):
+                raw_value = raw_value.decode()
+            if raw_value:
+                return str(raw_value)
+        return f"{group_name}_contact_{index}"
+
+    for index in range(contacts.size):
+        contact = contacts[index]
+        contact_id = _contact_id(index)
+
+        electrode_kwargs = dict(
+            x=float(contact["x"]),
+            y=float(contact["y"]),
+            z=float(contact["z"]) if has_z else float("nan"),
+            imp=float("nan"),
+            location=group_entry.get("location", "Unknown"),
+            filtering="",
+            group=electrode_group,
+            group_name=group_name,
+            electrode_name=contact_id,
+            rel_x=float(contact_positions[index, 0]),
+            rel_y=float(contact_positions[index, 1]),
+        )
+
+        if has_contact_shapes:
+            shape_value = contact["contact_shapes"]
+            electrode_kwargs["contact_shapes"] = shape_value.tolist() if hasattr(shape_value, "tolist") else shape_value
+
+        # Add SpikeGLX-specific properties from probe metadata
+        if has_contact_ids:
+            electrode_kwargs["contact_ids"] = str(contact["contact_ids"])
+
+        if has_shank_ids:
+            electrode_kwargs["shank_ids"] = str(contact["shank_ids"])
+
+        if has_adc_group:
+            electrode_kwargs["adc_group"] = int(contact["adc_group"])
+
+        if has_adc_sample_order:
+            electrode_kwargs["adc_sample_order"] = int(contact["adc_sample_order"])
+
+        # Add channel_name using the actual SpikeGLX channel numbers so that
+        # neuroconv's virtual-ID deduplication can match these pre-populated rows.
+        if saved_channel_numbers is not None and index < len(saved_channel_numbers):
+            ch_num = saved_channel_numbers[index]
+        else:
+            ch_num = index
+        electrode_kwargs["channel_name"] = f"AP{ch_num},LF{ch_num}"
+
+        # Add IBL probe_name if provided (use canonical name format Probe00, Probe01)
+        if ibl_probe_name is not None:
+            electrode_kwargs["probe_name"] = get_ibl_probe_name(ibl_probe_name)
+
+        nwbfile.add_electrode(**electrode_kwargs)
+
+
+def add_spikeglx_probe_to_nwbfile(
+    meta_file: str | Path,
+    nwbfile: NWBFile,
+    *,
+    group_mode: Literal["by_probe", "by_shank"] = "by_probe",
+    metadata: Optional[dict] = None,
+    ibl_probe_name: Optional[str] = None,
+) -> None:
+    """
+    Convenience wrapper that reads a SpikeGLX `.meta` file and delegates to
+    :func:`add_probe_definition_to_nwbfile`.
+    """
+    meta_path = Path(meta_file)
+    probe = read_spikeglx(meta_path)
+    add_probe_definition_to_nwbfile(
+        probe=probe,
+        nwbfile=nwbfile,
+        group_mode=group_mode,
+        metadata=metadata,
+        source_description=str(meta_path),
+        ibl_probe_name=ibl_probe_name,
+        meta_path=meta_path,
+    )
+
+
+def add_probe_electrodes_with_localization(
+    *,
+    nwbfile: NWBFile,
+    one: ONE,
+    eid: str,
+    probe_name: str,
+    pid: str,
+    atlas: Optional[AllenAtlas] = None,
+    meta_path: Optional[Path] = None,
+) -> List[int]:
+    """
+    Add electrodes for a Neuropixels probe using the SpikeGLX `.meta` file and enrich with anatomical localization.
+
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        NWB file receiving the electrodes.
+    one : ONE
+        ONE API client (used to fetch metadata files and histology channels).
+    eid : str
+        Session identifier.
+    probe_name : str
+        Probe name (e.g., 'probe00').
+    pid : str
+        Probe insertion UUID.
+    atlas : AllenAtlas, optional
+        Atlas instance used to convert IBL coordinates to CCF. Created if not provided.
+    meta_path : Path, optional
+        Optional explicit path to the `.meta` file. When omitted the file is downloaded via ONE.
+
+    Returns
+    -------
+    list[int]
+        Electrode indices (in NWB electrode table order) corresponding to the probe channels.
+    """
+
+    device_name = get_ibl_probe_name(probe_name)
+    group_name = device_name
+
+    atlas = atlas or AllenAtlas()
+
+    meta_path = _resolve_meta_path(one=one, eid=eid, probe_name=probe_name, meta_path=meta_path)
+
+    if meta_path is None:
+        # Fail loudly - missing .meta files indicate a data quality issue
+        raise FileNotFoundError(
+            f"No SpikeGLX metadata (.meta file) found for probe '{probe_name}' in session '{eid}'. "
+            f"Cannot create accurate electrode geometry. "
+            f"Ensure raw ephys data has been downloaded from ONE API. "
+            f"Collection: raw_ephys_data/{probe_name}"
+        )
+
+    # Patch corrupted meta files in-place before probeinterface reads them.
+    # Some IBL sessions have tampered .meta files (e.g. corrupted snsSaveChanSubset,
+    # missing ~ prefix) that cause probeinterface to report wrong contact counts.
+    # The patch is idempotent and only modifies files that need fixing.
+    from ibl_to_nwb.conversion.spikeglx_first_sample_patch import inject_missing_first_sample
+    from ibl_to_nwb.conversion.spikeglx_patches import fix_corrupted_spikeglx_meta_files
+
+    _patch_logger = logging.getLogger(__name__)
+    fix_corrupted_spikeglx_meta_files(meta_path.parent, _patch_logger)
+    inject_missing_first_sample(meta_path.parent, _patch_logger)
+
+    # Read probe from .meta file to extract serial_number and other metadata
+    # Use same format as neuroconv's _get_device_metadata_from_probe() for consistency
+    probe = read_spikeglx(meta_path)
+    device_info = _get_device_metadata_from_meta_file(meta_path, probe)
+
+    # Create metadata for probe from .meta file (matching neuroconv format)
+    device_metadata = dict(
+        name=device_name,
+        description=device_info["description"],
+        manufacturer=device_info["manufacturer"],
+    )
+    if device_info["serial_number"]:
+        device_metadata["serial_number"] = device_info["serial_number"]
+
+    meta_metadata = {
+        "Ecephys": {
+            "Device": [device_metadata],
+            "ElectrodeGroup": [
+                dict(
+                    name=group_name,
+                    description=f"Electrode group for {probe_name}",
+                    location="Unresolved",
+                    device=device_name,
+                )
+            ],
+            "Electrodes": [
+                dict(name="electrode_name", description="Electrode identifier derived from probe contact ids."),
+                dict(name="location", description="Allen CCFv3 brain region name per electrode."),
+                dict(name="x", description="CCF x coordinate (+x is posterior), in micrometers."),
+                dict(name="y", description="CCF y coordinate (+y is inferior), in micrometers."),
+                dict(name="z", description="CCF z coordinate (+z is right), in micrometers."),
+            ],
+        }
+    }
+
+    add_spikeglx_probe_to_nwbfile(
+        meta_file=meta_path,
+        nwbfile=nwbfile,
+        group_mode="by_probe",
+        metadata=meta_metadata,
+        ibl_probe_name=probe_name,
+    )
+
+    # Identify electrode indices for this probe.
+    electrode_indices: List[int] = []
+    for index in range(len(nwbfile.electrodes)):
+        if nwbfile.electrodes["group_name"][index] == group_name:
+            electrode_indices.append(index)
+
+    if not electrode_indices:
+        warnings.warn(
+            f"Electrodes were not added for probe '{probe_name}'. Check the SpikeGLX metadata at '{meta_path}'.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return []
+
+    # Fetch histology channel data.
+    # Note: Histology data is ALF data (revision-dependent), always use BWM standard revision
+    atlas = atlas or AllenAtlas()
+
+    BWM_REVISION = "2025-05-06"  # Must match IblAnatomicalLocalizationInterface.REVISION
+    loader = SpikeSortingLoader(pid=pid, eid=eid, pname=probe_name, one=one, atlas=atlas, revision=BWM_REVISION)
+    channels = loader.load_channels()
+
+    _has_channel_field = lambda field: field in channels
+
+    if not all(_has_channel_field(field) for field in ("x", "y", "z", "atlas_id", "acronym")):
+        warnings.warn(
+            f"Histology channels missing required fields for probe '{probe_name}'. "
+            f"Electrode table will have probe geometry from .meta file but no anatomical localization.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return electrode_indices
+
+    n_channels = len(channels["x"])
+    if n_channels == 0:
+        warnings.warn(
+            f"No histology channels available for probe '{probe_name}'.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return electrode_indices
+
+    if len(electrode_indices) != n_channels:
+        warnings.warn(
+            f"Electrode count mismatch for probe '{probe_name}' "
+            f"(electrodes={len(electrode_indices)}, histology channels={n_channels}).",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    columns_to_add = [
+        ("x", "CCF x coordinate (+x is posterior), in micrometers."),
+        ("y", "CCF y coordinate (+y is inferior), in micrometers."),
+        ("z", "CCF z coordinate (+z is right), in micrometers."),
+        ("location", "Allen CCFv3 brain region name per electrode."),
+    ]
+    existing_columns = set(nwbfile.electrodes.colnames)
+    for name, description in columns_to_add:
+        if name not in existing_columns:
+            nwbfile.add_electrode_column(name=name, description=description)
+            existing_columns.add(name)
+
+    channels_x = np.asarray(channels["x"], dtype=np.float64)
+    channels_y = np.asarray(channels["y"], dtype=np.float64)
+    channels_z = np.asarray(channels["z"], dtype=np.float64)
+    acronyms = np.asarray(channels["acronym"]).astype(str)
+
+    ccf_result = convert_ibl_to_ccf3_coordinates(
+        atlas=atlas,
+        x=channels_x,
+        y=channels_y,
+        z=channels_z,
+        acronyms=acronyms,
+        probe_name=probe_name,
+        eid=eid,
+    )
+
+    electrode_indices_sorted = sorted(electrode_indices)
+    for channel_index, electrode_index in enumerate(electrode_indices_sorted):
+        index = min(channel_index, n_channels - 1)
+        nwbfile.electrodes["x"].data[electrode_index] = float(ccf_result["coords_um"][index, 0])
+        nwbfile.electrodes["y"].data[electrode_index] = float(ccf_result["coords_um"][index, 1])
+        nwbfile.electrodes["z"].data[electrode_index] = float(ccf_result["coords_um"][index, 2])
+        # Use full brain region name for the location field
+        nwbfile.electrodes["location"].data[electrode_index] = ccf_result["name"][index]
+
+    return electrode_indices_sorted

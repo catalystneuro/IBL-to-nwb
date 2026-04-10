@@ -1,12 +1,6 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
-
-[tool.hatch.version]
-source = "vcs"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/ibl_to_nwb"]
+requires = ["uv_build"]
+build-backend = "uv_build"
 
 [project]
 name = "ibl_to_nwb"
@@ -18,24 +12,41 @@ description = "Tools to convert IBL data to NWB format.."
 readme = "README.md"
 keywords = ["nwb", "dandi", "ibl"]
 license = {file = "license.txt"}
-requires-python = ">=3.9"
+# Upper bound needed because compiled dependencies (e.g., h5py) don't have Python 3.14 wheels yet
+requires-python = ">=3.10,<3.14"
 dependencies = [
-    "dandi",
-    "neuroconv",
-    "spikeinterface",
+    "dandi>=0.73.2",
+    "neuroconv>=0.9.3",
+    "pynwb",
+    "hdmf-zarr",
+    "spikeinterface>=0.103.2",
     "probeinterface",
-    "ndx-pose==0.1.1",
-    "ndx-ibl-bwm",
+    "ndx-pose>=0.2.2",
     "ONE-api",
-    "ibllib",
     "iblatlas",
+    "ndx-ibl",
+    "ndx-events==0.2.2",
+    "hdmf>=5.0",
+    "ibl-neuropixel",
+    "ibllib",
+    "ndx-anatomical-localization",
+    "anywidget>=0.9.21",
+    "brainglobe-atlasapi>=2.1.0; sys_platform != 'win32'",
+    "brainglobe-heatmap>=0.5.5; sys_platform != 'win32'",
+    "brainrender>=2.1.16; sys_platform != 'win32'",
+    "matplotlib>=3.10.7",
+    "pynapple>=0.10.2",
+    "remfile>=0.1.13",
+    "scikit-learn>=1.7.2",
+    "natsort",
+    "nwb-video-widgets[dandi]>=0.1.2",
 ]
+
 classifiers = [
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Intended Audience :: Developers",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
@@ -43,7 +54,31 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
 ]
 
+[tool.uv.sources]
+# neuroconv fix_ndx_events_version_check merged 2026-03-09 (catalystneuro/neuroconv#1682)
+# but no PyPI release after 0.9.3 (2026-02-20). Remove once a new release is out.
+neuroconv = {git = "https://github.com/catalystneuro/neuroconv", rev = "4b6454edec1ccce41d5fdb24e61555f27802430c"}
+# ibllib NWB_conversion branch (int-brain-lab/ibllib#1057) still open.
+ibllib = {git = "https://github.com/int-brain-lab/ibllib", branch = "NWB_conversion" }
+# ndx-ibl 0.3.0 on git main, PyPI only has 0.1.0. Must stay on git.
+ndx-ibl = {git = "https://github.com/catalystneuro/ndx-ibl", branch = "main"}
 
+
+[tool.uv]
+# hdmf 5.0 includes performance improvements needed for large ephys writes.
+# The current PyPI release of pynwb caps hdmf<5 (requires hdmf>=4.1.2,<5).
+# This override forces hdmf>=5.0 past that upper bound.
+# Remove once pynwb releases a version that supports hdmf 5.x.
+override-dependencies = [
+    "hdmf>=5.0",
+    # PyQt5 has no Windows wheels; ibllib pulls it in but it's only used for GUIs.
+    "pyqt5>=5.15; sys_platform != 'win32'",
+    "pyqt5-qt5>=5.15; sys_platform != 'win32'",
+]
+
+[tool.codespell]
+skip = "*.ipynb"
+ignore-words-list = "trough,re-used"
 
 [tool.black]
 line-length = 120
@@ -84,6 +119,8 @@ ignore = [
     "FIX002",
     "TD003",
     "TD002",
+    "F841",
+    "E731",
     "S101",
     "ICN001",
     "INP001",
@@ -94,3 +131,8 @@ fixable = ["ALL"]
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
 known-first-party = ["ibl_to_nwb"]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+]

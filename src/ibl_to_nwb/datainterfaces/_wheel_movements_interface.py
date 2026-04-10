@@ -1,0 +1,106 @@
+"""Interface for detected wheel movement epochs."""
+
+import numpy as np
+from neuroconv.tools.nwb_helpers import get_module
+from one.api import ONE
+from pynwb.epoch import TimeIntervals
+
+from ._base_ibl_interface import BaseIBLDataInterface
+
+
+class WheelMovementsInterface(BaseIBLDataInterface):
+    """Interface for detected wheel movement epochs (intervals + peak amplitude)."""
+
+    # Wheel data uses BWM standard revision
+    REVISION: str | None = "2025-05-06"
+
+    def __init__(self, one: ONE, session: str):
+        self.one = one
+        self.session = session
+        self.revision = self.REVISION
+
+    @classmethod
+    def get_data_requirements(cls) -> dict:
+        """
+        Declare exact data files required for wheel movements.
+
+        Returns
+        -------
+        dict
+            Data requirements with exact file paths
+        """
+        return {
+            "exact_files_options": {
+                "standard": [
+                    "alf/_ibl_wheelMoves.intervals.npy",
+                    "alf/_ibl_wheelMoves.peakAmplitude.npy",
+                ],
+            },
+        }
+
+    @classmethod
+    def get_load_object_kwargs(cls) -> dict:
+        """Return kwargs for one.load_object() call."""
+        return {"obj": "wheelMoves", "collection": "alf"}
+
+    def add_to_nwbfile(self, nwbfile, metadata: dict, stub_test: bool = False, stub_duration: float = 10.0):
+        """
+        Add wheel movement epochs to NWBFile.
+
+        Parameters
+        ----------
+        nwbfile : NWBFile
+            The NWBFile to add data to.
+        metadata : dict
+            Metadata dictionary.
+        stub_test : bool, default: False
+            If True, only add the first stub_duration seconds of data for testing.
+        stub_duration : float, default: 10.0
+            Duration in seconds to include when stub_test=True.
+        """
+        wheel_moves = self.one.load_object(id=self.session, revision=self.revision, **self.get_load_object_kwargs())
+
+        # Subset data if stub_test
+        if stub_test:
+            # Use first movement start as reference time
+            if len(wheel_moves["intervals"]) > 0:
+                first_time = wheel_moves["intervals"][0, 0]
+                stub_limit = first_time + stub_duration
+                interval_mask = wheel_moves["intervals"][:, 0] <= stub_limit
+                if not interval_mask.any():
+                    interval_mask = np.zeros(len(wheel_moves["intervals"]), dtype=bool)
+                    interval_mask[: min(100, len(interval_mask))] = True
+                wheel_moves["intervals"] = wheel_moves["intervals"][interval_mask]
+                wheel_moves["peakAmplitude"] = wheel_moves["peakAmplitude"][interval_mask]
+
+        # Wheel movement intervals
+        wheel_movement_intervals = TimeIntervals(
+            name="WheelMovementIntervals",
+            description=(
+                "The onset and offset times of all detected movements. "
+                "Movements are defined as a wheel movement of at least 0.012 rad over 200ms. "
+                "For a rotary encoder of resolution 1024 in X4 encoding, this is equivalent to around 8 ticks. "
+                "Movements below 50ms are discarded and two detected movements within 100ms of one another "
+                "are considered as a single movement. For the onsets a lower threshold is used to find a more "
+                "precise onset time. The wheel diameter is 6.2 cm and the number of ticks is 4096 per revolution."
+            ),
+        )
+        for start_time, stop_time in wheel_moves["intervals"]:
+            wheel_movement_intervals.add_row(start_time=start_time, stop_time=stop_time)
+        wheel_movement_intervals.add_column(
+            name="peak_amplitude",
+            description="The absolute maximum amplitude of each detected wheel movement, relative to onset position.",
+            data=wheel_moves["peakAmplitude"],
+        )
+
+        wheel_module = get_module(
+            nwbfile=nwbfile,
+            name="wheel",
+            description=(
+                "Rotary encoder wheel used for behavioral responses. The wheel (6.2 cm diameter) is positioned "
+                "under the mouse's forepaws, and rotation is measured via a quadrature encoder (1024 ticks, "
+                "X4 encoding = 4096 effective ticks per revolution). Mice turn the wheel to move visual stimuli "
+                "and report perceptual decisions. Contains raw position, detected movements, and derived kinematics."
+            ),
+        )
+        wheel_module.add(wheel_movement_intervals)

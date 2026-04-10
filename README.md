@@ -1,97 +1,99 @@
-# IBL-to-nwb
+# IBL-to-NWB
+
 [![PyPI version](https://badge.fury.io/py/ibl-to-nwb.svg)](https://badge.fury.io/py/ibl-to-nwb)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
-This repository houses conversion pipelines for the IBL data releases, including the Brain Wide Map project.
+IBL-to-NWB is the data conversion pipeline that produced the
+[Brain Wide Map NWB dataset](https://dandiarchive.org/dandiset/000409) on the
+DANDI Archive. It transforms International Brain Laboratory (IBL) experimental
+data into Neurodata Without Borders (NWB) format using
+[NeuroConv](https://neuroconv.readthedocs.io/).
 
+The dataset contains both raw electrophysiology recordings and processed
+behavioral/spike sorting data for hundreds of Neuropixels sessions across
+multiple labs.
 
+## Using the data
 
-# Installation
+The converted data is publicly available on DANDI. You can stream NWB files
+directly without downloading them:
 
+```python
+from dandi.dandiapi import DandiAPIClient
+import remfile, h5py
+from pynwb import NWBHDF5IO
+
+client = DandiAPIClient()
+dandiset = client.get_dandiset("000409", "draft")
+
+# Find a session
+session_eid = "6ed57216-498d-48a6-b48b-a243a34710ea"
+assets = [a for a in dandiset.get_assets() if session_eid in a.path]
+processed = next(a for a in assets if "desc-processed" in a.path)
+
+# Stream it
+s3_url = processed.get_content_url(follow_redirects=1, strip_query=False)
+file = h5py.File(remfile.File(s3_url), "r")
+io = NWBHDF5IO(file=file, load_namespaces=True)
+nwbfile = io.read()
 ```
-git clone https:/github.com/catalystneuro/IBL-to-nwb
+
+See [notebooks/bwm_usage_notebook.ipynb](notebooks/bwm_usage_notebook.ipynb)
+for a complete walkthrough of the dataset including trials, spike sorting,
+pose estimation, wheel data, and video streaming.
+
+## Running conversions
+
+**See [documentation/introduction_to_documentation.md](documentation/introduction_to_documentation.md) for complete documentation including system architecture, concepts, and how-tos.**
+
+### Installation
+
+```bash
+git clone https://github.com/catalystneuro/IBL-to-nwb.git
 cd IBL-to-nwb
-pip install -e .
+uv sync
 ```
 
-for the exact environment used for the initial conversion, see `src/ibl_to_nwb/_environments`.
+Alternatively, `pip install -e .` or `conda env create -f environment.yml`.
+See [documentation/development/lock_files.md](documentation/development/lock_files.md)
+for details on reproducing the exact conversion environment.
 
-It is recommended to follow a similar approach for future conversions to leave a record of provenance.
+### Convert a single session
 
-
-
-# Running data conversions
-
-## NeuroConv structure
-
-NeuroConv has two primarily classes for handling conversions.
-
-An `Interface` reads a single data stream (such as DLC pose estimation) and creates one or more neurodata objects, adding them to an in-memory `pynwb.NWBFile` object via the `.add_to_nwbfile` method. Before that it can also fetch and set local `metadata: dict` values for use or modification.
-
-The `Converter` orchestrates the conversion by combining multiple interfaces, and can also be used to add additional metadata to the NWB file. It is responsible for creating the NWB file saved to disk.
-
-Occasionally, a sub-`Converter`, such as the `IBLSpikeGLXConverter`, will be used to handle the conversion of multiple data streams that is more complex than a single interface can handle; though these behave like other `Interfaces` with respect to the main orchestrating `Converter`.
-
-## Metadata
-
-Anywhere you see handwritten text in the NWB files that is meant to be human-readable, it is likely that it was copied from the public Google IBL documents and written in the `.yaml` files found in `src/ibl_to_nwb/_metadata`.
-
-Occasionally, especially if a portion of the text is pulled from source data, these values might be overwritten in the `.add_to_nwbfile` protocol of an interface, so always be sure to check that as well.
-
-## Raw only
-
-Open the script `src/ibl_to_nwb/_scripts/convert_brainwide_map_raw_only.py`.
-
-Change any values at the top as needed, such as the `session_id` (equivalent to the 'eid' of ONE).
-
-Then run the script.
-
-## Processed only
-
-Open the script `src/ibl_to_nwb/_scripts/convert_brainwide_map_processed_only.py`.
-
-Change any values at the top as needed, such as the `session_id` (equivalent to the 'eid' of ONE).
-
-Then run the script.
-
-
-
-# Upload to DANDI
-
-Set the environment variable `DANDI_API_KEY`, obtainable from clicking on your initials in the top right of https://dandiarchive.org/dandiset.
-
-In an fresh environment, install the DANDI CLI:
-
-```
-pip install dandi
+```bash
+uv run python src/ibl_to_nwb/_scripts/convert_single_bwm_to_nwb.py <session-eid>
 ```
 
-Download a shell of the dandiset:
+Or edit `TARGET_EID` in the script and run without arguments. The script
+requires ONE API credentials (you will be prompted on first use).
+
+## Project structure
 
 ```
-dandi download DANDI:000409 --download dandiset.yaml
+src/ibl_to_nwb/
+├── datainterfaces/      # Modality-specific data readers
+├── converters/          # High-level orchestrators
+├── conversion/          # Entry points (raw.py, processed.py, session.py)
+├── utils/               # Shared utilities (atlas, electrodes, etc.)
+├── _metadata/           # YAML metadata templates
+├── _scripts/            # Conversion and debugging scripts
+└── _aws/                # AWS distributed infrastructure
 ```
 
-All outputs from the conversion scripts should be pre-organized, so we can just directly move all the `sub-` folders from the conversion output directory into the Dandiset folder. This should appear like:
+## Environment
 
-```
-|- 000409
-|   |- sub-CSH-ZAR-001
-|   |-   |- sub-CSH-ZAR-001_ses-3e7..._desc-processed_behavior+ecephys.nwb
-|   |-   |- sub-CSH-ZAR-001_ses-3e7..._desc-raw_ecephys+image.nwb
-|   |-   |- ...
-|   |- ...
-```
+- Python 3.10+ (tested on 3.10, 3.12, 3.13)
+- Uses `uv` for dependency management
+- Lock files: `uv.lock`, `pylock.toml` (PEP 751), `environment.yml` (conda)
 
+## License
 
-From a working directory of `000409`, you can either scan for validations directly with:
+BSD 3-Clause License. See LICENSE file for details.
 
-```
-dandi validate .
-```
+## Citation
 
-Of course, all assets ought to be valid, so you could also just directly upload the data to DANDI (this will also run validation as it iterates through the files):
+If you use this dataset or pipeline in your research, please cite:
 
-```
-dandi upload
-```
+- The International Brain Laboratory et al., "Brain Wide Map" (2024). DANDI:000409.
+- NWB: Neurodata Without Borders
+- NeuroConv

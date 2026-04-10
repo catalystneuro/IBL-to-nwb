@@ -2,12 +2,14 @@ import logging
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from brainbox.io.one import SessionLoader, SpikeSortingLoader
-from iblatlas.atlas import AllenAtlas
 from numpy.testing import assert_array_equal, assert_array_less
 from one.api import ONE
 from pandas.testing import assert_frame_equal
 from pynwb import NWBHDF5IO, NWBFile
+
+from ibl_to_nwb.datainterfaces._brainwide_map_trials_interface import IBL_TO_NWB_COLUMNS
 
 # from brainwidemap.bwm_loading import bwm_query
 from ibl_to_nwb.fixtures import load_fixtures
@@ -46,17 +48,20 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
             _check_trials_data(nwbfile=nwbfile, one=one)
             _check_wheel_data(nwbfile=nwbfile, one=one)
             _check_spike_sorting_data(nwbfile=nwbfile, one=one)
+            _check_waveform_electrode_alignment(nwbfile=nwbfile)
+            _check_passive_data(nwbfile=nwbfile, one=one)
 
             # these are not always present for all datasets, therefore check for existence first
-            for data_interface_name in nwbfile.processing["camera"].data_interfaces.keys():
-                if "Pose" in data_interface_name:
-                    _check_pose_estimation_data(nwbfile=nwbfile, one=one)
-                if "Motion" in data_interface_name:
-                    _check_roi_motion_energy_data(nwbfile=nwbfile, one=one)
-                if "Pupil" in data_interface_name:
-                    _check_pupil_tracking_data(nwbfile=nwbfile, one=one)
-                if "Lick" in data_interface_name:
-                    _check_lick_data(nwbfile=nwbfile, one=one)
+            if "camera" in nwbfile.processing:
+                for data_interface_name in nwbfile.processing["camera"].data_interfaces.keys():
+                    if "Pose" in data_interface_name:
+                        _check_pose_estimation_data(nwbfile=nwbfile, one=one)
+                    if "Motion" in data_interface_name:
+                        _check_roi_motion_energy_data(nwbfile=nwbfile, one=one)
+                    if "Pupil" in data_interface_name:
+                        _check_pupil_tracking_data(nwbfile=nwbfile, one=one)
+                    if "Lick" in data_interface_name:
+                        _check_lick_data(nwbfile=nwbfile, one=one)
 
         # run checks for raw files
         if "raw_ecephys+image" in str(nwbfile_path):
@@ -67,11 +72,11 @@ def check_nwbfile_for_consistency(*, one: ONE, nwbfile_path: Path):
 def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["wheel"]
-    wheel_position_series = processing_module.data_interfaces["CompassDirection"].spatial_series["WheelPositionSeries"]
+    wheel_position_series = processing_module.data_interfaces["WheelPosition"]
     wheel_movement_table = processing_module.data_interfaces["WheelMovementIntervals"][:]
 
     # wheel position
@@ -99,7 +104,7 @@ def _check_wheel_data(*, one: ONE, nwbfile: NWBFile):
 def _check_lick_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["camera"]
@@ -115,7 +120,7 @@ def _check_roi_motion_energy_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     camera_views = ["body", "left", "right"]
@@ -141,11 +146,15 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
     processing_module = nwbfile.processing["camera"]
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
+
+    session_loader = SessionLoader(one=one, eid=eid, revision=revision)
+    session_loader.load_pose(tracker="dlc")  # TODO to be externalized
 
     camera_views = ["body", "left", "right"]
     for view in camera_views:
+        pose_data = session_loader.pose[f"{view}Camera"]
         data_interface_name = f"PoseEstimation{view.capitalize()}Camera"
         if data_interface_name in processing_module.data_interfaces.keys():
             pose_estimation_container = processing_module.data_interfaces[data_interface_name]
@@ -154,17 +163,17 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
             for node in nodes:
                 # x
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 0]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_x"].values
+                data_from_ONE = pose_data[f"{node}_x"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # y
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].data[:][:, 1]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_y"].values
+                data_from_ONE = pose_data[f"{node}_y"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # confidence
                 data_from_NWB = pose_estimation_container.pose_estimation_series[node].confidence[:]
-                data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.dlc.pqt", **load_kwargs)[f"{node}_likelihood"].values
+                data_from_ONE = pose_data[f"{node}_likelihood"].values
                 assert_array_equal(x=data_from_ONE, y=data_from_NWB)
 
                 # timestamps
@@ -174,40 +183,106 @@ def _check_pose_estimation_data(*, one: ONE, nwbfile: NWBFile):
             _logger.debug(f"pose estimation for {view} passed")
 
 
+def _apply_tidy_trials_transformations(trials: pd.DataFrame) -> pd.DataFrame:
+    """
+    Apply tidy data transformations to trials DataFrame for consistency checking.
+
+    This mirrors the transformations in BrainwideMapTrialsInterface._apply_tidy_transformations
+    to enable consistency checking between ONE source data and NWB output.
+
+    Transformations applied:
+    - choice: -1/0/+1 -> "left"/"no_response"/"right"
+    - feedbackType: -1/+1 -> True/False (is_mouse_rewarded)
+    - contrastLeft/contrastRight -> gabor_stimulus_contrast + gabor_stimulus_side
+
+    Note: block_index and block_type are excluded from consistency checking because they are
+    deterministically computed from probabilityLeft. If probabilityLeft matches, these
+    derived columns will automatically be correct.
+    """
+    trials = trials.copy()
+
+    # Transform choice: -1 -> "left", 0 -> "no_response", +1 -> "right"
+    choice_map = {-1.0: "left", 0.0: "no_response", 1.0: "right"}
+    trials["choice"] = trials["choice"].map(choice_map)
+
+    # Transform feedbackType to boolean: +1 -> True (rewarded), -1 -> False (not rewarded)
+    trials["is_mouse_rewarded"] = trials["feedbackType"] == 1.0
+
+    # Consolidate contrast columns into gabor_stimulus_contrast + gabor_stimulus_side
+    #
+    # IBL encodes stimulus side using contrastLeft/contrastRight columns where one column
+    # contains the contrast value and the other is NaN. This comes from the IBL extraction
+    # pipeline (ibllib/io/extractors/biased_trials.py ContrastLR extractor):
+    #
+    #   contrastLeft = [t['contrast'] if np.sign(t['position']) < 0 else np.nan ...]
+    #   contrastRight = [t['contrast'] if np.sign(t['position']) > 0 else np.nan ...]
+    #
+    # The stimulus position determines which column gets the value:
+    #   - position < 0 (left, -35 deg): contrastLeft = contrast, contrastRight = NaN
+    #   - position > 0 (right, +35 deg): contrastRight = contrast, contrastLeft = NaN
+    #
+    # This applies to ALL contrast levels including 0% contrast trials. For example:
+    #   - Left 25% trial: contrastLeft=0.25, contrastRight=NaN
+    #   - Right 0% trial: contrastLeft=NaN, contrastRight=0.0
+    def compute_gabor_stimulus_side(left, right):
+        # Determine side based on which column has a non-NaN value
+        left_valid = not pd.isna(left)
+        right_valid = not pd.isna(right)
+        if left_valid and not right_valid:
+            return "left"
+        elif right_valid and not left_valid:
+            return "right"
+        elif left_valid and right_valid:
+            # Both have values - should not happen in valid IBL data, but handle defensively
+            return "left" if left >= right else "right"
+        else:
+            return "none"  # Both NaN - unexpected, indicates corrupted data
+
+    def compute_gabor_stimulus_contrast(left, right):
+        # Return the non-NaN contrast value as percentage (could be 0 for 0% contrast trials)
+        # Multiply by 100 and round to 2 decimal places
+        if not pd.isna(left) and (pd.isna(right) or left > 0):
+            return round(left * 100, 2)
+        elif not pd.isna(right):
+            return round(right * 100, 2)
+        else:
+            return np.nan  # Both NaN - unexpected
+
+    trials["gabor_stimulus_side"] = [
+        compute_gabor_stimulus_side(left, r) for left, r in zip(trials["contrastLeft"], trials["contrastRight"])
+    ]
+    trials["gabor_stimulus_contrast"] = [
+        compute_gabor_stimulus_contrast(left, r) for left, r in zip(trials["contrastLeft"], trials["contrastRight"])
+    ]
+
+    return trials
+
+
 def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
 
     data_from_NWB = nwbfile.trials[:].reset_index(drop=True)
     session_loader = SessionLoader(one=one, eid=eid, revision=revision)
     session_loader.load_trials()
     data_from_ONE = session_loader.trials.reset_index(drop=True)
 
-    # data_from_ONE = one.load_dataset(eid, "_ibl_trials.table", collection="alf")
-    # data_from_ONE["stimOff_times"] = one.load_dataset(eid, "_ibl_trials.stimOff_times", collection="alf")
-    # data_from_ONE.index.name = "id"
+    # Apply tidy transformations to match NWB format
+    data_from_ONE = _apply_tidy_trials_transformations(data_from_ONE)
 
-    naming_map = {
-        "start_time": "intervals_0",
-        "stop_time": "intervals_1",
-        "choice": "choice",
-        "feedback_type": "feedbackType",
-        "reward_volume": "rewardVolume",
-        "contrast_left": "contrastLeft",
-        "contrast_right": "contrastRight",
-        "probability_left": "probabilityLeft",
-        "feedback_time": "feedback_times",
-        "response_time": "response_times",
-        "stim_off_time": "stimOff_times",
-        "stim_on_time": "stimOn_times",
-        "go_cue_time": "goCue_times",
-        "first_movement_time": "firstMovement_times",
-    }
+    # Use imported mapping (IBL -> NWB), invert it for NWB -> IBL lookup
+    nwb_to_ibl = {nwb: ibl for ibl, nwb in IBL_TO_NWB_COLUMNS.items()}
+
+    # Exclude derived columns from validation (block_type, block_index are deterministically
+    # computed from probabilityLeft, so checking them is redundant)
+    derived_columns = {"block_type", "block_index"}
+    nwb_columns_to_check = [col for col in data_from_NWB.columns if col not in derived_columns]
 
     # reordering and renaming the columns
-    data_from_ONE = data_from_ONE[[naming_map[col] for col in data_from_NWB.columns]]
-    data_from_ONE.columns = naming_map.keys()
+    data_from_ONE = data_from_ONE[[nwb_to_ibl[col] for col in nwb_columns_to_check]]
+    data_from_NWB = data_from_NWB[nwb_columns_to_check]
+    data_from_ONE.columns = nwb_columns_to_check
 
     assert_frame_equal(left=data_from_NWB, right=data_from_ONE)
     _logger.debug("trials table passed")
@@ -216,7 +291,7 @@ def _check_trials_data(*, one: ONE, nwbfile: NWBFile):
 def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     processing_module = nwbfile.processing["camera"]
@@ -229,24 +304,66 @@ def _check_pupil_tracking_data(*, one: ONE, nwbfile: NWBFile):
 
             # raw
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}RawPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_raw"].values
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
+                "pupilDiameter_raw"
+            ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+
+            # timestamps
+            timestamps_from_NWB = pupil_tracking_container.time_series[
+                f"{view.capitalize()}RawPupilDiameter"
+            ].timestamps[:]
+            timestamps_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.times.npy", **load_kwargs)
+            assert_array_equal(x=timestamps_from_NWB, y=timestamps_from_ONE)
 
             # smooth
             data_from_NWB = pupil_tracking_container.time_series[f"{view.capitalize()}SmoothedPupilDiameter"].data[:]
-            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)["pupilDiameter_smooth"].values
-
+            data_from_ONE = one.load_dataset(eid, f"_ibl_{view}Camera.features.pqt", **load_kwargs)[
+                "pupilDiameter_smooth"
+            ].values
             assert_array_equal(x=data_from_ONE, y=data_from_NWB)
+
             _logger.debug(f"pupil data for {view} passed")
+
+
+def _check_waveform_electrode_alignment(*, nwbfile: NWBFile):
+    """
+    Verify that waveform_mean channels are correctly aligned with electrodes.
+
+    The geometric reconstruction stores waveforms sorted by electrode depth (rel_y).
+    This check verifies that for each unit, the electrode depths are already in sorted order,
+    confirming that waveform_mean[:, i] correctly corresponds to electrodes[i].
+    """
+    eid = nwbfile.session_id
+    _logger = get_logger(eid)
+
+    units_df = nwbfile.units.to_dataframe()
+
+    for unit_id, unit in units_df.iterrows():
+        electrode_depths = unit["electrodes"]["rel_y"].values
+        sorted_depths = np.sort(electrode_depths)
+
+        # Verify electrodes are stored in depth-sorted order
+        if not np.array_equal(electrode_depths, sorted_depths):
+            raise AssertionError(
+                f"Unit {unit_id}: electrode depths are not sorted. "
+                f"Waveform-electrode alignment may be incorrect. "
+                f"Original: {electrode_depths[:5]}..., Sorted: {sorted_depths[:5]}..."
+            )
+
+    _logger.debug(f"waveform electrode alignment passed ({len(units_df)} units checked)")
 
 
 def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     bwm_df = load_fixtures.load_bwm_df()
-    pids, probe_names = eid2pid(eid, bwm_df)
-    pids = dict(zip(probe_names, pids))
+
+    raw_ephys_datasets = one.list_datasets(eid=eid, collection="raw_ephys_data/*")
+    probe_names = set([filename.split("/")[1] for filename in raw_ephys_datasets])
+    # pids, probe_names = eid2pid(eid, bwm_df)
+    # pids = dict(zip(probe_names, pids))
 
     units_table = nwbfile.units[:]
     # probe_names = units_table["probe_name"].unique()
@@ -276,13 +393,17 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
         spikes[probe_name]["clusters"] = spikes[probe_name]["clusters"][sort_ix]
 
     for ix in units_table.index:
-        probe_name, uuid = units_table.loc[ix, ["probe_name", "cluster_uuid"]]
+        probe_name_nwb, uuid = units_table.loc[ix, ["probe_name", "cluster_uuid"]]
+        # NWB uses PascalCase (Probe00), ONE uses lowercase (probe00)
+        probe_name = probe_name_nwb.lower()
         assert uuid in clusters[probe_name]["uuids"].values
         spike_times_from_NWB = units_table.loc[ix, "spike_times"]
 
         cluster_id = np.where(clusters[probe_name]["uuids"] == uuid)[0][0]
         # spikes[probe_name]["clusters"]
-        spike_times_from_ONE = get_spikes_for_cluster(spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id)
+        spike_times_from_ONE = get_spikes_for_cluster(
+            spikes[probe_name]["clusters"], spikes[probe_name]["times"], cluster_id
+        )
 
         # more verbose but slower for more than ~20 checks
         # spike_times_from_ONE = spike_times[probe_name][spike_clusters[probe_name] == cluster_id]
@@ -293,28 +414,33 @@ def _check_spike_sorting_data(*, one: ONE, nwbfile: NWBFile):
     _logger.debug("spike times passed")
 
     # test unit locations
-    units_nwb = nwbfile.units[:]
-    units_df = load_fixtures.load_bwm_units_df()
-    units_ids = units_df.groupby("eid").get_group(eid)["uuids"]
-
-    # beryl
-    one_beryl = units_df.set_index("uuids").loc[units_ids, "Beryl"]
-    nwb_beryl = units_nwb.set_index("cluster_uuid").loc[units_ids, "beryl_location"]
-    np.testing.assert_array_equal(one_beryl.values, nwb_beryl.values)
-
-    # allen
-    atlas = AllenAtlas()
-    atlas_ids = units_df.set_index("uuids").loc[units_ids, "atlas_id"]
-    one_allen = np.array([atlas.regions.id2acronym(i)[0] for i in atlas_ids])
-    nwb_allen = units_nwb.set_index("cluster_uuid").loc[units_ids, "allen_location"].values
-    np.testing.assert_array_equal(one_allen, nwb_allen)
-    _logger.debug("brain regions for units passed")
+    # NOTE: Brain region information is stored in the electrodes table and the
+    # IblAnatomicalCoordinatesTables (IBL-Bregma, CCF), not on the units table directly.
+    # The units table uses max_electrode to link to electrodes which have the location.
+    # These checks are commented out until we implement proper cross-table validation.
+    #
+    # units_nwb = nwbfile.units[:]
+    # units_df = load_fixtures.load_bwm_units_df()
+    # units_ids = units_df.groupby("eid").get_group(eid)["uuids"]
+    #
+    # # beryl
+    # one_beryl = units_df.set_index("uuids").loc[units_ids, "Beryl"]
+    # nwb_beryl = units_nwb.set_index("cluster_uuid").loc[units_ids, "beryl_location"]
+    # np.testing.assert_array_equal(one_beryl.values, nwb_beryl.values)
+    #
+    # # allen
+    # atlas = AllenAtlas()
+    # atlas_ids = units_df.set_index("uuids").loc[units_ids, "atlas_id"]
+    # one_allen = np.array([atlas.regions.id2acronym(i)[0] for i in atlas_ids])
+    # nwb_allen = units_nwb.set_index("cluster_uuid").loc[units_ids, "allen_location"].values
+    # np.testing.assert_array_equal(one_allen, nwb_allen)
+    # _logger.debug("brain regions for units passed")
 
 
 def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band: str = "ap"):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
 
     # comparing probe names
     # get the pid/pname mapping for this eid
@@ -331,23 +457,24 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 
     imec_to_pname = dict(zip(pname_to_imec.values(), pname_to_imec.keys()))
     imecs = [key.split(band.upper())[1] for key in list(nwbfile.acquisition.keys()) if band.upper() in key]
-    pnames_nwb = [imec_to_pname[imec] for imec in imecs]
-
-    assert set(pnames_one) == set(pnames_nwb)
+    if len(pnames_one) > 1:
+        pnames_nwb = [imec_to_pname[imec] for imec in imecs]
+        assert set(pnames_one) == set(pnames_nwb)
 
     # comparing ephys samples
-    for pname in pnames_nwb:
+    for pname in pnames_one:
         for band in ["lf", "ap"]:
             # pid = pidname_map[pname]
             spike_sorting_loader = SpikeSortingLoader(eid=eid, pname=pname, one=one, revision=revision)
-            # forcing this to run only with one in local mode (as required for SDSC)
             stream = False
-            # stream = False if "USE_SDSC_ONE" in os.environ else True
             sglx_streamer = spike_sorting_loader.raw_electrophysiology(band=band, stream=stream, revision=revision)
             data_one = sglx_streamer._raw
 
             # nwb ephys data
-            imec = pname_to_imec[pname]
+            if len(pnames_one) > 1:  # this hack deals with single probe recordings
+                imec = pname_to_imec[pname]
+            else:
+                imec = ""
             data_nwb = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].data
 
             # compare number of samples in both
@@ -375,7 +502,9 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
             nwb_timestamps = nwbfile.acquisition[f"ElectricalSeries{band.upper()}{imec}"].get_timestamps()[:]
 
             # from brainbox.io
-            brainbox_timestamps = spike_sorting_loader.samples2times(np.arange(0, n_samples_one), direction="forward", band=band)
+            brainbox_timestamps = spike_sorting_loader.samples2times(
+                np.arange(0, n_samples_one), direction="forward", band=band
+            )
 
             np.testing.assert_array_equal(nwb_timestamps, brainbox_timestamps)
             _logger.debug(f"ephys data timestamps for {pname}/{band} passed")
@@ -384,7 +513,7 @@ def _check_raw_ephys_data(*, one: ONE, nwbfile: NWBFile, pname: str = None, band
 def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     eid = nwbfile.session_id
     _logger = get_logger(eid)
-    revision = nwbfile.lab_meta_data["ibl_bwm_metadata"].revision
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
     load_kwargs = dict(collection="alf", revision=revision)
 
     # timestamps
@@ -393,7 +522,7 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     for camera in cameras:
         timestamps_nwb = nwbfile.acquisition[camera].timestamps[:]
 
-        dataset = [dataset for dataset in datasets if camera.split("OriginalVideo")[1].lower() in dataset.lower()]
+        dataset = [dataset for dataset in datasets if camera.split("Video")[1].lower() in dataset.lower()]
         timestamps_one = one.load_dataset(eid, dataset, revision=revision)
         np.testing.assert_array_equal(timestamps_nwb, timestamps_one)
         _logger.debug(f"video timestamps for {camera} passed")
@@ -403,8 +532,8 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
     cameras = [key for key in nwbfile.acquisition.keys() if key.endswith("Camera")]
 
     for camera in cameras:
-        cam = camera.split("OriginalVideo")[1].lower()
-        dataset = [dataset for dataset in datasets if cam in dataset.lower()]
+        cam = camera.split("Video")[1].lower()
+        (dataset,) = [dataset for dataset in datasets if cam in dataset.lower() and "timestamps" not in dataset]
         one_video_path = one.load_dataset(eid, dataset)
         with open(one_video_path, "rb") as fH:
             one_video_bytes = fH.read(100)
@@ -419,3 +548,57 @@ def _check_raw_video_data(*, one: ONE, nwbfile: NWBFile, nwbfile_path: str):
 
         assert one_video_bytes == nwb_video_bytes
         _logger.debug(f"video values for {camera} passed")
+
+
+def _check_passive_data(*, one: ONE, nwbfile: NWBFile):
+    eid = nwbfile.session_id
+    _logger = get_logger(eid)
+    revision = nwbfile.lab_meta_data["ibl_metadata"].revision
+    load_kwargs = dict(collection="alf", revision=revision)
+
+    # check which datasets are present
+    datasets = one.list_datasets(eid)
+
+    # has passive epochs
+    if "alf/_ibl_passivePeriods.intervalsTable.csv" in datasets:
+        passive_intervals_df = one.load_dataset(eid, "_ibl_passivePeriods.intervalsTable.csv", **load_kwargs)
+        epochs = nwbfile.intervals["epochs"][:]
+        for protocol, group in epochs.groupby("protocol_type"):
+            if protocol != "experiment":
+                start_time, stop_time = passive_intervals_df[protocol]
+                assert group["start_time"].values == start_time
+                assert group["stop_time"].values == stop_time
+
+    # has replay
+    if "alf/_ibl_passiveGabor.table.csv" in datasets:
+        taskreplay_events_df = one.load_dataset(eid, "_ibl_passiveStims.table.csv", **load_kwargs)
+        one_passive_df = []
+
+        for col_name in ["valve", "tone", "noise"]:
+            cols = [col for col in taskreplay_events_df.columns if col.startswith(col_name)]
+            df = taskreplay_events_df[cols].copy()
+            df.loc[:, "stim_type"] = col_name
+            df.columns = ["start_time", "stop_time", "stim_type"]
+            one_passive_df.append(df)
+        one_passive_df = pd.concat(one_passive_df, axis=0).sort_values("start_time").reset_index(drop=True)
+        one_passive_df.index.name = "id"
+        nwb_passive_df = nwbfile.processing["passive_protocol"].data_interfaces["passive_task_replay"][:]
+        assert_frame_equal(one_passive_df, nwb_passive_df)
+
+        one_gabor_events_df = one.load_dataset(eid, "_ibl_passiveGabor.table.csv", **load_kwargs)
+        drop_cols = [col for col in one_gabor_events_df.columns if col.startswith("Unnamed")]
+        one_gabor_events_df = one_gabor_events_df.drop(drop_cols, axis=1)
+        one_gabor_events_df.index.name = "id"
+        one_gabor_events_df = one_gabor_events_df.rename(columns={"start": "start_time", "stop": "stop_time"})
+        nwb_gabor_events_df = nwbfile.processing["passive_protocol"].data_interfaces["gabor_table"][:]
+        assert_frame_equal(one_gabor_events_df, nwb_gabor_events_df)
+
+    # receptrive field mapping
+    if "alf/_ibl_passiveRFM.times.npy" in datasets:
+        nwb_timestamps = nwbfile.processing["passive_protocol"].data_interfaces["rfm_stim"].timestamps[:]
+        one_timestamps = one.load_dataset(eid, "alf/_ibl_passiveRFM.times.npy")
+        assert_array_equal(nwb_timestamps, one_timestamps)
+        nwb_data = nwbfile.processing["passive_protocol"].data_interfaces["rfm_stim"].data[:]
+        path = one.load_dataset(eid, "raw_passive_data/_iblrig_RFMapStim.raw.bin")
+        one_data = np.fromfile(path, dtype=np.uint8).reshape((one_timestamps.shape[0], 15, 15))
+        assert_array_equal(nwb_data, one_data)

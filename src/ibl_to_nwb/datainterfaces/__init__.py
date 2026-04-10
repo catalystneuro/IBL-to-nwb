@@ -1,24 +1,47 @@
-from ._pose_estimation import IblPoseEstimationInterface
+from ._pose_estimation_interface import IblPoseEstimationInterface
 from ._ibl_sorting_extractor import IblSortingExtractor
 from ._ibl_sorting_interface import IblSortingInterface
-from ._ibl_streaming_interface import IblStreamingApInterface, IblStreamingLfInterface
-from ._lick_times import LickInterface
-from ._pupil_tracking import PupilTrackingInterface
-from ._roi_motion_energy import RoiMotionEnergyInterface
-from ._wheel_movement import WheelInterface
-from ._brainwide_map_trials import BrainwideMapTrialsInterface
-from ._raw_video import RawVideoInterface
+
+# from ._ibl_streaming_interface import IblStreamingApInterface, IblStreamingLfInterface
+from ._lick_times_interface import LickInterface
+from ._pupil_tracking_interface import PupilTrackingInterface
+from ._roi_motion_energy_interface import RoiMotionEnergyInterface
+from ._wheel_position_interface import WheelPositionInterface
+from ._wheel_movements_interface import WheelMovementsInterface
+from ._wheel_kinematics_interface import WheelKinematicsInterface
+from ._brainwide_map_trials_interface import BrainwideMapTrialsInterface
+from ._raw_video_interface import RawVideoInterface
+from ._session_epochs_interface import SessionEpochsInterface
+from ._ibl_passive_intervals_interface import PassiveIntervalsInterface
+from ._ibl_passive_replay_interface import PassiveReplayStimInterface
+from ._ibl_passive_rfm_interface import PassiveRFMInterface
+from ._ibl_anatomical_localization_interface import IblAnatomicalLocalizationInterface
+from ._ibl_nidq_interface import IblNIDQInterface
+from ._probe_trajectory_interface import ProbeTrajectoryInterface
+from ._ibl_neuropixels2_shank_extractor import IblNeuropixels2ShankExtractor
+from ._ibl_neuropixels2_shank_interface import IblNeuropixels2ShankInterface
 
 __all__ = [
     "BrainwideMapTrialsInterface",
     "IblPoseEstimationInterface",
     "IblSortingExtractor",
     "IblSortingInterface",
-    "IblStreamingApInterface",
-    "IblStreamingLfInterface",
+    # "IblStreamingApInterface",
+    # "IblStreamingLfInterface",
     "LickInterface",
     "PupilTrackingInterface",
     "RoiMotionEnergyInterface",
-    "WheelInterface",
+    "WheelPositionInterface",
+    "WheelMovementsInterface",
+    "WheelKinematicsInterface",
     "RawVideoInterface",
+    "SessionEpochsInterface",
+    "PassiveIntervalsInterface",
+    "PassiveReplayStimInterface",
+    "PassiveRFMInterface",
+    "IblAnatomicalLocalizationInterface",
+    "IblNIDQInterface",
+    "ProbeTrajectoryInterface",
+    "IblNeuropixels2ShankExtractor",
+    "IblNeuropixels2ShankInterface",
 ]

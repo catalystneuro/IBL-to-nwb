@@ -1,0 +1,100 @@
+# NIDQ channel metadata for IBL sessions
+#
+# This file contains NWB metadata for NIDQ channels, keyed by device name
+# as defined in wiring.json. Channel IDs are determined dynamically from
+# wiring.json at runtime - only device names need to match.
+#
+# Structure:
+#   Events: Digital channel metadata (device_name -> name, description, meanings)
+#   TimeSeries: Analog channel metadata (device_name -> name, description)
+
+Events:
+  left_camera:
+    name: EventsLeftCamera
+    description: >-
+      Video frame acquisition times for the left-side camera (body camera).
+      Each event marks when a video frame was captured by the camera,
+      enabling temporal alignment of behavior videos with neural and task data.
+    meanings:
+      exposure_end: Camera exposure end or frame readout complete
+      frame_start: Camera frame acquisition start (frame timestamp)
+
+  right_camera:
+    name: EventsRightCamera
+    description: >-
+      Video frame acquisition times for the right-side camera (body camera).
+      Each event marks when a video frame was captured by the camera,
+      enabling temporal alignment of behavior videos with neural and task data.
+    meanings:
+      exposure_end: Camera exposure end or frame readout complete
+      frame_start: Camera frame acquisition start (frame timestamp)
+
+  body_camera:
+    name: EventsBodyCamera
+    description: >-
+      Video frame acquisition times for the body camera.
+      Each event marks when a video frame was captured by the camera,
+      enabling temporal alignment of behavior videos with neural and task data.
+    meanings:
+      exposure_end: Camera exposure end or frame readout complete
+      frame_start: Camera frame acquisition start (frame timestamp)
+
+  imec_sync:
+    name: EventsImecSync
+    description: >-
+      Multi-probe synchronization signal (1 Hz square wave).
+      This signal is simultaneously recorded on NIDQ and all Neuropixels probes,
+      enabling precise temporal alignment across multiple recording devices.
+      The 1 Hz square wave provides regular alignment points for drift correction.
+    meanings:
+      sync_low: Sync signal low phase (0.5s duration at 1 Hz)
+      sync_high: Sync signal high phase (0.5s duration at 1 Hz)
+
+  frame2ttl:
+    name: EventsFrame2ttl
+    description: >-
+      Monitor refresh events detected by photodiode for visual stimulus timing.
+      The Frame2TTL device uses a photodiode to detect changes in screen luminance,
+      providing precise timing of when visual stimuli are displayed on the monitor.
+      This is essential for accurate stimulus-response latency measurements.
+    meanings:
+      screen_dark: Screen transitioned to dark (photodiode detected low luminance)
+      screen_bright: Screen transitioned to bright (photodiode detected high luminance)
+
+  rotary_encoder_0:
+    name: EventsRotaryEncoder0
+    description: >-
+      Rotary encoder pulses tracking wheel movement (quadrature phase A).
+      Each pulse represents a discrete angular increment of the wheel rotation,
+      used to measure behavioral responses and locomotion with high temporal precision.
+    meanings:
+      phase_low: Encoder phase transition to LOW
+      phase_high: Encoder phase transition to HIGH
+
+  rotary_encoder_1:
+    name: EventsRotaryEncoder1
+    description: >-
+      Rotary encoder pulses tracking wheel movement (quadrature phase B).
+      Combined with rotary_encoder_0, this provides directional information
+      for wheel rotation through quadrature encoding.
+    meanings:
+      phase_low: Encoder phase transition to LOW
+      phase_high: Encoder phase transition to HIGH
+
+  audio:
+    name: EventsAudio
+    description: >-
+      Auditory stimulus presentation events.
+      Marks timing of audio stimulus delivery for auditory tasks or cue presentation.
+    meanings:
+      audio_off: Audio stimulus off
+      audio_on: Audio stimulus on
+
+TimeSeries:
+  bpod:
+    name: TimeSeriesBpod
+    description: >-
+      Analog signal from Bpod behavioral control system.
+      This continuous voltage signal encodes behavioral state machine events and timestamps
+      from the Bpod system, which controls stimulus presentation and reward delivery during tasks.
+      The analog encoding allows precise temporal alignment between Bpod events and neural recordings.
