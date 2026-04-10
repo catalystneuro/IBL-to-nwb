@@ -24,6 +24,7 @@ How IBL structures and versions data.
 - [introduction_to_data_organization.md](ibl_data_organization/introduction_to_data_organization.md) - Section overview
 - [alf_data_structure.md](ibl_data_organization/alf_data_structure.md) - ALF naming convention
 - [revisions_system.md](ibl_data_organization/revisions_system.md) - Data versioning and revision tags
+- [waveform_data.md](ibl_data_organization/waveform_data.md) - Waveform data format
 
 ### [ONE API Data Access](one_api_data_access/)
 Loading IBL data using the ONE API and ibllib utilities.
@@ -58,9 +59,17 @@ Cloud infrastructure for uploads and distributed processing.
 Tools, debugging, and technical deep dives.
 
 - [introduction_to_development.md](development/introduction_to_development.md) - Section overview
-- [troubleshooting.md](development/troubleshooting.md) - Common issues and solutions
+- [lock_files.md](development/lock_files.md) - Reproducing the conversion environment
 - [nidq_timing_details.md](development/nidq_timing_details.md) - NIDQ synchronization details
-- [pose_video_widget.md](development/pose_video_widget.md) - Pose visualization tool
 - [probe_slice_visualization_guide.md](development/probe_slice_visualization_guide.md) - Probe trajectory visualization
-- [insertion_and_localization_status_nwb.md](development/insertion_and_localization_status_nwb.md) - NWB representation details
 - [one_api_bug_with_caching.md](development/one_api_bug_with_caching.md) - Known ONE API caching issues
+- [hdmf_experimental_namespace_bug.md](development/hdmf_experimental_namespace_bug.md) - HDMF experimental namespace issue
+- [waveform_sampling_rate_bug.md](development/waveform_sampling_rate_bug.md) - Waveform sampling rate bug
+- [steinmetz_trouble_sessions_patch.md](development/steinmetz_trouble_sessions_patch.md) - Steinmetz session patches
+- [witten_trouble_session_patch.md](development/witten_trouble_session_patch.md) - Witten session patches
+
+### [Neuropixels 2](neuropixels_2/)
+Neuropixels 2.0 multi-shank conversion.
+
+- [neuropixels_2.md](neuropixels_2/neuropixels_2.md) - NP2 conversion overview, caveats, and how to run
+- [neuropixels_2.ipynb](https://github.com/catalystneuro/IBL-to-nwb/blob/main/notebooks/neuropixels_2.ipynb) - Full walkthrough notebook (rendered on GitHub)
